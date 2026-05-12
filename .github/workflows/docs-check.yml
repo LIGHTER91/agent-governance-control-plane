@@ -1,0 +1,21 @@
+name: Docs check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required project files exist
+        run: |
+          test -f AGENTS.md
+          test -f README.md
+          test -f docs/PRODUCT_CHARTER.md
+          test -f docs/DOMAIN_MODEL.md
+          test -f docs/CODEX_WORKFLOW.md
+          test -f docs/TASKS.md

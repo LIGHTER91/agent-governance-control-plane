@@ -1,0 +1,14 @@
+{
+  "name": "agent-governance-control-plane-codex-starter",
+  "generated_on": "2026-05-08",
+  "purpose": "Codex-ready starter repo documentation and GitHub issue backlog",
+  "issue_count": 20,
+  "core_files": [
+    "AGENTS.md",
+    "README.md",
+    "docs/PRODUCT_CHARTER.md",
+    "docs/DOMAIN_MODEL.md",
+    "docs/CODEX_WORKFLOW.md",
+    "docs/issues/*.md"
+  ]
+}

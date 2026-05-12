@@ -1,0 +1,80 @@
+name: Codex task
+description: A scoped implementation task suitable for Codex
+title: "[Codex] "
+labels: ["codex-ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template only when the task is small, scoped, and ready for implementation.
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should Codex implement?
+      placeholder: Implement the Agent domain model...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this matter for the Agent Governance Control Plane?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Exact work to do.
+      placeholder: |
+        - Create ...
+        - Add ...
+        - Update ...
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: Explicitly list what Codex must not do.
+      placeholder: |
+        - Do not implement the dashboard.
+        - Do not add RBAC.
+        - Do not introduce Kafka.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Conditions required for completion.
+      placeholder: |
+        - Tests pass.
+        - Migration created.
+        - API returns expected schema.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Expected tests/checks
+      placeholder: |
+        - pytest ...
+        - ruff check .
+        - API test for invalid input.
+    validations:
+      required: true
+  - type: textarea
+    id: codex
+    attributes:
+      label: Codex instructions
+      value: |
+        Read AGENTS.md first.
+        Implement only this issue.
+        Use the smallest safe change.
+        Add or update tests.
+        Run relevant checks.
+        Provide a final report with completed items, tests/checks run, files changed, and risks.
+    validations:
+      required: true
