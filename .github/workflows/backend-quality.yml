@@ -9,6 +9,22 @@ on:
 jobs:
   backend-quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: agent_governance_control_plane
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agent_governance_control_plane"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      AGCP_DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5
     defaults:
       run:
         working-directory: apps/api
@@ -34,3 +50,6 @@ jobs:
 
       - name: Run ruff format check
         run: uv run ruff format --check .
+
+      - name: Run Alembic migrations
+        run: uv run alembic upgrade head
