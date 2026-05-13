@@ -109,7 +109,7 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-The backend CI workflow detects the backend project and ruff configuration before running these checks.
+The backend CI workflow runs the same `uv sync`, pytest, and ruff checks from `apps/api`.
 
 ## Definition of "done"
 
