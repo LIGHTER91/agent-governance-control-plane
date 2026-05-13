@@ -57,6 +57,7 @@ Default architecture until changed by a human:
 
 - modular monolith;
 - explicit domain modules;
+- internal Python packages/modules, not independently deployed services;
 - API-first backend;
 - PostgreSQL as primary database;
 - immutable audit records;
@@ -79,18 +80,22 @@ Do **not** introduce these unless explicitly requested and justified:
 - vector databases;
 - LLM-based policy evaluation.
 
-## Initial stack hypothesis
+## Initial backend toolchain decisions
 
 Backend:
 
-- Python;
+- Python 3.11;
+- uv for dependency management;
 - FastAPI;
-- Pydantic;
-- SQLAlchemy or SQLModel;
+- Pydantic v2;
+- SQLAlchemy 2.x;
 - Alembic;
 - pytest;
-- ruff;
+- ruff for linting and formatting;
+- PostgreSQL;
 - mypy or pyright if configured.
+
+Do not add dependencies before the issue that needs them.
 
 Frontend, when requested:
 
@@ -105,6 +110,7 @@ Use these domain terms consistently:
 
 - Agent;
 - Agent Owner;
+- Actor;
 - Environment;
 - Agent Status;
 - Risk Level;
@@ -177,16 +183,18 @@ For every implementation task:
 3. Implement the smallest safe change.
 4. Do not expand scope.
 5. Add or update tests.
-6. Run relevant checks if possible.
+6. Run relevant checks successfully.
 7. Review your own diff.
 8. Report:
    - completed items;
    - files changed;
    - tests/checks run;
+   - validation status;
    - known limitations;
    - follow-up tasks.
 
-Do not mark work as done if tests fail or were not run.
+Do not mark work as done if tests/checks fail or were not run.
+If tests/checks cannot be run because the environment is missing, report the task as "implementation complete, validation pending", not "done".
 
 ## Git rules
 
@@ -222,7 +230,29 @@ A Codex task is complete only when:
 - scope is implemented;
 - out-of-scope work was avoided;
 - tests were added or updated;
-- tests/checks were run or inability to run them is clearly stated;
+- tests/checks were run successfully;
 - no secrets are introduced;
 - public API behavior is documented;
 - remaining risks are listed.
+
+If implementation is finished but tests/checks cannot run because local tooling, services, or credentials are missing, the task status is "implementation complete, validation pending". It must not be moved to Done until validation succeeds.
+
+## Completion status
+
+A task can only be marked as DONE if:
+- implementation is complete;
+- scope was respected;
+- tests were added or updated;
+- relevant checks were run successfully;
+- no security/compliance/product boundary was violated.
+
+If implementation is complete but tests/checks cannot run because the environment is missing, mark it as:
+
+"Implementation complete — validation pending"
+
+Never mark a task as DONE if:
+- tests failed;
+- checks failed;
+- tests were skipped without reason;
+- scope was expanded;
+- production dependencies were added without justification.
