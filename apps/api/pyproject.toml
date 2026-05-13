@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "FastAPI backend for the Agent Governance Control Plane."
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "alembic>=1.14.0,<2.0.0",
     "fastapi>=0.115.0,<1.0.0",
+    "psycopg[binary]>=3.2.0,<4.0.0",
     "pydantic>=2.0.0,<3.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
     "uvicorn>=0.30.0,<1.0.0",
 ]
 
