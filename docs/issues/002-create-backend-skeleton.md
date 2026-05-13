@@ -8,12 +8,16 @@ Create a minimal FastAPI backend skeleton with healthcheck and test setup.
 
 The platform needs a small, boring backend foundation before adding domain features.
 
+Toolchain decisions:
+Use Python 3.11, uv, FastAPI, Pydantic v2, pytest, and ruff.
+
 ## Scope
 
 - Create FastAPI app under `apps/api`.
 - Add `/health` endpoint.
 - Add configuration module.
 - Add basic logging setup.
+- Add uv project metadata for the backend.
 - Add pytest configuration.
 - Add one API test for `/health`.
 
@@ -47,5 +51,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

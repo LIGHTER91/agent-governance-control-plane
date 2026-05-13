@@ -13,7 +13,8 @@ Hard constraints:
 - Do not introduce new production dependencies without justification.
 - Add or update tests.
 - Run relevant checks.
-- Provide final report with completed items, tests run, files changed, and risks.
+- Provide final report with completed items, tests run, validation status, files changed, and risks.
+- If checks cannot run because the environment is missing, report "implementation complete, validation pending" instead of "done".
 ```
 
 ## Review a PR

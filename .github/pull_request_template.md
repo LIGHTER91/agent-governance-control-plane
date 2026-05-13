@@ -22,6 +22,11 @@ List what this PR intentionally does not do.
 # Paste commands and results here
 ```
 
+## Validation status
+
+- [ ] Checks passed.
+- [ ] Implementation complete, validation pending because the environment is missing required tooling, services, or credentials.
+
 ## Security and governance checklist
 
 - [ ] No secrets added.

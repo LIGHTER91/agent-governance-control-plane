@@ -17,14 +17,28 @@ Goal: prove the governance core.
 
 Features:
 
+- Backend skeleton.
+- CI quality gates.
+- PostgreSQL and Alembic baseline.
 - Agent Registry.
 - Agent lifecycle status.
-- Tool/data/model declarations.
 - Immutable AuditLog.
+- Tool, Data Source, Model, and Permission domain models.
 - Basic Policy model.
 - Basic PolicyDecision model.
 - Minimal policy evaluator.
 - Telemetry event schema.
+
+Recommended order:
+
+1. Backend skeleton.
+2. CI quality gates.
+3. Database and migrations baseline.
+4. Agent domain model.
+5. Immutable AuditLog model.
+6. Agent Registry API.
+7. Audit records for Agent mutations.
+8. Tool, Data Source, Model, and Permission domain models.
 
 ## Phase 2 — Minimal operational control plane
 

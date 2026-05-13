@@ -13,21 +13,23 @@ Use:
 
 ```text
 Idea
-  ↓
+  ->
 Clarified
-  ↓
+  ->
 Specified
-  ↓
+  ->
 Ready for Codex
-  ↓
+  ->
 In progress
-  ↓
+  ->
 PR opened
-  ↓
+  ->
+Validation pending, if checks cannot run locally
+  ->
 Human review
-  ↓
+  ->
 Merged
-  ↓
+  ->
 Done
 ```
 
@@ -57,16 +59,18 @@ Do not introduce new production dependencies unless justified.
 
 Add or update tests.
 
-Run relevant checks if possible.
+Run relevant checks successfully.
 
 Before finishing, review your own diff and provide:
 1. what was completed;
 2. what was not completed;
 3. tests/checks run;
-4. risks or follow-up tasks;
-5. files changed.
+4. validation status;
+5. risks or follow-up tasks;
+6. files changed.
 
 Do not mark the task done if tests fail or cannot be run.
+If implementation is complete but tests/checks cannot run because the environment is missing, report "implementation complete, validation pending" and keep the task out of Done.
 ```
 
 ## PR expectations
@@ -78,6 +82,7 @@ Every PR should include:
 - scope;
 - non-goals;
 - tests run;
+- validation status;
 - screenshots if UI;
 - risks;
 - follow-up tasks.

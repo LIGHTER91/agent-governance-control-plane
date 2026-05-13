@@ -13,7 +13,8 @@ Agent lifecycle changes must be reviewable.
 - On agent create, append `agent_created` audit event.
 - On agent update, append `agent_updated` audit event.
 - On status change to suspended/retired, append specific event if useful.
-- Include actor placeholder if auth is not implemented.
+- Include `actor_type` and `actor_id` on every audit event.
+- Use a system actor or development actor placeholder if auth is not implemented.
 
 ## Non-goals
 
@@ -26,6 +27,7 @@ Agent lifecycle changes must be reviewable.
 - Creating an agent creates one audit event.
 - Updating an agent creates one audit event.
 - Audit metadata is minimal and safe.
+- Audit events always include structured actor fields.
 
 ## Expected tests/checks
 
@@ -45,5 +47,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

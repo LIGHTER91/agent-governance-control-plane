@@ -168,9 +168,33 @@ Examples:
 - human_review_requested;
 - error;
 
+## Actor
+
+The source responsible for a governance-relevant action.
+
+Initial actor types:
+
+- system;
+- development;
+- user.
+
+Before full authentication exists, audit records may use a system actor or development actor placeholder. The placeholder must still be represented with structured `actor_type` and `actor_id` fields so later authentication can replace it without changing the audit model.
+
 ## Audit Log
 
 Append-only record for governance-relevant changes.
+
+Suggested fields:
+
+- id;
+- event_type;
+- actor_type;
+- actor_id;
+- entity_type;
+- entity_id;
+- summary;
+- metadata;
+- created_at.
 
 Examples:
 

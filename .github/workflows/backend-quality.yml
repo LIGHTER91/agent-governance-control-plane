@@ -1,0 +1,62 @@
+name: Backend quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect backend quality configuration
+        id: detect
+        shell: bash
+        run: |
+          if [ -f apps/api/pyproject.toml ]; then
+            echo "backend_project=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend_project=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f apps/api/ruff.toml ] || [ -f apps/api/.ruff.toml ] || grep -q '^\[tool\.ruff' apps/api/pyproject.toml 2>/dev/null; then
+            echo "ruff_config=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ruff_config=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.detect.outputs.backend_project == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        if: steps.detect.outputs.backend_project == 'true'
+        run: python -m pip install uv
+
+      - name: Run backend tests
+        if: steps.detect.outputs.backend_project == 'true'
+        working-directory: apps/api
+        run: uv run pytest
+
+      - name: Run ruff check
+        if: steps.detect.outputs.backend_project == 'true' && steps.detect.outputs.ruff_config == 'true'
+        working-directory: apps/api
+        run: uv run ruff check .
+
+      - name: Run ruff format check
+        if: steps.detect.outputs.backend_project == 'true' && steps.detect.outputs.ruff_config == 'true'
+        working-directory: apps/api
+        run: uv run ruff format --check .
+
+      - name: Backend checks pending
+        if: steps.detect.outputs.backend_project != 'true'
+        run: echo "Backend project is not configured yet; pytest and ruff checks will run once apps/api/pyproject.toml exists."
+
+      - name: Ruff checks pending
+        if: steps.detect.outputs.backend_project == 'true' && steps.detect.outputs.ruff_config != 'true'
+        run: echo "Ruff config is not configured yet; ruff checks will run once apps/api ruff config exists."

@@ -8,6 +8,9 @@ Add CI checks for backend tests, linting, and docs presence.
 
 Codex output must be automatically checked before human review.
 
+Readiness/order note:
+This issue should be implemented immediately after the backend skeleton, before database and domain model work, so later implementation tasks have a validation baseline.
+
 ## Scope
 
 - Add GitHub Actions workflow for backend tests if backend exists.
@@ -26,6 +29,7 @@ Codex output must be automatically checked before human review.
 - CI runs on pull requests.
 - Failing tests block merge.
 - README or docs list commands.
+- The workflow supports the Python 3.11, uv, pytest, and ruff backend toolchain once the backend skeleton exists.
 
 ## Expected tests/checks
 
@@ -44,5 +48,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

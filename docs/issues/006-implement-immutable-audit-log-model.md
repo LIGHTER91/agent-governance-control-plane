@@ -11,10 +11,11 @@ Auditability is a core differentiator of the control plane.
 ## Scope
 
 - Add AuditLog model.
-- Add fields: id, event_type, actor_id, entity_type, entity_id, summary, metadata, created_at.
+- Add fields: id, event_type, actor_type, actor_id, entity_type, entity_id, summary, metadata, created_at.
 - Add migration.
 - Add internal service for appending audit records.
 - Ensure public API does not expose update/delete audit operations.
+- Before full authentication exists, support a system actor or development actor placeholder.
 
 ## Non-goals
 
@@ -25,6 +26,7 @@ Auditability is a core differentiator of the control plane.
 ## Acceptance criteria
 
 - AuditLog records can be appended.
+- Every AuditLog record includes actor_type and actor_id.
 - No public update/delete endpoint exists.
 - Tests verify append behavior.
 
@@ -46,5 +48,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

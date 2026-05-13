@@ -8,6 +8,9 @@ Create the initial project skeleton without implementing business logic.
 
 The repo must be ready for iterative Codex development. This task creates structure, tooling placeholders, and a clean baseline.
 
+Readiness note:
+The repository skeleton is already mostly present. Treat this issue as validation/closure work unless a required placeholder or documented folder is missing.
+
 ## Scope
 
 - Add initial backend and frontend folders if missing.
@@ -27,6 +30,7 @@ The repo must be ready for iterative Codex development. This task creates struct
 - Repository structure matches `docs/REPO_STRUCTURE.md`.
 - Required docs remain present.
 - No business logic is implemented.
+- If no structural changes are needed, record the issue as already mostly done and close it only after required checks pass.
 
 ## Expected tests/checks
 
@@ -45,5 +49,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

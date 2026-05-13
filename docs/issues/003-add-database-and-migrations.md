@@ -8,9 +8,12 @@ Add PostgreSQL persistence setup and Alembic migration baseline.
 
 Core governance entities require durable storage and migration discipline.
 
+Toolchain decisions:
+Use PostgreSQL, SQLAlchemy 2.x, and Alembic.
+
 ## Scope
 
-- Add SQLAlchemy or SQLModel setup.
+- Add SQLAlchemy 2.x setup.
 - Add database session management.
 - Add Alembic.
 - Create an empty initial migration.
@@ -45,5 +48,6 @@ Before finishing, provide:
 1. completed items;
 2. files changed;
 3. tests/checks run;
-4. known limitations;
-5. recommended follow-up tasks.
+4. validation status;
+5. known limitations;
+6. recommended follow-up tasks.

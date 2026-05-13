@@ -34,5 +34,6 @@ Why does this matter for Agent Governance Control Plane?
 - Read AGENTS.md first.
 - Stay in scope.
 - Add/update tests.
-- Run relevant checks.
-- Report risks.
+- Run relevant checks successfully.
+- If checks cannot run because the environment is missing, report "implementation complete, validation pending" instead of "done".
+- Report validation status and risks.

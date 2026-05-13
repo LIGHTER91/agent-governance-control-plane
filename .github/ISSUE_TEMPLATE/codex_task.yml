@@ -74,7 +74,8 @@ body:
         Implement only this issue.
         Use the smallest safe change.
         Add or update tests.
-        Run relevant checks.
-        Provide a final report with completed items, tests/checks run, files changed, and risks.
+        Run relevant checks successfully.
+        If checks cannot run because the environment is missing, report "implementation complete, validation pending" instead of "done".
+        Provide a final report with completed items, tests/checks run, validation status, files changed, and risks.
     validations:
       required: true
