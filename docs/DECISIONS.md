@@ -133,3 +133,30 @@ Alternatives considered:
 - Omit actor fields until authentication exists.
 - Store only a free-form actor string.
 - Implement full authentication before the audit model.
+
+## ADR-0006 - Agent owner identity convention
+
+Date: 2026-05-15
+
+Status: accepted
+
+Context:
+Agent ownership must support users, teams, services, and organizational units without treating email as the primary identity. The owner identifier should be stable enough to survive later authentication or identity-provider integration.
+
+Decision:
+Use `owner_type` and `owner_id` together as the owner identity convention:
+
+- `owner_type = "user"` -> `owner_id = "user:<external-id>"`;
+- `owner_type = "team"` -> `owner_id = "team:<slug>"`;
+- `owner_type = "service"` -> `owner_id = "service:<slug>"`;
+- `owner_type = "organization_unit"` -> `owner_id = "org_unit:<slug>"`.
+
+Consequences:
+- Email remains a contact field, not a primary owner identifier.
+- Future identity integration can map external identities into stable owner IDs.
+- Agent ownership can represent non-human owners without adding user, team, service, or organization-unit tables yet.
+
+Alternatives considered:
+- Use email as the primary owner identifier.
+- Store only a free-form owner string.
+- Add full identity tables before the Agent model.
