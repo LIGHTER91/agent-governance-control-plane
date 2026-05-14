@@ -41,7 +41,7 @@ def upgrade() -> None:
         sa.Column(
             "metadata",
             sa.JSON(),
-            server_default=sa.text("'{}'::json"),
+            server_default=sa.text("'{}'"),
             nullable=False,
         ),
         sa.Column(

@@ -29,6 +29,20 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+## API endpoints
+
+Agent Registry:
+
+- `POST /agents` creates an agent and appends an internal `agent_created` audit event.
+- `GET /agents` lists agents.
+- `GET /agents/{agent_id}` returns one agent.
+- `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
+
+Agent mutations use the development actor placeholder until authentication exists:
+
+- `actor_type = "development"`
+- `actor_id = "dev-placeholder"`
+
 ## Database migrations
 
 Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`.

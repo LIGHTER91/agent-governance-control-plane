@@ -140,7 +140,7 @@ class AuditLog(Base):
         JSON,
         nullable=False,
         default=dict,
-        server_default=text("'{}'::json"),
+        server_default=text("'{}'"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
