@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, String, Text, Uuid, text
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent_governance_api.database import Base
@@ -46,6 +46,20 @@ class ActorType(StrEnum):
     USER = "user"
     SERVICE = "service"
     DEVELOPMENT = "development"
+
+
+class PolicyStatus(StrEnum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    ARCHIVED = "archived"
+
+
+class PolicyDecisionValue(StrEnum):
+    ALLOW = "allow"
+    DENY = "deny"
+    REQUIRE_HUMAN_REVIEW = "require_human_review"
+    NOT_APPLICABLE = "not_applicable"
 
 
 class Agent(Base):
@@ -142,6 +156,105 @@ class AuditLog(Base):
         default=dict,
         server_default=text("'{}'"),
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class Policy(Base):
+    __tablename__ = "policies"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[PolicyStatus] = mapped_column(
+        Enum(
+            PolicyStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_status",
+        ),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class PolicyRule(Base):
+    __tablename__ = "policy_rules"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    policy_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("policies.id"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    condition: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class PolicyDecision(Base):
+    __tablename__ = "policy_decisions"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agent_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("agents.id"),
+        nullable=True,
+    )
+    policy_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policies.id"),
+        nullable=True,
+    )
+    rule_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_rules.id"),
+        nullable=True,
+    )
+    decision: Mapped[PolicyDecisionValue] = mapped_column(
+        Enum(
+            PolicyDecisionValue,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_decision_value",
+        ),
+        nullable=False,
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    context_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

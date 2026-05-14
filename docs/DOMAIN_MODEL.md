@@ -131,6 +131,22 @@ Do not store secrets.
 
 A governance rule or set of rules applied to agents.
 
+Suggested fields:
+
+- id;
+- name;
+- description;
+- status;
+- created_at;
+- updated_at.
+
+Allowed statuses initially:
+
+- draft;
+- active;
+- disabled;
+- archived.
+
 Examples:
 
 - "Production agents must have an owner."
@@ -145,6 +161,16 @@ A single rule within a policy.
 Initial rule format should be simple and explicit.
 
 Avoid building a full DSL too early.
+
+Suggested fields:
+
+- id;
+- policy_id;
+- name;
+- description;
+- condition;
+- created_at;
+- updated_at.
 
 ## Policy Decision
 

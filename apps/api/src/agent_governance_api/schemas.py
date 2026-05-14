@@ -4,7 +4,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from agent_governance_api.models import AgentStatus, Environment, OwnerType, RiskLevel
+from agent_governance_api.models import (
+    AgentStatus,
+    Environment,
+    OwnerType,
+    PolicyDecisionValue,
+    PolicyStatus,
+    RiskLevel,
+)
 
 
 class AgentBase(BaseModel):
@@ -63,3 +70,60 @@ class AgentRead(AgentBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class PolicyBase(BaseModel):
+    name: str
+    description: str | None = None
+    status: PolicyStatus
+
+
+class PolicyCreate(PolicyBase):
+    pass
+
+
+class PolicyRead(PolicyBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyRuleBase(BaseModel):
+    policy_id: UUID
+    name: str
+    description: str | None = None
+    condition: str
+
+
+class PolicyRuleCreate(PolicyRuleBase):
+    pass
+
+
+class PolicyRuleRead(PolicyRuleBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyDecisionBase(BaseModel):
+    agent_id: UUID | None = None
+    policy_id: UUID | None = None
+    rule_id: UUID | None = None
+    decision: PolicyDecisionValue
+    reason: str
+    context_hash: str | None = None
+
+
+class PolicyDecisionCreate(PolicyDecisionBase):
+    pass
+
+
+class PolicyDecisionRead(PolicyDecisionBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
