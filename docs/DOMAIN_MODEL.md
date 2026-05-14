@@ -44,6 +44,13 @@ Suggested fields:
 - owner_name;
 - owner_contact_email.
 
+Owner identity convention:
+
+- `owner_type = "user"` -> `owner_id = "user:<external-id>"`;
+- `owner_type = "team"` -> `owner_id = "team:<slug>"`;
+- `owner_type = "service"` -> `owner_id = "service:<slug>"`;
+- `owner_type = "organization_unit"` -> `owner_id = "org_unit:<slug>"`.
+
 ## Environment
 
 Where the agent operates.
@@ -197,8 +204,9 @@ The source responsible for a governance-relevant action.
 Initial actor types:
 
 - system;
-- development;
-- user.
+- user;
+- service;
+- development.
 
 Before full authentication exists, audit records may use a system actor or development actor placeholder. The placeholder must still be represented with structured `actor_type` and `actor_id` fields so later authentication can replace it without changing the audit model.
 
@@ -227,6 +235,8 @@ Examples:
 - policy_decision_recorded;
 - human_approval_granted;
 - human_approval_rejected.
+
+Audit metadata must contain only safe, non-sensitive context. Do not store raw prompts, credentials, tokens, secrets, private customer data, or raw sensitive payloads in audit metadata.
 
 ## Human Approval
 

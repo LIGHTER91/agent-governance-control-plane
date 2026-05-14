@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, Enum, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent_governance_api.database import Base
@@ -39,6 +39,13 @@ class OwnerType(StrEnum):
     TEAM = "team"
     SERVICE = "service"
     ORGANIZATION_UNIT = "organization_unit"
+
+
+class ActorType(StrEnum):
+    SYSTEM = "system"
+    USER = "user"
+    SERVICE = "service"
+    DEVELOPMENT = "development"
 
 
 class Agent(Base):
@@ -105,4 +112,39 @@ class Agent(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    event_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    actor_type: Mapped[ActorType] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="audit_actor_type",
+        ),
+        nullable=False,
+    )
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_: Mapped[dict[str, object]] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::json"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
     )
