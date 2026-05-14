@@ -1,4 +1,4 @@
-# [Codex] Implement Agent domain model
+git po# [Codex] Implement Agent domain model
 
 ## Objective
 
@@ -14,7 +14,7 @@ Agent Registry is the first core module of the control plane.
 - Add Environment enum: development, staging, production.
 - Add AgentStatus enum: draft, under_review, approved, active, suspended, retired.
 - Add RiskLevel enum: low, medium, high, critical.
-- Add fields: id, name, description, owner_email, owner_team, environment, status, risk_level, framework, created_at, updated_at.
+- Add fields: id, name, description, owner_type, owner_id, owner_name, owner_contact_email, environment, status, risk_level, framework, created_at, updated_at.
 - Add DB migration if persistence exists.
 
 ## Non-goals

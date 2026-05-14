@@ -13,14 +13,36 @@ Suggested fields:
 - id;
 - name;
 - description;
-- owner_email;
-- owner_team;
+- owner_type;
+- owner_id;
+- owner_name;
+- owner_contact_email;
 - environment;
 - status;
 - risk_level;
 - framework;
 - created_at;
 - updated_at.
+
+## Agent Owner
+
+The accountable owner for an agent.
+
+Owners may be represented before full identity integration exists. Email may be stored as a nullable contact field, but it is not the primary owner identifier.
+
+Allowed owner types initially:
+
+- user;
+- team;
+- service;
+- organization_unit.
+
+Suggested fields:
+
+- owner_type;
+- owner_id;
+- owner_name;
+- owner_contact_email.
 
 ## Environment
 

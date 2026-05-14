@@ -5,6 +5,7 @@ from agent_governance_api.database import (
     create_database_engine,
     get_db_session,
 )
+from agent_governance_api.models import Agent
 
 
 def test_database_engine_uses_postgresql_psycopg_url() -> None:
@@ -19,8 +20,8 @@ def test_database_engine_uses_postgresql_psycopg_url() -> None:
         engine.dispose()
 
 
-def test_declarative_base_has_empty_metadata_for_baseline() -> None:
-    assert Base.metadata.tables == {}
+def test_declarative_base_includes_agent_table() -> None:
+    assert Agent.__tablename__ in Base.metadata.tables
 
 
 def test_db_session_dependency_yields_session_without_connecting() -> None:
