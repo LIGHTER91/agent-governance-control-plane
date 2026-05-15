@@ -162,6 +162,33 @@ Initial rule format should be simple and explicit.
 
 Avoid building a full DSL too early.
 
+Supported persisted `condition` shape for the first evaluator adapter:
+
+```json
+{
+  "decision": "allow",
+  "reason": "The requested action is allowed for this context.",
+  "agent_id": "optional-agent-id",
+  "tool_name": "optional_tool_name",
+  "environment": "development",
+  "risk_level": "low"
+}
+```
+
+Required fields:
+
+- `decision`: one of `allow`, `deny`, `require_human_review`, or `not_applicable`;
+- `reason`: non-empty human-readable explanation.
+
+Optional matching fields:
+
+- `agent_id`;
+- `tool_name`;
+- `environment`: one of `development`, `staging`, or `production`;
+- `risk_level`: one of `low`, `medium`, `high`, or `critical`.
+
+Unsupported condition fields must be rejected rather than interpreted implicitly.
+
 Suggested fields:
 
 - id;
