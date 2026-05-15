@@ -202,16 +202,28 @@ Suggested fields:
 
 - id;
 - agent_id;
+- correlation_id;
 - environment;
 - started_at;
 - ended_at;
 - status;
-- user_or_system_trigger;
-- correlation_id.
+- summary;
+- metadata.
 
 ## Trace Event
 
 An event emitted during an agent run.
+
+Suggested fields:
+
+- id;
+- agent_id;
+- run_id;
+- correlation_id;
+- event_type;
+- timestamp;
+- summary;
+- metadata.
 
 Examples:
 
@@ -222,6 +234,8 @@ Examples:
 - tool_call_denied;
 - human_review_requested;
 - error;
+
+Trace event metadata must contain only safe, non-sensitive context. Do not store raw prompts, credentials, tokens, secrets, authorization headers, or raw sensitive payloads in telemetry metadata.
 
 ## Actor
 
