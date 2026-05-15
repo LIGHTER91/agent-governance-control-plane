@@ -60,6 +60,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("agent_id", sa.Uuid(), nullable=False),
         sa.Column("run_id", sa.Uuid(), nullable=False),
+        sa.Column("external_event_id", sa.String(length=255), nullable=False),
         sa.Column("correlation_id", sa.String(length=255), nullable=False),
         sa.Column(
             "event_type",
@@ -98,6 +99,12 @@ def upgrade() -> None:
             name="fk_trace_events_agent_run",
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "agent_id",
+            "run_id",
+            "external_event_id",
+            name="uq_trace_events_external_event_per_run",
+        ),
     )
 
 

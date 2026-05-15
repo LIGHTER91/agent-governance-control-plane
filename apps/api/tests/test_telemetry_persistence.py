@@ -35,9 +35,11 @@ def test_telemetry_tables_compile_for_postgresql() -> None:
     assert "FOREIGN KEY(agent_id) REFERENCES agents" in agent_runs_ddl
     assert "metadata JSON DEFAULT '{}'" in agent_runs_ddl
     assert "CREATE TABLE trace_events" in trace_events_ddl
+    assert "external_event_id VARCHAR(255) NOT NULL" in trace_events_ddl
     assert "trace_event_type" in trace_events_ddl
     assert "FOREIGN KEY(agent_id) REFERENCES agents" in trace_events_ddl
     assert "FOREIGN KEY(agent_id, run_id) REFERENCES agent_runs" in trace_events_ddl
+    assert "UNIQUE (agent_id, run_id, external_event_id)" in trace_events_ddl
 
 
 def test_trace_event_with_matching_agent_id_and_run_id_persists() -> None:
@@ -64,6 +66,7 @@ def test_trace_event_with_matching_agent_id_and_run_id_persists() -> None:
             event = TraceEventRecord(
                 agent_id=agent.id,
                 run_id=run_id,
+                external_event_id="vendor-event-123",
                 correlation_id="corr-123",
                 event_type=TraceEventType.TOOL_CALL_REQUESTED,
                 timestamp=datetime.now(UTC),
@@ -81,6 +84,7 @@ def test_trace_event_with_matching_agent_id_and_run_id_persists() -> None:
             assert saved_run.metadata_ == {"framework": "LangGraph"}
             assert saved_event.agent_id == agent.id
             assert saved_event.run_id == run_id
+            assert saved_event.external_event_id == "vendor-event-123"
             assert saved_event.event_type is TraceEventType.TOOL_CALL_REQUESTED
             assert saved_event.metadata_ == {"tool_name": "send_email"}
     finally:
@@ -113,6 +117,7 @@ def test_trace_event_with_mismatched_agent_id_and_run_id_is_rejected() -> None:
             mismatched_event = TraceEventRecord(
                 agent_id=event_agent.id,
                 run_id=run_id,
+                external_event_id="vendor-event-123",
                 correlation_id="corr-123",
                 event_type=TraceEventType.TOOL_CALL_REQUESTED,
                 timestamp=datetime.now(UTC),
@@ -120,6 +125,56 @@ def test_trace_event_with_mismatched_agent_id_and_run_id_is_rejected() -> None:
                 metadata_={},
             )
             session.add_all([run, mismatched_event])
+
+            with pytest.raises(IntegrityError):
+                session.commit()
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
+
+
+def test_duplicate_trace_event_external_id_for_same_run_is_rejected() -> None:
+    engine = create_foreign_key_test_engine()
+    Base.metadata.create_all(engine)
+
+    try:
+        with Session(engine) as session:
+            agent = build_agent()
+            session.add(agent)
+            session.flush()
+
+            run_id = uuid4()
+            run = AgentRunRecord(
+                agent_id=agent.id,
+                run_id=run_id,
+                correlation_id="corr-123",
+                environment=Environment.DEVELOPMENT,
+                status="started",
+                started_at=datetime.now(UTC),
+                summary="Agent run started.",
+                metadata_={},
+            )
+            first_event = TraceEventRecord(
+                agent_id=agent.id,
+                run_id=run_id,
+                external_event_id="vendor-event-123",
+                correlation_id="corr-123",
+                event_type=TraceEventType.TOOL_CALL_REQUESTED,
+                timestamp=datetime.now(UTC),
+                summary="Tool call requested.",
+                metadata_={},
+            )
+            duplicate_event = TraceEventRecord(
+                agent_id=agent.id,
+                run_id=run_id,
+                external_event_id="vendor-event-123",
+                correlation_id="corr-123",
+                event_type=TraceEventType.TOOL_CALL_ALLOWED,
+                timestamp=datetime.now(UTC),
+                summary="Tool call allowed.",
+                metadata_={},
+            )
+            session.add_all([run, first_event, duplicate_event])
 
             with pytest.raises(IntegrityError):
                 session.commit()
@@ -147,6 +202,7 @@ def test_telemetry_records_reject_unsafe_metadata_keys(
         "metadata_": metadata,
     }
     event_fields = {
+        "external_event_id": "vendor-event-123",
         "event_type": TraceEventType.ERROR,
         "timestamp": datetime.now(UTC),
         "summary": "Telemetry event rejected.",

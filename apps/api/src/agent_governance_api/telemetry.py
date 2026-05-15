@@ -40,6 +40,7 @@ class TraceEvent(BaseModel):
     id: UUID
     agent_id: UUID
     run_id: UUID
+    external_event_id: str | None = None
     correlation_id: str
     event_type: TraceEventType
     timestamp: datetime
@@ -51,10 +52,25 @@ class TraceEvent(BaseModel):
     def require_non_empty_text(cls, value: str) -> str:
         return _require_non_empty_text(value)
 
+    @field_validator("external_event_id")
+    @classmethod
+    def require_non_empty_external_event_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _require_non_empty_text(value)
+
     @field_validator("metadata")
     @classmethod
     def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
         return reject_unsafe_metadata_keys(value)
+
+
+class TraceEventIngestResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    run_id: UUID
+    event_type: TraceEventType
+    created_at: datetime
 
 
 def _require_non_empty_text(value: str) -> str:

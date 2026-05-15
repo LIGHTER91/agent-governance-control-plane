@@ -350,6 +350,12 @@ class TraceEventRecord(Base):
             ["agent_runs.agent_id", "agent_runs.run_id"],
             name="fk_trace_events_agent_run",
         ),
+        UniqueConstraint(
+            "agent_id",
+            "run_id",
+            "external_event_id",
+            name="uq_trace_events_external_event_per_run",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -359,6 +365,7 @@ class TraceEventRecord(Base):
         nullable=False,
     )
     run_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    external_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(255), nullable=False)
     event_type: Mapped[TraceEventType] = mapped_column(
         Enum(

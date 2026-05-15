@@ -43,6 +43,15 @@ Agent mutations use the development actor placeholder until authentication exist
 - `actor_type = "development"`
 - `actor_id = "dev-placeholder"`
 
+Telemetry:
+
+- `POST /telemetry/events` ingests a validated trace event for an existing agent.
+- If no agent run exists for the submitted `(agent_id, run_id)`, the API creates an internal `AgentRunRecord` and attaches the event to it.
+- If the matching agent run already exists, the API attaches the event to that run.
+- Telemetry ingestion is idempotent by `(agent_id, run_id, external_event_id)`. If `external_event_id` is omitted, the submitted trace event `id` is used as the external event id.
+- The same `external_event_id` may be used for a different run because the uniqueness rule is scoped to `(agent_id, run_id)`.
+- Telemetry metadata rejects unsafe key names such as `api_key`, `token`, `password`, `secret`, and `authorization`.
+
 ## Database migrations
 
 Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`.
