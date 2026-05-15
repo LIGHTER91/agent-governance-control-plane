@@ -7,10 +7,12 @@ from agent_governance_api.database import (
 )
 from agent_governance_api.models import (
     Agent,
+    AgentRunRecord,
     AuditLog,
     Policy,
     PolicyDecision,
     PolicyRule,
+    TraceEventRecord,
 )
 
 
@@ -32,6 +34,8 @@ def test_declarative_base_includes_domain_tables() -> None:
     assert Policy.__tablename__ in Base.metadata.tables
     assert PolicyRule.__tablename__ in Base.metadata.tables
     assert PolicyDecision.__tablename__ in Base.metadata.tables
+    assert AgentRunRecord.__tablename__ in Base.metadata.tables
+    assert TraceEventRecord.__tablename__ in Base.metadata.tables
 
 
 def test_db_session_dependency_yields_session_without_connecting() -> None:

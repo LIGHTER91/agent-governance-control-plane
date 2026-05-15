@@ -202,6 +202,7 @@ Suggested fields:
 
 - id;
 - agent_id;
+- run_id;
 - correlation_id;
 - environment;
 - started_at;

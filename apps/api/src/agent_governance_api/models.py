@@ -2,10 +2,25 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, Uuid, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Enum,
+    ForeignKey,
+    ForeignKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from agent_governance_api.database import Base
+from agent_governance_api.metadata_safety import (
+    SafeMetadata,
+    reject_unsafe_metadata_keys,
+)
 
 
 def enum_values(enum_class: type[StrEnum]) -> list[str]:
@@ -60,6 +75,16 @@ class PolicyDecisionValue(StrEnum):
     DENY = "deny"
     REQUIRE_HUMAN_REVIEW = "require_human_review"
     NOT_APPLICABLE = "not_applicable"
+
+
+class TraceEventType(StrEnum):
+    MODEL_CALL_STARTED = "model_call_started"
+    MODEL_CALL_COMPLETED = "model_call_completed"
+    TOOL_CALL_REQUESTED = "tool_call_requested"
+    TOOL_CALL_ALLOWED = "tool_call_allowed"
+    TOOL_CALL_DENIED = "tool_call_denied"
+    HUMAN_REVIEW_REQUESTED = "human_review_requested"
+    ERROR = "error"
 
 
 class Agent(Base):
@@ -261,3 +286,107 @@ class PolicyDecision(Base):
         default=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class AgentRunRecord(Base):
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "run_id", name="uq_agent_runs_agent_run"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agent_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("agents.id"),
+        nullable=False,
+    )
+    run_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    environment: Mapped[Environment] = mapped_column(
+        Enum(
+            Environment,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="agent_run_environment",
+        ),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class TraceEventRecord(Base):
+    __tablename__ = "trace_events"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["agent_id", "run_id"],
+            ["agent_runs.agent_id", "agent_runs.run_id"],
+            name="fk_trace_events_agent_run",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agent_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("agents.id"),
+        nullable=False,
+    )
+    run_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[TraceEventType] = mapped_column(
+        Enum(
+            TraceEventType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="trace_event_type",
+        ),
+        nullable=False,
+    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
