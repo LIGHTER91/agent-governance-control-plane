@@ -7,7 +7,7 @@ from agent_governance_api.metadata_safety import (
     SafeMetadata,
     reject_unsafe_metadata_keys,
 )
-from agent_governance_api.models import Environment, TraceEventType
+from agent_governance_api.models import Environment, PolicyDecisionValue, TraceEventType
 
 
 class AgentRun(BaseModel):
@@ -70,6 +70,16 @@ class TraceEventIngestResponse(BaseModel):
     agent_id: UUID
     run_id: UUID
     event_type: TraceEventType
+    created_at: datetime
+    policy_decision: "TraceEventPolicyDecisionResponse | None" = None
+
+
+class TraceEventPolicyDecisionResponse(BaseModel):
+    id: UUID
+    decision: PolicyDecisionValue
+    reason: str
+    policy_id: UUID | None = None
+    rule_id: UUID | None = None
     created_at: datetime
 
 

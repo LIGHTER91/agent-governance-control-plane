@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -17,6 +18,11 @@ from agent_governance_api.models import (
     AgentStatus,
     Environment,
     OwnerType,
+    Policy,
+    PolicyDecision,
+    PolicyDecisionValue,
+    PolicyRule,
+    PolicyStatus,
     RiskLevel,
     TraceEventRecord,
     TraceEventType,
@@ -81,6 +87,7 @@ def test_ingest_valid_trace_event(
     assert body["run_id"] == str(run_id)
     assert body["event_type"] == "tool_call_requested"
     assert body["created_at"]
+    assert body["policy_decision"]["decision"] == "not_applicable"
 
     [saved_event] = fetch_trace_events(session_factory)
     assert saved_event.id == event_id
@@ -96,6 +103,14 @@ def test_ingest_duplicate_trace_event_returns_existing_event(
 ) -> None:
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "The requested tool is allowed.",
+            "tool_name": "send_email",
+        },
+    )
     run_id = uuid4()
     first_event_id = uuid4()
     external_event_id = "vendor-event-123"
@@ -123,10 +138,13 @@ def test_ingest_duplicate_trace_event_returns_existing_event(
     assert first_response.status_code == 201
     assert duplicate_response.status_code == 200
     assert duplicate_response.json() == first_response.json()
+    assert first_response.json()["policy_decision"]["policy_id"] == str(policy_id)
+    assert first_response.json()["policy_decision"]["rule_id"] == str(rule_id)
     [saved_event] = fetch_trace_events(session_factory)
     assert saved_event.id == first_event_id
     assert saved_event.external_event_id == external_event_id
     assert saved_event.summary == "Tool call requested."
+    assert len(fetch_policy_decisions(session_factory)) == 1
 
 
 def test_ingest_duplicate_trace_event_does_not_create_second_record(
@@ -155,6 +173,178 @@ def test_ingest_duplicate_trace_event_does_not_create_second_record(
     )
 
     assert len(fetch_trace_events(session_factory)) == 1
+    assert len(fetch_policy_decisions(session_factory)) == 1
+
+
+def test_tool_call_requested_with_allow_policy_creates_policy_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "The requested tool is allowed.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    decision_body = response.json()["policy_decision"]
+    assert decision_body["decision"] == "allow"
+    assert decision_body["reason"] == "The requested tool is allowed."
+    assert decision_body["policy_id"] == str(policy_id)
+    assert decision_body["rule_id"] == str(rule_id)
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.decision is PolicyDecisionValue.ALLOW
+    assert saved_decision.policy_id == policy_id
+    assert saved_decision.rule_id == rule_id
+
+
+def test_tool_call_requested_with_deny_policy_creates_policy_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "deny",
+            "reason": "The requested tool is denied.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    assert response.json()["policy_decision"]["decision"] == "deny"
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.decision is PolicyDecisionValue.DENY
+    assert saved_decision.reason == "The requested tool is denied."
+
+
+def test_tool_call_requested_with_review_policy_creates_policy_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "require_human_review",
+            "reason": "The requested tool requires human review.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    assert response.json()["policy_decision"]["decision"] == "require_human_review"
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    assert saved_decision.reason == "The requested tool requires human review."
+
+
+def test_tool_call_requested_without_matching_policy_creates_not_applicable_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "deny",
+            "reason": "Only payment tools are denied.",
+            "tool_name": "send_payment",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    assert response.json()["policy_decision"]["decision"] == "not_applicable"
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.decision is PolicyDecisionValue.NOT_APPLICABLE
+    assert saved_decision.policy_id is None
+    assert saved_decision.rule_id is None
+
+
+def test_non_tool_call_requested_event_does_not_create_policy_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "deny",
+            "reason": "The requested tool is denied.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            event_type="model_call_started",
+            metadata={},
+            summary="Model call started.",
+        ),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["policy_decision"] is None
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_tool_call_requested_missing_tool_name_is_rejected(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id, metadata={}),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "metadata.tool_name is required for tool_call_requested events."
+    )
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_tool_call_policy_decision_and_trace_event_are_atomic(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "deny",
+            "reason": "Unsupported matching field.",
+            "model_name": "gpt-example",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Unsupported PolicyRule condition fields: model_name."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
 
 
 def test_ingest_allows_same_external_event_id_for_different_run(
@@ -347,6 +537,37 @@ def fetch_trace_events(session_factory: SessionFactory) -> list[TraceEventRecord
         return list(session.scalars(select(TraceEventRecord)).all())
 
 
+def fetch_policy_decisions(session_factory: SessionFactory) -> list[PolicyDecision]:
+    with session_factory() as session:
+        return list(session.scalars(select(PolicyDecision)).all())
+
+
+def create_policy_rule(
+    session_factory: SessionFactory,
+    *,
+    condition: dict[str, str],
+    status: PolicyStatus = PolicyStatus.ACTIVE,
+) -> tuple[UUID, UUID]:
+    with session_factory() as session:
+        policy = Policy(
+            name="Tool access policy",
+            description=None,
+            status=status,
+        )
+        session.add(policy)
+        session.flush()
+
+        rule = PolicyRule(
+            policy_id=policy.id,
+            name="Tool access rule",
+            description=None,
+            condition=json.dumps(condition),
+        )
+        session.add(rule)
+        session.commit()
+        return policy.id, rule.id
+
+
 def trace_event_payload(
     agent_id: UUID,
     *,
@@ -365,7 +586,7 @@ def trace_event_payload(
         "event_type": event_type,
         "timestamp": datetime.now(UTC).isoformat(),
         "summary": summary,
-        "metadata": metadata or {"tool_name": "send_email"},
+        "metadata": metadata if metadata is not None else {"tool_name": "send_email"},
     }
     if external_event_id is not None:
         payload["external_event_id"] = external_event_id
