@@ -9,6 +9,7 @@ from agent_governance_api.models import (
     Agent,
     AgentRunRecord,
     AuditLog,
+    HumanApproval,
     Policy,
     PolicyDecision,
     PolicyRule,
@@ -34,6 +35,7 @@ def test_declarative_base_includes_domain_tables() -> None:
     assert Policy.__tablename__ in Base.metadata.tables
     assert PolicyRule.__tablename__ in Base.metadata.tables
     assert PolicyDecision.__tablename__ in Base.metadata.tables
+    assert HumanApproval.__tablename__ in Base.metadata.tables
     assert AgentRunRecord.__tablename__ in Base.metadata.tables
     assert TraceEventRecord.__tablename__ in Base.metadata.tables
 

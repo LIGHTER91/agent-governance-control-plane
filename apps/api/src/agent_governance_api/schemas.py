@@ -5,8 +5,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from agent_governance_api.models import (
+    ActorType,
     AgentStatus,
     Environment,
+    HumanApprovalStatus,
     OwnerType,
     PolicyDecisionValue,
     PolicyStatus,
@@ -201,6 +203,31 @@ class PolicyDecisionCreate(PolicyDecisionBase):
 
 
 class PolicyDecisionRead(PolicyDecisionBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+
+
+class HumanApprovalBase(BaseModel):
+    agent_id: UUID
+    policy_decision_id: UUID | None = None
+    status: HumanApprovalStatus
+    requested_by_actor_type: ActorType
+    requested_by_actor_id: str
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    reason: str | None = None
+    decision_note: str | None = None
+    reviewed_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class HumanApprovalCreate(HumanApprovalBase):
+    pass
+
+
+class HumanApprovalRead(HumanApprovalBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

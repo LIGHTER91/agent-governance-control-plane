@@ -87,6 +87,14 @@ class TraceEventType(StrEnum):
     ERROR = "error"
 
 
+class HumanApprovalStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class Agent(Base):
     __tablename__ = "agents"
 
@@ -293,6 +301,76 @@ class PolicyDecision(Base):
     )
     trace_event: Mapped["TraceEventRecord | None"] = relationship(
         back_populates="policy_decisions",
+    )
+
+
+class HumanApproval(Base):
+    __tablename__ = "human_approvals"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agent_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("agents.id"),
+        nullable=False,
+    )
+    policy_decision_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_decisions.id"),
+        nullable=True,
+    )
+    status: Mapped[HumanApprovalStatus] = mapped_column(
+        Enum(
+            HumanApprovalStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="human_approval_status",
+        ),
+        nullable=False,
+    )
+    requested_by_actor_type: Mapped[ActorType] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="human_approval_requested_actor_type",
+        ),
+        nullable=False,
+    )
+    requested_by_actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    reviewed_by_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="human_approval_reviewed_actor_type",
+        ),
+        nullable=True,
+    )
+    reviewed_by_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
 

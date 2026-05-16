@@ -318,6 +318,22 @@ Allowed statuses:
 - expired;
 - cancelled.
 
+Suggested fields:
+
+- id;
+- agent_id;
+- policy_decision_id;
+- status;
+- requested_by_actor_type;
+- requested_by_actor_id;
+- reviewed_by_actor_type;
+- reviewed_by_actor_id;
+- reason;
+- decision_note;
+- created_at;
+- reviewed_at;
+- expires_at.
+
 ## Evidence Bundle
 
 An exportable package of records supporting review or audit.
