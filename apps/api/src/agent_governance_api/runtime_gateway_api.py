@@ -19,6 +19,7 @@ from agent_governance_api.models import (
     TraceEventRecord,
     TraceEventType,
 )
+from agent_governance_api.openapi_examples import RUNTIME_TOOL_CALL_DECISION_OPENAPI
 from agent_governance_api.policy_decision_service import persist_policy_decision
 from agent_governance_api.policy_evaluator import evaluate_policy
 from agent_governance_api.policy_rule_adapter import (
@@ -42,6 +43,7 @@ DEVELOPMENT_ACTOR_ID = "dev-placeholder"
     "/tool-calls/decision",
     response_model=RuntimeToolCallDecisionResponse,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra=RUNTIME_TOOL_CALL_DECISION_OPENAPI,
 )
 def decide_runtime_tool_call(
     payload: RuntimeToolCallDecisionRequest,

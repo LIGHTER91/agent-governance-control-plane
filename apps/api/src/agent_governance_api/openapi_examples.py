@@ -14,6 +14,7 @@ UPDATED_AT = "2026-01-15T12:00:00Z"
 TRACE_EVENT_TIMESTAMP = "2026-01-15T12:05:00Z"
 POLICY_DECISION_CREATED_AT = "2026-01-15T12:05:01Z"
 HUMAN_APPROVAL_CREATED_AT = "2026-01-15T12:05:02Z"
+RUNTIME_REQUEST_ID = "runtime-request-001"
 
 AGENT_CREATE_REQUEST = {
     "name": "V0 Support Assistant",
@@ -158,6 +159,81 @@ HUMAN_APPROVAL_CANCELLED_RESPONSE = {
     "status": "cancelled",
 }
 
+RUNTIME_TOOL_CALL_DECISION_REQUEST = {
+    "request_id": RUNTIME_REQUEST_ID,
+    "agent_id": AGENT_ID,
+    "run_id": RUN_ID,
+    "correlation_id": "runtime-demo-correlation",
+    "tool_name": "send_email",
+    "action_summary": "Send a support follow-up email.",
+    "metadata": {
+        "ticket_category": "support",
+        "destination_type": "customer",
+    },
+    "mode": "simulation",
+}
+
+RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE = {
+    "request_id": RUNTIME_REQUEST_ID,
+    "agent_id": AGENT_ID,
+    "run_id": RUN_ID,
+    "tool_name": "send_email",
+    "decision": "allow",
+    "proceed": True,
+    "reason": "Email tool use is allowed in simulation.",
+    "trace_event_id": TRACE_EVENT_ID,
+    "policy_decision_id": POLICY_DECISION_ID,
+    "human_approval_id": None,
+}
+
+RUNTIME_TOOL_CALL_DECISION_DENY_RESPONSE = {
+    **RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE,
+    "decision": "deny",
+    "proceed": False,
+    "reason": "Email tool use is denied in simulation.",
+}
+
+RUNTIME_TOOL_CALL_DECISION_REVIEW_RESPONSE = {
+    **RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE,
+    "decision": "require_human_review",
+    "proceed": False,
+    "reason": "Email tool use requires human review.",
+    "human_approval_id": HUMAN_APPROVAL_ID,
+}
+
+RUNTIME_TOOL_CALL_DECISION_NOT_APPLICABLE_RESPONSE = {
+    **RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE,
+    "decision": "not_applicable",
+    "proceed": False,
+    "reason": "No policy rule matched the request.",
+}
+
+RUNTIME_TELEMETRY_MODE_REQUEST = {
+    **RUNTIME_TOOL_CALL_DECISION_REQUEST,
+    "request_id": "runtime-request-telemetry",
+    "mode": "telemetry",
+}
+
+RUNTIME_ENFORCEMENT_MODE_REQUEST = {
+    **RUNTIME_TOOL_CALL_DECISION_REQUEST,
+    "request_id": "runtime-request-enforcement",
+    "mode": "enforcement",
+}
+
+RUNTIME_TELEMETRY_MODE_RESPONSE = {
+    "detail": (
+        "Runtime Gateway mode 'telemetry' is not implemented for this endpoint "
+        "yet. Only simulation mode is supported."
+    ),
+}
+
+RUNTIME_ENFORCEMENT_MODE_RESPONSE = {
+    "detail": (
+        "Runtime Gateway mode 'enforcement' is not implemented for this endpoint "
+        "yet. Only simulation mode is supported."
+    ),
+}
+
 EVIDENCE_BUNDLE_RESPONSE = {
     "agent": AGENT_RESPONSE,
     "audit_logs": [
@@ -220,6 +296,13 @@ def _example(summary: str, value: object) -> dict[str, object]:
             "summary": summary,
             "value": value,
         }
+    }
+
+
+def _named_example(summary: str, value: object) -> dict[str, object]:
+    return {
+        "summary": summary,
+        "value": value,
     }
 
 
@@ -302,6 +385,83 @@ TELEMETRY_EVENT_OPENAPI = _request_response_example(
     response_summary="Trace event with a human-review policy decision.",
     response_value=TELEMETRY_EVENT_RESPONSE,
 )
+
+RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
+    "requestBody": {
+        "content": {
+            "application/json": {
+                "examples": {
+                    "allowDecision": _named_example(
+                        "Simulate a tool call that is allowed.",
+                        RUNTIME_TOOL_CALL_DECISION_REQUEST,
+                    ),
+                    "denyDecision": _named_example(
+                        "Simulate a tool call that is denied.",
+                        RUNTIME_TOOL_CALL_DECISION_REQUEST,
+                    ),
+                    "requireHumanReviewDecision": _named_example(
+                        "Simulate a tool call requiring human review.",
+                        RUNTIME_TOOL_CALL_DECISION_REQUEST,
+                    ),
+                    "notApplicableDecision": _named_example(
+                        "Simulate a tool call with no matching policy.",
+                        RUNTIME_TOOL_CALL_DECISION_REQUEST,
+                    ),
+                    "unsupportedTelemetryMode": _named_example(
+                        "Telemetry mode is not implemented on this endpoint.",
+                        RUNTIME_TELEMETRY_MODE_REQUEST,
+                    ),
+                    "unsupportedEnforcementMode": _named_example(
+                        "Enforcement mode is not implemented on this endpoint.",
+                        RUNTIME_ENFORCEMENT_MODE_REQUEST,
+                    ),
+                }
+            }
+        }
+    },
+    "responses": {
+        "201": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "allowDecision": _named_example(
+                            "Allowed runtime simulation decision.",
+                            RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE,
+                        ),
+                        "denyDecision": _named_example(
+                            "Denied runtime simulation decision.",
+                            RUNTIME_TOOL_CALL_DECISION_DENY_RESPONSE,
+                        ),
+                        "requireHumanReviewDecision": _named_example(
+                            "Human-review runtime simulation decision.",
+                            RUNTIME_TOOL_CALL_DECISION_REVIEW_RESPONSE,
+                        ),
+                        "notApplicableDecision": _named_example(
+                            "No matching runtime policy decision.",
+                            RUNTIME_TOOL_CALL_DECISION_NOT_APPLICABLE_RESPONSE,
+                        ),
+                    }
+                }
+            }
+        },
+        "501": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "unsupportedTelemetryMode": _named_example(
+                            "Telemetry mode is not implemented on this endpoint.",
+                            RUNTIME_TELEMETRY_MODE_RESPONSE,
+                        ),
+                        "unsupportedEnforcementMode": _named_example(
+                            "Enforcement mode is not implemented on this endpoint.",
+                            RUNTIME_ENFORCEMENT_MODE_RESPONSE,
+                        ),
+                    }
+                }
+            }
+        },
+    },
+}
 
 EVIDENCE_BUNDLE_OPENAPI = _response_example(
     200,

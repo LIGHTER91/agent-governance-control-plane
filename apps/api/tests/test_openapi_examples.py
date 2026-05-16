@@ -83,6 +83,70 @@ def test_openapi_examples_represent_v0_governance_chain(
     )
 
 
+def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
+    api_client: TestClient,
+) -> None:
+    operation = api_client.get("/openapi.json").json()["paths"][
+        "/runtime/tool-calls/decision"
+    ]["post"]
+
+    request_examples = _request_examples(operation)
+    created_examples = _response_examples(operation, "201")
+    not_implemented_examples = _response_examples(operation, "501")
+
+    assert set(request_examples) == {
+        "allowDecision",
+        "denyDecision",
+        "requireHumanReviewDecision",
+        "notApplicableDecision",
+        "unsupportedTelemetryMode",
+        "unsupportedEnforcementMode",
+    }
+    assert set(created_examples) == {
+        "allowDecision",
+        "denyDecision",
+        "requireHumanReviewDecision",
+        "notApplicableDecision",
+    }
+    assert set(not_implemented_examples) == {
+        "unsupportedTelemetryMode",
+        "unsupportedEnforcementMode",
+    }
+
+    assert request_examples["allowDecision"]["value"]["mode"] == "simulation"
+    assert request_examples["allowDecision"]["value"]["metadata"] == {
+        "ticket_category": "support",
+        "destination_type": "customer",
+    }
+    assert request_examples["unsupportedTelemetryMode"]["value"]["mode"] == "telemetry"
+    assert (
+        request_examples["unsupportedEnforcementMode"]["value"]["mode"] == "enforcement"
+    )
+
+    assert created_examples["allowDecision"]["value"]["decision"] == "allow"
+    assert created_examples["allowDecision"]["value"]["proceed"] is True
+    assert created_examples["denyDecision"]["value"]["decision"] == "deny"
+    assert created_examples["denyDecision"]["value"]["proceed"] is False
+    review_response = created_examples["requireHumanReviewDecision"]["value"]
+    assert review_response["decision"] == "require_human_review"
+    assert review_response["proceed"] is False
+    assert review_response["human_approval_id"] is not None
+    assert (
+        created_examples["notApplicableDecision"]["value"]["decision"]
+        == "not_applicable"
+    )
+    assert created_examples["notApplicableDecision"]["value"]["proceed"] is False
+
+    assert (
+        "telemetry"
+        in not_implemented_examples["unsupportedTelemetryMode"]["value"]["detail"]
+    )
+    assert (
+        "enforcement"
+        in not_implemented_examples["unsupportedEnforcementMode"]["value"]["detail"]
+    )
+
+
 def test_openapi_examples_do_not_include_sensitive_payloads(
     api_client: TestClient,
 ) -> None:
