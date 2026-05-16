@@ -72,6 +72,83 @@ class AgentRead(AgentBase):
     updated_at: datetime
 
 
+EvidenceMetadataValue = str | int | float | bool | None
+EvidenceMetadata = dict[str, EvidenceMetadataValue]
+
+
+class EvidenceAuditLogRead(BaseModel):
+    id: UUID
+    event_type: str
+    actor_type: str
+    actor_id: str
+    entity_type: str
+    entity_id: str
+    summary: str
+    metadata: EvidenceMetadata
+    created_at: datetime
+
+
+class EvidenceAgentRunRead(BaseModel):
+    id: UUID
+    agent_id: UUID
+    run_id: UUID
+    correlation_id: str
+    environment: Environment
+    status: str
+    started_at: datetime
+    ended_at: datetime | None = None
+    summary: str | None = None
+    metadata: EvidenceMetadata
+    created_at: datetime
+
+
+class EvidenceTraceEventRead(BaseModel):
+    id: UUID
+    agent_id: UUID
+    run_id: UUID
+    external_event_id: str
+    correlation_id: str
+    event_type: str
+    timestamp: datetime
+    summary: str
+    metadata: EvidenceMetadata
+    created_at: datetime
+
+
+class EvidencePolicyReferenceRead(BaseModel):
+    id: UUID
+    name: str
+    status: PolicyStatus
+
+
+class EvidencePolicyRuleReferenceRead(BaseModel):
+    id: UUID
+    policy_id: UUID
+    name: str
+
+
+class EvidencePolicyDecisionRead(BaseModel):
+    id: UUID
+    agent_id: UUID | None = None
+    policy_id: UUID | None = None
+    rule_id: UUID | None = None
+    trace_event_id: UUID | None = None
+    decision: PolicyDecisionValue
+    reason: str
+    context_hash: str | None = None
+    policy: EvidencePolicyReferenceRead | None = None
+    rule: EvidencePolicyRuleReferenceRead | None = None
+    created_at: datetime
+
+
+class EvidenceBundleRead(BaseModel):
+    agent: AgentRead
+    audit_logs: list[EvidenceAuditLogRead]
+    agent_runs: list[EvidenceAgentRunRead]
+    trace_events: list[EvidenceTraceEventRead]
+    policy_decisions: list[EvidencePolicyDecisionRead]
+
+
 class PolicyBase(BaseModel):
     name: str
     description: str | None = None

@@ -7,8 +7,14 @@ from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.database import get_db_session
+from agent_governance_api.evidence import build_agent_evidence_bundle
 from agent_governance_api.models import ActorType, Agent
-from agent_governance_api.schemas import AgentCreate, AgentRead, AgentUpdate
+from agent_governance_api.schemas import (
+    AgentCreate,
+    AgentRead,
+    AgentUpdate,
+    EvidenceBundleRead,
+)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -58,6 +64,15 @@ def get_agent(
     session: Session = Depends(get_db_session),
 ) -> Agent:
     return _get_agent_or_404(session, agent_id)
+
+
+@router.get("/{agent_id}/evidence-bundle", response_model=EvidenceBundleRead)
+def export_agent_evidence_bundle(
+    agent_id: UUID,
+    session: Session = Depends(get_db_session),
+) -> EvidenceBundleRead:
+    agent = _get_agent_or_404(session, agent_id)
+    return build_agent_evidence_bundle(session, agent=agent)
 
 
 @router.patch("/{agent_id}", response_model=AgentRead)
