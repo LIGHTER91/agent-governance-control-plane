@@ -14,6 +14,12 @@ from agent_governance_api.models import (
     HumanApprovalStatus,
     PolicyDecision,
 )
+from agent_governance_api.openapi_examples import (
+    HUMAN_APPROVAL_APPROVE_OPENAPI,
+    HUMAN_APPROVAL_CANCEL_OPENAPI,
+    HUMAN_APPROVAL_CREATE_OPENAPI,
+    HUMAN_APPROVAL_REJECT_OPENAPI,
+)
 from agent_governance_api.schemas import (
     HumanApprovalDecisionRequest,
     HumanApprovalRead,
@@ -30,6 +36,7 @@ DEVELOPMENT_ACTOR_ID = "dev-placeholder"
     "/human-approvals",
     response_model=HumanApprovalRead,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra=HUMAN_APPROVAL_CREATE_OPENAPI,
 )
 def create_human_approval(
     payload: HumanApprovalRequest,
@@ -95,6 +102,7 @@ def list_agent_human_approvals(
 @router.post(
     "/human-approvals/{approval_id}/approve",
     response_model=HumanApprovalRead,
+    openapi_extra=HUMAN_APPROVAL_APPROVE_OPENAPI,
 )
 def approve_human_approval(
     approval_id: UUID,
@@ -128,6 +136,7 @@ def approve_human_approval(
 @router.post(
     "/human-approvals/{approval_id}/reject",
     response_model=HumanApprovalRead,
+    openapi_extra=HUMAN_APPROVAL_REJECT_OPENAPI,
 )
 def reject_human_approval(
     approval_id: UUID,
@@ -161,6 +170,7 @@ def reject_human_approval(
 @router.post(
     "/human-approvals/{approval_id}/cancel",
     response_model=HumanApprovalRead,
+    openapi_extra=HUMAN_APPROVAL_CANCEL_OPENAPI,
 )
 def cancel_human_approval(
     approval_id: UUID,

@@ -19,6 +19,7 @@ from agent_governance_api.models import (
     TraceEventRecord,
     TraceEventType,
 )
+from agent_governance_api.openapi_examples import TELEMETRY_EVENT_OPENAPI
 from agent_governance_api.policy_decision_service import persist_policy_decision
 from agent_governance_api.policy_evaluator import evaluate_policy
 from agent_governance_api.policy_rule_adapter import (
@@ -42,6 +43,7 @@ DEVELOPMENT_ACTOR_ID = "dev-placeholder"
     "/events",
     response_model=TraceEventIngestResponse,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra=TELEMETRY_EVENT_OPENAPI,
 )
 def ingest_trace_event(
     payload: TraceEvent,

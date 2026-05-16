@@ -1,0 +1,183 @@
+import json
+from collections.abc import Iterator
+
+import pytest
+from fastapi.testclient import TestClient
+
+from agent_governance_api.main import app
+
+
+@pytest.fixture()
+def api_client() -> Iterator[TestClient]:
+    app.openapi_schema = None
+    with TestClient(app) as client:
+        yield client
+    app.openapi_schema = None
+
+
+@pytest.mark.parametrize(
+    ("path", "method", "status_code", "has_request_body"),
+    [
+        ("/agents", "post", "201", True),
+        ("/agents", "get", "200", False),
+        ("/agents/{agent_id}", "get", "200", False),
+        ("/agents/{agent_id}", "patch", "200", True),
+        ("/telemetry/events", "post", "201", True),
+        ("/agents/{agent_id}/evidence-bundle", "get", "200", False),
+        ("/human-approvals", "post", "201", True),
+        ("/human-approvals/{approval_id}/approve", "post", "200", True),
+        ("/human-approvals/{approval_id}/reject", "post", "200", True),
+        ("/human-approvals/{approval_id}/cancel", "post", "200", False),
+    ],
+)
+def test_core_endpoints_have_v0_openapi_examples(
+    api_client: TestClient,
+    path: str,
+    method: str,
+    status_code: str,
+    has_request_body: bool,
+) -> None:
+    operation = api_client.get("/openapi.json").json()["paths"][path][method]
+
+    response_examples = _response_examples(operation, status_code)
+    assert "v0GovernanceFlow" in response_examples
+
+    if has_request_body:
+        request_examples = _request_examples(operation)
+        assert "v0GovernanceFlow" in request_examples
+
+
+def test_openapi_examples_represent_v0_governance_chain(
+    api_client: TestClient,
+) -> None:
+    schema = api_client.get("/openapi.json").json()
+    telemetry_response = _response_example_value(
+        schema["paths"]["/telemetry/events"]["post"],
+        "201",
+    )
+    evidence_bundle = _response_example_value(
+        schema["paths"]["/agents/{agent_id}/evidence-bundle"]["get"],
+        "200",
+    )
+
+    [trace_event] = evidence_bundle["trace_events"]
+    [policy_decision] = evidence_bundle["policy_decisions"]
+    [human_approval] = evidence_bundle["human_approvals"]
+    human_approval_audit_log = next(
+        audit_log
+        for audit_log in evidence_bundle["audit_logs"]
+        if audit_log["event_type"] == "human_approval_requested"
+    )
+
+    assert telemetry_response["event_type"] == "tool_call_requested"
+    assert telemetry_response["policy_decision"]["decision"] == "require_human_review"
+    assert telemetry_response["human_approval_id"] == human_approval["id"]
+    assert trace_event["id"] == telemetry_response["id"]
+    assert policy_decision["trace_event_id"] == trace_event["id"]
+    assert policy_decision["decision"] == "require_human_review"
+    assert human_approval["policy_decision_id"] == policy_decision["id"]
+    assert human_approval_audit_log["entity_id"] == human_approval["id"]
+    assert (
+        human_approval_audit_log["metadata"]["policy_decision_id"]
+        == policy_decision["id"]
+    )
+
+
+def test_openapi_examples_do_not_include_sensitive_payloads(
+    api_client: TestClient,
+) -> None:
+    schema = api_client.get("/openapi.json").json()
+    examples_blob = json.dumps(_collect_example_values(schema), sort_keys=True).lower()
+
+    for unsafe_text in [
+        "api_key",
+        "token",
+        "password",
+        "secret",
+        "authorization",
+        "raw_prompt",
+        "raw_payload",
+    ]:
+        assert unsafe_text not in examples_blob
+
+
+def _request_examples(operation: dict[str, object]) -> dict[str, object]:
+    request_body = operation["requestBody"]
+    assert isinstance(request_body, dict)
+    return _json_content_examples(request_body)
+
+
+def _response_examples(
+    operation: dict[str, object],
+    status_code: str,
+) -> dict[str, object]:
+    responses = operation["responses"]
+    assert isinstance(responses, dict)
+    response = responses[status_code]
+    assert isinstance(response, dict)
+    return _json_content_examples(response)
+
+
+def _response_example_value(
+    operation: dict[str, object],
+    status_code: str,
+) -> object:
+    return _response_examples(operation, status_code)["v0GovernanceFlow"]["value"]
+
+
+def _json_content_examples(documented_content: dict[str, object]) -> dict[str, object]:
+    content = documented_content["content"]
+    assert isinstance(content, dict)
+    json_content = content["application/json"]
+    assert isinstance(json_content, dict)
+    examples = json_content["examples"]
+    assert isinstance(examples, dict)
+    return examples
+
+
+def _optional_json_content_examples(
+    documented_content: dict[str, object],
+) -> dict[str, object]:
+    content = documented_content.get("content")
+    if not isinstance(content, dict):
+        return {}
+    json_content = content.get("application/json")
+    if not isinstance(json_content, dict):
+        return {}
+    examples = json_content.get("examples")
+    if not isinstance(examples, dict):
+        return {}
+    return examples
+
+
+def _collect_example_values(schema: dict[str, object]) -> list[object]:
+    values: list[object] = []
+    paths = schema["paths"]
+    assert isinstance(paths, dict)
+    for path_item in paths.values():
+        assert isinstance(path_item, dict)
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            request_body = operation.get("requestBody")
+            if isinstance(request_body, dict):
+                values.extend(
+                    _example_values(_optional_json_content_examples(request_body))
+                )
+            responses = operation.get("responses")
+            if not isinstance(responses, dict):
+                continue
+            for response in responses.values():
+                if isinstance(response, dict) and "content" in response:
+                    values.extend(
+                        _example_values(_optional_json_content_examples(response))
+                    )
+    return values
+
+
+def _example_values(examples: dict[str, object]) -> list[object]:
+    values: list[object] = []
+    for example in examples.values():
+        assert isinstance(example, dict)
+        values.append(example["value"])
+    return values

@@ -31,6 +31,9 @@ uv run ruff format --check .
 
 ## API endpoints
 
+OpenAPI docs are available at `/docs` and include V0 governance flow examples
+for the core backend endpoints.
+
 Agent Registry:
 
 - `POST /agents` creates an agent and appends an internal `agent_created` audit event.

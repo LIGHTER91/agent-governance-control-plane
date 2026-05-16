@@ -9,6 +9,13 @@ from agent_governance_api.audit import append_audit_log
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
 from agent_governance_api.models import ActorType, Agent
+from agent_governance_api.openapi_examples import (
+    AGENT_CREATE_OPENAPI,
+    AGENT_GET_OPENAPI,
+    AGENT_LIST_OPENAPI,
+    AGENT_UPDATE_OPENAPI,
+    EVIDENCE_BUNDLE_OPENAPI,
+)
 from agent_governance_api.schemas import (
     AgentCreate,
     AgentRead,
@@ -22,7 +29,12 @@ DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 
 
-@router.post("", response_model=AgentRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=AgentRead,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra=AGENT_CREATE_OPENAPI,
+)
 def create_agent(
     payload: AgentCreate,
     session: Session = Depends(get_db_session),
@@ -52,13 +64,13 @@ def create_agent(
     return agent
 
 
-@router.get("", response_model=list[AgentRead])
+@router.get("", response_model=list[AgentRead], openapi_extra=AGENT_LIST_OPENAPI)
 def list_agents(session: Session = Depends(get_db_session)) -> list[Agent]:
     statement = select(Agent).order_by(Agent.created_at, Agent.id)
     return list(session.scalars(statement).all())
 
 
-@router.get("/{agent_id}", response_model=AgentRead)
+@router.get("/{agent_id}", response_model=AgentRead, openapi_extra=AGENT_GET_OPENAPI)
 def get_agent(
     agent_id: UUID,
     session: Session = Depends(get_db_session),
@@ -66,7 +78,11 @@ def get_agent(
     return _get_agent_or_404(session, agent_id)
 
 
-@router.get("/{agent_id}/evidence-bundle", response_model=EvidenceBundleRead)
+@router.get(
+    "/{agent_id}/evidence-bundle",
+    response_model=EvidenceBundleRead,
+    openapi_extra=EVIDENCE_BUNDLE_OPENAPI,
+)
 def export_agent_evidence_bundle(
     agent_id: UUID,
     session: Session = Depends(get_db_session),
@@ -75,7 +91,11 @@ def export_agent_evidence_bundle(
     return build_agent_evidence_bundle(session, agent=agent)
 
 
-@router.patch("/{agent_id}", response_model=AgentRead)
+@router.patch(
+    "/{agent_id}",
+    response_model=AgentRead,
+    openapi_extra=AGENT_UPDATE_OPENAPI,
+)
 def update_agent(
     agent_id: UUID,
     payload: AgentUpdate,
