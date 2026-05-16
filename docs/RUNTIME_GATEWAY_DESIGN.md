@@ -2,7 +2,8 @@
 
 ## Status
 
-Design proposal only. No runtime gateway code exists yet.
+Design proposal with request/response schemas implemented. No runtime gateway
+endpoint, persistence flow, enforcement behavior, or SDK exists yet.
 
 This document describes a possible V1 path for runtime governance in the Agent
 Governance Control Plane. It keeps the product boundary clear: the gateway is a
@@ -66,12 +67,9 @@ POST /runtime/tool-calls/decision
   "agent_id": "11111111-1111-4111-8111-111111111111",
   "run_id": "22222222-2222-4222-8222-222222222222",
   "correlation_id": "support-run-2026-01-15-001",
-  "environment": "development",
-  "risk_level": "medium",
-  "action_type": "tool_call",
   "tool_name": "send_email",
   "action_summary": "Send a support follow-up email.",
-  "requested_at": "2026-01-15T12:05:00Z",
+  "mode": "simulation",
   "metadata": {
     "ticket_category": "support",
     "destination_type": "customer"
@@ -84,8 +82,9 @@ Rules:
 - `request_id` is required for idempotency.
 - `agent_id` must reference a registered Agent.
 - `run_id` groups related actions into an Agent Run.
-- `tool_name` is required for `action_type = "tool_call"`.
+- `tool_name` is required for governed tool call decisions.
 - `action_summary` must be short and safe for evidence review.
+- `mode` must be one of `telemetry`, `simulation`, or `enforcement`.
 - `metadata` must use the same safe metadata rules as telemetry and audit
   records.
 - The request must not include raw prompts, credentials, API keys, tokens,
@@ -98,6 +97,7 @@ Rules:
   "request_id": "vendor-request-001",
   "agent_id": "11111111-1111-4111-8111-111111111111",
   "run_id": "22222222-2222-4222-8222-222222222222",
+  "tool_name": "send_email",
   "decision": "require_human_review",
   "proceed": false,
   "reason": "Email tool use requires human review.",
@@ -113,9 +113,9 @@ Response behavior:
 - `deny`: `proceed = false`.
 - `require_human_review`: `proceed = false` until a linked HumanApproval is
   approved by a later workflow.
-- `not_applicable`: V1 should choose an explicit deployment setting. In
-  enforcement mode, the safer default is fail-closed unless a human configures
-  fail-open for a specific integration.
+- `not_applicable`: the initial request/response schema requires
+  `proceed = false`. A later runtime endpoint can add explicit fail-open or
+  fail-closed configuration before production enforcement.
 
 Trade-off: a small response is easier for SDKs to adopt, but it means clients
 must query the API later for full evidence details. That is acceptable for V1
@@ -287,18 +287,17 @@ Mitigations:
 
 ## Minimal V1 Implementation Path
 
-1. Add a runtime decision schema for governed tool calls.
-2. Add a runtime decision endpoint for `tool_call_requested`.
-3. Reuse existing Agent lookup, Agent Run creation, TraceEventRecord
+1. Add a runtime decision endpoint for `tool_call_requested`.
+2. Reuse existing Agent lookup, Agent Run creation, TraceEventRecord
    persistence, PolicyRule adapter, evaluator, PolicyDecision persistence,
    HumanApproval creation, AuditLog, and Evidence Bundle behavior.
-4. Add idempotency by `agent_id`, `run_id`, and `request_id`.
-5. Implement telemetry ingestion mode and simulation mode first.
-6. Add enforcement mode behind an explicit configuration flag.
-7. Define a fail-open/fail-closed setting before production enforcement.
-8. Add tests for allow, deny, require human review, not applicable, duplicates,
+3. Add idempotency by `agent_id`, `run_id`, and `request_id`.
+4. Implement telemetry ingestion mode and simulation mode first.
+5. Add enforcement mode behind an explicit configuration flag.
+6. Define a fail-open/fail-closed setting before production enforcement.
+7. Add tests for allow, deny, require human review, not applicable, duplicates,
    unsupported metadata, and transaction rollback.
-9. Add a small local integration example only after the endpoint behavior is
+8. Add a small local integration example only after the endpoint behavior is
    stable.
 
 V1 should stay inside the existing FastAPI modular monolith. It should not add
