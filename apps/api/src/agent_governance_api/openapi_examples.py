@@ -222,15 +222,15 @@ RUNTIME_ENFORCEMENT_MODE_REQUEST = {
 
 RUNTIME_TELEMETRY_MODE_RESPONSE = {
     "detail": (
-        "Runtime Gateway mode 'telemetry' is not implemented for this endpoint "
-        "yet. Only simulation mode is supported."
+        "Runtime Gateway telemetry mode is not implemented for this endpoint yet. "
+        "Use POST /telemetry/events for telemetry ingestion."
     ),
 }
 
 RUNTIME_ENFORCEMENT_MODE_RESPONSE = {
     "detail": (
-        "Runtime Gateway mode 'enforcement' is not implemented for this endpoint "
-        "yet. Only simulation mode is supported."
+        "Runtime Gateway enforcement mode is disabled. Set "
+        "AGCP_RUNTIME_ENFORCEMENT_ENABLED=true to enable it."
     ),
 }
 
@@ -411,8 +411,8 @@ RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
                         "Telemetry mode is not implemented on this endpoint.",
                         RUNTIME_TELEMETRY_MODE_REQUEST,
                     ),
-                    "unsupportedEnforcementMode": _named_example(
-                        "Enforcement mode is not implemented on this endpoint.",
+                    "disabledEnforcementMode": _named_example(
+                        "Enforcement mode is disabled by default.",
                         RUNTIME_ENFORCEMENT_MODE_REQUEST,
                     ),
                 }
@@ -452,8 +452,8 @@ RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
                             "Telemetry mode is not implemented on this endpoint.",
                             RUNTIME_TELEMETRY_MODE_RESPONSE,
                         ),
-                        "unsupportedEnforcementMode": _named_example(
-                            "Enforcement mode is not implemented on this endpoint.",
+                        "disabledEnforcementMode": _named_example(
+                            "Enforcement mode is disabled by default.",
                             RUNTIME_ENFORCEMENT_MODE_RESPONSE,
                         ),
                     }

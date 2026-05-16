@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import agent_governance_api.runtime_gateway_api as runtime_gateway_api
+from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
@@ -37,6 +38,7 @@ SessionFactory = Callable[[], Session]
 
 @pytest.fixture()
 def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
+    get_settings.cache_clear()
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -67,6 +69,7 @@ def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
             yield client, testing_session_factory
     finally:
         app.dependency_overrides.clear()
+        get_settings.cache_clear()
         Base.metadata.drop_all(engine)
         engine.dispose()
 
@@ -209,6 +212,129 @@ def test_runtime_simulation_without_matching_policy_returns_not_applicable(
     assert fetch_human_approvals(session_factory) == []
 
 
+def test_runtime_enforcement_with_allow_policy_returns_allow(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested tool is allowed.",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="enforcement"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "allow"
+    assert body["proceed"] is True
+    assert body["human_approval_id"] is None
+    [agent_run] = fetch_agent_runs(session_factory)
+    assert agent_run.status == "enforced"
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.ALLOW
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+    assert fetch_human_approvals(session_factory) == []
+
+
+def test_runtime_enforcement_with_deny_policy_returns_deny(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="The requested tool is denied.",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="enforcement"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["proceed"] is False
+    assert body["human_approval_id"] is None
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.DENY
+    assert fetch_human_approvals(session_factory) == []
+
+
+def test_runtime_enforcement_with_review_policy_creates_human_approval(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="enforcement"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "require_human_review"
+    assert body["proceed"] is False
+    assert body["human_approval_id"] is not None
+
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    [approval] = fetch_human_approvals(session_factory)
+    assert approval.id == UUID(body["human_approval_id"])
+    assert approval.policy_decision_id == policy_decision.id
+    assert approval.status is HumanApprovalStatus.PENDING
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+    assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.entity_id == str(approval.id)
+
+
+def test_runtime_enforcement_without_matching_policy_returns_not_applicable(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="Payment tool use is denied.",
+        tool_name="send_payment",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="enforcement"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "not_applicable"
+    assert body["proceed"] is False
+    assert body["human_approval_id"] is None
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.NOT_APPLICABLE
+    assert fetch_human_approvals(session_factory) == []
+
+
 def test_runtime_simulation_unknown_agent_returns_404(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -226,22 +352,38 @@ def test_runtime_simulation_unknown_agent_returns_404(
     assert fetch_policy_decisions(session_factory) == []
 
 
-@pytest.mark.parametrize("mode", ["telemetry", "enforcement"])
-def test_runtime_gateway_rejects_unimplemented_modes(
+def test_runtime_gateway_rejects_telemetry_mode(
     api_client: tuple[TestClient, SessionFactory],
-    mode: str,
 ) -> None:
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     payload = runtime_decision_payload(agent_id)
-    payload["mode"] = mode
+    payload["mode"] = "telemetry"
 
     response = client.post("/runtime/tool-calls/decision", json=payload)
 
     assert response.status_code == 501
     assert response.json()["detail"] == (
-        f"Runtime Gateway mode '{mode}' is not implemented for this endpoint yet. "
-        "Only simulation mode is supported."
+        "Runtime Gateway telemetry mode is not implemented for this endpoint yet. "
+        "Use POST /telemetry/events for telemetry ingestion."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+
+
+def test_runtime_gateway_rejects_enforcement_when_disabled(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    payload = runtime_decision_payload(agent_id, mode="enforcement")
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 501
+    assert response.json()["detail"] == (
+        "Runtime Gateway enforcement mode is disabled. Set "
+        "AGCP_RUNTIME_ENFORCEMENT_ENABLED=true to enable it."
     )
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
@@ -312,6 +454,44 @@ def test_duplicate_runtime_request_returns_existing_response(
     assert len(fetch_human_approval_audit_logs(session_factory)) == 1
 
 
+def test_duplicate_runtime_enforcement_request_returns_existing_response(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    run_id = uuid4()
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    first_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, run_id=run_id, mode="enforcement"),
+    )
+    duplicate_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(
+            agent_id,
+            run_id=run_id,
+            action_summary="Retried request with changed summary.",
+            mode="enforcement",
+        ),
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == first_response.json()
+    assert len(fetch_agent_runs(session_factory)) == 1
+    assert len(fetch_trace_events(session_factory)) == 1
+    assert len(fetch_policy_decisions(session_factory)) == 1
+    assert len(fetch_human_approvals(session_factory)) == 1
+    assert len(fetch_human_approval_audit_logs(session_factory)) == 1
+
+
 def test_runtime_decision_records_are_atomic_when_policy_persistence_fails(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -337,6 +517,41 @@ def test_runtime_decision_records_are_atomic_when_policy_persistence_fails(
         client.post(
             "/runtime/tool-calls/decision",
             json=runtime_decision_payload(agent_id),
+        )
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_enforcement_records_are_atomic_when_policy_persistence_fails(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="The requested tool is denied.",
+    )
+
+    def fail_policy_decision_persistence(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("policy decision persistence failed")
+
+    monkeypatch.setattr(
+        runtime_gateway_api,
+        "persist_policy_decision",
+        fail_policy_decision_persistence,
+    )
+
+    with pytest.raises(RuntimeError, match="policy decision persistence failed"):
+        client.post(
+            "/runtime/tool-calls/decision",
+            json=runtime_decision_payload(agent_id, mode="enforcement"),
         )
 
     assert fetch_agent_runs(session_factory) == []
@@ -572,6 +787,7 @@ def runtime_decision_payload(
     run_id: UUID | None = None,
     request_id: str = "runtime-request-001",
     action_summary: str = "Send a support follow-up email.",
+    mode: str = "simulation",
 ) -> dict[str, object]:
     return {
         "request_id": request_id,
@@ -581,8 +797,13 @@ def runtime_decision_payload(
         "tool_name": "send_email",
         "action_summary": action_summary,
         "metadata": {"ticket_category": "support"},
-        "mode": "simulation",
+        "mode": mode,
     }
+
+
+def enable_runtime_enforcement(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_ENFORCEMENT_ENABLED", "true")
+    get_settings.cache_clear()
 
 
 def fetch_agent_runs(session_factory: SessionFactory) -> list[AgentRunRecord]:

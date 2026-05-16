@@ -3,9 +3,9 @@
 ## Status
 
 Design proposal only. The current backend implements Runtime Gateway
-request/response schemas and a simulation-mode
-`POST /runtime/tool-calls/decision` endpoint. Telemetry mode and enforcement
-mode for this endpoint are not implemented yet.
+request/response schemas, simulation mode, and enforcement mode behind
+`AGCP_RUNTIME_ENFORCEMENT_ENABLED=false` by default. Telemetry mode for
+`POST /runtime/tool-calls/decision` is not implemented yet.
 
 This document defines failure behavior for future Runtime Gateway modes. It does
 not implement enforcement, change existing endpoint behavior, add SDK behavior,
@@ -257,7 +257,7 @@ exports where relevant.
 
 ## Recommended Follow-up Issues
 
-1. Add Runtime Gateway enforcement mode behind explicit configuration.
+1. Add enforcement failure-path tests for the configured runtime endpoint.
 2. Add an enforcement failure-policy configuration model.
 3. Add audit logging for enforcement and failure-policy configuration changes.
 4. Add tests for fail-closed behavior on unknown Agent, unsafe metadata,

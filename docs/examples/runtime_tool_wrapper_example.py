@@ -8,7 +8,8 @@ Runtime Gateway.
 Modes:
 - telemetry: observation-only; current integrations can use /telemetry/events.
 - simulation: current Runtime Gateway mode; records what the decision would be.
-- enforcement: future mode; integrations must honor proceed before acting.
+- enforcement: disabled by default; integrations must honor proceed before acting
+  when explicitly enabled.
 
 The wrapper below honors `proceed` even in simulation so the control flow is easy
 to reuse later, but simulation mode itself does not claim to block actions in

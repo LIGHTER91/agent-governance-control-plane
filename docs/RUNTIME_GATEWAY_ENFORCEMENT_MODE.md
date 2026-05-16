@@ -2,13 +2,15 @@
 
 ## Status
 
-Design proposal only. Runtime Gateway enforcement mode is not implemented yet.
-The current Runtime Gateway endpoint supports simulation mode and rejects
-telemetry and enforcement modes.
+Design proposal and implementation guide. Runtime Gateway enforcement mode is
+implemented behind explicit configuration and is disabled by default with
+`AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. The current Runtime Gateway endpoint
+supports simulation mode by default, accepts enforcement mode only when the flag
+is enabled, and still rejects telemetry mode for this endpoint.
 
-This document defines how enforcement mode should behave when it is implemented
-inside the Agent Governance Control Plane. It does not change endpoint behavior,
-add an SDK, add a LangGraph integration, or claim legal compliance.
+This document defines how enforcement mode behaves inside the Agent Governance
+Control Plane and which limitations remain. It does not add an SDK, add a
+LangGraph integration, execute tools, or claim legal compliance.
 
 ## What Enforcement Mode Means
 
@@ -280,18 +282,19 @@ database, audit, or transaction failure.
 
 ## Minimal Implementation Path
 
-1. Enable `mode = "enforcement"` behind explicit configuration.
+1. Enable `mode = "enforcement"` behind explicit configuration. Implemented
+   with `AGCP_RUNTIME_ENFORCEMENT_ENABLED`.
 2. Reuse the existing simulation workflow for Agent lookup, TraceEventRecord
    creation, policy loading, PolicyRule conversion, evaluation, PolicyDecision
    persistence, optional HumanApproval creation, AuditLog, idempotency, and
-   Evidence Bundle links.
-3. Return `proceed` according to enforcement rules:
+   Evidence Bundle links. Implemented for the initial endpoint behavior.
+3. Return `proceed` according to enforcement rules. Implemented:
    - `allow` -> `true`;
    - `deny` -> `false`;
    - `require_human_review` -> `false`;
    - `not_applicable` -> `false`.
 4. Add tests for allow, deny, human review, and not applicable enforcement
-   decisions.
+   decisions. Implemented for the backend endpoint.
 5. Add a wrapper example for enforcement mode that executes a tool only when
    `proceed = true`.
 
@@ -315,19 +318,17 @@ engine, SDK dependency, or framework dependency.
 
 ## Recommended Follow-up Issues
 
-1. Implement Runtime Gateway enforcement mode behind explicit configuration.
-2. Add enforcement-mode tests for allow, deny, require human review, and not
-   applicable decisions.
-3. Add enforcement-mode idempotency tests for duplicate `request_id` retries.
-4. Add fail-closed tests for gateway errors, unknown Agent, unsafe metadata,
+1. Add enforcement-mode failure-path tests for gateway errors and persistence
+   failures.
+2. Add enforcement-mode evidence bundle coverage tests.
+3. Add fail-closed tests for unknown Agent, unsafe metadata,
    audit failure, and PolicyDecision persistence failure.
-5. Add an enforcement wrapper example that uses `mode = "enforcement"` and
+4. Add an enforcement wrapper example that uses `mode = "enforcement"` and
    documents adapter responsibilities.
-6. Design the HumanApproval resume or retry pattern for blocked actions.
-7. Design audited configuration for future per-Agent, per-tool, environment,
+5. Design the HumanApproval resume or retry pattern for blocked actions.
+6. Design audited configuration for future per-Agent, per-tool, environment,
    and risk-level fail-open or fail-closed settings.
-8. Add Evidence Bundle tests for enforcement-mode decisions once the mode is
-   implemented.
+7. Add policy versioning before broader production enforcement.
 
 ## Open Questions
 

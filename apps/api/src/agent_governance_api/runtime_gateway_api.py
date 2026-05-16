@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
+from agent_governance_api.config import Settings, get_settings
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
     ActorType,
@@ -35,6 +36,7 @@ from agent_governance_api.runtime_gateway import (
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 SIMULATED_RUN_STATUS = "simulated"
+ENFORCED_RUN_STATUS = "enforced"
 DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 
@@ -49,13 +51,26 @@ def decide_runtime_tool_call(
     payload: RuntimeToolCallDecisionRequest,
     response: Response,
     session: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
 ) -> RuntimeToolCallDecisionResponse:
-    if payload.mode is not RuntimeDecisionMode.SIMULATION:
+    if payload.mode is RuntimeDecisionMode.TELEMETRY:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=(
-                f"Runtime Gateway mode '{payload.mode.value}' is not implemented "
-                "for this endpoint yet. Only simulation mode is supported."
+                "Runtime Gateway telemetry mode is not implemented for this "
+                "endpoint yet. Use POST /telemetry/events for telemetry ingestion."
+            ),
+        )
+
+    if (
+        payload.mode is RuntimeDecisionMode.ENFORCEMENT
+        and not settings.runtime_enforcement_enabled
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=(
+                "Runtime Gateway enforcement mode is disabled. Set "
+                "AGCP_RUNTIME_ENFORCEMENT_ENABLED=true to enable it."
             ),
         )
 
@@ -97,9 +112,9 @@ def decide_runtime_tool_call(
                 run_id=payload.run_id,
                 correlation_id=payload.correlation_id,
                 environment=agent.environment,
-                status=SIMULATED_RUN_STATUS,
+                status=_agent_run_status_for_mode(payload.mode),
                 started_at=now,
-                summary="Auto-created from runtime simulation request.",
+                summary=f"Auto-created from runtime {payload.mode.value} request.",
                 metadata_={},
                 created_at=now,
             )
@@ -190,6 +205,12 @@ def _runtime_decision_response(
         policy_decision_id=policy_decision.id,
         human_approval_id=human_approval.id if human_approval is not None else None,
     )
+
+
+def _agent_run_status_for_mode(mode: RuntimeDecisionMode) -> str:
+    if mode is RuntimeDecisionMode.ENFORCEMENT:
+        return ENFORCED_RUN_STATUS
+    return SIMULATED_RUN_STATUS
 
 
 def _evaluate_and_persist_policy_decision(

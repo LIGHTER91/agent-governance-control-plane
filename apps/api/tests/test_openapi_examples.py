@@ -100,7 +100,7 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
         "requireHumanReviewDecision",
         "notApplicableDecision",
         "unsupportedTelemetryMode",
-        "unsupportedEnforcementMode",
+        "disabledEnforcementMode",
     }
     assert set(created_examples) == {
         "allowDecision",
@@ -110,7 +110,7 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
     }
     assert set(not_implemented_examples) == {
         "unsupportedTelemetryMode",
-        "unsupportedEnforcementMode",
+        "disabledEnforcementMode",
     }
 
     assert request_examples["allowDecision"]["value"]["mode"] == "simulation"
@@ -119,9 +119,7 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
         "destination_type": "customer",
     }
     assert request_examples["unsupportedTelemetryMode"]["value"]["mode"] == "telemetry"
-    assert (
-        request_examples["unsupportedEnforcementMode"]["value"]["mode"] == "enforcement"
-    )
+    assert request_examples["disabledEnforcementMode"]["value"]["mode"] == "enforcement"
 
     assert created_examples["allowDecision"]["value"]["decision"] == "allow"
     assert created_examples["allowDecision"]["value"]["proceed"] is True
@@ -143,7 +141,11 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
     )
     assert (
         "enforcement"
-        in not_implemented_examples["unsupportedEnforcementMode"]["value"]["detail"]
+        in not_implemented_examples["disabledEnforcementMode"]["value"]["detail"]
+    )
+    assert (
+        "AGCP_RUNTIME_ENFORCEMENT_ENABLED"
+        in not_implemented_examples["disabledEnforcementMode"]["value"]["detail"]
     )
 
 

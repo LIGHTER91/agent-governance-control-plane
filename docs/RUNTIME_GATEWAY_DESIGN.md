@@ -2,9 +2,10 @@
 
 ## Status
 
-Design proposal with request/response schemas and a simulation-mode Runtime
-Gateway endpoint implemented. Telemetry mode, enforcement mode, SDKs, and
-framework adapters do not exist yet.
+Design proposal with request/response schemas, simulation mode, and enforcement
+mode behind explicit configuration implemented. Runtime Gateway enforcement is
+disabled by default with `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mode
+for this endpoint, SDKs, and framework adapters do not exist yet.
 
 This document describes a possible V1 path for runtime governance in the Agent
 Governance Control Plane. It keeps the product boundary clear: the gateway is a
@@ -215,6 +216,10 @@ Use when:
 - bypass controls are understood;
 - failure handling is agreed.
 
+Current implementation note: enforcement mode is accepted only when
+`AGCP_RUNTIME_ENFORCEMENT_ENABLED=true`. When disabled, the endpoint rejects
+`mode = "enforcement"` before creating runtime records.
+
 Trade-off: strongest control, but it adds latency, reliability requirements, and
 operational consequences if the gateway is unavailable.
 
@@ -304,7 +309,7 @@ Mitigations:
    persistence, PolicyRule adapter, evaluator, PolicyDecision persistence,
    HumanApproval creation, AuditLog, and Evidence Bundle behavior.
 3. Add idempotency by `agent_id`, `run_id`, and `request_id`.
-4. Add enforcement mode behind an explicit configuration flag.
+4. Add enforcement mode behind an explicit configuration flag. Implemented.
 5. Define a fail-open/fail-closed setting before production enforcement.
 6. Add tests for allow, deny, require human review, not applicable, duplicates,
    unsupported metadata, and transaction rollback.
@@ -318,8 +323,8 @@ service boundary.
 ## Recommended Follow-up Issues
 
 1. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-2. Add Runtime Gateway enforcement mode behind explicit configuration.
-3. Add runtime failure policy design for fail-open and fail-closed behavior.
+2. Add Runtime Gateway enforcement hardening and failure-path tests.
+3. Add runtime failure policy configuration for fail-open and fail-closed behavior.
 4. Add runtime evidence bundle coverage tests for enforcement mode.
 5. Add Policy and PolicyRule versioning design.
 6. Add HumanApproval notification design.
