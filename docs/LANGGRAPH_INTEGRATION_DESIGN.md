@@ -194,12 +194,9 @@ Example request:
   "agent_id": "11111111-1111-4111-8111-111111111111",
   "run_id": "22222222-2222-4222-8222-222222222222",
   "correlation_id": "langgraph-thread-001",
-  "environment": "development",
-  "risk_level": "medium",
-  "action_type": "tool_call",
   "tool_name": "send_email",
   "action_summary": "Send a support follow-up email.",
-  "requested_at": "2026-01-15T12:05:00Z",
+  "mode": "simulation",
   "metadata": {
     "langgraph_node": "support_followup",
     "ticket_category": "support"
@@ -214,6 +211,7 @@ Example response:
   "request_id": "langgraph-tool-call-001",
   "agent_id": "11111111-1111-4111-8111-111111111111",
   "run_id": "22222222-2222-4222-8222-222222222222",
+  "tool_name": "send_email",
   "decision": "require_human_review",
   "proceed": false,
   "reason": "Email tool use requires human review.",
@@ -402,35 +400,31 @@ Mitigation:
 
 ## Minimal V1 Implementation Path
 
-1. Keep this design as documentation until Runtime Gateway schemas exist.
-2. Implement Runtime Gateway request/response schemas in AGCP.
-3. Add runtime decision endpoint in telemetry-only or simulation mode first.
-4. Build a tiny example LangGraph-side wrapper in a separate example area, not
+1. Keep this design as documentation until a LangGraph adapter is explicitly
+   requested.
+2. Build a tiny example LangGraph-side wrapper in a separate example area, not
    as a backend dependency.
-5. Support `tool_call_requested` with `tool_name`, safe summary, and safe
+3. Support `tool_call_requested` with `tool_name`, safe summary, and safe
    metadata.
-6. Add adapter-side idempotency with stable `request_id`.
-7. Add tests with a fake tool function before adding any LangGraph dependency.
-8. Add optional LangGraph-specific adapter only after the generic wrapper shape
+4. Add adapter-side idempotency with stable `request_id`.
+5. Add tests with a fake tool function before adding any LangGraph dependency.
+6. Add optional LangGraph-specific adapter only after the generic wrapper shape
    is proven.
-9. Add enforcement mode behind explicit configuration.
-10. Add documentation for fail-open/fail-closed choices per integration.
+7. Add enforcement mode behind explicit configuration.
+8. Add documentation for fail-open/fail-closed choices per integration.
 
 This path intentionally validates the control-plane contract before adding a
 framework dependency.
 
 ## Recommended Follow-up Issues
 
-1. Add Runtime Gateway governed tool call schemas.
-2. Add Runtime Gateway decision endpoint in simulation mode.
-3. Add Runtime Gateway enforcement mode behind explicit configuration.
-4. Add runtime request idempotency tests.
-5. Add runtime failure policy configuration design.
-6. Add safe metadata allowlist helper for adapters.
-7. Add generic Python tool wrapper example without LangGraph dependency.
-8. Add LangGraph adapter spike using the generic wrapper.
-9. Add Evidence Bundle tests for runtime decision mode.
-10. Add documentation for LangGraph run ID to AGCP run ID mapping.
+1. Add Runtime Gateway enforcement mode behind explicit configuration.
+2. Add runtime failure policy configuration design.
+3. Add safe metadata allowlist helper for adapters.
+4. Add generic Python tool wrapper example without LangGraph dependency.
+5. Add LangGraph adapter spike using the generic wrapper.
+6. Add Evidence Bundle tests for LangGraph runtime decision mode.
+7. Add documentation for LangGraph run ID to AGCP run ID mapping.
 
 ## Open Questions
 

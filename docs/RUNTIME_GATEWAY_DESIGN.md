@@ -2,8 +2,9 @@
 
 ## Status
 
-Design proposal with request/response schemas implemented. No runtime gateway
-endpoint, persistence flow, enforcement behavior, or SDK exists yet.
+Design proposal with request/response schemas and a simulation-mode Runtime
+Gateway endpoint implemented. Telemetry mode, enforcement mode, SDKs, and
+framework adapters do not exist yet.
 
 This document describes a possible V1 path for runtime governance in the Agent
 Governance Control Plane. It keeps the product boundary clear: the gateway is a
@@ -287,17 +288,17 @@ Mitigations:
 
 ## Minimal V1 Implementation Path
 
-1. Add a runtime decision endpoint for `tool_call_requested`.
+1. Add telemetry mode to the Runtime Gateway endpoint when it is useful beyond
+   the existing `/telemetry/events` behavior.
 2. Reuse existing Agent lookup, Agent Run creation, TraceEventRecord
    persistence, PolicyRule adapter, evaluator, PolicyDecision persistence,
    HumanApproval creation, AuditLog, and Evidence Bundle behavior.
 3. Add idempotency by `agent_id`, `run_id`, and `request_id`.
-4. Implement telemetry ingestion mode and simulation mode first.
-5. Add enforcement mode behind an explicit configuration flag.
-6. Define a fail-open/fail-closed setting before production enforcement.
-7. Add tests for allow, deny, require human review, not applicable, duplicates,
+4. Add enforcement mode behind an explicit configuration flag.
+5. Define a fail-open/fail-closed setting before production enforcement.
+6. Add tests for allow, deny, require human review, not applicable, duplicates,
    unsupported metadata, and transaction rollback.
-8. Add a small local integration example only after the endpoint behavior is
+7. Add a small local integration example only after the endpoint behavior is
    stable.
 
 V1 should stay inside the existing FastAPI modular monolith. It should not add
@@ -306,16 +307,13 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add runtime governed tool call request and response schemas.
-2. Add Runtime Gateway decision endpoint in telemetry ingestion mode.
-3. Add Runtime Gateway simulation mode.
-4. Add Runtime Gateway enforcement mode behind explicit configuration.
-5. Add runtime request idempotency and duplicate response behavior.
-6. Add runtime failure policy design for fail-open and fail-closed behavior.
-7. Add runtime evidence bundle coverage tests.
-8. Add Policy and PolicyRule versioning design.
-9. Add HumanApproval notification design.
-10. Add one framework adapter design, starting with LangGraph only after the
+1. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+2. Add Runtime Gateway enforcement mode behind explicit configuration.
+3. Add runtime failure policy design for fail-open and fail-closed behavior.
+4. Add runtime evidence bundle coverage tests for enforcement mode.
+5. Add Policy and PolicyRule versioning design.
+6. Add HumanApproval notification design.
+7. Add one framework adapter design, starting with LangGraph only after the
     gateway contract is stable.
 
 ## Open Questions
