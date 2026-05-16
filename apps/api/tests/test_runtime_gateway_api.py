@@ -388,6 +388,127 @@ def test_evidence_bundle_includes_runtime_trace_event_and_policy_decision(
     assert policy_decision["rule"]
 
 
+def test_evidence_bundle_includes_runtime_review_evidence_chain(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    run_id = uuid4()
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    runtime_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, run_id=run_id),
+    )
+
+    assert runtime_response.status_code == 201
+    runtime_body = runtime_response.json()
+    assert runtime_body["decision"] == "require_human_review"
+    assert runtime_body["proceed"] is False
+    assert runtime_body["human_approval_id"] is not None
+
+    [agent_run] = fetch_agent_runs(session_factory)
+    [trace_event] = fetch_trace_events(session_factory)
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    [human_approval] = fetch_human_approvals(session_factory)
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+
+    assert agent_run.agent_id == agent_id
+    assert agent_run.run_id == run_id
+    assert agent_run.status == "simulated"
+
+    assert trace_event.id == UUID(runtime_body["trace_event_id"])
+    assert trace_event.agent_id == agent_id
+    assert trace_event.run_id == run_id
+    assert trace_event.external_event_id == "runtime-request-001"
+    assert trace_event.event_type is TraceEventType.TOOL_CALL_REQUESTED
+
+    assert policy_decision.id == UUID(runtime_body["policy_decision_id"])
+    assert policy_decision.agent_id == agent_id
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+    assert policy_decision.trace_event_id == trace_event.id
+    assert policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+
+    assert human_approval.id == UUID(runtime_body["human_approval_id"])
+    assert human_approval.agent_id == agent_id
+    assert human_approval.policy_decision_id == policy_decision.id
+    assert human_approval.status is HumanApprovalStatus.PENDING
+
+    assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.entity_type == "human_approval"
+    assert audit_log.entity_id == str(human_approval.id)
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "status": "pending",
+        "policy_decision_id": str(policy_decision.id),
+    }
+
+    bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert bundle_response.status_code == 200
+    bundle_body = bundle_response.json()
+    [bundle_agent_run] = bundle_body["agent_runs"]
+    [bundle_trace_event] = bundle_body["trace_events"]
+    [bundle_policy_decision] = bundle_body["policy_decisions"]
+    [bundle_human_approval] = bundle_body["human_approvals"]
+    human_approval_audit_logs = [
+        bundle_audit_log
+        for bundle_audit_log in bundle_body["audit_logs"]
+        if bundle_audit_log["event_type"] == "human_approval_requested"
+    ]
+    [bundle_audit_log] = human_approval_audit_logs
+
+    assert bundle_agent_run["run_id"] == str(run_id)
+    assert bundle_agent_run["status"] == "simulated"
+
+    assert bundle_trace_event["id"] == str(trace_event.id)
+    assert bundle_trace_event["agent_id"] == str(agent_id)
+    assert bundle_trace_event["run_id"] == str(run_id)
+    assert bundle_trace_event["external_event_id"] == "runtime-request-001"
+    assert bundle_trace_event["event_type"] == "tool_call_requested"
+    assert bundle_trace_event["metadata"] == {
+        "ticket_category": "support",
+        "tool_name": "send_email",
+    }
+
+    assert bundle_policy_decision["id"] == str(policy_decision.id)
+    assert bundle_policy_decision["agent_id"] == str(agent_id)
+    assert bundle_policy_decision["policy_id"] == str(policy_id)
+    assert bundle_policy_decision["rule_id"] == str(rule_id)
+    assert bundle_policy_decision["trace_event_id"] == bundle_trace_event["id"]
+    assert bundle_policy_decision["decision"] == "require_human_review"
+    assert bundle_policy_decision["policy"] == {
+        "id": str(policy_id),
+        "name": "Tool access policy",
+        "status": "active",
+    }
+    assert bundle_policy_decision["rule"] == {
+        "id": str(rule_id),
+        "policy_id": str(policy_id),
+        "name": "Tool access rule",
+    }
+
+    assert bundle_human_approval["id"] == str(human_approval.id)
+    assert bundle_human_approval["agent_id"] == str(agent_id)
+    assert bundle_human_approval["policy_decision_id"] == bundle_policy_decision["id"]
+    assert bundle_human_approval["status"] == "pending"
+    assert bundle_human_approval["requested_by_actor_type"] == "development"
+    assert bundle_human_approval["requested_by_actor_id"] == "dev-placeholder"
+
+    assert bundle_audit_log["entity_type"] == "human_approval"
+    assert bundle_audit_log["entity_id"] == bundle_human_approval["id"]
+    assert bundle_audit_log["metadata"] == {
+        "agent_id": str(agent_id),
+        "status": "pending",
+        "policy_decision_id": bundle_policy_decision["id"],
+    }
+
+
 def create_agent(
     session_factory: SessionFactory,
     *,
