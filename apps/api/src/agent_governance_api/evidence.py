@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.metadata_safety import filter_safe_metadata
@@ -32,11 +32,15 @@ def build_agent_evidence_bundle(
     *,
     agent: Agent,
 ) -> EvidenceBundleRead:
-    audit_logs = _load_agent_audit_logs(session, agent.id)
     agent_runs = _load_agent_runs(session, agent.id)
     trace_events = _load_trace_events(session, agent.id)
     policy_decisions = _load_policy_decisions(session, agent.id)
     human_approvals = _load_human_approvals(session, agent.id)
+    audit_logs = _load_agent_audit_logs(
+        session,
+        agent.id,
+        human_approvals=human_approvals,
+    )
     policy_references = _load_policy_references(session, policy_decisions)
     rule_references = _load_rule_references(session, policy_decisions)
 
@@ -62,13 +66,32 @@ def build_agent_evidence_bundle(
     )
 
 
-def _load_agent_audit_logs(session: Session, agent_id: UUID) -> list[AuditLog]:
-    statement = (
-        select(AuditLog)
-        .where(
+def _load_agent_audit_logs(
+    session: Session,
+    agent_id: UUID,
+    *,
+    human_approvals: list[HumanApproval],
+) -> list[AuditLog]:
+    related_conditions = [
+        and_(
             AuditLog.entity_type == "agent",
             AuditLog.entity_id == str(agent_id),
         )
+    ]
+    human_approval_entity_ids = [
+        str(human_approval.id) for human_approval in human_approvals
+    ]
+    if human_approval_entity_ids:
+        related_conditions.append(
+            and_(
+                AuditLog.entity_type == "human_approval",
+                AuditLog.entity_id.in_(human_approval_entity_ids),
+            )
+        )
+
+    statement = (
+        select(AuditLog)
+        .where(or_(*related_conditions))
         .order_by(AuditLog.created_at, AuditLog.id)
     )
     return list(session.scalars(statement).all())

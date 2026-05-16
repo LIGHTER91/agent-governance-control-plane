@@ -220,6 +220,71 @@ def test_evidence_bundle_represents_approvals_linked_to_policy_decisions(
     assert approval["policy_decision_id"] == str(seeded.policy_decision_id)
 
 
+def test_evidence_bundle_represents_automated_review_approval_chain(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    create_review_policy_rule(session_factory)
+    run_id = uuid4()
+    event_id = uuid4()
+
+    ingest_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            event_id=event_id,
+            run_id=run_id,
+        ),
+    )
+    bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert ingest_response.status_code == 201
+    ingest_body = ingest_response.json()
+    assert ingest_body["policy_decision"]["decision"] == "require_human_review"
+    assert ingest_body["human_approval_id"] is not None
+    assert bundle_response.status_code == 200
+
+    body = bundle_response.json()
+    [trace_event] = body["trace_events"]
+    [policy_decision] = body["policy_decisions"]
+    [human_approval] = body["human_approvals"]
+    human_approval_audit_logs = [
+        audit_log
+        for audit_log in body["audit_logs"]
+        if audit_log["event_type"] == "human_approval_requested"
+    ]
+    [human_approval_audit_log] = human_approval_audit_logs
+
+    assert trace_event["id"] == str(event_id)
+    assert trace_event["agent_id"] == str(agent_id)
+    assert trace_event["run_id"] == str(run_id)
+    assert trace_event["event_type"] == "tool_call_requested"
+    assert trace_event["metadata"] == {"tool_name": "send_email"}
+
+    assert policy_decision["id"] == ingest_body["policy_decision"]["id"]
+    assert policy_decision["agent_id"] == str(agent_id)
+    assert policy_decision["trace_event_id"] == trace_event["id"]
+    assert policy_decision["decision"] == "require_human_review"
+    assert policy_decision["policy"]
+    assert policy_decision["rule"]
+
+    assert human_approval["id"] == ingest_body["human_approval_id"]
+    assert human_approval["agent_id"] == str(agent_id)
+    assert human_approval["policy_decision_id"] == policy_decision["id"]
+    assert human_approval["status"] == "pending"
+    assert human_approval["requested_by_actor_type"] == "development"
+    assert human_approval["requested_by_actor_id"] == "dev-placeholder"
+
+    assert human_approval_audit_log["entity_type"] == "human_approval"
+    assert human_approval_audit_log["entity_id"] == human_approval["id"]
+    assert human_approval_audit_log["metadata"] == {
+        "agent_id": str(agent_id),
+        "status": "pending",
+        "policy_decision_id": policy_decision["id"],
+    }
+
+
 def test_evidence_bundle_filters_unsafe_metadata_fields(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -369,6 +434,36 @@ def seed_evidence_records(
         )
 
 
+def create_review_policy_rule(session_factory: SessionFactory) -> tuple[UUID, UUID]:
+    with session_factory() as session:
+        created_at = datetime.now(UTC)
+        policy = Policy(
+            name="Human review policy",
+            description=None,
+            status=PolicyStatus.ACTIVE,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        session.add(policy)
+        session.flush()
+
+        rule = PolicyRule(
+            policy_id=policy.id,
+            name="Require review for email tool",
+            description=None,
+            condition=(
+                '{"decision":"require_human_review",'
+                '"reason":"Email tool requires human review.",'
+                '"tool_name":"send_email"}'
+            ),
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        session.add(rule)
+        session.commit()
+        return policy.id, rule.id
+
+
 def inject_unsafe_metadata(
     session_factory: SessionFactory,
     agent_id: UUID,
@@ -432,4 +527,22 @@ def agent_payload() -> dict[str, object]:
         "status": "draft",
         "risk_level": "low",
         "framework": "LangGraph",
+    }
+
+
+def trace_event_payload(
+    agent_id: UUID,
+    *,
+    event_id: UUID,
+    run_id: UUID,
+) -> dict[str, object]:
+    return {
+        "id": str(event_id),
+        "agent_id": str(agent_id),
+        "run_id": str(run_id),
+        "correlation_id": "corr-123",
+        "event_type": "tool_call_requested",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "summary": "Tool call requested.",
+        "metadata": {"tool_name": "send_email"},
     }
