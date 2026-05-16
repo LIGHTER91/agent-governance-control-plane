@@ -1,10 +1,9 @@
-from collections.abc import Mapping
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agent_governance_api.metadata_safety import UNSAFE_METADATA_KEY_PARTS
+from agent_governance_api.metadata_safety import filter_safe_metadata
 from agent_governance_api.models import (
     Agent,
     AgentRunRecord,
@@ -19,23 +18,10 @@ from agent_governance_api.schemas import (
     EvidenceAgentRunRead,
     EvidenceAuditLogRead,
     EvidenceBundleRead,
-    EvidenceMetadata,
     EvidencePolicyDecisionRead,
     EvidencePolicyReferenceRead,
     EvidencePolicyRuleReferenceRead,
     EvidenceTraceEventRead,
-)
-
-EVIDENCE_UNSAFE_METADATA_KEY_PARTS = tuple(
-    sorted(
-        {
-            *UNSAFE_METADATA_KEY_PARTS,
-            "access_token",
-            "payload",
-            "private_customer_data",
-            "refresh_token",
-        }
-    )
 )
 
 
@@ -163,7 +149,7 @@ def _audit_log_response(audit_log: AuditLog) -> EvidenceAuditLogRead:
         entity_type=audit_log.entity_type,
         entity_id=audit_log.entity_id,
         summary=audit_log.summary,
-        metadata=_safe_metadata(audit_log.metadata_),
+        metadata=filter_safe_metadata(audit_log.metadata_),
         created_at=audit_log.created_at,
     )
 
@@ -179,7 +165,7 @@ def _agent_run_response(agent_run: AgentRunRecord) -> EvidenceAgentRunRead:
         started_at=agent_run.started_at,
         ended_at=agent_run.ended_at,
         summary=agent_run.summary,
-        metadata=_safe_metadata(agent_run.metadata_),
+        metadata=filter_safe_metadata(agent_run.metadata_),
         created_at=agent_run.created_at,
     )
 
@@ -194,7 +180,7 @@ def _trace_event_response(trace_event: TraceEventRecord) -> EvidenceTraceEventRe
         event_type=trace_event.event_type,
         timestamp=trace_event.timestamp,
         summary=trace_event.summary,
-        metadata=_safe_metadata(trace_event.metadata_),
+        metadata=filter_safe_metadata(trace_event.metadata_),
         created_at=trace_event.created_at,
     )
 
@@ -229,21 +215,3 @@ def _policy_decision_response(
         rule=rule,
         created_at=policy_decision.created_at,
     )
-
-
-def _safe_metadata(metadata: Mapping[str, object] | None) -> EvidenceMetadata:
-    safe: EvidenceMetadata = {}
-    for key, value in dict(metadata or {}).items():
-        if _has_unsafe_metadata_key(key) or not _is_safe_metadata_value(value):
-            continue
-        safe[key] = value
-    return safe
-
-
-def _has_unsafe_metadata_key(key: str) -> bool:
-    normalized_key = key.lower()
-    return any(part in normalized_key for part in EVIDENCE_UNSAFE_METADATA_KEY_PARTS)
-
-
-def _is_safe_metadata_value(value: object) -> bool:
-    return isinstance(value, str | int | float | bool) or value is None

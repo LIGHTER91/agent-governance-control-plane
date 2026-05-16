@@ -29,6 +29,27 @@ Logs must not contain:
 - access tokens;
 - internal secrets.
 
+The backend logging baseline redacts simple key/value assignments when the key name
+matches sensitive metadata patterns.
+
+## Metadata safety baseline
+
+Telemetry metadata and audit metadata reject known unsafe key names before storage.
+Evidence exports filter unsafe metadata and non-primitive metadata values before
+returning JSON.
+
+Sensitive metadata key patterns include:
+
+- api_key;
+- token;
+- password;
+- secret;
+- authorization;
+- credential;
+- raw_prompt;
+- raw_payload;
+- private_customer_data.
+
 ## Audit log rule
 
 Audit logs should capture governance-relevant facts, not sensitive payloads.
@@ -52,7 +73,7 @@ Bad:
 ```json
 {
   "full_prompt": "...contains private customer data...",
-  "api_key": "sk-..."
+  "api_key": "[REDACTED]"
 }
 ```
 

@@ -3,22 +3,11 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from agent_governance_api.metadata_safety import reject_unsafe_metadata_keys
 from agent_governance_api.models import ActorType, AuditLog
 
 AuditMetadataValue = str | int | float | bool | None
 AuditMetadata = Mapping[str, AuditMetadataValue]
-
-SENSITIVE_METADATA_KEY_PARTS = (
-    "api_key",
-    "credential",
-    "password",
-    "payload",
-    "private_customer_data",
-    "raw_prompt",
-    "secret",
-    "access_token",
-    "refresh_token",
-)
 
 __all__ = ["append_audit_log"]
 
@@ -34,8 +23,10 @@ def append_audit_log(
     summary: str,
     metadata: AuditMetadata | None = None,
 ) -> AuditLog:
-    safe_metadata = dict(metadata or {})
-    _ensure_safe_metadata_keys(safe_metadata)
+    safe_metadata = reject_unsafe_metadata_keys(
+        dict(metadata or {}),
+        error_message="Audit metadata contains unsafe key names.",
+    )
 
     audit_log = AuditLog(
         event_type=event_type,
@@ -51,13 +42,3 @@ def append_audit_log(
     session.flush()
 
     return audit_log
-
-
-def _ensure_safe_metadata_keys(metadata: AuditMetadata) -> None:
-    unsafe_keys = [
-        key
-        for key in metadata
-        if any(part in key.lower() for part in SENSITIVE_METADATA_KEY_PARTS)
-    ]
-    if unsafe_keys:
-        raise ValueError("Audit metadata contains unsafe key names.")

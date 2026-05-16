@@ -103,9 +103,12 @@ def test_agent_run_rejects_missing_correlation_id() -> None:
     [
         {"api_key": "redacted"},
         {"access_token": "redacted"},
+        {"token": "redacted"},
         {"password": "redacted"},
         {"client_secret": "redacted"},
         {"authorization": "Bearer redacted"},
+        {"raw_prompt": "do not store this"},
+        {"raw_payload": "do not store this"},
     ],
 )
 def test_trace_event_rejects_unsafe_metadata_keys(
@@ -121,4 +124,18 @@ def test_trace_event_rejects_unsafe_metadata_keys(
             timestamp=datetime.now(UTC),
             summary="Tool call failed.",
             metadata=metadata,
+        )
+
+
+def test_trace_event_rejects_nested_metadata() -> None:
+    with pytest.raises(ValidationError):
+        TraceEvent(
+            id=uuid4(),
+            agent_id=uuid4(),
+            run_id=uuid4(),
+            correlation_id="corr-123",
+            event_type=TraceEventType.ERROR,
+            timestamp=datetime.now(UTC),
+            summary="Tool call failed.",
+            metadata={"nested": {"secret": "do not store this"}},
         )

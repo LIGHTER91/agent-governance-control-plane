@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
 
@@ -69,7 +70,21 @@ def test_append_audit_log_supports_development_placeholder_actor() -> None:
     assert record.metadata_ == {}
 
 
-def test_append_audit_log_rejects_unsafe_metadata_keys() -> None:
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"api_key": "redacted"},
+        {"token": "redacted"},
+        {"password": "redacted"},
+        {"client_secret": "redacted"},
+        {"authorization": "Bearer redacted"},
+        {"raw_prompt": "do not store this"},
+        {"raw_payload": "do not store this"},
+    ],
+)
+def test_append_audit_log_rejects_unsafe_metadata_keys(
+    metadata: dict[str, str],
+) -> None:
     session = FakeSession()
 
     try:
@@ -81,7 +96,7 @@ def test_append_audit_log_rejects_unsafe_metadata_keys() -> None:
             entity_type="Agent",
             entity_id="agent:123",
             summary="Agent record created.",
-            metadata={"raw_prompt": "do not store this"},
+            metadata=metadata,
         )
     except ValueError as exc:
         assert str(exc) == "Audit metadata contains unsafe key names."

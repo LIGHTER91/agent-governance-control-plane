@@ -187,8 +187,11 @@ def test_duplicate_trace_event_external_id_for_same_run_is_rejected() -> None:
     ("record_class", "metadata"),
     [
         (AgentRunRecord, {"api_key": "redacted"}),
+        (AgentRunRecord, {"password": "redacted"}),
         (TraceEventRecord, {"authorization": "Bearer redacted"}),
         (TraceEventRecord, {"access_token": "redacted"}),
+        (TraceEventRecord, {"raw_prompt": "do not store this"}),
+        (TraceEventRecord, {"raw_payload": "do not store this"}),
     ],
 )
 def test_telemetry_records_reject_unsafe_metadata_keys(

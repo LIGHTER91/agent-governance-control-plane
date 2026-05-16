@@ -323,6 +323,7 @@ def inject_unsafe_metadata(
             metadata_={
                 "safe_note": "kept",
                 "api_key": "do-not-export",
+                "password": "do-not-export",
                 "private_customer_data": "do-not-export",
             },
             created_at=datetime.now(UTC),
@@ -348,6 +349,7 @@ def inject_unsafe_metadata(
                     "metadata": {
                         "tool_name": "send_email",
                         "token": "do-not-export",
+                        "authorization": "Bearer do-not-export",
                         "nested": {"secret": "do-not-export"},
                     }
                 }
