@@ -37,12 +37,22 @@ Agent Registry:
 - `GET /agents` lists agents.
 - `GET /agents/{agent_id}` returns one agent.
 - `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle for one agent, including related audit logs, runs, trace events, and policy decisions.
+- `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
 
 Agent mutations use the development actor placeholder until authentication exists:
 
 - `actor_type = "development"`
 - `actor_id = "dev-placeholder"`
+
+Human Approvals:
+
+- `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.
+- `GET /human-approvals/{approval_id}` returns one human approval.
+- `POST /human-approvals/{approval_id}/approve` approves a pending approval and appends `human_approval_approved`.
+- `POST /human-approvals/{approval_id}/reject` rejects a pending approval and appends `human_approval_rejected`.
+- `POST /human-approvals/{approval_id}/cancel` cancels a pending approval and appends `human_approval_cancelled`.
+- Human approval transitions are explicit; there is no generic update or delete endpoint.
 
 Telemetry:
 

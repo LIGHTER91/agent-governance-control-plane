@@ -227,6 +227,18 @@ class HumanApprovalCreate(HumanApprovalBase):
     pass
 
 
+class HumanApprovalRequest(BaseModel):
+    agent_id: UUID
+    policy_decision_id: UUID | None = None
+    reason: str | None = None
+    expires_at: datetime | None = None
+
+
+class HumanApprovalDecisionRequest(BaseModel):
+    reason: str | None = None
+    decision_note: str | None = None
+
+
 class HumanApprovalRead(HumanApprovalBase):
     model_config = ConfigDict(from_attributes=True)
 
