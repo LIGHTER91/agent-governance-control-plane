@@ -6,11 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from agent_governance_api.audit import append_audit_log
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentRunRecord,
+    HumanApproval,
+    HumanApprovalStatus,
     PolicyDecision,
+    PolicyDecisionValue,
     TraceEventRecord,
     TraceEventType,
 )
@@ -29,6 +34,8 @@ from agent_governance_api.telemetry import (
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 AUTO_CREATED_RUN_STATUS = "observed"
+DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
+DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 
 
 @router.post(
@@ -64,7 +71,11 @@ def ingest_trace_event(
             existing_event,
             external_event_id=external_event_id,
         )
-        return _trace_event_response(existing_event, policy_decision)
+        human_approval = _human_approval_for_policy_decision(
+            session,
+            policy_decision,
+        )
+        return _trace_event_response(existing_event, policy_decision, human_approval)
 
     try:
         run = session.scalar(
@@ -103,6 +114,7 @@ def ingest_trace_event(
         session.flush()
 
         policy_decision = None
+        human_approval = None
         if _is_tool_call_requested(payload.event_type):
             policy_decision = _evaluate_and_persist_policy_decision(
                 session,
@@ -112,11 +124,18 @@ def ingest_trace_event(
                 tool_name=tool_name,
                 external_event_id=external_event_id,
             )
+            if policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW:
+                human_approval = _create_human_approval_for_policy_decision(
+                    session,
+                    policy_decision,
+                )
 
         session.commit()
         session.refresh(trace_event)
         if policy_decision is not None:
             session.refresh(policy_decision)
+        if human_approval is not None:
+            session.refresh(human_approval)
     except UnsupportedPolicyRuleConditionError as exc:
         session.rollback()
         raise HTTPException(
@@ -127,12 +146,13 @@ def ingest_trace_event(
         session.rollback()
         raise
 
-    return _trace_event_response(trace_event, policy_decision)
+    return _trace_event_response(trace_event, policy_decision, human_approval)
 
 
 def _trace_event_response(
     trace_event: TraceEventRecord,
     policy_decision: PolicyDecision | None,
+    human_approval: HumanApproval | None,
 ) -> TraceEventIngestResponse:
     return TraceEventIngestResponse(
         id=trace_event.id,
@@ -141,6 +161,7 @@ def _trace_event_response(
         event_type=trace_event.event_type,
         created_at=trace_event.created_at,
         policy_decision=_policy_decision_response(policy_decision),
+        human_approval_id=human_approval.id if human_approval is not None else None,
     )
 
 
@@ -219,6 +240,57 @@ def _policy_decision_response(
         policy_id=policy_decision.policy_id,
         rule_id=policy_decision.rule_id,
         created_at=policy_decision.created_at,
+    )
+
+
+def _create_human_approval_for_policy_decision(
+    session: Session,
+    policy_decision: PolicyDecision,
+) -> HumanApproval:
+    if policy_decision.agent_id is None:
+        raise ValueError("HumanApproval requires a PolicyDecision linked to an Agent.")
+
+    approval = HumanApproval(
+        agent_id=policy_decision.agent_id,
+        policy_decision_id=policy_decision.id,
+        status=HumanApprovalStatus.PENDING,
+        requested_by_actor_type=DEVELOPMENT_ACTOR_TYPE,
+        requested_by_actor_id=DEVELOPMENT_ACTOR_ID,
+        reason=policy_decision.reason,
+        created_at=datetime.now(UTC),
+    )
+    session.add(approval)
+    session.flush()
+
+    append_audit_log(
+        session,
+        event_type="human_approval_requested",
+        actor_type=DEVELOPMENT_ACTOR_TYPE,
+        actor_id=DEVELOPMENT_ACTOR_ID,
+        entity_type="human_approval",
+        entity_id=str(approval.id),
+        summary="Human approval requested.",
+        metadata={
+            "agent_id": str(approval.agent_id),
+            "status": approval.status.value,
+            "policy_decision_id": str(policy_decision.id),
+        },
+    )
+
+    return approval
+
+
+def _human_approval_for_policy_decision(
+    session: Session,
+    policy_decision: PolicyDecision | None,
+) -> HumanApproval | None:
+    if policy_decision is None:
+        return None
+
+    return session.scalar(
+        select(HumanApproval)
+        .where(HumanApproval.policy_decision_id == policy_decision.id)
+        .order_by(HumanApproval.created_at.desc(), HumanApproval.id.desc())
     )
 
 

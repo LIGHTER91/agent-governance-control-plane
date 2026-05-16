@@ -72,6 +72,7 @@ class TraceEventIngestResponse(BaseModel):
     event_type: TraceEventType
     created_at: datetime
     policy_decision: "TraceEventPolicyDecisionResponse | None" = None
+    human_approval_id: UUID | None = None
 
 
 class TraceEventPolicyDecisionResponse(BaseModel):

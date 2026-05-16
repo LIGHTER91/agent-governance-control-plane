@@ -10,13 +10,18 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import agent_governance_api.telemetry_api as telemetry_api
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentRunRecord,
     AgentStatus,
+    AuditLog,
     Environment,
+    HumanApproval,
+    HumanApprovalStatus,
     OwnerType,
     Policy,
     PolicyDecision,
@@ -89,6 +94,7 @@ def test_ingest_valid_trace_event(
     assert body["created_at"]
     assert body["policy_decision"]["decision"] == "not_applicable"
     assert body["policy_decision"]["trace_event_id"] == str(event_id)
+    assert body["human_approval_id"] is None
 
     [saved_event] = fetch_trace_events(session_factory)
     assert saved_event.id == event_id
@@ -146,6 +152,7 @@ def test_ingest_duplicate_trace_event_returns_existing_event(
     assert saved_event.external_event_id == external_event_id
     assert saved_event.summary == "Tool call requested."
     assert len(fetch_policy_decisions(session_factory)) == 1
+    assert fetch_human_approvals(session_factory) == []
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.trace_event_id == first_event_id
 
@@ -177,6 +184,7 @@ def test_ingest_duplicate_trace_event_does_not_create_second_record(
 
     assert len(fetch_trace_events(session_factory)) == 1
     assert len(fetch_policy_decisions(session_factory)) == 1
+    assert fetch_human_approvals(session_factory) == []
 
 
 def test_tool_call_requested_with_allow_policy_creates_policy_decision(
@@ -202,11 +210,13 @@ def test_tool_call_requested_with_allow_policy_creates_policy_decision(
     assert decision_body["trace_event_id"] == response.json()["id"]
     assert decision_body["policy_id"] == str(policy_id)
     assert decision_body["rule_id"] == str(rule_id)
+    assert response.json()["human_approval_id"] is None
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.decision is PolicyDecisionValue.ALLOW
     assert saved_decision.trace_event_id == UUID(response.json()["id"])
     assert saved_decision.policy_id == policy_id
     assert saved_decision.rule_id == rule_id
+    assert fetch_human_approvals(session_factory) == []
 
 
 def test_trace_event_to_policy_decision_navigation_is_available(
@@ -251,12 +261,14 @@ def test_tool_call_requested_with_deny_policy_creates_policy_decision(
 
     assert response.status_code == 201
     assert response.json()["policy_decision"]["decision"] == "deny"
+    assert response.json()["human_approval_id"] is None
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.decision is PolicyDecisionValue.DENY
     assert saved_decision.reason == "The requested tool is denied."
+    assert fetch_human_approvals(session_factory) == []
 
 
-def test_tool_call_requested_with_review_policy_creates_policy_decision(
+def test_tool_call_requested_with_review_policy_creates_decision_and_approval(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
     client, session_factory = api_client
@@ -273,10 +285,70 @@ def test_tool_call_requested_with_review_policy_creates_policy_decision(
     response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
 
     assert response.status_code == 201
-    assert response.json()["policy_decision"]["decision"] == "require_human_review"
+    body = response.json()
+    assert body["policy_decision"]["decision"] == "require_human_review"
+    assert body["human_approval_id"] is not None
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
     assert saved_decision.reason == "The requested tool requires human review."
+    [approval] = fetch_human_approvals(session_factory)
+    assert body["human_approval_id"] == str(approval.id)
+    assert approval.status is HumanApprovalStatus.PENDING
+    assert approval.agent_id == agent_id
+    assert approval.policy_decision_id == saved_decision.id
+    assert approval.requested_by_actor_type is ActorType.DEVELOPMENT
+    assert approval.requested_by_actor_id == "dev-placeholder"
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+    assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.actor_type is ActorType.DEVELOPMENT
+    assert audit_log.actor_id == "dev-placeholder"
+    assert audit_log.entity_id == str(approval.id)
+    assert audit_log.metadata_["agent_id"] == str(agent_id)
+    assert audit_log.metadata_["policy_decision_id"] == str(saved_decision.id)
+
+
+def test_duplicate_review_event_returns_existing_approval(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    run_id = uuid4()
+    external_event_id = "vendor-event-456"
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "require_human_review",
+            "reason": "The requested tool requires human review.",
+            "tool_name": "send_email",
+        },
+    )
+
+    first_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            run_id=run_id,
+            external_event_id=external_event_id,
+        ),
+    )
+    duplicate_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            run_id=run_id,
+            external_event_id=external_event_id,
+            summary="Retried event with changed body.",
+        ),
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == first_response.json()
+    assert first_response.json()["human_approval_id"] is not None
+    assert len(fetch_trace_events(session_factory)) == 1
+    assert len(fetch_policy_decisions(session_factory)) == 1
+    assert len(fetch_human_approvals(session_factory)) == 1
+    assert len(fetch_human_approval_audit_logs(session_factory)) == 1
 
 
 def test_tool_call_requested_without_matching_policy_creates_not_applicable_decision(
@@ -297,10 +369,12 @@ def test_tool_call_requested_without_matching_policy_creates_not_applicable_deci
 
     assert response.status_code == 201
     assert response.json()["policy_decision"]["decision"] == "not_applicable"
+    assert response.json()["human_approval_id"] is None
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.decision is PolicyDecisionValue.NOT_APPLICABLE
     assert saved_decision.policy_id is None
     assert saved_decision.rule_id is None
+    assert fetch_human_approvals(session_factory) == []
 
 
 def test_non_tool_call_requested_event_does_not_create_policy_decision(
@@ -329,7 +403,9 @@ def test_non_tool_call_requested_event_does_not_create_policy_decision(
 
     assert response.status_code == 201
     assert response.json()["policy_decision"] is None
+    assert response.json()["human_approval_id"] is None
     assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
 
 
 def test_tool_call_requested_missing_tool_name_is_rejected(
@@ -374,6 +450,37 @@ def test_tool_call_policy_decision_and_trace_event_are_atomic(
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
     assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+
+
+def test_review_approval_creation_is_atomic(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "require_human_review",
+            "reason": "The requested tool requires human review.",
+            "tool_name": "send_email",
+        },
+    )
+
+    def fail_audit_append(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit append failed")
+
+    monkeypatch.setattr(telemetry_api, "append_audit_log", fail_audit_append)
+
+    with pytest.raises(RuntimeError, match="audit append failed"):
+        client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_ingest_allows_same_external_event_id_for_different_run(
@@ -569,6 +676,23 @@ def fetch_trace_events(session_factory: SessionFactory) -> list[TraceEventRecord
 def fetch_policy_decisions(session_factory: SessionFactory) -> list[PolicyDecision]:
     with session_factory() as session:
         return list(session.scalars(select(PolicyDecision)).all())
+
+
+def fetch_human_approvals(session_factory: SessionFactory) -> list[HumanApproval]:
+    with session_factory() as session:
+        return list(session.scalars(select(HumanApproval)).all())
+
+
+def fetch_human_approval_audit_logs(
+    session_factory: SessionFactory,
+) -> list[AuditLog]:
+    with session_factory() as session:
+        statement = (
+            select(AuditLog)
+            .where(AuditLog.entity_type == "human_approval")
+            .order_by(AuditLog.created_at, AuditLog.id)
+        )
+        return list(session.scalars(statement).all())
 
 
 def create_policy_rule(

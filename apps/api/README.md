@@ -63,6 +63,7 @@ Telemetry:
 - The same `external_event_id` may be used for a different run because the uniqueness rule is scoped to `(agent_id, run_id)`.
 - `tool_call_requested` events must include `metadata.tool_name`; these events are evaluated against active persisted policies and return the resulting policy decision. A `deny` decision is recorded but does not block event storage.
 - Policy decisions created from telemetry include an explicit `trace_event_id` link back to the triggering trace event.
+- If a telemetry-triggered policy decision is `require_human_review`, the API creates one pending human approval, links it to the policy decision, appends `human_approval_requested`, and returns `human_approval_id`.
 - Other telemetry event types are stored without creating a policy decision.
 - Telemetry metadata rejects unsafe key names such as `api_key`, `token`, `password`, `secret`, and `authorization`.
 
