@@ -122,6 +122,16 @@ Trade-off: a small response is easier for SDKs to adopt, but it means clients
 must query the API later for full evidence details. That is acceptable for V1
 because Evidence Bundle export already provides the review surface.
 
+## Minimal Python Wrapper Example
+
+A dependency-free Python example is available at
+`docs/examples/runtime_tool_wrapper_example.py`. It shows how an application can
+build a RuntimeToolCallDecisionRequest, call
+`POST /runtime/tool-calls/decision`, read `decision` and `proceed`, execute the
+local tool only when `proceed = true`, and handle `deny`,
+`require_human_review`, and `not_applicable` without adding LangGraph or SDK
+dependencies.
+
 ## Runtime Flow
 
 1. Agent requests action.
