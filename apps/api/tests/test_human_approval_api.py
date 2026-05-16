@@ -108,6 +108,29 @@ def test_create_human_approval_with_policy_decision(
     assert response.json()["policy_decision_id"] == str(policy_decision_id)
 
 
+def test_create_human_approval_with_mismatched_policy_decision_fails(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    approval_agent_id = create_agent(session_factory, name="Support assistant")
+    decision_agent_id = create_agent(session_factory, name="Risk review assistant")
+    policy_decision_id = create_policy_decision(session_factory, decision_agent_id)
+
+    response = client.post(
+        "/human-approvals",
+        json={
+            "agent_id": str(approval_agent_id),
+            "policy_decision_id": str(policy_decision_id),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Policy decision does not belong to the requested agent."
+    )
+    assert fetch_all_human_approval_audit_logs(session_factory) == []
+
+
 def test_get_human_approval(api_client: tuple[TestClient, SessionFactory]) -> None:
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
@@ -368,6 +391,18 @@ def fetch_human_approval_audit_logs(
                 AuditLog.entity_type == "human_approval",
                 AuditLog.entity_id == str(approval_id),
             )
+            .order_by(AuditLog.created_at, AuditLog.id)
+        )
+        return list(session.scalars(statement).all())
+
+
+def fetch_all_human_approval_audit_logs(
+    session_factory: SessionFactory,
+) -> list[AuditLog]:
+    with session_factory() as session:
+        statement = (
+            select(AuditLog)
+            .where(AuditLog.entity_type == "human_approval")
             .order_by(AuditLog.created_at, AuditLog.id)
         )
         return list(session.scalars(statement).all())

@@ -37,7 +37,11 @@ def create_human_approval(
 ) -> HumanApproval:
     _get_agent_or_404(session, payload.agent_id)
     if payload.policy_decision_id is not None:
-        _get_policy_decision_or_404(session, payload.policy_decision_id)
+        policy_decision = _get_policy_decision_or_404(
+            session,
+            payload.policy_decision_id,
+        )
+        _ensure_policy_decision_belongs_to_agent(policy_decision, payload.agent_id)
 
     approval = HumanApproval(
         agent_id=payload.agent_id,
@@ -199,6 +203,17 @@ def _get_policy_decision_or_404(
             detail="Policy decision not found.",
         )
     return policy_decision
+
+
+def _ensure_policy_decision_belongs_to_agent(
+    policy_decision: PolicyDecision,
+    agent_id: UUID,
+) -> None:
+    if policy_decision.agent_id != agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Policy decision does not belong to the requested agent.",
+        )
 
 
 def _get_human_approval_or_404(
