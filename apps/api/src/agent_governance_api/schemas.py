@@ -143,12 +143,29 @@ class EvidencePolicyDecisionRead(BaseModel):
     created_at: datetime
 
 
+class EvidenceHumanApprovalRead(BaseModel):
+    id: UUID
+    agent_id: UUID
+    policy_decision_id: UUID | None = None
+    status: HumanApprovalStatus
+    requested_by_actor_type: ActorType
+    requested_by_actor_id: str
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    reason: str | None = None
+    decision_note: str | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
 class EvidenceBundleRead(BaseModel):
     agent: AgentRead
     audit_logs: list[EvidenceAuditLogRead]
     agent_runs: list[EvidenceAgentRunRead]
     trace_events: list[EvidenceTraceEventRead]
     policy_decisions: list[EvidencePolicyDecisionRead]
+    human_approvals: list[EvidenceHumanApprovalRead]
 
 
 class PolicyBase(BaseModel):

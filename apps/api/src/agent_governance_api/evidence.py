@@ -8,6 +8,7 @@ from agent_governance_api.models import (
     Agent,
     AgentRunRecord,
     AuditLog,
+    HumanApproval,
     Policy,
     PolicyDecision,
     PolicyRule,
@@ -18,6 +19,7 @@ from agent_governance_api.schemas import (
     EvidenceAgentRunRead,
     EvidenceAuditLogRead,
     EvidenceBundleRead,
+    EvidenceHumanApprovalRead,
     EvidencePolicyDecisionRead,
     EvidencePolicyReferenceRead,
     EvidencePolicyRuleReferenceRead,
@@ -34,6 +36,7 @@ def build_agent_evidence_bundle(
     agent_runs = _load_agent_runs(session, agent.id)
     trace_events = _load_trace_events(session, agent.id)
     policy_decisions = _load_policy_decisions(session, agent.id)
+    human_approvals = _load_human_approvals(session, agent.id)
     policy_references = _load_policy_references(session, policy_decisions)
     rule_references = _load_rule_references(session, policy_decisions)
 
@@ -51,6 +54,10 @@ def build_agent_evidence_bundle(
                 rule_references=rule_references,
             )
             for policy_decision in policy_decisions
+        ],
+        human_approvals=[
+            _human_approval_response(human_approval)
+            for human_approval in human_approvals
         ],
     )
 
@@ -90,6 +97,15 @@ def _load_policy_decisions(session: Session, agent_id: UUID) -> list[PolicyDecis
         select(PolicyDecision)
         .where(PolicyDecision.agent_id == agent_id)
         .order_by(PolicyDecision.created_at, PolicyDecision.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _load_human_approvals(session: Session, agent_id: UUID) -> list[HumanApproval]:
+    statement = (
+        select(HumanApproval)
+        .where(HumanApproval.agent_id == agent_id)
+        .order_by(HumanApproval.created_at, HumanApproval.id)
     )
     return list(session.scalars(statement).all())
 
@@ -214,4 +230,24 @@ def _policy_decision_response(
         policy=policy,
         rule=rule,
         created_at=policy_decision.created_at,
+    )
+
+
+def _human_approval_response(
+    human_approval: HumanApproval,
+) -> EvidenceHumanApprovalRead:
+    return EvidenceHumanApprovalRead(
+        id=human_approval.id,
+        agent_id=human_approval.agent_id,
+        policy_decision_id=human_approval.policy_decision_id,
+        status=human_approval.status,
+        requested_by_actor_type=human_approval.requested_by_actor_type,
+        requested_by_actor_id=human_approval.requested_by_actor_id,
+        reviewed_by_actor_type=human_approval.reviewed_by_actor_type,
+        reviewed_by_actor_id=human_approval.reviewed_by_actor_id,
+        reason=human_approval.reason,
+        decision_note=human_approval.decision_note,
+        created_at=human_approval.created_at,
+        reviewed_at=human_approval.reviewed_at,
+        expires_at=human_approval.expires_at,
     )

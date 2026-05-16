@@ -16,6 +16,8 @@ from agent_governance_api.models import (
     AgentRunRecord,
     AuditLog,
     Environment,
+    HumanApproval,
+    HumanApprovalStatus,
     Policy,
     PolicyDecision,
     PolicyDecisionValue,
@@ -83,6 +85,7 @@ def test_successful_evidence_bundle_export(
         "agent_runs",
         "trace_events",
         "policy_decisions",
+        "human_approvals",
     }
 
 
@@ -178,6 +181,45 @@ def test_evidence_bundle_represents_policy_decisions_linked_to_trace_events(
     assert decision["trace_event_id"] == str(seeded.trace_event_id)
 
 
+def test_evidence_bundle_includes_human_approvals(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [approval] = response.json()["human_approvals"]
+    assert approval["id"] == str(seeded.human_approval_id)
+    assert approval["agent_id"] == str(agent_id)
+    assert approval["status"] == "approved"
+    assert approval["requested_by_actor_type"] == "development"
+    assert approval["requested_by_actor_id"] == "dev-placeholder"
+    assert approval["reviewed_by_actor_type"] == "development"
+    assert approval["reviewed_by_actor_id"] == "dev-placeholder"
+    assert approval["reason"] == "High-risk action requires review."
+    assert approval["decision_note"] == "Approved for evidence test."
+    assert approval["created_at"]
+    assert approval["reviewed_at"]
+    assert approval["expires_at"] is None
+
+
+def test_evidence_bundle_represents_approvals_linked_to_policy_decisions(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [approval] = response.json()["human_approvals"]
+    assert approval["policy_decision_id"] == str(seeded.policy_decision_id)
+
+
 def test_evidence_bundle_filters_unsafe_metadata_fields(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -211,12 +253,14 @@ class SeededEvidence:
         policy_id: UUID,
         rule_id: UUID,
         policy_decision_id: UUID,
+        human_approval_id: UUID,
     ) -> None:
         self.run_id = run_id
         self.trace_event_id = trace_event_id
         self.policy_id = policy_id
         self.rule_id = rule_id
         self.policy_decision_id = policy_decision_id
+        self.human_approval_id = human_approval_id
 
 
 def create_agent(client: TestClient) -> UUID:
@@ -297,6 +341,23 @@ def seed_evidence_records(
             created_at=created_at,
         )
         session.add(decision)
+        session.flush()
+
+        approval = HumanApproval(
+            agent_id=agent_id,
+            policy_decision_id=decision.id,
+            status=HumanApprovalStatus.APPROVED,
+            requested_by_actor_type=ActorType.DEVELOPMENT,
+            requested_by_actor_id="dev-placeholder",
+            reviewed_by_actor_type=ActorType.DEVELOPMENT,
+            reviewed_by_actor_id="dev-placeholder",
+            reason="High-risk action requires review.",
+            decision_note="Approved for evidence test.",
+            created_at=created_at,
+            reviewed_at=created_at,
+            expires_at=None,
+        )
+        session.add(approval)
         session.commit()
         return SeededEvidence(
             run_id=run_id,
@@ -304,6 +365,7 @@ def seed_evidence_records(
             policy_id=policy.id,
             rule_id=rule.id,
             policy_decision_id=decision.id,
+            human_approval_id=approval.id,
         )
 
 
