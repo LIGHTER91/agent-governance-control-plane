@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -8,12 +9,15 @@ from sqlalchemy.orm import Session
 from agent_governance_api.database import Base
 from agent_governance_api.models import (
     Agent,
+    AgentRunRecord,
     AgentStatus,
     Environment,
     OwnerType,
     PolicyDecision,
     PolicyDecisionValue,
     RiskLevel,
+    TraceEventRecord,
+    TraceEventType,
 )
 from agent_governance_api.policy_decision_service import persist_policy_decision
 from agent_governance_api.policy_evaluator import PolicyEvaluationResult
@@ -51,6 +55,7 @@ def test_persists_allow_decision(session: Session) -> None:
     assert saved_decision.agent_id == agent.id
     assert saved_decision.decision is PolicyDecisionValue.ALLOW
     assert saved_decision.reason == "The requested tool is allowed."
+    assert saved_decision.trace_event_id is None
     assert saved_decision.context_hash == "sha256:allow-context"
 
 
@@ -129,6 +134,24 @@ def test_preserves_policy_and_rule_ids_when_available(session: Session) -> None:
 
     assert decision.policy_id == policy_id
     assert decision.rule_id == rule_id
+
+
+def test_preserves_trace_event_id_when_available(session: Session) -> None:
+    agent = add_agent(session)
+    trace_event = add_trace_event(session, agent)
+    result = policy_result(
+        decision=PolicyDecisionValue.DENY,
+        reason="Matched telemetry event.",
+    )
+
+    decision = persist_policy_decision(
+        session,
+        agent_id=agent.id,
+        evaluation_result=result,
+        trace_event_id=trace_event.id,
+    )
+
+    assert decision.trace_event_id == trace_event.id
 
 
 def test_optional_policy_and_rule_ids_override_result_values(session: Session) -> None:
@@ -214,6 +237,33 @@ def add_agent(session: Session) -> Agent:
     session.add(agent)
     session.commit()
     return agent
+
+
+def add_trace_event(session: Session, agent: Agent) -> TraceEventRecord:
+    run_id = uuid4()
+    run = AgentRunRecord(
+        agent_id=agent.id,
+        run_id=run_id,
+        correlation_id="corr-123",
+        environment=Environment.DEVELOPMENT,
+        status="started",
+        started_at=datetime.now(UTC),
+        summary="Agent run started.",
+        metadata_={},
+    )
+    trace_event = TraceEventRecord(
+        agent_id=agent.id,
+        run_id=run_id,
+        external_event_id="vendor-event-123",
+        correlation_id="corr-123",
+        event_type=TraceEventType.TOOL_CALL_REQUESTED,
+        timestamp=datetime.now(UTC),
+        summary="Tool call requested.",
+        metadata_={"tool_name": "send_email"},
+    )
+    session.add_all([run, trace_event])
+    session.commit()
+    return trace_event
 
 
 def policy_result(

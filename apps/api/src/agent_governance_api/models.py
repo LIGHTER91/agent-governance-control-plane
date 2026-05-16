@@ -14,7 +14,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from agent_governance_api.database import Base
 from agent_governance_api.metadata_safety import (
@@ -267,6 +267,11 @@ class PolicyDecision(Base):
         ForeignKey("policy_rules.id"),
         nullable=True,
     )
+    trace_event_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("trace_events.id"),
+        nullable=True,
+    )
     decision: Mapped[PolicyDecisionValue] = mapped_column(
         Enum(
             PolicyDecisionValue,
@@ -285,6 +290,9 @@ class PolicyDecision(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
+    )
+    trace_event: Mapped["TraceEventRecord | None"] = relationship(
+        back_populates="policy_decisions",
     )
 
 
@@ -392,6 +400,9 @@ class TraceEventRecord(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
+    )
+    policy_decisions: Mapped[list["PolicyDecision"]] = relationship(
+        back_populates="trace_event",
     )
 
     @validates("metadata_")

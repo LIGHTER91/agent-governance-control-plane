@@ -113,6 +113,7 @@ class PolicyDecisionBase(BaseModel):
     agent_id: UUID | None = None
     policy_id: UUID | None = None
     rule_id: UUID | None = None
+    trace_event_id: UUID | None = None
     decision: PolicyDecisionValue
     reason: str
     context_hash: str | None = None

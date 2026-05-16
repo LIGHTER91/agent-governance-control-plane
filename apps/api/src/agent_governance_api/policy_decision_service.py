@@ -15,6 +15,7 @@ def persist_policy_decision(
     evaluation_result: PolicyEvaluationResult,
     policy_id: str | UUID | None = None,
     rule_id: str | UUID | None = None,
+    trace_event_id: str | UUID | None = None,
     context_hash: str | None = None,
 ) -> PolicyDecision:
     """Persist a policy decision without committing the caller's transaction."""
@@ -29,6 +30,7 @@ def persist_policy_decision(
         agent_id=agent_id,
         policy_id=selected_policy_id,
         rule_id=selected_rule_id,
+        trace_event_id=_uuid_or_none(trace_event_id),
         decision=evaluation_result.decision,
         reason=evaluation_result.reason,
         context_hash=safe_context_hash,

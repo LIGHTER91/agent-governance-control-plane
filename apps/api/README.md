@@ -51,6 +51,7 @@ Telemetry:
 - Telemetry ingestion is idempotent by `(agent_id, run_id, external_event_id)`. If `external_event_id` is omitted, the submitted trace event `id` is used as the external event id.
 - The same `external_event_id` may be used for a different run because the uniqueness rule is scoped to `(agent_id, run_id)`.
 - `tool_call_requested` events must include `metadata.tool_name`; these events are evaluated against active persisted policies and return the resulting policy decision. A `deny` decision is recorded but does not block event storage.
+- Policy decisions created from telemetry include an explicit `trace_event_id` link back to the triggering trace event.
 - Other telemetry event types are stored without creating a policy decision.
 - Telemetry metadata rejects unsafe key names such as `api_key`, `token`, `password`, `secret`, and `authorization`.
 

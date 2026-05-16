@@ -80,6 +80,7 @@ def test_policy_schemas_accept_valid_enum_values() -> None:
                 "agent_id": None,
                 "policy_id": None,
                 "rule_id": None,
+                "trace_event_id": None,
                 "decision": "escalate",
                 "reason": "Unsupported decision.",
                 "context_hash": None,
@@ -101,6 +102,7 @@ def test_policy_decision_schema_validates_from_model_instance() -> None:
         agent_id=uuid4(),
         policy_id=uuid4(),
         rule_id=uuid4(),
+        trace_event_id=uuid4(),
         decision=PolicyDecisionValue.DENY,
         reason="Agent is not approved for this action.",
         context_hash=None,
@@ -111,6 +113,7 @@ def test_policy_decision_schema_validates_from_model_instance() -> None:
 
     assert schema.decision is PolicyDecisionValue.DENY
     assert schema.reason == "Agent is not approved for this action."
+    assert schema.trace_event_id == policy_decision.trace_event_id
 
 
 def test_policy_read_schema_validates_from_model_instance() -> None:
@@ -150,6 +153,7 @@ def test_policy_tables_compile_for_postgresql() -> None:
     assert "FOREIGN KEY(agent_id) REFERENCES agents" in decisions_ddl
     assert "FOREIGN KEY(policy_id) REFERENCES policies" in decisions_ddl
     assert "FOREIGN KEY(rule_id) REFERENCES policy_rules" in decisions_ddl
+    assert "FOREIGN KEY(trace_event_id) REFERENCES trace_events" in decisions_ddl
 
 
 def test_policy_decision_persists_with_optional_domain_links() -> None:

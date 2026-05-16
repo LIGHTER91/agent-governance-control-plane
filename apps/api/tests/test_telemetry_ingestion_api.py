@@ -88,6 +88,7 @@ def test_ingest_valid_trace_event(
     assert body["event_type"] == "tool_call_requested"
     assert body["created_at"]
     assert body["policy_decision"]["decision"] == "not_applicable"
+    assert body["policy_decision"]["trace_event_id"] == str(event_id)
 
     [saved_event] = fetch_trace_events(session_factory)
     assert saved_event.id == event_id
@@ -145,6 +146,8 @@ def test_ingest_duplicate_trace_event_returns_existing_event(
     assert saved_event.external_event_id == external_event_id
     assert saved_event.summary == "Tool call requested."
     assert len(fetch_policy_decisions(session_factory)) == 1
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.trace_event_id == first_event_id
 
 
 def test_ingest_duplicate_trace_event_does_not_create_second_record(
@@ -196,12 +199,38 @@ def test_tool_call_requested_with_allow_policy_creates_policy_decision(
     decision_body = response.json()["policy_decision"]
     assert decision_body["decision"] == "allow"
     assert decision_body["reason"] == "The requested tool is allowed."
+    assert decision_body["trace_event_id"] == response.json()["id"]
     assert decision_body["policy_id"] == str(policy_id)
     assert decision_body["rule_id"] == str(rule_id)
     [saved_decision] = fetch_policy_decisions(session_factory)
     assert saved_decision.decision is PolicyDecisionValue.ALLOW
+    assert saved_decision.trace_event_id == UUID(response.json()["id"])
     assert saved_decision.policy_id == policy_id
     assert saved_decision.rule_id == rule_id
+
+
+def test_trace_event_to_policy_decision_navigation_is_available(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "The requested tool is allowed.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    with session_factory() as session:
+        [trace_event] = session.scalars(select(TraceEventRecord)).all()
+        [policy_decision] = trace_event.policy_decisions
+        assert policy_decision.trace_event_id == trace_event.id
+        assert policy_decision.decision is PolicyDecisionValue.ALLOW
 
 
 def test_tool_call_requested_with_deny_policy_creates_policy_decision(

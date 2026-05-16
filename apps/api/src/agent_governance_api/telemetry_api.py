@@ -108,6 +108,7 @@ def ingest_trace_event(
                 session,
                 agent=agent,
                 payload=payload,
+                trace_event=trace_event,
                 tool_name=tool_name,
                 external_event_id=external_event_id,
             )
@@ -148,6 +149,7 @@ def _evaluate_and_persist_policy_decision(
     *,
     agent: Agent,
     payload: TraceEvent,
+    trace_event: TraceEventRecord,
     tool_name: str | None,
     external_event_id: str,
 ) -> PolicyDecision:
@@ -163,6 +165,7 @@ def _evaluate_and_persist_policy_decision(
         session,
         agent_id=payload.agent_id,
         evaluation_result=result,
+        trace_event_id=trace_event.id,
         context_hash=_policy_context_hash(
             agent_id=payload.agent_id,
             run_id=payload.run_id,
@@ -179,6 +182,14 @@ def _policy_decision_for_trace_event(
 ) -> PolicyDecision | None:
     if not _is_tool_call_requested(trace_event.event_type):
         return None
+
+    policy_decision = session.scalar(
+        select(PolicyDecision)
+        .where(PolicyDecision.trace_event_id == trace_event.id)
+        .order_by(PolicyDecision.created_at.desc(), PolicyDecision.id.desc())
+    )
+    if policy_decision is not None:
+        return policy_decision
 
     context_hash = _policy_context_hash(
         agent_id=trace_event.agent_id,
@@ -202,6 +213,7 @@ def _policy_decision_response(
         return None
     return TraceEventPolicyDecisionResponse(
         id=policy_decision.id,
+        trace_event_id=policy_decision.trace_event_id,
         decision=policy_decision.decision,
         reason=policy_decision.reason,
         policy_id=policy_decision.policy_id,

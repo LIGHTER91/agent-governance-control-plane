@@ -76,6 +76,7 @@ class TraceEventIngestResponse(BaseModel):
 
 class TraceEventPolicyDecisionResponse(BaseModel):
     id: UUID
+    trace_event_id: UUID | None = None
     decision: PolicyDecisionValue
     reason: str
     policy_id: UUID | None = None
