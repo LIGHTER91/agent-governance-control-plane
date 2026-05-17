@@ -296,7 +296,8 @@ database, audit, or transaction failure.
 4. Add tests for allow, deny, human review, and not applicable enforcement
    decisions. Implemented for the backend endpoint.
 5. Add a wrapper example for enforcement mode that executes a tool only when
-   `proceed = true`.
+   `proceed = true`. Implemented in
+   `docs/examples/runtime_tool_wrapper_example.py`.
 
 Implementation should stay inside the existing FastAPI modular monolith. It
 should not add a new service boundary, external policy engine, queue, workflow
@@ -323,12 +324,10 @@ engine, SDK dependency, or framework dependency.
 2. Add enforcement-mode evidence bundle coverage tests.
 3. Add fail-closed tests for unknown Agent, unsafe metadata,
    audit failure, and PolicyDecision persistence failure.
-4. Add an enforcement wrapper example that uses `mode = "enforcement"` and
-   documents adapter responsibilities.
-5. Design the HumanApproval resume or retry pattern for blocked actions.
-6. Design audited configuration for future per-Agent, per-tool, environment,
+4. Design the HumanApproval resume or retry pattern for blocked actions.
+5. Design audited configuration for future per-Agent, per-tool, environment,
    and risk-level fail-open or fail-closed settings.
-7. Add policy versioning before broader production enforcement.
+6. Add policy versioning before broader production enforcement.
 
 ## Open Questions
 

@@ -19,8 +19,12 @@ the platform.
 import json
 from collections.abc import Callable, Mapping
 from typing import Any
+from urllib import error as urllib_error
 from urllib import request as urllib_request
 from uuid import UUID
+
+SIMULATION_MODE = "simulation"
+ENFORCEMENT_MODE = "enforcement"
 
 SafeMetadataValue = str | int | float | bool | None
 SafeMetadata = dict[str, SafeMetadataValue]
@@ -44,7 +48,7 @@ def build_runtime_tool_call_decision_request(
     tool_name: str,
     action_summary: str,
     metadata: Mapping[str, SafeMetadataValue] | None = None,
-    mode: str = "simulation",
+    mode: str = SIMULATION_MODE,
 ) -> RuntimeDecisionRequest:
     return {
         "request_id": request_id,
@@ -56,6 +60,22 @@ def build_runtime_tool_call_decision_request(
         "metadata": dict(metadata or {}),
         "mode": mode,
     }
+
+
+def as_simulation_request(
+    request_payload: RuntimeDecisionRequest,
+) -> RuntimeDecisionRequest:
+    """Return a copy of the request configured for simulation mode."""
+
+    return {**request_payload, "mode": SIMULATION_MODE}
+
+
+def as_enforcement_request(
+    request_payload: RuntimeDecisionRequest,
+) -> RuntimeDecisionRequest:
+    """Return a copy of the request configured for enforcement mode."""
+
+    return {**request_payload, "mode": ENFORCEMENT_MODE}
 
 
 def post_runtime_gateway_decision(
@@ -86,6 +106,52 @@ def post_runtime_gateway_decision(
     if not isinstance(parsed_response, dict):
         raise RuntimeGatewayError("Runtime Gateway returned a non-object response.")
     return parsed_response
+
+
+def run_simulated_tool_call(
+    *,
+    decision_client: DecisionClient,
+    tool: ToolCallable,
+    request_payload: RuntimeDecisionRequest,
+) -> ToolResult:
+    """Call the gateway in simulation mode.
+
+    Simulation records what the decision would be. This example still honors
+    `proceed` so the calling code can be reused for enforcement later, but the
+    control plane itself does not claim action blocking in simulation mode.
+    """
+
+    return run_governed_tool_call(
+        decision_client=decision_client,
+        tool=tool,
+        request_payload=as_simulation_request(request_payload),
+    )
+
+
+def run_enforced_tool_call(
+    *,
+    decision_client: DecisionClient,
+    tool: ToolCallable,
+    request_payload: RuntimeDecisionRequest,
+) -> ToolResult:
+    """Call the gateway in enforcement mode and fail closed on gateway errors."""
+
+    try:
+        return run_governed_tool_call(
+            decision_client=decision_client,
+            tool=tool,
+            request_payload=as_enforcement_request(request_payload),
+        )
+    except (RuntimeGatewayError, TimeoutError, OSError, urllib_error.URLError) as exc:
+        return {
+            "status": "blocked_gateway_error",
+            "decision": "gateway_error",
+            "reason": (
+                "Runtime Gateway did not return a safe enforcement decision; "
+                "tool was not executed."
+            ),
+            "error_type": exc.__class__.__name__,
+        }
 
 
 def run_governed_tool_call(
@@ -123,11 +189,11 @@ def _blocked_tool_result(
     reason = _required_text(decision_response, "reason")
 
     if decision == "deny":
-        status = "denied"
+        status = "blocked_denied"
     elif decision == "require_human_review":
-        status = "pending_human_review"
+        status = "blocked_pending_human_review"
     elif decision == "not_applicable":
-        status = "not_applicable"
+        status = "blocked_not_applicable"
     else:
         raise RuntimeGatewayError(f"Unsupported runtime decision: {decision}")
 
