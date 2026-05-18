@@ -8,6 +8,7 @@ HUMAN_APPROVAL_ID = "77777777-7777-4777-8777-777777777777"
 AGENT_RUN_RECORD_ID = "88888888-8888-4888-8888-888888888888"
 AGENT_AUDIT_LOG_ID = "99999999-9999-4999-8999-999999999999"
 HUMAN_APPROVAL_AUDIT_LOG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+RUNTIME_RESUME_TRACE_EVENT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 CREATED_AT = "2026-01-15T12:00:00Z"
 UPDATED_AT = "2026-01-15T12:00:00Z"
@@ -15,6 +16,7 @@ TRACE_EVENT_TIMESTAMP = "2026-01-15T12:05:00Z"
 POLICY_DECISION_CREATED_AT = "2026-01-15T12:05:01Z"
 HUMAN_APPROVAL_CREATED_AT = "2026-01-15T12:05:02Z"
 RUNTIME_REQUEST_ID = "runtime-request-001"
+RUNTIME_RESUME_ID = "runtime-request-001:resume:001"
 
 AGENT_CREATE_REQUEST = {
     "name": "V0 Support Assistant",
@@ -232,6 +234,74 @@ RUNTIME_ENFORCEMENT_MODE_RESPONSE = {
         "Runtime Gateway enforcement mode is disabled. Set "
         "AGCP_RUNTIME_ENFORCEMENT_ENABLED=true to enable it."
     ),
+}
+
+RUNTIME_TOOL_CALL_RESUME_REQUEST = {
+    "resume_id": RUNTIME_RESUME_ID,
+    "original_request_id": RUNTIME_REQUEST_ID,
+    "agent_id": AGENT_ID,
+    "run_id": RUN_ID,
+    "tool_name": "send_email",
+    "human_approval_id": HUMAN_APPROVAL_ID,
+    "policy_decision_id": POLICY_DECISION_ID,
+    "action_ref": "support-ticket-123:follow-up-email",
+    "correlation_id": "runtime-demo-correlation",
+    "metadata": {
+        "resume_channel": "polling",
+        "ticket_category": "support",
+    },
+}
+
+RUNTIME_TOOL_CALL_RESUME_CONTEXT_MISMATCH_REQUEST = {
+    **RUNTIME_TOOL_CALL_RESUME_REQUEST,
+    "tool_name": "send_payment",
+}
+
+RUNTIME_TOOL_CALL_RESUME_APPROVED_RESPONSE = {
+    "resume_id": RUNTIME_RESUME_ID,
+    "original_request_id": RUNTIME_REQUEST_ID,
+    "agent_id": AGENT_ID,
+    "run_id": RUN_ID,
+    "tool_name": "send_email",
+    "decision": "allow",
+    "proceed": True,
+    "reason": "Human approval is approved and the resume context matches.",
+    "human_approval_status": "approved",
+    "trace_event_id": RUNTIME_RESUME_TRACE_EVENT_ID,
+    "policy_decision_id": POLICY_DECISION_ID,
+    "human_approval_id": HUMAN_APPROVAL_ID,
+}
+
+RUNTIME_TOOL_CALL_RESUME_PENDING_RESPONSE = {
+    **RUNTIME_TOOL_CALL_RESUME_APPROVED_RESPONSE,
+    "decision": "require_human_review",
+    "proceed": False,
+    "reason": "Human approval is still pending.",
+    "human_approval_status": "pending",
+}
+
+RUNTIME_TOOL_CALL_RESUME_REJECTED_RESPONSE = {
+    **RUNTIME_TOOL_CALL_RESUME_APPROVED_RESPONSE,
+    "decision": "deny",
+    "proceed": False,
+    "reason": "Human approval was rejected.",
+    "human_approval_status": "rejected",
+}
+
+RUNTIME_TOOL_CALL_RESUME_CANCELLED_RESPONSE = {
+    **RUNTIME_TOOL_CALL_RESUME_REJECTED_RESPONSE,
+    "reason": "Human approval was cancelled.",
+    "human_approval_status": "cancelled",
+}
+
+RUNTIME_TOOL_CALL_RESUME_EXPIRED_RESPONSE = {
+    **RUNTIME_TOOL_CALL_RESUME_REJECTED_RESPONSE,
+    "reason": "Human approval is expired.",
+    "human_approval_status": "expired",
+}
+
+RUNTIME_TOOL_CALL_RESUME_CONTEXT_MISMATCH_RESPONSE = {
+    "detail": "Tool name does not match the original trace event.",
 }
 
 EVIDENCE_BUNDLE_RESPONSE = {
@@ -455,6 +525,83 @@ RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
                         "disabledEnforcementMode": _named_example(
                             "Enforcement mode is disabled by default.",
                             RUNTIME_ENFORCEMENT_MODE_RESPONSE,
+                        ),
+                    }
+                }
+            }
+        },
+    },
+}
+
+RUNTIME_TOOL_CALL_RESUME_OPENAPI = {
+    "requestBody": {
+        "content": {
+            "application/json": {
+                "examples": {
+                    "approvedApproval": _named_example(
+                        "Check an approved human approval before resuming.",
+                        RUNTIME_TOOL_CALL_RESUME_REQUEST,
+                    ),
+                    "pendingApproval": _named_example(
+                        "Check a still-pending human approval.",
+                        RUNTIME_TOOL_CALL_RESUME_REQUEST,
+                    ),
+                    "rejectedApproval": _named_example(
+                        "Check a rejected human approval.",
+                        RUNTIME_TOOL_CALL_RESUME_REQUEST,
+                    ),
+                    "cancelledApproval": _named_example(
+                        "Check a cancelled human approval.",
+                        RUNTIME_TOOL_CALL_RESUME_REQUEST,
+                    ),
+                    "expiredApproval": _named_example(
+                        "Check an expired human approval.",
+                        RUNTIME_TOOL_CALL_RESUME_REQUEST,
+                    ),
+                    "contextMismatch": _named_example(
+                        "Reject resume when the submitted context changed.",
+                        RUNTIME_TOOL_CALL_RESUME_CONTEXT_MISMATCH_REQUEST,
+                    ),
+                }
+            }
+        }
+    },
+    "responses": {
+        "201": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "approvedApproval": _named_example(
+                            "Approved human approval may proceed.",
+                            RUNTIME_TOOL_CALL_RESUME_APPROVED_RESPONSE,
+                        ),
+                        "pendingApproval": _named_example(
+                            "Pending human approval remains blocked.",
+                            RUNTIME_TOOL_CALL_RESUME_PENDING_RESPONSE,
+                        ),
+                        "rejectedApproval": _named_example(
+                            "Rejected human approval remains blocked.",
+                            RUNTIME_TOOL_CALL_RESUME_REJECTED_RESPONSE,
+                        ),
+                        "cancelledApproval": _named_example(
+                            "Cancelled human approval remains blocked.",
+                            RUNTIME_TOOL_CALL_RESUME_CANCELLED_RESPONSE,
+                        ),
+                        "expiredApproval": _named_example(
+                            "Expired human approval remains blocked.",
+                            RUNTIME_TOOL_CALL_RESUME_EXPIRED_RESPONSE,
+                        ),
+                    }
+                }
+            }
+        },
+        "409": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "contextMismatch": _named_example(
+                            "Resume context does not match the original request.",
+                            RUNTIME_TOOL_CALL_RESUME_CONTEXT_MISMATCH_RESPONSE,
                         ),
                     }
                 }

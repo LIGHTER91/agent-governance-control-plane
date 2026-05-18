@@ -149,6 +149,67 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
     )
 
 
+def test_runtime_gateway_resume_openapi_examples_cover_approval_statuses(
+    api_client: TestClient,
+) -> None:
+    operation = api_client.get("/openapi.json").json()["paths"][
+        "/runtime/tool-calls/resume"
+    ]["post"]
+
+    request_examples = _request_examples(operation)
+    created_examples = _response_examples(operation, "201")
+    conflict_examples = _response_examples(operation, "409")
+
+    assert set(request_examples) == {
+        "approvedApproval",
+        "pendingApproval",
+        "rejectedApproval",
+        "cancelledApproval",
+        "expiredApproval",
+        "contextMismatch",
+    }
+    assert set(created_examples) == {
+        "approvedApproval",
+        "pendingApproval",
+        "rejectedApproval",
+        "cancelledApproval",
+        "expiredApproval",
+    }
+    assert set(conflict_examples) == {"contextMismatch"}
+
+    approved = created_examples["approvedApproval"]["value"]
+    assert approved["decision"] == "allow"
+    assert approved["proceed"] is True
+    assert approved["human_approval_status"] == "approved"
+
+    pending = created_examples["pendingApproval"]["value"]
+    assert pending["decision"] == "require_human_review"
+    assert pending["proceed"] is False
+    assert pending["human_approval_status"] == "pending"
+
+    for example_name, approval_status in [
+        ("rejectedApproval", "rejected"),
+        ("cancelledApproval", "cancelled"),
+        ("expiredApproval", "expired"),
+    ]:
+        example = created_examples[example_name]["value"]
+        assert example["decision"] == "deny"
+        assert example["proceed"] is False
+        assert example["human_approval_status"] == approval_status
+
+    request = request_examples["approvedApproval"]["value"]
+    assert request["metadata"] == {
+        "resume_channel": "polling",
+        "ticket_category": "support",
+    }
+    assert request["action_ref"] == "support-ticket-123:follow-up-email"
+    assert request_examples["contextMismatch"]["value"]["tool_name"] == "send_payment"
+    assert (
+        conflict_examples["contextMismatch"]["value"]["detail"]
+        == "Tool name does not match the original trace event."
+    )
+
+
 def test_openapi_examples_do_not_include_sensitive_payloads(
     api_client: TestClient,
 ) -> None:

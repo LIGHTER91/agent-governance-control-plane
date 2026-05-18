@@ -20,7 +20,10 @@ from agent_governance_api.models import (
     TraceEventRecord,
     TraceEventType,
 )
-from agent_governance_api.openapi_examples import RUNTIME_TOOL_CALL_DECISION_OPENAPI
+from agent_governance_api.openapi_examples import (
+    RUNTIME_TOOL_CALL_DECISION_OPENAPI,
+    RUNTIME_TOOL_CALL_RESUME_OPENAPI,
+)
 from agent_governance_api.policy_decision_service import persist_policy_decision
 from agent_governance_api.policy_evaluator import (
     PolicyEvaluationResult,
@@ -215,6 +218,7 @@ def decide_runtime_tool_call(
     "/tool-calls/resume",
     response_model=RuntimeToolCallResumeResponse,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra=RUNTIME_TOOL_CALL_RESUME_OPENAPI,
 )
 def resume_runtime_tool_call(
     payload: RuntimeToolCallResumeRequest,
