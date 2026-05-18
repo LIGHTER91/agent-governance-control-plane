@@ -133,6 +133,12 @@ local tool only when `proceed = true`, and handle `deny`,
 `require_human_review`, and `not_applicable` without adding LangGraph or SDK
 dependencies.
 
+A more generic adapter-shaped example is available at
+`docs/examples/generic_runtime_adapter_example.py`. It demonstrates a reusable
+wrapper around arbitrary local tool functions, stable request ID generation,
+conservative retry behavior, idempotency expectations, and blocked results for
+non-allow decisions.
+
 ## Runtime Flow
 
 1. Agent requests action.
