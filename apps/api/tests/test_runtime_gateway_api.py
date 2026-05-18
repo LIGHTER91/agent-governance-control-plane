@@ -115,6 +115,35 @@ def test_runtime_simulation_with_allow_policy_returns_allow(
     assert fetch_human_approvals(session_factory) == []
 
 
+def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="The requested tool is denied.",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["proceed"] is False
+    assert body["human_approval_id"] is None
+    assert len(fetch_trace_events(session_factory)) == 1
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.DENY
+
+
 def test_runtime_simulation_with_deny_policy_returns_deny(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -350,6 +379,30 @@ def test_runtime_simulation_unknown_agent_returns_404(
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
     assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_unknown_agent_still_fails_closed_with_record_only_config(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(uuid4()),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Agent not found."
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_runtime_gateway_rejects_telemetry_mode(
@@ -369,6 +422,9 @@ def test_runtime_gateway_rejects_telemetry_mode(
     )
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_runtime_gateway_rejects_enforcement_when_disabled(
@@ -387,6 +443,9 @@ def test_runtime_gateway_rejects_enforcement_when_disabled(
     )
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_runtime_request_missing_tool_name_is_rejected_by_schema(
@@ -402,11 +461,38 @@ def test_runtime_request_missing_tool_name_is_rejected_by_schema(
     assert response.status_code == 422
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_runtime_request_unsafe_metadata_is_rejected(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    payload = runtime_decision_payload(agent_id)
+    payload["metadata"] = {"api_key": "redacted"}
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 422
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_unsafe_metadata_still_fails_closed_with_record_only_config(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    get_settings.cache_clear()
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     payload = runtime_decision_payload(agent_id)
@@ -552,6 +638,70 @@ def test_runtime_enforcement_records_are_atomic_when_policy_persistence_fails(
         client.post(
             "/runtime/tool-calls/decision",
             json=runtime_decision_payload(agent_id, mode="enforcement"),
+        )
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_decision_records_are_atomic_when_human_approval_creation_fails(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    def fail_human_approval_creation(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("human approval creation failed")
+
+    monkeypatch.setattr(
+        runtime_gateway_api,
+        "_create_human_approval_for_policy_decision",
+        fail_human_approval_creation,
+    )
+
+    with pytest.raises(RuntimeError, match="human approval creation failed"):
+        client.post(
+            "/runtime/tool-calls/decision",
+            json=runtime_decision_payload(agent_id),
+        )
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_decision_records_are_atomic_when_audit_log_fails(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    def fail_audit_log(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit log persistence failed")
+
+    monkeypatch.setattr(runtime_gateway_api, "append_audit_log", fail_audit_log)
+
+    with pytest.raises(RuntimeError, match="audit log persistence failed"):
+        client.post(
+            "/runtime/tool-calls/decision",
+            json=runtime_decision_payload(agent_id),
         )
 
     assert fetch_agent_runs(session_factory) == []
