@@ -39,6 +39,24 @@ def governed_action(adapter_example: ModuleType) -> object:
     )
 
 
+@pytest.fixture()
+def blocked_tool_call(
+    adapter_example: ModuleType,
+    governed_action: object,
+) -> object:
+    return adapter_example.BlockedToolCall(
+        agent_id=governed_action.agent_id,
+        run_id=governed_action.run_id,
+        correlation_id=governed_action.correlation_id,
+        tool_name=governed_action.tool_name,
+        action_ref=governed_action.action_ref,
+        original_request_id=adapter_example.stable_request_id(governed_action),
+        human_approval_id=uuid4(),
+        policy_decision_id=uuid4(),
+        metadata={"ticket_category": "support"},
+    )
+
+
 def test_adapter_builds_stable_request_id(
     adapter_example: ModuleType,
     governed_action: object,
@@ -51,6 +69,31 @@ def test_adapter_builds_stable_request_id(
     assert first_payload["tool_name"] == "create_ticket"
     assert first_payload["metadata"] == {"ticket_category": "support"}
     assert first_payload["mode"] == "enforcement"
+
+
+def test_adapter_builds_stable_resume_id_and_request(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    first_payload = adapter_example.build_runtime_resume_request(blocked_tool_call)
+    second_payload = adapter_example.build_runtime_resume_request(blocked_tool_call)
+
+    assert first_payload == second_payload
+    assert first_payload["resume_id"].startswith(
+        f"{blocked_tool_call.original_request_id}:resume:"
+    )
+    assert first_payload["original_request_id"] == blocked_tool_call.original_request_id
+    assert first_payload["agent_id"] == str(blocked_tool_call.agent_id)
+    assert first_payload["run_id"] == str(blocked_tool_call.run_id)
+    assert first_payload["tool_name"] == "create_ticket"
+    assert first_payload["human_approval_id"] == str(
+        blocked_tool_call.human_approval_id
+    )
+    assert first_payload["policy_decision_id"] == str(
+        blocked_tool_call.policy_decision_id
+    )
+    assert first_payload["action_ref"] == "ticket-draft-001"
+    assert first_payload["metadata"] == {"ticket_category": "support"}
 
 
 def test_adapter_executes_tool_only_when_decision_allows(
@@ -268,3 +311,290 @@ def test_adapter_rejects_tool_name_mismatch(
         match="Governed action tool_name must match tool.",
     ):
         adapter.run(governed_action, tool)
+
+
+def test_resume_adapter_executes_tool_only_when_approved_allow(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    calls = []
+    observed_payloads = []
+
+    def resume_client(payload: dict[str, object]) -> dict[str, object]:
+        observed_payloads.append(payload)
+        return resume_response(
+            adapter_example,
+            blocked_tool_call,
+            decision="allow",
+            proceed=True,
+            human_approval_status="approved",
+            reason="Human approval is approved and the resume context matches.",
+        )
+
+    def local_tool(ticket_ref: str) -> dict[str, str]:
+        calls.append(ticket_ref)
+        return {"ticket_ref": ticket_ref, "status": "queued"}
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=local_tool,
+        args=("ticket-draft-001",),
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+    )
+
+    assert calls == ["ticket-draft-001"]
+    assert len(observed_payloads) == 1
+    assert observed_payloads[0]["original_request_id"] == (
+        blocked_tool_call.original_request_id
+    )
+    assert observed_payloads[0]["human_approval_id"] == str(
+        blocked_tool_call.human_approval_id
+    )
+    assert observed_payloads[0]["policy_decision_id"] == str(
+        blocked_tool_call.policy_decision_id
+    )
+    assert result == {
+        "status": "executed",
+        "decision": "allow",
+        "human_approval_status": "approved",
+        "tool_name": "create_ticket",
+        "tool_result": {"ticket_ref": "ticket-draft-001", "status": "queued"},
+        "trace_event_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "policy_decision_id": str(blocked_tool_call.policy_decision_id),
+        "human_approval_id": str(blocked_tool_call.human_approval_id),
+    }
+
+
+@pytest.mark.parametrize(
+    ("decision", "approval_status", "expected_status"),
+    [
+        ("require_human_review", "pending", "blocked_pending_human_review"),
+        ("deny", "rejected", "blocked_rejected"),
+        ("deny", "cancelled", "blocked_cancelled"),
+        ("deny", "expired", "blocked_expired"),
+    ],
+)
+def test_resume_adapter_blocks_unresolved_or_denied_approval_statuses(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+    decision: str,
+    approval_status: str,
+    expected_status: str,
+) -> None:
+    calls = []
+
+    def resume_client(_payload: dict[str, object]) -> dict[str, object]:
+        return resume_response(
+            adapter_example,
+            blocked_tool_call,
+            decision=decision,
+            proceed=False,
+            human_approval_status=approval_status,
+            reason="Resume did not proceed.",
+        )
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=lambda: calls.append("called"),
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+    )
+
+    assert calls == []
+    assert result["status"] == expected_status
+    assert result["decision"] == decision
+    assert result["human_approval_status"] == approval_status
+    assert result["human_approval_id"] == str(blocked_tool_call.human_approval_id)
+
+
+def test_resume_adapter_blocks_context_mismatch_without_executing_tool(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    calls = []
+
+    def resume_client(_payload: dict[str, object]) -> dict[str, object]:
+        return {"detail": "Tool name does not match the original trace event."}
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=lambda: calls.append("called"),
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+    )
+
+    assert calls == []
+    assert result == {
+        "status": "blocked_context_mismatch",
+        "decision": "context_mismatch",
+        "reason": "Tool name does not match the original trace event.",
+        "human_approval_id": None,
+    }
+
+
+def test_resume_adapter_retries_with_same_resume_id(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    observed_payloads = []
+
+    def resume_client(payload: dict[str, object]) -> dict[str, object]:
+        observed_payloads.append(dict(payload))
+        if len(observed_payloads) == 1:
+            raise TimeoutError("gateway timed out")
+        return resume_response(
+            adapter_example,
+            blocked_tool_call,
+            decision="allow",
+            proceed=True,
+            human_approval_status="approved",
+            reason="Human approval is approved and the resume context matches.",
+        )
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=lambda: {"status": "queued"},
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+        max_attempts=2,
+    )
+
+    assert result["status"] == "executed"
+    assert len(observed_payloads) == 2
+    assert observed_payloads[0]["resume_id"] == observed_payloads[1]["resume_id"]
+    assert observed_payloads[0] == observed_payloads[1]
+
+
+def test_resume_adapter_blocks_after_gateway_errors_without_executing_tool(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    calls = []
+    attempts = []
+
+    def resume_client(payload: dict[str, object]) -> dict[str, object]:
+        attempts.append(payload)
+        raise TimeoutError("gateway timed out")
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=lambda: calls.append("called"),
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+        max_attempts=2,
+    )
+
+    assert len(attempts) == 2
+    assert calls == []
+    assert result == {
+        "status": "blocked_gateway_error",
+        "decision": "gateway_error",
+        "reason": (
+            "Runtime Gateway did not return a resume decision after retry; "
+            "tool was not executed."
+        ),
+        "human_approval_id": None,
+    }
+
+
+def test_resume_adapter_blocks_unsafe_response_without_executing_tool(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    calls = []
+
+    def resume_client(_payload: dict[str, object]) -> dict[str, object]:
+        return resume_response(
+            adapter_example,
+            blocked_tool_call,
+            decision="allow",
+            proceed=True,
+            human_approval_status="pending",
+            reason="Unsafe inconsistent resume response.",
+        )
+
+    tool = adapter_example.RegisteredTool(
+        name="create_ticket",
+        function=lambda: calls.append("called"),
+    )
+
+    result = adapter_example.run_resumed_tool_call(
+        blocked_call=blocked_tool_call,
+        tool=tool,
+        resume_client=resume_client,
+    )
+
+    assert calls == []
+    assert result["status"] == "blocked_gateway_error"
+    assert result["decision"] == "gateway_error"
+    assert result["human_approval_id"] is None
+    assert result["reason"] == (
+        "Runtime Gateway resume response was not safe to act on; "
+        "tool was not executed. Error: Resume allow requires approved human approval."
+    )
+
+
+def test_resume_adapter_rejects_tool_name_mismatch(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+) -> None:
+    tool = adapter_example.RegisteredTool(
+        name="send_email",
+        function=lambda: {"status": "queued"},
+    )
+
+    with pytest.raises(
+        adapter_example.RuntimeAdapterError,
+        match="Blocked tool_call tool_name must match tool.",
+    ):
+        adapter_example.run_resumed_tool_call(
+            blocked_call=blocked_tool_call,
+            tool=tool,
+            resume_client=lambda _payload: {},
+        )
+
+
+def resume_response(
+    adapter_example: ModuleType,
+    blocked_tool_call: object,
+    *,
+    decision: str,
+    proceed: bool,
+    human_approval_status: str,
+    reason: str,
+) -> dict[str, object]:
+    return {
+        "resume_id": adapter_example.stable_resume_id(blocked_tool_call),
+        "original_request_id": blocked_tool_call.original_request_id,
+        "agent_id": str(blocked_tool_call.agent_id),
+        "run_id": str(blocked_tool_call.run_id),
+        "tool_name": blocked_tool_call.tool_name,
+        "decision": decision,
+        "proceed": proceed,
+        "reason": reason,
+        "human_approval_status": human_approval_status,
+        "trace_event_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "policy_decision_id": str(blocked_tool_call.policy_decision_id),
+        "human_approval_id": str(blocked_tool_call.human_approval_id),
+    }

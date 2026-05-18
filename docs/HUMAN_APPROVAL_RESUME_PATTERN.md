@@ -233,10 +233,11 @@ wrapper remains responsible for execution because it owns the local runtime
 state, tool implementation, credentials, and user interaction.
 
 The dependency-free example at
-`docs/examples/generic_runtime_adapter_example.py` demonstrates the blocking
-side of this pattern for arbitrary local tool functions. It preserves
-`human_approval_id` when the gateway returns `require_human_review`, but it does
-not implement the future resume endpoint.
+`docs/examples/generic_runtime_adapter_example.py` demonstrates both the
+blocking side of this pattern and a minimal resume check for arbitrary local
+tool functions. It preserves `original_request_id`, `human_approval_id`, and
+`policy_decision_id`, uses a stable `resume_id`, and still leaves actual tool
+execution inside the wrapper.
 
 ## Idempotency Rules
 
