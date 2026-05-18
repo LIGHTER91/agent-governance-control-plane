@@ -2,7 +2,9 @@
 
 ## Status
 
-Design proposal only. No LangGraph integration code exists yet.
+Design proposal only. A dependency-free adapter spike exists as example code in
+`docs/examples/langgraph_adapter_spike.py`, but no production LangGraph
+integration code or LangGraph dependency exists yet.
 
 This document describes how LangGraph agents could integrate with the Agent
 Governance Control Plane (AGCP). AGCP remains a governance and evidence control
@@ -243,6 +245,11 @@ Responsibilities:
 The wrapper must avoid serializing full LangGraph state or raw tool payloads to
 AGCP by default.
 
+The example spike in `docs/examples/langgraph_adapter_spike.py` shows this shape
+without importing LangGraph. It demonstrates where a future LangGraph `@tool`,
+ToolNode wrapper, or application-owned tool registry would call AGCP before
+executing the original tool.
+
 ### Middleware Or Helper Function
 
 For applications that do not want a full SDK, V1 could provide a small helper:
@@ -402,8 +409,9 @@ Mitigation:
 
 1. Keep this design as documentation until a LangGraph adapter is explicitly
    requested.
-2. Build a tiny example LangGraph-side wrapper in a separate example area, not
-   as a backend dependency.
+2. Use the dependency-free LangGraph adapter spike in
+   `docs/examples/langgraph_adapter_spike.py` as the first wrapper reference,
+   not as a backend dependency.
 3. Support `tool_call_requested` with `tool_name`, safe summary, and safe
    metadata.
 4. Add adapter-side idempotency with stable `request_id`.
@@ -422,7 +430,8 @@ framework dependency.
 2. Add runtime failure policy configuration design.
 3. Add safe metadata allowlist helper for adapters.
 4. Add generic Python tool wrapper example without LangGraph dependency.
-5. Add LangGraph adapter spike using the generic wrapper.
+5. Add tests around a concrete LangGraph adapter package if a production
+   integration is requested.
 6. Add Evidence Bundle tests for LangGraph runtime decision mode.
 7. Add documentation for LangGraph run ID to AGCP run ID mapping.
 
