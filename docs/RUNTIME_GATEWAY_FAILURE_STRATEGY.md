@@ -255,19 +255,254 @@ Potential options:
 All configuration changes should be audited and included in later evidence
 exports where relevant.
 
+## Future Failure Policy Configuration Model
+
+The first configurable failure policy should be deliberately small. Its purpose
+is to decide what the Runtime Gateway and adapter should do when the gateway
+cannot produce a normal policy evaluation result, not to replace the policy
+evaluator.
+
+This model is future work. It should not be implemented until the team is ready
+to persist configuration, audit configuration changes, and test failure paths.
+
+### Configuration Dimensions
+
+The model should support these dimensions:
+
+- Global default behavior: the baseline for all runtime requests.
+- Per-Agent override: behavior for a specific registered Agent.
+- Per-tool override: behavior for a specific governed `tool_name`.
+- Per-environment override: behavior for development, staging, or production.
+- Per-risk-level override: behavior for low, medium, high, or critical risk.
+
+A minimal persisted configuration could contain:
+
+```json
+{
+  "scope_type": "tool",
+  "scope_id": "send_email",
+  "environment": "production",
+  "risk_level": "high",
+  "failure_category": "gateway_unavailable",
+  "failure_decision": "fail_closed_deny",
+  "reason": "Email tool calls must not proceed without a gateway decision."
+}
+```
+
+The exact schema should be designed during implementation. V1 should avoid a
+large expression language. Simple exact-match scopes are enough.
+
+### Failure Decisions
+
+Supported failure decisions should be:
+
+- `fail_closed_deny`: do not allow the action to proceed.
+- `fail_closed_human_review`: do not allow the action to proceed; create or
+  request a HumanApproval when persistence is available.
+- `fail_open_allow`: allow the action to proceed despite the failure. This must
+  be restricted to explicitly configured low-risk cases.
+- `record_only`: record the failure when possible, but do not claim blocking.
+  This is appropriate for telemetry and simulation contexts, not enforcement
+  control.
+
+`fail_open_allow` should never be the global default. It should require a narrow
+scope such as low-risk development, a specific low-risk tool, or a specific
+Agent whose owner has accepted the behavior.
+
+Current implementation note: the only runtime failure policy configuration
+available in code is the global `AGCP_RUNTIME_FAILURE_DEFAULT` value. It accepts
+`fail_closed_deny`, `fail_closed_human_review`, and `record_only`.
+`fail_open_allow` is intentionally not accepted yet.
+
+### Precedence Rules
+
+When multiple configuration levels match a runtime request, the gateway should
+choose the most specific safe match.
+
+Recommended precedence:
+
+1. Hard safety rules.
+2. Per-Agent + per-tool + per-environment + per-risk-level exact override.
+3. Per-Agent + per-tool override.
+4. Per-Agent override.
+5. Per-tool override.
+6. Per-environment override.
+7. Per-risk-level override.
+8. Global default.
+
+Hard safety rules always win. These include:
+
+- unsafe metadata always denies;
+- unknown Agent always denies;
+- high and critical risk actions cannot fail open by default;
+- audit persistence failure denies in enforcement when an audited mutation is
+  required;
+- PolicyDecision persistence failure denies in enforcement when a decision would
+  otherwise be returned as successful.
+
+If two equally specific rules conflict, the safer outcome should win in this
+order:
+
+1. `fail_closed_deny`
+2. `fail_closed_human_review`
+3. `record_only`
+4. `fail_open_allow`
+
+This is intentionally conservative. It reduces surprising fail-open behavior at
+the cost of occasionally blocking work until configuration is cleaned up.
+
+### Safe Defaults
+
+Recommended defaults:
+
+- Enforcement mode default: `fail_closed_deny`.
+- Telemetry mode default: `record_only` when safe persistence is available;
+  otherwise return a retryable error.
+- Simulation mode default: `record_only` for unavailable gateway behavior in
+  the adapter, and rollback partial server records when the backend has already
+  started a transaction.
+- High and critical risk: cannot use `fail_open_allow` unless a later, explicit
+  exception model is designed.
+- Unknown Agent: always deny.
+- Unsafe metadata: always deny and do not persist unsafe metadata.
+- Audit persistence failure: deny and rollback in enforcement when audit is
+  required.
+- PolicyDecision persistence failure: deny and rollback in enforcement when the
+  gateway would otherwise return a decision.
+- HumanApproval creation failure: deny and rollback when the failure decision or
+  policy decision requires human review.
+
+### Representation In RuntimeToolCallDecisionResponse
+
+For V1, failures that happen before a reliable decision can be persisted should
+continue to return clear API errors instead of pretending to be normal policy
+decisions.
+
+When a future failure policy is successfully applied and recorded, the response
+could reuse the existing response shape:
+
+- `decision = "deny"` for `fail_closed_deny`;
+- `decision = "require_human_review"` for `fail_closed_human_review`;
+- `decision = "allow"` for narrowly configured `fail_open_allow`;
+- `decision = "not_applicable"` should not be used for runtime failures;
+- `reason` should identify the failure category and selected failure policy;
+- `proceed` must follow the normal decision/proceed rules.
+
+The response should not add a new public decision value until the model has a
+clear persistence and evidence representation.
+
+### Representation In PolicyDecision
+
+PolicyDecision should remain the record of the outcome returned to the
+integration. When a failure policy drives the outcome, the persisted
+PolicyDecision should include safe context such as:
+
+- failure category;
+- selected failure decision;
+- configuration scope that matched;
+- configuration version if versioning exists;
+- short reason safe for review.
+
+This can be stored through a future structured field or context reference. It
+should not store raw prompts, raw tool inputs, raw tool outputs, credentials, or
+private data.
+
+`not_applicable` should remain reserved for successful evaluation with no
+matching rule. It should not be used as a generic failure bucket.
+
+### Representation In AuditLog
+
+AuditLog should record governance-relevant failure policy events, including:
+
+- failure policy configuration created, changed, disabled, or deleted;
+- enforcement mode enabled or disabled;
+- fail-open exception configured;
+- failure policy selected `fail_closed_human_review` and created a
+  HumanApproval;
+- failure policy selected `fail_open_allow` for a governed action.
+
+The audit metadata should contain only safe identifiers and summaries:
+
+- configuration ID or version;
+- scope type and scope ID;
+- failure category;
+- failure decision;
+- Agent ID;
+- tool name;
+- environment;
+- risk level.
+
+### Representation In Evidence Bundle
+
+Evidence Bundle export should show failure-policy-driven decisions in the same
+reviewable chain as normal decisions:
+
+```text
+TraceEventRecord -> PolicyDecision -> optional HumanApproval -> AuditLog
+```
+
+When a fail-open decision is allowed by configuration, the Evidence Bundle
+should make that explicit by including the matched failure policy reference and
+the reason. Reviewers should be able to distinguish:
+
+- a normal `allow` from policy evaluation;
+- a fail-open `allow` caused by failure policy;
+- a fail-closed `deny`;
+- a human-review escalation caused by failure policy.
+
+If a failure happens before the backend can persist evidence, the bundle cannot
+represent that request. The control plane should not claim evidence it did not
+store.
+
+## V1 Versus Future Work
+
+### V1 Implementation Scope
+
+V1 should include only:
+
+- a global default failure policy for enforcement set to `fail_closed_deny`;
+- hard safety rules for unknown Agent and unsafe metadata;
+- rollback behavior for audit, PolicyDecision, and HumanApproval persistence
+  failures;
+- tests proving high and critical risk requests do not fail open;
+- safe audit records for configuration changes if configuration persistence is
+  introduced;
+- documentation of adapter behavior when the gateway is unavailable or times
+  out.
+
+### Future Work
+
+Later work can add:
+
+- persisted per-Agent overrides;
+- persisted per-tool overrides;
+- persisted per-environment overrides;
+- persisted per-risk-level overrides;
+- failure policy versioning;
+- fail-open exception review and expiration;
+- UI for reviewing configured failure behavior;
+- Evidence Bundle references to specific failure policy versions;
+- typed failure records if API errors are not enough for review needs.
+
 ## Recommended Follow-up Issues
 
-1. Add enforcement failure-path tests for the configured runtime endpoint.
-2. Add an enforcement failure-policy configuration model.
-3. Add audit logging for enforcement and failure-policy configuration changes.
-4. Add tests for fail-closed behavior on unknown Agent, unsafe metadata,
-   database errors, policy errors, and `not_applicable`.
-5. Add tests for high and critical risk fail-closed defaults.
-6. Add an explicit design for representing runtime failure decisions without
-   overloading `not_applicable`.
-7. Add Evidence Bundle coverage for future runtime failure records.
-8. Add integration guidance for client-side behavior when the gateway is
-   unavailable or times out.
+1. Add V1 enforcement failure-path tests for unknown Agent, unsafe metadata,
+   database errors, policy errors, audit failures, PolicyDecision persistence
+   failures, and HumanApproval creation failures.
+2. Add a global enforcement failure policy setting with default
+   `fail_closed_deny`.
+3. Add hard safety rule tests proving unknown Agent and unsafe metadata always
+   deny in enforcement.
+4. Add tests proving high and critical risk actions cannot fail open by default.
+5. Design and implement persisted failure policy configuration with global,
+   Agent, tool, environment, and risk-level scopes.
+6. Add audit logging for failure policy configuration changes and fail-open
+   exceptions.
+7. Add Evidence Bundle references for failure-policy-driven PolicyDecision
+   records.
+8. Add a design for expiring or reviewing fail-open exceptions.
+9. Add integration guidance for adapter behavior when the gateway is unavailable
+   or times out.
 
 ## Open Questions
 

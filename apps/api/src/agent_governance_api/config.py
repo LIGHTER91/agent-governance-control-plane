@@ -1,3 +1,4 @@
+from enum import StrEnum
 from functools import lru_cache
 from os import getenv
 
@@ -9,6 +10,12 @@ DEFAULT_DATABASE_URL = (
 )
 
 
+class RuntimeFailureDefault(StrEnum):
+    FAIL_CLOSED_DENY = "fail_closed_deny"
+    FAIL_CLOSED_HUMAN_REVIEW = "fail_closed_human_review"
+    RECORD_ONLY = "record_only"
+
+
 class Settings(BaseModel):
     app_name: str = Field(default="Agent Governance Control Plane API")
     app_version: str = Field(default="0.1.0")
@@ -16,6 +23,9 @@ class Settings(BaseModel):
     log_level: str = Field(default="INFO")
     database_url: str = Field(default=DEFAULT_DATABASE_URL)
     runtime_enforcement_enabled: bool = Field(default=False)
+    runtime_failure_default: RuntimeFailureDefault = Field(
+        default=RuntimeFailureDefault.FAIL_CLOSED_DENY
+    )
 
 
 @lru_cache
@@ -29,6 +39,10 @@ def get_settings() -> Settings:
         runtime_enforcement_enabled=_get_bool_env(
             "AGCP_RUNTIME_ENFORCEMENT_ENABLED",
             default=False,
+        ),
+        runtime_failure_default=_get_runtime_failure_default_env(
+            "AGCP_RUNTIME_FAILURE_DEFAULT",
+            default=RuntimeFailureDefault.FAIL_CLOSED_DENY,
         ),
     )
 
@@ -45,3 +59,20 @@ def _get_bool_env(name: str, *, default: bool) -> bool:
         return False
 
     raise ValueError(f"{name} must be one of: 1, true, yes, on, 0, false, no, off.")
+
+
+def _get_runtime_failure_default_env(
+    name: str,
+    *,
+    default: RuntimeFailureDefault,
+) -> RuntimeFailureDefault:
+    raw_value = getenv(name)
+    if raw_value is None:
+        return default
+
+    normalized_value = raw_value.strip().lower()
+    try:
+        return RuntimeFailureDefault(normalized_value)
+    except ValueError as exc:
+        supported_values = ", ".join(item.value for item in RuntimeFailureDefault)
+        raise ValueError(f"{name} must be one of: {supported_values}.") from exc
