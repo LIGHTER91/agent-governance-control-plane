@@ -2,14 +2,16 @@
 
 ## Status
 
-Design proposal only. The current backend implements Runtime Gateway
-request/response schemas, simulation mode, and enforcement mode behind
-`AGCP_RUNTIME_ENFORCEMENT_ENABLED=false` by default. Telemetry mode for
-`POST /runtime/tool-calls/decision` is not implemented yet.
+Design proposal with current implementation notes. The current backend
+implements Runtime Gateway request/response schemas, simulation mode,
+enforcement mode behind `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false` by default, and
+minimal `AGCP_RUNTIME_FAILURE_DEFAULT` handling for internal policy evaluation
+failures. Telemetry mode for `POST /runtime/tool-calls/decision` is not
+implemented yet.
 
-This document defines failure behavior for future Runtime Gateway modes. It does
-not implement enforcement, change existing endpoint behavior, add SDK behavior,
-or claim legal compliance.
+This document defines failure behavior for current and future Runtime Gateway
+modes. It does not add SDK behavior, implement per-agent or per-tool failure
+configuration, or claim legal compliance.
 
 ## Why Failure Behavior Matters
 
@@ -312,6 +314,9 @@ Agent whose owner has accepted the behavior.
 Current implementation note: the only runtime failure policy configuration
 available in code is the global `AGCP_RUNTIME_FAILURE_DEFAULT` value. It accepts
 `fail_closed_deny`, `fail_closed_human_review`, and `record_only`.
+It is applied only to internal policy evaluation failures where the gateway can
+return a controlled decision response. Unknown Agent, unsafe metadata, invalid
+mode, enforcement-disabled, and persistence-failure paths remain hard errors.
 `fail_open_allow` is intentionally not accepted yet.
 
 ### Precedence Rules

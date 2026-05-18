@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
-from agent_governance_api.config import Settings, get_settings
+from agent_governance_api.config import RuntimeFailureDefault, Settings, get_settings
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
     ActorType,
@@ -22,7 +22,10 @@ from agent_governance_api.models import (
 )
 from agent_governance_api.openapi_examples import RUNTIME_TOOL_CALL_DECISION_OPENAPI
 from agent_governance_api.policy_decision_service import persist_policy_decision
-from agent_governance_api.policy_evaluator import evaluate_policy
+from agent_governance_api.policy_evaluator import (
+    PolicyEvaluationResult,
+    evaluate_policy,
+)
 from agent_governance_api.policy_rule_adapter import (
     UnsupportedPolicyRuleConditionError,
     load_active_policy_evaluation_rules,
@@ -39,6 +42,11 @@ SIMULATED_RUN_STATUS = "simulated"
 ENFORCED_RUN_STATUS = "enforced"
 DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
+POLICY_EVALUATION_FAILURE_ERRORS = (
+    UnsupportedPolicyRuleConditionError,
+    TypeError,
+    ValueError,
+)
 
 
 @router.post(
@@ -86,6 +94,14 @@ def decide_runtime_tool_call(
         response.status_code = status.HTTP_200_OK
         policy_decision = _policy_decision_for_trace_event(session, existing_event)
         if policy_decision is None:
+            record_only_failure_response = (
+                _runtime_record_only_response_for_trace_event(
+                    payload,
+                    trace_event=existing_event,
+                )
+            )
+            if record_only_failure_response is not None:
+                return record_only_failure_response
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Runtime decision records are incomplete for this request.",
@@ -135,34 +151,54 @@ def decide_runtime_tool_call(
         session.add(trace_event)
         session.flush()
 
-        policy_decision = _evaluate_and_persist_policy_decision(
-            session,
-            agent=agent,
-            payload=payload,
-            trace_event=trace_event,
-        )
-
         human_approval = None
-        if policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW:
-            human_approval = _create_human_approval_for_policy_decision(
+        record_only_failure_reason = None
+        try:
+            evaluation_result = _evaluate_runtime_policy(
                 session,
-                policy_decision,
+                agent=agent,
+                payload=payload,
             )
+        except POLICY_EVALUATION_FAILURE_ERRORS:
+            (
+                policy_decision,
+                human_approval,
+                record_only_failure_reason,
+            ) = _apply_runtime_failure_default(
+                session,
+                payload=payload,
+                trace_event=trace_event,
+                failure_default=settings.runtime_failure_default,
+            )
+        else:
+            policy_decision = _persist_runtime_policy_decision(
+                session,
+                payload=payload,
+                trace_event=trace_event,
+                evaluation_result=evaluation_result,
+            )
+            if policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW:
+                human_approval = _create_human_approval_for_policy_decision(
+                    session,
+                    policy_decision,
+                )
 
         session.commit()
         session.refresh(trace_event)
-        session.refresh(policy_decision)
+        if policy_decision is not None:
+            session.refresh(policy_decision)
         if human_approval is not None:
             session.refresh(human_approval)
-    except UnsupportedPolicyRuleConditionError as exc:
-        session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
     except Exception:
         session.rollback()
         raise
+
+    if policy_decision is None:
+        return _runtime_record_only_failure_response(
+            payload,
+            trace_event=trace_event,
+            reason=record_only_failure_reason,
+        )
 
     return _runtime_decision_response(
         payload,
@@ -207,37 +243,163 @@ def _runtime_decision_response(
     )
 
 
+def _runtime_record_only_response_for_trace_event(
+    payload: RuntimeToolCallDecisionRequest,
+    *,
+    trace_event: TraceEventRecord,
+) -> RuntimeToolCallDecisionResponse | None:
+    if trace_event.metadata_.get("runtime_failure_default") != (
+        RuntimeFailureDefault.RECORD_ONLY.value
+    ):
+        return None
+    if trace_event.metadata_.get("runtime_failure_category") != "policy_evaluation":
+        return None
+
+    return _runtime_record_only_failure_response(
+        payload,
+        trace_event=trace_event,
+        reason=_runtime_failure_reason(RuntimeFailureDefault.RECORD_ONLY),
+    )
+
+
+def _runtime_record_only_failure_response(
+    payload: RuntimeToolCallDecisionRequest,
+    *,
+    trace_event: TraceEventRecord,
+    reason: str | None,
+) -> RuntimeToolCallDecisionResponse:
+    return RuntimeToolCallDecisionResponse(
+        request_id=payload.request_id,
+        agent_id=payload.agent_id,
+        run_id=payload.run_id,
+        tool_name=payload.tool_name,
+        decision=PolicyDecisionValue.NOT_APPLICABLE,
+        proceed=False,
+        reason=reason or _runtime_failure_reason(RuntimeFailureDefault.RECORD_ONLY),
+        trace_event_id=trace_event.id,
+        policy_decision_id=None,
+        human_approval_id=None,
+    )
+
+
 def _agent_run_status_for_mode(mode: RuntimeDecisionMode) -> str:
     if mode is RuntimeDecisionMode.ENFORCEMENT:
         return ENFORCED_RUN_STATUS
     return SIMULATED_RUN_STATUS
 
 
-def _evaluate_and_persist_policy_decision(
+def _evaluate_runtime_policy(
     session: Session,
     *,
     agent: Agent,
     payload: RuntimeToolCallDecisionRequest,
-    trace_event: TraceEventRecord,
-) -> PolicyDecision:
+) -> PolicyEvaluationResult:
     rules = load_active_policy_evaluation_rules(session)
-    result = evaluate_policy(
+    return evaluate_policy(
         agent_context={"agent_id": payload.agent_id},
         action_context={"tool_name": payload.tool_name},
         environment=agent.environment,
         risk_level=agent.risk_level,
         rules=rules,
     )
+
+
+def _persist_runtime_policy_decision(
+    session: Session,
+    *,
+    payload: RuntimeToolCallDecisionRequest,
+    trace_event: TraceEventRecord,
+    evaluation_result: PolicyEvaluationResult,
+) -> PolicyDecision:
     return persist_policy_decision(
         session,
         agent_id=payload.agent_id,
-        evaluation_result=result,
+        evaluation_result=evaluation_result,
         trace_event_id=trace_event.id,
         context_hash=_policy_context_hash(
             agent_id=payload.agent_id,
             run_id=payload.run_id,
             request_id=payload.request_id,
         ),
+    )
+
+
+def _apply_runtime_failure_default(
+    session: Session,
+    *,
+    payload: RuntimeToolCallDecisionRequest,
+    trace_event: TraceEventRecord,
+    failure_default: RuntimeFailureDefault,
+) -> tuple[PolicyDecision | None, HumanApproval | None, str | None]:
+    effective_failure_default = failure_default
+    if (
+        failure_default is RuntimeFailureDefault.RECORD_ONLY
+        and payload.mode is RuntimeDecisionMode.ENFORCEMENT
+    ):
+        effective_failure_default = RuntimeFailureDefault.FAIL_CLOSED_DENY
+
+    _mark_trace_event_policy_evaluation_failure(
+        trace_event,
+        failure_default=effective_failure_default,
+    )
+
+    if effective_failure_default is RuntimeFailureDefault.RECORD_ONLY:
+        session.flush()
+        return None, None, _runtime_failure_reason(effective_failure_default)
+
+    decision = {
+        RuntimeFailureDefault.FAIL_CLOSED_DENY: PolicyDecisionValue.DENY,
+        RuntimeFailureDefault.FAIL_CLOSED_HUMAN_REVIEW: (
+            PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+        ),
+    }[effective_failure_default]
+    policy_decision = _persist_runtime_policy_decision(
+        session,
+        payload=payload,
+        trace_event=trace_event,
+        evaluation_result=PolicyEvaluationResult(
+            decision=decision,
+            reason=_runtime_failure_reason(effective_failure_default),
+            agent_id=str(payload.agent_id),
+        ),
+    )
+
+    human_approval = None
+    if policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW:
+        human_approval = _create_human_approval_for_policy_decision(
+            session,
+            policy_decision,
+        )
+
+    return policy_decision, human_approval, None
+
+
+def _mark_trace_event_policy_evaluation_failure(
+    trace_event: TraceEventRecord,
+    *,
+    failure_default: RuntimeFailureDefault,
+) -> None:
+    trace_event.metadata_ = {
+        **trace_event.metadata_,
+        "runtime_failure_category": "policy_evaluation",
+        "runtime_failure_default": failure_default.value,
+    }
+
+
+def _runtime_failure_reason(failure_default: RuntimeFailureDefault) -> str:
+    if failure_default is RuntimeFailureDefault.FAIL_CLOSED_HUMAN_REVIEW:
+        return (
+            "Policy evaluation failed; runtime failure policy "
+            "fail_closed_human_review requested human review."
+        )
+    if failure_default is RuntimeFailureDefault.RECORD_ONLY:
+        return (
+            "Policy evaluation failed; runtime failure policy record_only recorded "
+            "the failure in simulation mode."
+        )
+    return (
+        "Policy evaluation failed; runtime failure policy fail_closed_deny selected "
+        "deny."
     )
 
 

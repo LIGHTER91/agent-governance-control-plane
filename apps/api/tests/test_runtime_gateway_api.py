@@ -241,6 +241,257 @@ def test_runtime_simulation_without_matching_policy_returns_not_applicable(
     assert fetch_human_approvals(session_factory) == []
 
 
+def test_runtime_policy_evaluation_failure_defaults_to_fail_closed_deny(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["proceed"] is False
+    assert body["reason"] == (
+        "Policy evaluation failed; runtime failure policy fail_closed_deny "
+        "selected deny."
+    )
+    assert body["trace_event_id"] is not None
+    assert body["policy_decision_id"] is not None
+    assert body["human_approval_id"] is None
+
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_ == {
+        "ticket_category": "support",
+        "tool_name": "send_email",
+        "runtime_failure_category": "policy_evaluation",
+        "runtime_failure_default": "fail_closed_deny",
+    }
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.DENY
+    assert policy_decision.trace_event_id == trace_event.id
+    assert policy_decision.policy_id is None
+    assert policy_decision.rule_id is None
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_policy_evaluation_failure_can_fail_closed_to_human_review(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "fail_closed_human_review")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "require_human_review"
+    assert body["proceed"] is False
+    assert body["reason"] == (
+        "Policy evaluation failed; runtime failure policy "
+        "fail_closed_human_review requested human review."
+    )
+    assert body["trace_event_id"] is not None
+    assert body["policy_decision_id"] is not None
+    assert body["human_approval_id"] is not None
+
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_ == {
+        "ticket_category": "support",
+        "tool_name": "send_email",
+        "runtime_failure_category": "policy_evaluation",
+        "runtime_failure_default": "fail_closed_human_review",
+    }
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    [human_approval] = fetch_human_approvals(session_factory)
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    assert policy_decision.trace_event_id == trace_event.id
+    assert human_approval.policy_decision_id == policy_decision.id
+    assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.entity_id == str(human_approval.id)
+
+
+def test_runtime_policy_evaluation_failure_can_record_only_in_simulation(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "not_applicable"
+    assert body["proceed"] is False
+    assert body["reason"] == (
+        "Policy evaluation failed; runtime failure policy record_only recorded "
+        "the failure in simulation mode."
+    )
+    assert body["trace_event_id"] is not None
+    assert body["policy_decision_id"] is None
+    assert body["human_approval_id"] is None
+
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_ == {
+        "ticket_category": "support",
+        "tool_name": "send_email",
+        "runtime_failure_category": "policy_evaluation",
+        "runtime_failure_default": "record_only",
+    }
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_record_only_policy_failure_fails_closed_in_enforcement(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    enable_runtime_enforcement(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="enforcement"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["proceed"] is False
+    assert body["reason"] == (
+        "Policy evaluation failed; runtime failure policy fail_closed_deny "
+        "selected deny."
+    )
+    assert body["policy_decision_id"] is not None
+    assert body["human_approval_id"] is None
+
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_["runtime_failure_default"] == "fail_closed_deny"
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.decision is PolicyDecisionValue.DENY
+    assert fetch_human_approvals(session_factory) == []
+
+
+def test_duplicate_record_only_policy_failure_returns_existing_response(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "record_only")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    run_id = uuid4()
+    create_unsupported_policy_rule(session_factory)
+
+    first_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, run_id=run_id),
+    )
+    duplicate_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(
+            agent_id,
+            run_id=run_id,
+            action_summary="Retried request with changed summary.",
+        ),
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == first_response.json()
+    assert len(fetch_agent_runs(session_factory)) == 1
+    assert len(fetch_trace_events(session_factory)) == 1
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_failure_policy_persistence_failure_rolls_back_trace_event(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    def fail_policy_decision_persistence(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("failure policy decision persistence failed")
+
+    monkeypatch.setattr(
+        runtime_gateway_api,
+        "persist_policy_decision",
+        fail_policy_decision_persistence,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="failure policy decision persistence failed",
+    ):
+        client.post(
+            "/runtime/tool-calls/decision",
+            json=runtime_decision_payload(agent_id),
+        )
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_failure_policy_audit_failure_rolls_back_human_review_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_FAILURE_DEFAULT", "fail_closed_human_review")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_unsupported_policy_rule(session_factory)
+
+    def fail_audit_log(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("failure policy audit log failed")
+
+    monkeypatch.setattr(runtime_gateway_api, "append_audit_log", fail_audit_log)
+
+    with pytest.raises(RuntimeError, match="failure policy audit log failed"):
+        client.post(
+            "/runtime/tool-calls/decision",
+            json=runtime_decision_payload(agent_id),
+        )
+
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
 def test_runtime_enforcement_with_allow_policy_returns_allow(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -482,9 +733,6 @@ def test_runtime_request_unsafe_metadata_is_rejected(
     assert fetch_policy_decisions(session_factory) == []
     assert fetch_human_approvals(session_factory) == []
     assert fetch_human_approval_audit_logs(session_factory) == []
-    assert fetch_policy_decisions(session_factory) == []
-    assert fetch_human_approvals(session_factory) == []
-    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_runtime_unsafe_metadata_still_fails_closed_with_record_only_config(
@@ -503,6 +751,9 @@ def test_runtime_unsafe_metadata_still_fails_closed_with_record_only_config(
     assert response.status_code == 422
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_duplicate_runtime_request_returns_existing_response(
@@ -923,6 +1174,35 @@ def create_policy_rule(
                     "decision": decision.value,
                     "reason": reason,
                     "tool_name": tool_name,
+                }
+            ),
+        )
+        session.add(rule)
+        session.commit()
+        return policy.id, rule.id
+
+
+def create_unsupported_policy_rule(
+    session_factory: SessionFactory,
+) -> tuple[UUID, UUID]:
+    with session_factory() as session:
+        policy = Policy(
+            name="Unsupported condition policy",
+            description=None,
+            status=PolicyStatus.ACTIVE,
+        )
+        session.add(policy)
+        session.flush()
+
+        rule = PolicyRule(
+            policy_id=policy.id,
+            name="Unsupported condition rule",
+            description=None,
+            condition=json.dumps(
+                {
+                    "decision": "deny",
+                    "reason": "Unsupported condition should trigger failure policy.",
+                    "unsupported_field": "not-supported",
                 }
             ),
         )
