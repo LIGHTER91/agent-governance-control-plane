@@ -34,12 +34,15 @@ from agent_governance_api.runtime_gateway import (
     RuntimeDecisionMode,
     RuntimeToolCallDecisionRequest,
     RuntimeToolCallDecisionResponse,
+    RuntimeToolCallResumeRequest,
+    RuntimeToolCallResumeResponse,
 )
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 SIMULATED_RUN_STATUS = "simulated"
 ENFORCED_RUN_STATUS = "enforced"
+RESUME_CHECKED_RUN_STATUS = "resume_checked"
 DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 POLICY_EVALUATION_FAILURE_ERRORS = (
@@ -208,6 +211,115 @@ def decide_runtime_tool_call(
     )
 
 
+@router.post(
+    "/tool-calls/resume",
+    response_model=RuntimeToolCallResumeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def resume_runtime_tool_call(
+    payload: RuntimeToolCallResumeRequest,
+    response: Response,
+    session: Session = Depends(get_db_session),
+) -> RuntimeToolCallResumeResponse:
+    agent = session.get(Agent, payload.agent_id)
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found.",
+        )
+
+    approval = _human_approval_or_404(session, payload.human_approval_id)
+    policy_decision = _policy_decision_or_404(session, payload.policy_decision_id)
+    _ensure_resume_chain_matches_request(
+        session,
+        payload=payload,
+        approval=approval,
+        policy_decision=policy_decision,
+    )
+
+    existing_event = _runtime_trace_event_for_resume(session, payload)
+    if existing_event is not None:
+        response.status_code = status.HTTP_200_OK
+        return _runtime_resume_response_for_trace_event(existing_event)
+
+    try:
+        now = datetime.now(UTC)
+        run = session.scalar(
+            select(AgentRunRecord).where(
+                AgentRunRecord.agent_id == payload.agent_id,
+                AgentRunRecord.run_id == payload.run_id,
+            )
+        )
+        if run is None:
+            run = AgentRunRecord(
+                agent_id=payload.agent_id,
+                run_id=payload.run_id,
+                correlation_id=payload.correlation_id,
+                environment=agent.environment,
+                status=RESUME_CHECKED_RUN_STATUS,
+                started_at=now,
+                summary="Auto-created from runtime resume request.",
+                metadata_={},
+                created_at=now,
+            )
+            session.add(run)
+            session.flush()
+
+        decision = _resume_decision_for_approval_status(approval.status)
+        proceed = decision is PolicyDecisionValue.ALLOW
+        reason = _resume_reason_for_approval_status(approval.status)
+        trace_event = TraceEventRecord(
+            agent_id=payload.agent_id,
+            run_id=payload.run_id,
+            external_event_id=payload.resume_id,
+            correlation_id=payload.correlation_id,
+            event_type=TraceEventType.TOOL_CALL_RESUME_REQUESTED,
+            timestamp=now,
+            summary="Runtime tool call resume checked.",
+            metadata_=_resume_trace_event_metadata(
+                payload,
+                decision=decision,
+                proceed=proceed,
+                reason=reason,
+                approval=approval,
+            ),
+            created_at=now,
+        )
+        session.add(trace_event)
+        session.flush()
+
+        _append_runtime_resume_audit_log(
+            session,
+            payload=payload,
+            trace_event=trace_event,
+            decision=decision,
+            proceed=proceed,
+            reason=reason,
+            approval=approval,
+        )
+
+        session.commit()
+        session.refresh(trace_event)
+    except Exception:
+        session.rollback()
+        raise
+
+    return RuntimeToolCallResumeResponse(
+        resume_id=payload.resume_id,
+        original_request_id=payload.original_request_id,
+        agent_id=payload.agent_id,
+        run_id=payload.run_id,
+        tool_name=payload.tool_name,
+        decision=decision,
+        proceed=proceed,
+        reason=reason,
+        human_approval_status=approval.status,
+        trace_event_id=trace_event.id,
+        policy_decision_id=policy_decision.id,
+        human_approval_id=approval.id,
+    )
+
+
 def _runtime_trace_event_for_request(
     session: Session,
     payload: RuntimeToolCallDecisionRequest,
@@ -219,6 +331,27 @@ def _runtime_trace_event_for_request(
             TraceEventRecord.external_event_id == payload.request_id,
         )
     )
+
+
+def _runtime_trace_event_for_resume(
+    session: Session,
+    payload: RuntimeToolCallResumeRequest,
+) -> TraceEventRecord | None:
+    trace_event = session.scalar(
+        select(TraceEventRecord).where(
+            TraceEventRecord.agent_id == payload.agent_id,
+            TraceEventRecord.run_id == payload.run_id,
+            TraceEventRecord.external_event_id == payload.resume_id,
+        )
+    )
+    if trace_event is None:
+        return None
+    if trace_event.event_type is not TraceEventType.TOOL_CALL_RESUME_REQUESTED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Resume id conflicts with an existing trace event.",
+        )
+    return trace_event
 
 
 def _runtime_decision_response(
@@ -241,6 +374,34 @@ def _runtime_decision_response(
         policy_decision_id=policy_decision.id,
         human_approval_id=human_approval.id if human_approval is not None else None,
     )
+
+
+def _runtime_resume_response_for_trace_event(
+    trace_event: TraceEventRecord,
+) -> RuntimeToolCallResumeResponse:
+    metadata = trace_event.metadata_
+    try:
+        return RuntimeToolCallResumeResponse(
+            resume_id=trace_event.external_event_id,
+            original_request_id=str(metadata["original_request_id"]),
+            agent_id=trace_event.agent_id,
+            run_id=trace_event.run_id,
+            tool_name=str(metadata["tool_name"]),
+            decision=PolicyDecisionValue(str(metadata["resume_decision"])),
+            proceed=_metadata_bool(metadata["proceed"]),
+            reason=str(metadata["resume_reason"]),
+            human_approval_status=HumanApprovalStatus(
+                str(metadata["human_approval_status"])
+            ),
+            trace_event_id=trace_event.id,
+            policy_decision_id=UUID(str(metadata["policy_decision_id"])),
+            human_approval_id=UUID(str(metadata["human_approval_id"])),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Runtime resume records are incomplete for this request.",
+        ) from exc
 
 
 def _runtime_record_only_response_for_trace_event(
@@ -286,6 +447,174 @@ def _agent_run_status_for_mode(mode: RuntimeDecisionMode) -> str:
     if mode is RuntimeDecisionMode.ENFORCEMENT:
         return ENFORCED_RUN_STATUS
     return SIMULATED_RUN_STATUS
+
+
+def _human_approval_or_404(
+    session: Session,
+    human_approval_id: UUID,
+) -> HumanApproval:
+    approval = session.get(HumanApproval, human_approval_id)
+    if approval is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Human approval not found.",
+        )
+    return approval
+
+
+def _policy_decision_or_404(
+    session: Session,
+    policy_decision_id: UUID,
+) -> PolicyDecision:
+    policy_decision = session.get(PolicyDecision, policy_decision_id)
+    if policy_decision is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy decision not found.",
+        )
+    return policy_decision
+
+
+def _ensure_resume_chain_matches_request(
+    session: Session,
+    *,
+    payload: RuntimeToolCallResumeRequest,
+    approval: HumanApproval,
+    policy_decision: PolicyDecision,
+) -> None:
+    if approval.agent_id != payload.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Human approval does not belong to the requested agent.",
+        )
+    if policy_decision.agent_id != payload.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Policy decision does not belong to the requested agent.",
+        )
+    if approval.policy_decision_id != payload.policy_decision_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Human approval is not linked to the requested policy decision.",
+        )
+
+    if policy_decision.trace_event_id is None:
+        return
+
+    original_trace_event = session.get(TraceEventRecord, policy_decision.trace_event_id)
+    if original_trace_event is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Original trace event for policy decision was not found.",
+        )
+    if original_trace_event.agent_id != payload.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Original trace event does not belong to the requested agent.",
+        )
+    if original_trace_event.run_id != payload.run_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Original trace event does not belong to the requested run.",
+        )
+    if original_trace_event.external_event_id != payload.original_request_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Original request id does not match the original trace event.",
+        )
+
+    original_tool_name = original_trace_event.metadata_.get("tool_name")
+    if isinstance(original_tool_name, str) and original_tool_name != payload.tool_name:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tool name does not match the original trace event.",
+        )
+
+
+def _resume_decision_for_approval_status(
+    approval_status: HumanApprovalStatus,
+) -> PolicyDecisionValue:
+    if approval_status is HumanApprovalStatus.APPROVED:
+        return PolicyDecisionValue.ALLOW
+    if approval_status is HumanApprovalStatus.PENDING:
+        return PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    return PolicyDecisionValue.DENY
+
+
+def _resume_reason_for_approval_status(approval_status: HumanApprovalStatus) -> str:
+    if approval_status is HumanApprovalStatus.APPROVED:
+        return "Human approval is approved and the resume context matches."
+    if approval_status is HumanApprovalStatus.PENDING:
+        return "Human approval is still pending."
+    if approval_status is HumanApprovalStatus.REJECTED:
+        return "Human approval was rejected."
+    if approval_status is HumanApprovalStatus.CANCELLED:
+        return "Human approval was cancelled."
+    return "Human approval is expired."
+
+
+def _resume_trace_event_metadata(
+    payload: RuntimeToolCallResumeRequest,
+    *,
+    decision: PolicyDecisionValue,
+    proceed: bool,
+    reason: str,
+    approval: HumanApproval,
+) -> dict[str, str | int | float | bool | None]:
+    return {
+        **payload.metadata,
+        "tool_name": payload.tool_name,
+        "action_ref": payload.action_ref,
+        "original_request_id": payload.original_request_id,
+        "human_approval_id": str(payload.human_approval_id),
+        "policy_decision_id": str(payload.policy_decision_id),
+        "resume_decision": decision.value,
+        "proceed": proceed,
+        "resume_reason": reason,
+        "human_approval_status": approval.status.value,
+    }
+
+
+def _append_runtime_resume_audit_log(
+    session: Session,
+    *,
+    payload: RuntimeToolCallResumeRequest,
+    trace_event: TraceEventRecord,
+    decision: PolicyDecisionValue,
+    proceed: bool,
+    reason: str,
+    approval: HumanApproval,
+) -> None:
+    append_audit_log(
+        session,
+        event_type="runtime_tool_call_resume_checked",
+        actor_type=DEVELOPMENT_ACTOR_TYPE,
+        actor_id=DEVELOPMENT_ACTOR_ID,
+        entity_type="agent",
+        entity_id=str(payload.agent_id),
+        summary="Runtime tool call resume checked.",
+        metadata={
+            "agent_id": str(payload.agent_id),
+            "run_id": str(payload.run_id),
+            "resume_id": payload.resume_id,
+            "original_request_id": payload.original_request_id,
+            "tool_name": payload.tool_name,
+            "action_ref": payload.action_ref,
+            "human_approval_id": str(payload.human_approval_id),
+            "policy_decision_id": str(payload.policy_decision_id),
+            "trace_event_id": str(trace_event.id),
+            "decision": decision.value,
+            "proceed": proceed,
+            "reason": reason,
+            "human_approval_status": approval.status.value,
+        },
+    )
+
+
+def _metadata_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError("Expected boolean metadata value.")
 
 
 def _evaluate_runtime_policy(

@@ -81,6 +81,7 @@ class TraceEventType(StrEnum):
     MODEL_CALL_STARTED = "model_call_started"
     MODEL_CALL_COMPLETED = "model_call_completed"
     TOOL_CALL_REQUESTED = "tool_call_requested"
+    TOOL_CALL_RESUME_REQUESTED = "tool_call_resume_requested"
     TOOL_CALL_ALLOWED = "tool_call_allowed"
     TOOL_CALL_DENIED = "tool_call_denied"
     HUMAN_REVIEW_REQUESTED = "human_review_requested"
