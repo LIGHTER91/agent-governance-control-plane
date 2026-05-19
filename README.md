@@ -45,9 +45,10 @@ scenario.
 
 This is still a V0 backend milestone, not a production-ready enterprise control
 plane. Runtime Gateway foundations and minimal config-based service actor API
-key authentication now exist, but full RBAC, user login, OIDC/SAML, frontend
-workflows, notifications, production deployment, API key rotation, and
-enterprise integrations are intentionally not implemented yet.
+key authentication now exist, including endpoint scopes and an explicit
+service-auth-required mode for runtime and telemetry endpoints. Full RBAC, user
+login, OIDC/SAML, frontend workflows, notifications, production deployment, API
+key rotation, and enterprise integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -86,6 +87,10 @@ enterprise integrations are intentionally not implemented yet.
   `development/dev-placeholder` actor.
 - Minimal config-based service actor API key authentication for telemetry and
   Runtime Gateway endpoints.
+- Config-based service actor endpoint scopes for telemetry write, runtime
+  decision, and runtime resume calls.
+- Optional `AGCP_REQUIRE_SERVICE_AUTH=true` mode that rejects missing service
+  API keys on runtime and telemetry integration endpoints.
 
 ## V0 Governance Flow
 
@@ -198,7 +203,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Full authentication and RBAC.
 - User login, OIDC, SAML, or JWT auth.
 - API key rotation and persistent API key management.
-- Service actor scopes by Agent, environment, or endpoint.
+- Service actor scopes by Agent, environment, or runtime mode.
 - Frontend or dashboard UI.
 - Human approval notifications.
 - Production SDKs or framework adapters.
@@ -214,14 +219,14 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Design service actor scopes for Agent, environment, and endpoint access.
-2. Implement service actor scopes for runtime and telemetry endpoints.
-3. Add production mode requiring service auth for runtime and telemetry.
-4. Add RBAC design and checks for HumanApproval review.
-5. Add RBAC checks for Evidence Bundle export.
-6. Add a minimal dashboard shell and agent list page.
-7. Implement Tool, Data Source, Model, and Permission domain models.
-8. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Design and implement service actor scopes by Agent, environment, and runtime
+   mode.
+2. Add production deployment guidance for `AGCP_REQUIRE_SERVICE_AUTH=true`.
+3. Add RBAC design and checks for HumanApproval review.
+4. Add RBAC checks for Evidence Bundle export.
+5. Add a minimal dashboard shell and agent list page.
+6. Implement Tool, Data Source, Model, and Permission domain models.
+7. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 

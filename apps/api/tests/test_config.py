@@ -35,6 +35,18 @@ def test_runtime_enforcement_is_disabled_by_default(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_require_service_auth_is_disabled_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_REQUIRE_SERVICE_AUTH", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.require_service_auth is False
+    finally:
+        get_settings.cache_clear()
+
+
 def test_runtime_failure_default_is_fail_closed_deny_by_default(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.delenv("AGCP_RUNTIME_FAILURE_DEFAULT", raising=False)
@@ -57,6 +69,18 @@ def test_runtime_enforcement_can_be_enabled_from_environment(monkeypatch) -> Non
         settings = get_settings()
 
         assert settings.runtime_enforcement_enabled is True
+    finally:
+        get_settings.cache_clear()
+
+
+def test_require_service_auth_can_be_enabled_from_environment(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+
+    try:
+        settings = get_settings()
+
+        assert settings.require_service_auth is True
     finally:
         get_settings.cache_clear()
 

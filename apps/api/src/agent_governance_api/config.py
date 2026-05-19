@@ -49,6 +49,7 @@ class Settings(BaseModel):
     runtime_failure_default: RuntimeFailureDefault = Field(
         default=RuntimeFailureDefault.FAIL_CLOSED_DENY
     )
+    require_service_auth: bool = Field(default=False)
     service_actor_api_keys: tuple[ServiceActorApiKey, ...] = Field(
         default_factory=tuple
     )
@@ -70,6 +71,10 @@ def get_settings() -> Settings:
         runtime_failure_default=_get_runtime_failure_default_env(
             "AGCP_RUNTIME_FAILURE_DEFAULT",
             default=RuntimeFailureDefault.FAIL_CLOSED_DENY,
+        ),
+        require_service_auth=_get_bool_env(
+            "AGCP_REQUIRE_SERVICE_AUTH",
+            default=False,
         ),
         service_actor_api_keys=_get_service_actor_api_keys_env(
             "AGCP_SERVICE_ACTOR_API_KEYS",

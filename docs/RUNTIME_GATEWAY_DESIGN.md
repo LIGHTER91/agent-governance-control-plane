@@ -8,8 +8,10 @@ disabled by default with `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mod
 for this endpoint and production SDKs do not exist yet. Dependency-free adapter
 examples and a LangGraph adapter spike exist as documentation/examples only.
 Runtime and telemetry integration endpoints can resolve minimal config-based
-service actor API keys, but service scopes, production-required service auth,
-full RBAC, user login, and API key rotation are not implemented.
+service actor API keys, enforce endpoint/action scopes, and reject missing keys
+when `AGCP_REQUIRE_SERVICE_AUTH=true`. Per-Agent service scopes,
+per-environment service scopes, full RBAC, user login, and API key rotation are
+not implemented.
 
 This document describes a possible V1 path for runtime governance in the Agent
 Governance Control Plane. It keeps the product boundary clear: the gateway is a
@@ -332,12 +334,11 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add service actor scopes for Runtime Gateway calls.
-2. Add production mode requiring service auth for Runtime Gateway calls.
-3. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-4. Add Policy and PolicyRule versioning design.
-5. Add HumanApproval notification design.
-6. Add production SDK or framework adapter only if explicitly requested after
+1. Add Agent, environment, and runtime mode scopes for Runtime Gateway calls.
+2. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+3. Add Policy and PolicyRule versioning design.
+4. Add HumanApproval notification design.
+5. Add production SDK or framework adapter only if explicitly requested after
    the examples and spike are proven.
 
 ## Open Questions

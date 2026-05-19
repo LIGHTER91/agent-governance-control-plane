@@ -320,7 +320,7 @@ def test_tool_call_requested_with_service_api_key_uses_service_actor(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_service_actor_api_key(monkeypatch)
+    configure_service_actor_api_key(monkeypatch, require_auth=True)
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     create_policy_rule(
@@ -355,11 +355,35 @@ def test_tool_call_requested_with_service_api_key_uses_service_actor(
     assert SERVICE_API_KEY not in caplog.text
 
 
+def test_ingest_missing_api_key_when_service_auth_required_rejects_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+    get_settings.cache_clear()
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "AGCP service actor API key is required."
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
 def test_ingest_service_api_key_without_telemetry_scope_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    configure_service_actor_api_key(monkeypatch, scopes=("runtime:decision",))
+    configure_service_actor_api_key(
+        monkeypatch,
+        scopes=("runtime:decision",),
+        require_auth=True,
+    )
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
 
@@ -820,6 +844,7 @@ def configure_service_actor_api_key(
     monkeypatch: pytest.MonkeyPatch,
     *,
     scopes: tuple[str, ...] = ("telemetry:write",),
+    require_auth: bool = False,
 ) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
@@ -829,6 +854,8 @@ def configure_service_actor_api_key(
         "AGCP_SERVICE_ACTOR_SCOPES",
         f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
+    if require_auth:
+        monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()
 
 

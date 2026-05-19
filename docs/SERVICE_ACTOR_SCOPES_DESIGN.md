@@ -12,9 +12,10 @@ actor_id = "service:<stable-id>"
 ```
 
 The current implementation supports endpoint/action scopes through
-`AGCP_SERVICE_ACTOR_SCOPES`. It does not yet implement per-Agent,
-per-environment, per-runtime-mode, Evidence Bundle, HumanApproval review, or
-AuditLog read scopes.
+`AGCP_SERVICE_ACTOR_SCOPES` and can require service authentication for runtime
+and telemetry endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does not yet
+implement per-Agent, per-environment, per-runtime-mode, Evidence Bundle,
+HumanApproval review, or AuditLog read scopes.
 
 AGCP remains an Agent Governance Control Plane. Service actor scopes should
 govern integrations that call AGCP; they should not turn AGCP into an
@@ -152,6 +153,16 @@ AGCP_SERVICE_ACTOR_SCOPES="service:telemetry=telemetry:write;service:runtime=run
 Missing scopes deny service actor access. The local development actor fallback
 continues to work without scopes in local/dev flows.
 
+When strict service authentication is required:
+
+```text
+AGCP_REQUIRE_SERVICE_AUTH=true
+```
+
+missing API keys are rejected before telemetry or runtime records are created.
+When the flag is false or unset, missing API keys keep the local development
+fallback behavior.
+
 ## Initial Service Actor Permissions
 
 The first service actor scope implementation should allow only integration
@@ -258,8 +269,8 @@ V1 should use conservative defaults:
 - unknown service actor denies;
 - invalid API key denies before records are created;
 - unsafe metadata is rejected regardless of scopes;
-- production runtime and telemetry endpoints require valid service auth when
-  production auth mode is enabled;
+- runtime and telemetry endpoints require valid service auth when
+  `AGCP_REQUIRE_SERVICE_AUTH=true`;
 - local development may preserve the current `development/dev-placeholder`
   fallback when no API key is provided;
 - enforcement mode requires both global enablement and explicit service actor
@@ -317,14 +328,16 @@ Suggested path:
    - `POST /telemetry/events` -> `telemetry:write`; implemented.
    - `POST /runtime/tool-calls/decision` -> `runtime:decision`; implemented.
    - `POST /runtime/tool-calls/resume` -> `runtime:resume`; implemented.
-5. Add Agent and environment checks after the Agent is loaded and before new
+5. Reject missing integration API keys when `AGCP_REQUIRE_SERVICE_AUTH=true`.
+   Implemented.
+6. Add Agent and environment checks after the Agent is loaded and before new
    evidence records are created.
-6. Add runtime mode checks for simulation and enforcement.
-7. Return `401` for invalid or unknown keys.
-8. Return `403` for known service actors without required scope.
-9. Add safe audit logging for denied scope checks only when doing so will not
+7. Add runtime mode checks for simulation and enforcement.
+8. Return `401` for invalid or unknown keys.
+9. Return `403` for known service actors without required scope.
+10. Add safe audit logging for denied scope checks only when doing so will not
    leak secrets or create audit noise.
-10. Add tests for missing scope, wrong Agent, wrong environment, wrong runtime
+11. Add tests for missing scope, wrong Agent, wrong environment, wrong runtime
     mode, invalid key, no-key local fallback, and no raw key leakage.
 
 Example future JSON-shaped configuration for per-resource restrictions:
@@ -350,14 +363,12 @@ separate from raw API key material.
 1. Add Agent ID and owner reference restrictions for service actors.
 2. Add environment restrictions for service actors.
 3. Add runtime mode restrictions, including explicit enforcement permission.
-4. Add production mode requiring service auth for runtime and telemetry
-   endpoints.
-5. Add safe audit events for denied service actor scope checks.
-6. Add tests proving raw API keys never appear in logs, AuditLog metadata,
+4. Add safe audit events for denied service actor scope checks.
+5. Add tests proving raw API keys never appear in logs, AuditLog metadata,
     telemetry metadata, or Evidence Bundles.
-7. Design persistent service actor and API key storage only after the
+6. Design persistent service actor and API key storage only after the
     config-based model is proven.
-8. Align service actor scopes with future user RBAC for HumanApproval review
+7. Align service actor scopes with future user RBAC for HumanApproval review
     and Evidence Bundle export.
 
 ## Open Questions

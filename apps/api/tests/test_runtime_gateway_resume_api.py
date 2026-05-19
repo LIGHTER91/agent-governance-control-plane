@@ -147,13 +147,13 @@ def test_runtime_resume_with_service_api_key_uses_service_actor(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_service_actor_api_key(monkeypatch)
     client, session_factory = api_client
     chain = create_review_chain(
         client,
         session_factory,
         approval_status=HumanApprovalStatus.APPROVED,
     )
+    configure_service_actor_api_key(monkeypatch, require_auth=True)
 
     response = client.post(
         "/runtime/tool-calls/resume",
@@ -175,16 +175,44 @@ def test_runtime_resume_with_service_api_key_uses_service_actor(
     assert SERVICE_API_KEY not in caplog.text
 
 
-def test_runtime_resume_service_key_without_resume_scope_rejects_without_records(
+def test_runtime_resume_missing_key_when_service_auth_required_rejects_without_records(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    configure_service_actor_api_key(monkeypatch, scopes=("runtime:decision",))
     client, session_factory = api_client
     chain = create_review_chain(
         client,
         session_factory,
         approval_status=HumanApprovalStatus.APPROVED,
+    )
+    monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+    get_settings.cache_clear()
+
+    response = client.post(
+        "/runtime/tool-calls/resume",
+        json=runtime_resume_payload(chain),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "AGCP service actor API key is required."
+    assert fetch_resume_trace_events(session_factory) == []
+    assert fetch_resume_audit_logs(session_factory) == []
+
+
+def test_runtime_resume_service_key_without_resume_scope_rejects_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    chain = create_review_chain(
+        client,
+        session_factory,
+        approval_status=HumanApprovalStatus.APPROVED,
+    )
+    configure_service_actor_api_key(
+        monkeypatch,
+        scopes=("runtime:decision",),
+        require_auth=True,
     )
 
     response = client.post(
@@ -204,6 +232,7 @@ def test_runtime_resume_service_key_without_resume_scope_rejects_without_records
 
 def test_runtime_resume_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, session_factory = api_client
     chain = create_review_chain(
@@ -211,6 +240,8 @@ def test_runtime_resume_invalid_service_api_key_is_rejected_without_records(
         session_factory,
         approval_status=HumanApprovalStatus.APPROVED,
     )
+    monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+    get_settings.cache_clear()
 
     response = client.post(
         "/runtime/tool-calls/resume",
@@ -711,6 +742,7 @@ def configure_service_actor_api_key(
     monkeypatch: pytest.MonkeyPatch,
     *,
     scopes: tuple[str, ...] = ("runtime:resume",),
+    require_auth: bool = False,
 ) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
@@ -720,6 +752,8 @@ def configure_service_actor_api_key(
         "AGCP_SERVICE_ACTOR_SCOPES",
         f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
+    if require_auth:
+        monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()
 
 

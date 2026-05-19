@@ -12,10 +12,13 @@ actor_type = "development"
 actor_id = "dev-placeholder"
 ```
 
-The current implementation supports `X-AGCP-API-Key` and
-`AGCP_SERVICE_ACTOR_API_KEYS` with SHA-256 key hashes. It does not implement
-database tables, API key rotation, service actor scopes, RBAC, OIDC, SAML, JWTs,
-or a production identity system.
+The current implementation supports `X-AGCP-API-Key`,
+`AGCP_SERVICE_ACTOR_API_KEYS` with SHA-256 key hashes,
+`AGCP_SERVICE_ACTOR_SCOPES` for endpoint/action scopes, and
+`AGCP_REQUIRE_SERVICE_AUTH` to reject missing service keys on runtime and
+telemetry integration endpoints. It does not implement database tables, API key
+rotation, per-Agent scopes, per-environment scopes, RBAC, OIDC, SAML, JWTs, or
+a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -162,10 +165,11 @@ Implemented behavior:
 1. If a valid API key is present, resolve it to:
    - `actor_type = "service"`;
    - `actor_id = "service:<stable-id>"`;
-2. If the header is missing in local development, return the development actor.
+2. If the header is missing and `AGCP_REQUIRE_SERVICE_AUTH=false`, return the
+   development actor.
 3. If the header is invalid, reject the request before creating records.
-4. In production later, require service authentication for runtime and telemetry
-   endpoints. This is not implemented yet.
+4. If the header is missing and `AGCP_REQUIRE_SERVICE_AUTH=true`, reject the
+   request before creating records.
 
 The production requirement should be controlled by explicit configuration. It
 should not silently switch a local developer flow into strict auth without a
@@ -176,14 +180,17 @@ clear deployment choice.
 The first implementation should avoid a complex IAM model, but service actors
 still need narrow scope.
 
-Recommended minimal scopes:
+Implemented minimal endpoint/action scopes:
 
-- allowed endpoint family:
-  - telemetry ingestion;
-  - runtime decision;
-  - runtime resume;
+- `telemetry:write` for `POST /telemetry/events`;
+- `runtime:decision` for `POST /runtime/tool-calls/decision`;
+- `runtime:resume` for `POST /runtime/tool-calls/resume`.
+
+Future service scope dimensions:
+
 - allowed Agent IDs or owner IDs;
 - allowed environments;
+- allowed runtime modes;
 - active/disabled status.
 
 This is enough to prevent one leaked or misconfigured integration key from
@@ -243,9 +250,9 @@ created.
 
 Recommended behavior:
 
-- missing key in local development: development actor is allowed if the local
-  mode explicitly permits it;
-- missing key in production runtime endpoints: reject;
+- missing key when `AGCP_REQUIRE_SERVICE_AUTH=false`: development actor is
+  allowed for local/dev flows;
+- missing key when `AGCP_REQUIRE_SERVICE_AUTH=true`: reject;
 - invalid key: reject;
 - disabled service actor: reject;
 - service actor outside Agent or environment scope: reject;
@@ -338,13 +345,14 @@ Mitigations:
      are clearer.
 3. Resolve a valid key to `ActorContext(actor_type="service",
    actor_id="service:<stable-id>")`. Implemented.
-4. Require service auth for runtime and telemetry endpoints when production auth
-   mode is enabled. Not implemented.
-5. Add scope checks for Agent ID, environment, and endpoint family. Not
+4. Require service auth for runtime and telemetry endpoints when
+   `AGCP_REQUIRE_SERVICE_AUTH=true`. Implemented.
+5. Add endpoint/action scope checks. Implemented.
+6. Add scope checks for Agent ID, environment, and runtime mode. Not
    implemented.
-6. Add tests proving raw keys are not logged, persisted, returned, or exported.
+7. Add tests proving raw keys are not logged, persisted, returned, or exported.
    Implemented for the minimal config-based path.
-7. Add persistent hashed API key storage only when a real management workflow is
+8. Add persistent hashed API key storage only when a real management workflow is
    needed.
 
 This path keeps the first implementation small while still moving runtime
@@ -352,16 +360,12 @@ integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Add service actor scopes design.
-2. Implement service actor scopes for Agent, environment, and endpoint access.
-3. Add production mode requiring service authentication for runtime endpoints
-   when production auth mode is enabled.
-4. Require service actor authentication for telemetry ingestion when production
-   auth mode is enabled.
-5. Add API key rotation design and implementation.
-6. Add persistent hashed API key storage when key management workflows exist.
-7. Add audit visibility for service actor usage.
-8. Add documentation for integration owners on request IDs, service actors, and
+1. Add Agent and environment scope restrictions for service actors.
+2. Add runtime mode scope restrictions for service actors.
+3. Add API key rotation design and implementation.
+4. Add persistent hashed API key storage when key management workflows exist.
+5. Add audit visibility for service actor usage.
+6. Add documentation for integration owners on request IDs, service actors, and
    safe metadata.
 
 ## Open Questions

@@ -79,6 +79,18 @@ Runtime Gateway:
 - The gateway never executes tools. The calling wrapper or adapter must enforce the returned `proceed` value.
 - `mode = "telemetry"` is not implemented on the runtime endpoint; use `POST /telemetry/events` for telemetry ingestion.
 
+Service actor API keys:
+
+- Runtime and telemetry integration endpoints accept `X-AGCP-API-Key`.
+- Configure hashed keys with `AGCP_SERVICE_ACTOR_API_KEYS`, for example `service:demo=sha256:<digest>`.
+- Configure endpoint scopes with `AGCP_SERVICE_ACTOR_SCOPES`, for example `service:demo=telemetry:write,runtime:decision,runtime:resume`.
+- `POST /telemetry/events` requires `telemetry:write` for service actors.
+- `POST /runtime/tool-calls/decision` requires `runtime:decision` for service actors.
+- `POST /runtime/tool-calls/resume` requires `runtime:resume` for service actors.
+- Missing API keys keep the local `development/dev-placeholder` fallback by default.
+- Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
+- Raw API keys must not be stored, logged, echoed in responses, or included in audit, telemetry, or evidence metadata.
+
 ## Database migrations
 
 Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`.

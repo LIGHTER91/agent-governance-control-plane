@@ -49,14 +49,21 @@ def get_current_integration_actor(
 ) -> ActorContext:
     """Resolve optional service API key auth for runtime integrations.
 
-    Missing API keys intentionally preserve the V0 local development actor.
-    Invalid API keys are rejected before endpoint code creates governance records.
+    Missing API keys preserve the V0 local development actor unless
+    AGCP_REQUIRE_SERVICE_AUTH=true. Invalid API keys are rejected before
+    endpoint code creates governance records.
     """
 
+    settings = get_settings()
     if api_key is None:
+        if settings.require_service_auth:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="AGCP service actor API key is required.",
+            )
         return get_current_actor()
 
-    actor = service_actor_from_api_key(api_key, settings=get_settings())
+    actor = service_actor_from_api_key(api_key, settings=settings)
     if actor is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

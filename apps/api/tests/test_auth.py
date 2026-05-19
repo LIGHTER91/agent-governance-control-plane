@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from agent_governance_api.auth import (
     DEVELOPMENT_ACTOR_ID,
     get_current_actor,
+    get_current_integration_actor,
     has_scope,
     hash_service_actor_api_key,
     require_scope,
@@ -13,6 +14,7 @@ from agent_governance_api.config import (
     ServiceActorApiKey,
     ServiceActorScopes,
     Settings,
+    get_settings,
 )
 from agent_governance_api.models import ActorType
 
@@ -23,6 +25,37 @@ def test_default_actor_context_is_development_placeholder() -> None:
     assert actor.actor_type is ActorType.DEVELOPMENT
     assert actor.actor_id == DEVELOPMENT_ACTOR_ID
     assert actor.roles == ()
+
+
+def test_integration_actor_preserves_missing_key_development_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_REQUIRE_SERVICE_AUTH", raising=False)
+
+    try:
+        actor = get_current_integration_actor()
+
+        assert actor.actor_type is ActorType.DEVELOPMENT
+        assert actor.actor_id == DEVELOPMENT_ACTOR_ID
+    finally:
+        get_settings.cache_clear()
+
+
+def test_integration_actor_requires_api_key_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            get_current_integration_actor()
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "AGCP service actor API key is required."
+    finally:
+        get_settings.cache_clear()
 
 
 def test_service_actor_context_resolves_valid_api_key() -> None:
