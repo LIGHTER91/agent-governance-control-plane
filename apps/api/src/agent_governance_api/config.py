@@ -10,6 +10,17 @@ DEFAULT_DATABASE_URL = (
 )
 SERVICE_ACTOR_API_KEY_HASH_PREFIX = "sha256:"
 SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH = 64
+SUPPORTED_SERVICE_ACTOR_SCOPES = frozenset(
+    {
+        "agent:read",
+        "evidence:read",
+        "human_approval:read",
+        "human_approval:review",
+        "runtime:decision",
+        "runtime:resume",
+        "telemetry:write",
+    }
+)
 
 
 class RuntimeFailureDefault(StrEnum):
@@ -21,6 +32,11 @@ class RuntimeFailureDefault(StrEnum):
 class ServiceActorApiKey(BaseModel):
     actor_id: str
     key_hash: str
+
+
+class ServiceActorScopes(BaseModel):
+    actor_id: str
+    scopes: tuple[str, ...]
 
 
 class Settings(BaseModel):
@@ -36,6 +52,7 @@ class Settings(BaseModel):
     service_actor_api_keys: tuple[ServiceActorApiKey, ...] = Field(
         default_factory=tuple
     )
+    service_actor_scopes: tuple[ServiceActorScopes, ...] = Field(default_factory=tuple)
 
 
 @lru_cache
@@ -56,6 +73,9 @@ def get_settings() -> Settings:
         ),
         service_actor_api_keys=_get_service_actor_api_keys_env(
             "AGCP_SERVICE_ACTOR_API_KEYS",
+        ),
+        service_actor_scopes=_get_service_actor_scopes_env(
+            "AGCP_SERVICE_ACTOR_SCOPES",
         ),
     )
 
@@ -117,6 +137,30 @@ def _get_service_actor_api_keys_env(name: str) -> tuple[ServiceActorApiKey, ...]
     return tuple(entries)
 
 
+def _get_service_actor_scopes_env(name: str) -> tuple[ServiceActorScopes, ...]:
+    raw_value = getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return ()
+
+    entries: list[ServiceActorScopes] = []
+    for raw_entry in raw_value.split(";"):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+
+        if "=" not in entry:
+            raise ValueError(
+                f"{name} entries must use service:<stable-id>=scope[,scope]."
+            )
+
+        actor_id, raw_scopes = (part.strip() for part in entry.split("=", 1))
+        _validate_service_actor_id(name, actor_id)
+        scopes = _validate_service_actor_scopes(name, raw_scopes)
+        entries.append(ServiceActorScopes(actor_id=actor_id, scopes=scopes))
+
+    return tuple(entries)
+
+
 def _validate_service_actor_id(name: str, actor_id: str) -> None:
     if not actor_id.startswith("service:") or actor_id == "service:":
         raise ValueError(f"{name} actor ids must use service:<stable-id>.")
@@ -134,3 +178,24 @@ def _validate_service_actor_key_hash(name: str, key_hash: str) -> str:
         raise ValueError(f"{name} key hashes must use sha256:<64 hex chars>.")
 
     return normalized_key_hash
+
+
+def _validate_service_actor_scopes(name: str, raw_scopes: str) -> tuple[str, ...]:
+    scopes = tuple(
+        dict.fromkeys(scope.strip() for scope in raw_scopes.split(",") if scope.strip())
+    )
+    if not scopes:
+        raise ValueError(f"{name} entries must include at least one scope.")
+
+    unsupported_scopes = sorted(
+        scope for scope in scopes if scope not in SUPPORTED_SERVICE_ACTOR_SCOPES
+    )
+    if unsupported_scopes:
+        supported_values = ", ".join(sorted(SUPPORTED_SERVICE_ACTOR_SCOPES))
+        unsupported_values = ", ".join(unsupported_scopes)
+        raise ValueError(
+            f"{name} unsupported scopes: {unsupported_values}. "
+            f"Supported scopes: {supported_values}."
+        )
+
+    return scopes

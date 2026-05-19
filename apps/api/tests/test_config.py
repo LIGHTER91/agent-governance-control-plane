@@ -121,6 +121,18 @@ def test_service_actor_api_keys_are_empty_by_default(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_service_actor_scopes_are_empty_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_SERVICE_ACTOR_SCOPES", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.service_actor_scopes == ()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> None:
     get_settings.cache_clear()
     key_hash = sha256(b"local-test-service-key").hexdigest()
@@ -135,6 +147,50 @@ def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> No
         [configured_key] = settings.service_actor_api_keys
         assert configured_key.actor_id == "service:runtime-test"
         assert configured_key.key_hash == f"sha256:{key_hash}"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_service_actor_scopes_are_loaded_from_config(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPES",
+        (
+            "service:runtime-test=runtime:decision,runtime:resume;"
+            "service:telemetry-test=telemetry:write"
+        ),
+    )
+
+    try:
+        settings = get_settings()
+
+        runtime_scopes, telemetry_scopes = settings.service_actor_scopes
+        assert runtime_scopes.actor_id == "service:runtime-test"
+        assert runtime_scopes.scopes == ("runtime:decision", "runtime:resume")
+        assert telemetry_scopes.actor_id == "service:telemetry-test"
+        assert telemetry_scopes.scopes == ("telemetry:write",)
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "env_value",
+    [
+        "runtime-test=telemetry:write",
+        "service:runtime-test=",
+        "service:runtime-test=policy:write",
+    ],
+)
+def test_invalid_service_actor_scopes_config_is_rejected(
+    monkeypatch,
+    env_value: str,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_SCOPES", env_value)
+
+    try:
+        with pytest.raises(ValueError, match="AGCP_SERVICE_ACTOR_SCOPES"):
+            get_settings()
     finally:
         get_settings.cache_clear()
 

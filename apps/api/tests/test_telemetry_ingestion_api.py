@@ -355,6 +355,32 @@ def test_tool_call_requested_with_service_api_key_uses_service_actor(
     assert SERVICE_API_KEY not in caplog.text
 
 
+def test_ingest_service_api_key_without_telemetry_scope_is_rejected_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_service_actor_api_key(monkeypatch, scopes=("runtime:decision",))
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor requires scope: telemetry:write."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
 def test_ingest_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -790,10 +816,18 @@ def create_policy_rule(
         return policy.id, rule.id
 
 
-def configure_service_actor_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def configure_service_actor_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    scopes: tuple[str, ...] = ("telemetry:write",),
+) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
         f"{SERVICE_ACTOR_ID}={hash_service_actor_api_key(SERVICE_API_KEY)}",
+    )
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPES",
+        f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
     get_settings.cache_clear()
 

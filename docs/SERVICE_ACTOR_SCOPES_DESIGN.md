@@ -2,18 +2,19 @@
 
 ## Status
 
-Design proposal. Service actor API key authentication exists as a minimal
-configuration-based foundation for runtime and telemetry integration endpoints.
-It identifies a caller as:
+Design proposal with a minimal endpoint-scope implementation now in place.
+Service actor API key authentication exists as a configuration-based foundation
+for runtime and telemetry integration endpoints. It identifies a caller as:
 
 ```text
 actor_type = "service"
 actor_id = "service:<stable-id>"
 ```
 
-It does not yet authorize that service actor beyond key validity. This document
-defines a pragmatic V1 scope model for service actors without adding database
-tables, a full RBAC engine, or user authentication.
+The current implementation supports endpoint/action scopes through
+`AGCP_SERVICE_ACTOR_SCOPES`. It does not yet implement per-Agent,
+per-environment, per-runtime-mode, Evidence Bundle, HumanApproval review, or
+AuditLog read scopes.
 
 AGCP remains an Agent Governance Control Plane. Service actor scopes should
 govern integrations that call AGCP; they should not turn AGCP into an
@@ -134,6 +135,22 @@ Additional scopes that should remain future work:
 - `policy:write`;
 - `audit_log:read`;
 - `service_actor:admin`.
+
+Implemented environment format:
+
+```text
+AGCP_SERVICE_ACTOR_API_KEYS="service:demo=sha256:<digest>"
+AGCP_SERVICE_ACTOR_SCOPES="service:demo=telemetry:write,runtime:decision,runtime:resume"
+```
+
+Multiple service actors can be separated with semicolons:
+
+```text
+AGCP_SERVICE_ACTOR_SCOPES="service:telemetry=telemetry:write;service:runtime=runtime:decision,runtime:resume"
+```
+
+Missing scopes deny service actor access. The local development actor fallback
+continues to work without scopes in local/dev flows.
 
 ## Initial Service Actor Permissions
 
@@ -291,22 +308,15 @@ management and ownership workflows are clearer.
 
 Suggested path:
 
-1. Extend service actor configuration with scopes.
-   - Keep `AGCP_SERVICE_ACTOR_API_KEYS` for hashed key material.
-   - Add a simple config value for service actor authorization, such as JSON or
-     a local config file.
-2. Resolve `X-AGCP-API-Key` to `ActorContext` as today.
-3. Resolve an additional service authorization context:
-   - `actor_id`;
-   - scopes;
-   - allowed Agent IDs;
-   - allowed owner references;
-   - allowed environments;
-   - allowed runtime modes.
+1. Extend service actor configuration with scopes. Implemented for endpoint
+   scopes through `AGCP_SERVICE_ACTOR_SCOPES`.
+2. Resolve `X-AGCP-API-Key` to `ActorContext` as today. Implemented.
+3. Attach configured scopes to the service ActorContext. Implemented through the
+   existing roles field.
 4. Add endpoint/action checks for:
-   - `POST /telemetry/events` -> `telemetry:write`;
-   - `POST /runtime/tool-calls/decision` -> `runtime:decision`;
-   - `POST /runtime/tool-calls/resume` -> `runtime:resume`.
+   - `POST /telemetry/events` -> `telemetry:write`; implemented.
+   - `POST /runtime/tool-calls/decision` -> `runtime:decision`; implemented.
+   - `POST /runtime/tool-calls/resume` -> `runtime:resume`; implemented.
 5. Add Agent and environment checks after the Agent is loaded and before new
    evidence records are created.
 6. Add runtime mode checks for simulation and enforcement.
@@ -317,7 +327,7 @@ Suggested path:
 10. Add tests for missing scope, wrong Agent, wrong environment, wrong runtime
     mode, invalid key, no-key local fallback, and no raw key leakage.
 
-Example future JSON-shaped configuration:
+Example future JSON-shaped configuration for per-resource restrictions:
 
 ```json
 [
@@ -332,27 +342,22 @@ Example future JSON-shaped configuration:
 ]
 ```
 
-The exact syntax can be decided during implementation. The important V1 rule is
-that authorization remains explicit, testable, and separate from raw API key
-material.
+The important V1 rule is that authorization remains explicit, testable, and
+separate from raw API key material.
 
 ## Recommended Follow-up Issues
 
-1. Implement config-backed service actor scopes without database tables.
-2. Enforce `telemetry:write` on `POST /telemetry/events`.
-3. Enforce `runtime:decision` on `POST /runtime/tool-calls/decision`.
-4. Enforce `runtime:resume` on `POST /runtime/tool-calls/resume`.
-5. Add Agent ID and owner reference restrictions for service actors.
-6. Add environment restrictions for service actors.
-7. Add runtime mode restrictions, including explicit enforcement permission.
-8. Add production mode requiring service auth for runtime and telemetry
+1. Add Agent ID and owner reference restrictions for service actors.
+2. Add environment restrictions for service actors.
+3. Add runtime mode restrictions, including explicit enforcement permission.
+4. Add production mode requiring service auth for runtime and telemetry
    endpoints.
-9. Add safe audit events for denied service actor scope checks.
-10. Add tests proving raw API keys never appear in logs, AuditLog metadata,
+5. Add safe audit events for denied service actor scope checks.
+6. Add tests proving raw API keys never appear in logs, AuditLog metadata,
     telemetry metadata, or Evidence Bundles.
-11. Design persistent service actor and API key storage only after the
+7. Design persistent service actor and API key storage only after the
     config-based model is proven.
-12. Align service actor scopes with future user RBAC for HumanApproval review
+8. Align service actor scopes with future user RBAC for HumanApproval review
     and Evidence Bundle export.
 
 ## Open Questions

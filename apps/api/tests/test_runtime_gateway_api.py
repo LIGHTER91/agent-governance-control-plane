@@ -254,6 +254,32 @@ def test_runtime_simulation_with_service_api_key_uses_service_actor(
     assert SERVICE_API_KEY not in caplog.text
 
 
+def test_runtime_service_api_key_without_decision_scope_is_rejected_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_service_actor_api_key(monkeypatch, scopes=("telemetry:write",))
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor requires scope: runtime:decision."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
 def test_runtime_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -1303,10 +1329,18 @@ def enable_runtime_enforcement(monkeypatch: pytest.MonkeyPatch) -> None:
     get_settings.cache_clear()
 
 
-def configure_service_actor_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def configure_service_actor_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    scopes: tuple[str, ...] = ("runtime:decision",),
+) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
         f"{SERVICE_ACTOR_ID}={hash_service_actor_api_key(SERVICE_API_KEY)}",
+    )
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPES",
+        f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
     get_settings.cache_clear()
 

@@ -7,7 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
-from agent_governance_api.auth import ActorContext, get_current_integration_actor
+from agent_governance_api.auth import (
+    SCOPE_TELEMETRY_WRITE,
+    ActorContext,
+    get_current_integration_actor,
+    require_scope,
+)
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
     Agent,
@@ -49,6 +54,8 @@ def ingest_trace_event(
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_integration_actor),
 ) -> TraceEventIngestResponse:
+    require_scope(actor, SCOPE_TELEMETRY_WRITE)
+
     agent = session.get(Agent, payload.agent_id)
     if agent is None:
         raise HTTPException(
