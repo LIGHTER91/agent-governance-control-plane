@@ -302,6 +302,8 @@ def test_tool_call_requested_with_review_policy_creates_decision_and_approval(
     assert audit_log.event_type == "human_approval_requested"
     assert audit_log.actor_type is ActorType.DEVELOPMENT
     assert audit_log.actor_id == "dev-placeholder"
+    assert audit_log.actor_type is approval.requested_by_actor_type
+    assert audit_log.actor_id == approval.requested_by_actor_id
     assert audit_log.entity_id == str(approval.id)
     assert audit_log.metadata_["agent_id"] == str(agent_id)
     assert audit_log.metadata_["policy_decision_id"] == str(saved_decision.id)

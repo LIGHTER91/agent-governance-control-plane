@@ -460,8 +460,8 @@ surface, while still moving away from the development placeholder early enough.
 
 ## Recommended Follow-up Issues
 
-1. Replace remaining hardcoded development actor constants in telemetry and any
-   future mutation paths with the existing request-scoped Actor dependency.
+1. Replace any future hardcoded development actor constants in new mutation
+   paths with the existing request-scoped Actor dependency.
 2. Add tests for overriding the Actor dependency once a non-development actor is
    introduced.
 3. Add service actor authentication for telemetry and Runtime Gateway endpoints.
