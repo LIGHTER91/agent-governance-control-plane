@@ -84,11 +84,15 @@ Service actor API keys:
 - Runtime and telemetry integration endpoints accept `X-AGCP-API-Key`.
 - Configure hashed keys with `AGCP_SERVICE_ACTOR_API_KEYS`, for example `service:demo=sha256:<digest>`.
 - Configure endpoint scopes with `AGCP_SERVICE_ACTOR_SCOPES`, for example `service:demo=telemetry:write,runtime:decision,runtime:resume`.
+- Configure minimal fine-grained service actor rules with
+  `AGCP_SERVICE_ACTOR_SCOPE_RULES`, for example
+  `{"service:demo":{"agent_ids":["*"],"environments":["development"],"runtime_modes":["simulation"],"tool_names":["send_email"]}}`.
 - `POST /telemetry/events` requires `telemetry:write` for service actors.
 - `POST /runtime/tool-calls/decision` requires `runtime:decision` for service actors.
 - `POST /runtime/tool-calls/resume` requires `runtime:resume` for service actors.
 - Missing API keys keep the local `development/dev-placeholder` fallback by default.
 - Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
+- In strict service-auth mode, service actors also need a matching fine-grained rule before telemetry or runtime records are created.
 - Raw API keys must not be stored, logged, echoed in responses, or included in audit, telemetry, or evidence metadata.
 - This is still config-based authentication only. There is no DB-backed key registry, API key rotation, OIDC/SAML/JWT, or human RBAC yet.
 

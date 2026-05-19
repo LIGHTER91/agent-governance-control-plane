@@ -307,6 +307,209 @@ def test_runtime_service_api_key_without_decision_scope_is_rejected_without_reco
     assert fetch_human_approval_audit_logs(session_factory) == []
 
 
+def test_runtime_service_scope_rule_allows_matching_agent_environment_mode_and_tool(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 201
+    assert len(fetch_trace_events(session_factory)) == 1
+    assert len(fetch_policy_decisions(session_factory)) == 1
+
+
+def test_runtime_service_scope_rule_denies_non_matching_agent_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(uuid4())],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this agent."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_service_scope_rule_denies_non_matching_environment_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory, environment=Environment.DEVELOPMENT)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["staging"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this environment."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_service_scope_rule_denies_non_matching_mode_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["enforcement"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="simulation"),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this runtime mode."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_service_scope_rule_denies_non_matching_tool_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_payment"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, tool_name="send_email"),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this tool name."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_service_scope_rule_wildcard_allows_broad_access_explicitly(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_service_actor_api_key(monkeypatch, require_auth=True)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory, environment=Environment.STAGING)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 201
+    assert len(fetch_trace_events(session_factory)) == 1
+
+
+def test_runtime_missing_fine_grained_rule_in_strict_mode_denies_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        include_scope_rule=False,
+    )
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor requires a fine-grained scope rule."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
 def test_runtime_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -1249,6 +1452,7 @@ def create_agent(
     session_factory: SessionFactory,
     *,
     name: str = "Support assistant",
+    environment: Environment = Environment.DEVELOPMENT,
 ) -> UUID:
     with session_factory() as session:
         agent = Agent(
@@ -1258,7 +1462,7 @@ def create_agent(
             owner_id="team:ai-platform",
             owner_name="AI Platform",
             owner_contact_email="owner@example.com",
-            environment=Environment.DEVELOPMENT,
+            environment=environment,
             status=AgentStatus.DRAFT,
             risk_level=RiskLevel.LOW,
             framework="LangGraph",
@@ -1338,13 +1542,14 @@ def runtime_decision_payload(
     request_id: str = "runtime-request-001",
     action_summary: str = "Send a support follow-up email.",
     mode: str = "simulation",
+    tool_name: str = "send_email",
 ) -> dict[str, object]:
     return {
         "request_id": request_id,
         "agent_id": str(agent_id),
         "run_id": str(run_id or uuid4()),
         "correlation_id": "support-run-001",
-        "tool_name": "send_email",
+        "tool_name": tool_name,
         "action_summary": action_summary,
         "metadata": {"ticket_category": "support"},
         "mode": mode,
@@ -1361,6 +1566,8 @@ def configure_service_actor_api_key(
     *,
     scopes: tuple[str, ...] = ("runtime:decision",),
     require_auth: bool = False,
+    scope_rule: dict[str, object] | None = None,
+    include_scope_rule: bool = True,
 ) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
@@ -1370,6 +1577,21 @@ def configure_service_actor_api_key(
         "AGCP_SERVICE_ACTOR_SCOPES",
         f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
+    if include_scope_rule:
+        monkeypatch.setenv(
+            "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+            json.dumps(
+                {
+                    SERVICE_ACTOR_ID: scope_rule
+                    or {
+                        "agent_ids": ["*"],
+                        "environments": ["*"],
+                        "runtime_modes": ["*"],
+                        "tool_names": ["*"],
+                    }
+                }
+            ),
+        )
     if require_auth:
         monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()

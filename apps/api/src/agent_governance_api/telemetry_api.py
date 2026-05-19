@@ -12,6 +12,7 @@ from agent_governance_api.auth import (
     ActorContext,
     get_current_integration_actor,
     require_scope,
+    require_service_actor_fine_grained_scope,
 )
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
@@ -65,6 +66,12 @@ def ingest_trace_event(
 
     external_event_id = payload.external_event_id or str(payload.id)
     tool_name = _tool_name(payload)
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id=payload.agent_id,
+        environment=agent.environment,
+        tool_name=tool_name,
+    )
     existing_event = session.scalar(
         select(TraceEventRecord).where(
             TraceEventRecord.agent_id == payload.agent_id,

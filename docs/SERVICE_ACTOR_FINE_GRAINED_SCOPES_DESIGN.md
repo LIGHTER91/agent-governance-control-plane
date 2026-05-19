@@ -2,11 +2,11 @@
 
 ## Status
 
-Design proposal only. The current backend implements config-based service actor
-API keys, endpoint/action scopes, and strict service-auth mode for runtime and
-telemetry integration endpoints. It does not yet implement per-Agent,
-per-environment, runtime-mode, owner, tool-name, or evidence-export
-restrictions.
+Design proposal with a minimal config-based implementation now in place for
+Agent ID, environment, runtime mode, and tool-name restrictions on telemetry and
+Runtime Gateway integration endpoints. The backend still does not implement
+owner-based restrictions, Evidence Bundle service scopes, HumanApproval review
+scopes, database-backed service actor records, or API key rotation.
 
 AGCP remains an Agent Governance Control Plane. Fine-grained service actor
 scopes should govern which integrations may call AGCP for which Agents and
@@ -160,16 +160,16 @@ Rules:
 ### Allowed Endpoints And Actions
 
 The existing endpoint/action scopes are the canonical names for endpoint access.
-Fine-grained rules can also include an `actions` field to make a single rule
-self-contained, but it must not bypass `AGCP_SERVICE_ACTOR_SCOPES`.
+The minimal fine-grained implementation does not include a separate `actions`
+field. This keeps endpoint/action access in `AGCP_SERVICE_ACTOR_SCOPES` and
+uses `AGCP_SERVICE_ACTOR_SCOPE_RULES` only for Agent, environment, runtime mode,
+and tool-name restrictions.
 
 Recommended V1 rule:
 
 1. check `AGCP_SERVICE_ACTOR_SCOPES`;
 2. load matching fine-grained rules for the actor;
-3. confirm the endpoint/action is allowed by at least one matching fine-grained
-   rule;
-4. confirm Agent, owner, environment, runtime mode, and tool restrictions.
+3. confirm Agent, environment, runtime mode, and tool restrictions.
 
 ## Minimal Config-Based V1 Format
 
@@ -184,41 +184,34 @@ AGCP_SERVICE_ACTOR_SCOPES="service:demo-runtime=runtime:decision,runtime:resume"
 Add one JSON configuration value for fine-grained restrictions:
 
 ```text
-AGCP_SERVICE_ACTOR_SCOPE_RULES='[
-  {
-    "actor_id": "service:demo-runtime",
-    "actions": ["runtime:decision", "runtime:resume"],
+AGCP_SERVICE_ACTOR_SCOPE_RULES='{
+  "service:demo-runtime": {
     "agent_ids": ["11111111-1111-4111-8111-111111111111"],
-    "owner_refs": [
-      {
-        "owner_type": "service",
-        "owner_id": "service:demo-runtime"
-      }
-    ],
     "environments": ["development"],
     "runtime_modes": ["simulation"],
     "tool_names": ["send_email"]
   }
-]'
+}'
 ```
 
 Suggested fields:
 
 | Field | Meaning |
 | --- | --- |
-| `actor_id` | Service actor ID such as `service:demo-runtime`. Required. |
-| `actions` | Endpoint/action scopes this rule narrows. Required. |
+| Top-level key | Service actor ID such as `service:demo-runtime`. Required. |
 | `agent_ids` | Allowed Agent IDs, or explicit `"*"` for broad access. Optional but recommended. |
-| `owner_refs` | Allowed Agent owner references. Optional. |
-| `owner_types` | Allowed owner types. Optional and weak by itself. |
 | `environments` | Allowed Agent environments. Optional outside strict mode, explicit in strict mode. |
 | `runtime_modes` | Allowed runtime modes. Required for Runtime Gateway enforcement. |
 | `tool_names` | Allowed governed tools. Optional, but recommended for runtime decision actors. |
 
 Using JSON is less pleasant than a compact environment string, but it avoids
-inventing a brittle parser for nested owner references and multiple dimensions.
-It also gives the project a direct migration path to a future local config file
-or database-backed service actor registry.
+inventing a brittle parser for multiple dimensions. It also gives the project a
+direct migration path to a future local config file or database-backed service
+actor registry.
+
+Implementation note: the minimal backend implementation intentionally does not
+support `actions`, `owner_refs`, or `owner_types` yet. Endpoint/action access is
+still controlled by `AGCP_SERVICE_ACTOR_SCOPES`.
 
 ## Interaction With Current Scopes
 
@@ -239,6 +232,11 @@ Fine-grained rules should only narrow access:
 
 Development actor fallback remains unchanged for local/dev flows unless the
 project explicitly removes it later.
+
+Runtime resume checks do not carry a request mode today. The current
+implementation treats resume checks as requiring `runtime_modes` containing
+`enforcement` or `"*"`, because resume is the path used after a previously
+blocked governed action.
 
 ## Safe Defaults
 
@@ -272,16 +270,14 @@ that boundary explicit in config and tests.
 
 ```text
 AGCP_SERVICE_ACTOR_SCOPES="service:demo-dev=runtime:decision"
-AGCP_SERVICE_ACTOR_SCOPE_RULES='[
-  {
-    "actor_id": "service:demo-dev",
-    "actions": ["runtime:decision"],
+AGCP_SERVICE_ACTOR_SCOPE_RULES='{
+  "service:demo-dev": {
     "agent_ids": ["11111111-1111-4111-8111-111111111111"],
     "environments": ["development"],
     "runtime_modes": ["simulation"],
     "tool_names": ["send_email"]
   }
-]'
+}'
 ```
 
 Result:
@@ -295,17 +291,15 @@ Result:
 
 ```text
 AGCP_SERVICE_ACTOR_SCOPES="service:staging-telemetry=telemetry:write"
-AGCP_SERVICE_ACTOR_SCOPE_RULES='[
-  {
-    "actor_id": "service:staging-telemetry",
-    "actions": ["telemetry:write"],
+AGCP_SERVICE_ACTOR_SCOPE_RULES='{
+  "service:staging-telemetry": {
     "agent_ids": [
       "22222222-2222-4222-8222-222222222222",
       "33333333-3333-4333-8333-333333333333"
     ],
     "environments": ["staging"]
   }
-]'
+}'
 ```
 
 Result:
@@ -319,15 +313,13 @@ Result:
 ```text
 AGCP_RUNTIME_ENFORCEMENT_ENABLED=true
 AGCP_SERVICE_ACTOR_SCOPES="service:prod-runtime=runtime:decision"
-AGCP_SERVICE_ACTOR_SCOPE_RULES='[
-  {
-    "actor_id": "service:prod-runtime",
-    "actions": ["runtime:decision"],
+AGCP_SERVICE_ACTOR_SCOPE_RULES='{
+  "service:prod-runtime": {
     "agent_ids": ["44444444-4444-4444-8444-444444444444"],
     "environments": ["production"],
     "runtime_modes": ["simulation"]
   }
-]'
+}'
 ```
 
 Result:
@@ -393,8 +385,10 @@ authorization config.
 
 1. Parse fine-grained config.
    - Add a typed config model for `AGCP_SERVICE_ACTOR_SCOPE_RULES`.
-   - Validate actor IDs, actions, Agent ID shapes, environments, runtime modes,
-     and tool names.
+     Implemented for `agent_ids`, `environments`, `runtime_modes`, and
+     `tool_names`.
+   - Validate actor IDs, environments, runtime modes, and non-empty list values.
+     Implemented.
 2. Attach constraints to request context.
    - Either extend `ActorContext` with service constraints, or introduce a
      narrow `ServiceActorContext` used only for service actors.
@@ -403,7 +397,8 @@ authorization config.
    - First require the existing endpoint/action scope.
    - Load and validate the Agent.
    - Check Agent ID, owner reference, environment, runtime mode, and tool name
-     before creating new records.
+     before creating new records. Implemented for Agent ID, environment,
+     runtime mode, and tool name.
 4. Keep development fallback unchanged.
    - `development/dev-placeholder` continues to work in local/dev flows when
      service auth is not required.
@@ -423,17 +418,13 @@ authorization config.
 
 ## Recommended Follow-up Issues
 
-1. Add `AGCP_SERVICE_ACTOR_SCOPE_RULES` parser and validation.
-2. Add fine-grained Agent ID checks for telemetry ingestion.
-3. Add fine-grained Agent ID, environment, runtime mode, and tool checks for
-   Runtime Gateway decision requests.
-4. Add fine-grained Agent ID and original-request checks for Runtime Gateway
-   resume requests.
-5. Add explicit wildcard/broad-access syntax and tests.
-6. Add safe denied-scope audit event design before enabling denial auditing.
-7. Add service actor evidence/export scope design once user RBAC direction is
-   settled.
-8. Revisit database-backed service actor registry and API key rotation after
+1. Add owner reference restrictions for service actors.
+2. Add service actor Evidence Bundle export scope design once user RBAC
+   direction is settled.
+3. Add HumanApproval read/review service scope design if a real integration
+   needs it.
+4. Add safe denied-scope audit event design before enabling denial auditing.
+5. Revisit database-backed service actor registry and API key rotation after
    config-based restrictions are proven.
 
 ## Open Questions

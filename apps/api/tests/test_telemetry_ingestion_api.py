@@ -405,6 +405,93 @@ def test_ingest_service_api_key_without_telemetry_scope_is_rejected_without_reco
     assert fetch_human_approval_audit_logs(session_factory) == []
 
 
+def test_ingest_service_scope_rule_allows_matching_agent_environment_and_tool(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 201
+    assert len(fetch_agent_runs(session_factory)) == 1
+    assert len(fetch_trace_events(session_factory)) == 1
+
+
+def test_ingest_service_scope_rule_denies_non_matching_tool_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "tool_names": ["send_payment"],
+        },
+    )
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this tool name."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_ingest_missing_fine_grained_rule_in_strict_mode_denies_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        include_scope_rule=False,
+    )
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor requires a fine-grained scope rule."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
 def test_ingest_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -743,6 +830,7 @@ def create_agent(
     session_factory: SessionFactory,
     *,
     name: str = "Support assistant",
+    environment: Environment = Environment.DEVELOPMENT,
 ) -> UUID:
     with session_factory() as session:
         agent = Agent(
@@ -752,7 +840,7 @@ def create_agent(
             owner_id="team:ai-platform",
             owner_name="AI Platform",
             owner_contact_email="owner@example.com",
-            environment=Environment.DEVELOPMENT,
+            environment=environment,
             status=AgentStatus.DRAFT,
             risk_level=RiskLevel.LOW,
             framework="LangGraph",
@@ -845,6 +933,8 @@ def configure_service_actor_api_key(
     *,
     scopes: tuple[str, ...] = ("telemetry:write",),
     require_auth: bool = False,
+    scope_rule: dict[str, object] | None = None,
+    include_scope_rule: bool = True,
 ) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
@@ -854,6 +944,20 @@ def configure_service_actor_api_key(
         "AGCP_SERVICE_ACTOR_SCOPES",
         f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
+    if include_scope_rule:
+        monkeypatch.setenv(
+            "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+            json.dumps(
+                {
+                    SERVICE_ACTOR_ID: scope_rule
+                    or {
+                        "agent_ids": ["*"],
+                        "environments": ["*"],
+                        "tool_names": ["*"],
+                    }
+                }
+            ),
+        )
     if require_auth:
         monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()

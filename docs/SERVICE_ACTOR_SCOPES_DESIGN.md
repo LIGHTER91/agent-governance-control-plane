@@ -12,10 +12,11 @@ actor_id = "service:<stable-id>"
 ```
 
 The current implementation supports endpoint/action scopes through
-`AGCP_SERVICE_ACTOR_SCOPES` and can require service authentication for runtime
-and telemetry endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does not yet
-implement per-Agent, per-environment, per-runtime-mode, Evidence Bundle,
-HumanApproval review, or AuditLog read scopes.
+`AGCP_SERVICE_ACTOR_SCOPES`, minimal fine-grained restrictions through
+`AGCP_SERVICE_ACTOR_SCOPE_RULES`, and can require service authentication for
+runtime and telemetry endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does
+not yet implement owner-based restrictions, Evidence Bundle service scopes,
+HumanApproval review scopes, or AuditLog read scopes.
 
 AGCP remains an Agent Governance Control Plane. Service actor scopes should
 govern integrations that call AGCP; they should not turn AGCP into an
@@ -331,8 +332,10 @@ Suggested path:
 5. Reject missing integration API keys when `AGCP_REQUIRE_SERVICE_AUTH=true`.
    Implemented.
 6. Add Agent and environment checks after the Agent is loaded and before new
-   evidence records are created.
-7. Add runtime mode checks for simulation and enforcement.
+   evidence records are created. Implemented through
+   `AGCP_SERVICE_ACTOR_SCOPE_RULES`.
+7. Add runtime mode checks for simulation and enforcement. Implemented for
+   runtime decision requests and treated as `enforcement` for resume checks.
 8. Return `401` for invalid or unknown keys.
 9. Return `403` for known service actors without required scope.
 10. Add safe audit logging for denied scope checks only when doing so will not
@@ -340,19 +343,16 @@ Suggested path:
 11. Add tests for missing scope, wrong Agent, wrong environment, wrong runtime
     mode, invalid key, no-key local fallback, and no raw key leakage.
 
-Example future JSON-shaped configuration for per-resource restrictions:
+Implemented JSON-shaped configuration for per-resource restrictions:
 
 ```json
-[
-  {
-    "actor_id": "service:langgraph-runtime-prod",
-    "scopes": ["runtime:decision", "runtime:resume"],
+{
+  "service:langgraph-runtime-prod": {
     "agent_ids": ["11111111-1111-4111-8111-111111111111"],
-    "owner_refs": ["service:langgraph-runtime-prod"],
     "environments": ["production"],
     "runtime_modes": ["simulation", "enforcement"]
   }
-]
+}
 ```
 
 The important V1 rule is that authorization remains explicit, testable, and

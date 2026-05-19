@@ -230,6 +230,42 @@ def test_runtime_resume_service_key_without_resume_scope_rejects_without_records
     assert fetch_resume_audit_logs(session_factory) == []
 
 
+def test_runtime_resume_service_scope_rule_denies_non_matching_mode_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    chain = create_review_chain(
+        client,
+        session_factory,
+        approval_status=HumanApprovalStatus.APPROVED,
+    )
+    configure_service_actor_api_key(
+        monkeypatch,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(chain.agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/resume",
+        json=runtime_resume_payload(chain),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this runtime mode."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_resume_trace_events(session_factory) == []
+    assert fetch_resume_audit_logs(session_factory) == []
+
+
 def test_runtime_resume_invalid_service_api_key_is_rejected_without_records(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -743,6 +779,8 @@ def configure_service_actor_api_key(
     *,
     scopes: tuple[str, ...] = ("runtime:resume",),
     require_auth: bool = False,
+    scope_rule: dict[str, object] | None = None,
+    include_scope_rule: bool = True,
 ) -> None:
     monkeypatch.setenv(
         "AGCP_SERVICE_ACTOR_API_KEYS",
@@ -752,6 +790,21 @@ def configure_service_actor_api_key(
         "AGCP_SERVICE_ACTOR_SCOPES",
         f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
     )
+    if include_scope_rule:
+        monkeypatch.setenv(
+            "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+            json.dumps(
+                {
+                    SERVICE_ACTOR_ID: scope_rule
+                    or {
+                        "agent_ids": ["*"],
+                        "environments": ["*"],
+                        "runtime_modes": ["*"],
+                        "tool_names": ["*"],
+                    }
+                }
+            ),
+        )
     if require_auth:
         monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()

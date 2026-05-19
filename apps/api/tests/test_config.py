@@ -1,3 +1,4 @@
+import json
 from hashlib import sha256
 
 import pytest
@@ -157,6 +158,18 @@ def test_service_actor_scopes_are_empty_by_default(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_service_actor_scope_rules_are_empty_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_SERVICE_ACTOR_SCOPE_RULES", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.service_actor_scope_rules == ()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> None:
     get_settings.cache_clear()
     key_hash = sha256(b"local-test-service-key").hexdigest()
@@ -193,6 +206,35 @@ def test_service_actor_scopes_are_loaded_from_config(monkeypatch) -> None:
         assert runtime_scopes.scopes == ("runtime:decision", "runtime:resume")
         assert telemetry_scopes.actor_id == "service:telemetry-test"
         assert telemetry_scopes.scopes == ("telemetry:write",)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_service_actor_scope_rules_are_loaded_from_json_config(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+        json.dumps(
+            {
+                "service:runtime-test": {
+                    "agent_ids": ["*", "11111111-1111-4111-8111-111111111111"],
+                    "environments": ["development"],
+                    "runtime_modes": ["simulation"],
+                    "tool_names": ["send_email", "send_email"],
+                }
+            }
+        ),
+    )
+
+    try:
+        settings = get_settings()
+
+        [rule] = settings.service_actor_scope_rules
+        assert rule.actor_id == "service:runtime-test"
+        assert rule.agent_ids == ("*", "11111111-1111-4111-8111-111111111111")
+        assert rule.environments == ("development",)
+        assert rule.runtime_modes == ("simulation",)
+        assert rule.tool_names == ("send_email",)
     finally:
         get_settings.cache_clear()
 
@@ -237,6 +279,34 @@ def test_invalid_service_actor_api_key_config_is_rejected(
 
     try:
         with pytest.raises(ValueError, match="AGCP_SERVICE_ACTOR_API_KEYS"):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "env_value",
+    [
+        "not-json",
+        "[]",
+        json.dumps({"runtime-test": {"agent_ids": ["*"]}}),
+        json.dumps({"service:runtime-test": []}),
+        json.dumps({"service:runtime-test": {"unsupported": ["value"]}}),
+        json.dumps({"service:runtime-test": {"environments": ["qa"]}}),
+        json.dumps({"service:runtime-test": {"runtime_modes": ["telemetry"]}}),
+        json.dumps({"service:runtime-test": {"agent_ids": []}}),
+        json.dumps({"service:runtime-test": {"agent_ids": [""]}}),
+    ],
+)
+def test_invalid_service_actor_scope_rules_config_is_rejected(
+    monkeypatch,
+    env_value: str,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_SCOPE_RULES", env_value)
+
+    try:
+        with pytest.raises(ValueError, match="AGCP_SERVICE_ACTOR_SCOPE_RULES"):
             get_settings()
     finally:
         get_settings.cache_clear()

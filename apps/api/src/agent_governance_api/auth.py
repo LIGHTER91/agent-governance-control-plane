@@ -7,6 +7,7 @@ from fastapi import Header, HTTPException, status
 
 from agent_governance_api.config import (
     SERVICE_ACTOR_API_KEY_HASH_PREFIX,
+    SERVICE_ACTOR_FINE_GRAINED_WILDCARD,
     Settings,
     get_settings,
 )
@@ -116,8 +117,94 @@ def require_scope(actor: ActorContext, scope: str) -> None:
     )
 
 
+def require_service_actor_fine_grained_scope(
+    actor: ActorContext,
+    *,
+    agent_id: object,
+    environment: object,
+    runtime_mode: object | None = None,
+    tool_name: str | None = None,
+    settings: Settings | None = None,
+) -> None:
+    """Narrow service actor endpoint scopes by Agent and request context.
+
+    Local development actors are intentionally ignored here so the V0
+    development fallback remains unchanged.
+    """
+
+    if actor.actor_type is not ActorType.SERVICE:
+        return
+
+    settings = settings or get_settings()
+    actor_rules = tuple(
+        rule
+        for rule in settings.service_actor_scope_rules
+        if rule.actor_id == actor.actor_id
+    )
+    if not actor_rules:
+        if settings.require_service_auth or settings.service_actor_scope_rules:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Service actor requires a fine-grained scope rule.",
+            )
+        return
+
+    agent_id_value = str(agent_id)
+    environment_value = _scope_value(environment)
+    candidate_rules = [
+        rule for rule in actor_rules if _values_allow(rule.agent_ids, agent_id_value)
+    ]
+    if not candidate_rules:
+        raise _fine_grained_scope_denied("agent")
+
+    candidate_rules = [
+        rule
+        for rule in candidate_rules
+        if _values_allow(rule.environments, environment_value)
+    ]
+    if not candidate_rules:
+        raise _fine_grained_scope_denied("environment")
+
+    if runtime_mode is not None:
+        runtime_mode_value = _scope_value(runtime_mode)
+        candidate_rules = [
+            rule
+            for rule in candidate_rules
+            if _values_allow(rule.runtime_modes, runtime_mode_value)
+        ]
+        if not candidate_rules:
+            raise _fine_grained_scope_denied("runtime mode")
+
+    if tool_name is not None:
+        candidate_rules = [
+            rule
+            for rule in candidate_rules
+            if _values_allow(rule.tool_names, tool_name)
+        ]
+        if not candidate_rules:
+            raise _fine_grained_scope_denied("tool name")
+
+
 def _service_actor_scopes(actor_id: str, settings: Settings) -> tuple[str, ...]:
     for configured_scopes in settings.service_actor_scopes:
         if configured_scopes.actor_id == actor_id:
             return configured_scopes.scopes
     return ()
+
+
+def _values_allow(values: tuple[str, ...], requested_value: str) -> bool:
+    return SERVICE_ACTOR_FINE_GRAINED_WILDCARD in values or requested_value in values
+
+
+def _scope_value(value: object) -> str:
+    enum_value = getattr(value, "value", None)
+    if isinstance(enum_value, str):
+        return enum_value
+    return str(value)
+
+
+def _fine_grained_scope_denied(scope_name: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Service actor is not permitted for this {scope_name}.",
+    )

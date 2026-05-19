@@ -8,15 +8,17 @@ from agent_governance_api.auth import (
     has_scope,
     hash_service_actor_api_key,
     require_scope,
+    require_service_actor_fine_grained_scope,
     service_actor_from_api_key,
 )
 from agent_governance_api.config import (
     ServiceActorApiKey,
+    ServiceActorScopeRule,
     ServiceActorScopes,
     Settings,
     get_settings,
 )
-from agent_governance_api.models import ActorType
+from agent_governance_api.models import ActorType, Environment
 
 
 def test_default_actor_context_is_development_placeholder() -> None:
@@ -137,3 +139,80 @@ def test_require_scope_preserves_development_actor_fallback() -> None:
     actor = get_current_actor()
 
     require_scope(actor, "runtime:decision")
+
+
+def test_fine_grained_scope_allows_matching_service_actor_context() -> None:
+    actor = service_actor_for_test()
+    settings = Settings(
+        service_actor_scope_rules=(
+            ServiceActorScopeRule(
+                actor_id="service:runtime-test",
+                agent_ids=("11111111-1111-4111-8111-111111111111",),
+                environments=("development",),
+                runtime_modes=("simulation",),
+                tool_names=("send_email",),
+            ),
+        )
+    )
+
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id="11111111-1111-4111-8111-111111111111",
+        environment=Environment.DEVELOPMENT,
+        runtime_mode="simulation",
+        tool_name="send_email",
+        settings=settings,
+    )
+
+
+def test_fine_grained_scope_denies_missing_rule_in_strict_mode() -> None:
+    actor = service_actor_for_test()
+    settings = Settings(require_service_auth=True)
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_service_actor_fine_grained_scope(
+            actor,
+            agent_id="11111111-1111-4111-8111-111111111111",
+            environment=Environment.DEVELOPMENT,
+            runtime_mode="simulation",
+            tool_name="send_email",
+            settings=settings,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Service actor requires a fine-grained scope rule."
+
+
+def test_fine_grained_scope_preserves_development_actor_fallback() -> None:
+    actor = get_current_actor()
+
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id="11111111-1111-4111-8111-111111111111",
+        environment=Environment.PRODUCTION,
+        runtime_mode="enforcement",
+        tool_name="send_email",
+        settings=Settings(require_service_auth=True),
+    )
+
+
+def service_actor_for_test():
+    actor = service_actor_from_api_key(
+        "local-test-service-key",
+        settings=Settings(
+            service_actor_api_keys=(
+                ServiceActorApiKey(
+                    actor_id="service:runtime-test",
+                    key_hash=hash_service_actor_api_key("local-test-service-key"),
+                ),
+            ),
+            service_actor_scopes=(
+                ServiceActorScopes(
+                    actor_id="service:runtime-test",
+                    scopes=("runtime:decision",),
+                ),
+            ),
+        ),
+    )
+    assert actor is not None
+    return actor

@@ -1,5 +1,6 @@
 from enum import StrEnum
 from functools import lru_cache
+from json import JSONDecodeError, loads
 from os import getenv
 
 from pydantic import BaseModel, Field
@@ -21,6 +22,28 @@ SUPPORTED_SERVICE_ACTOR_SCOPES = frozenset(
         "telemetry:write",
     }
 )
+SERVICE_ACTOR_FINE_GRAINED_WILDCARD = "*"
+SUPPORTED_SERVICE_ACTOR_SCOPE_RULE_KEYS = frozenset(
+    {
+        "agent_ids",
+        "environments",
+        "runtime_modes",
+        "tool_names",
+    }
+)
+SUPPORTED_SERVICE_ACTOR_SCOPE_ENVIRONMENTS = frozenset(
+    {
+        "development",
+        "staging",
+        "production",
+    }
+)
+SUPPORTED_SERVICE_ACTOR_RUNTIME_MODES = frozenset(
+    {
+        "simulation",
+        "enforcement",
+    }
+)
 
 
 class RuntimeFailureDefault(StrEnum):
@@ -39,6 +62,14 @@ class ServiceActorScopes(BaseModel):
     scopes: tuple[str, ...]
 
 
+class ServiceActorScopeRule(BaseModel):
+    actor_id: str
+    agent_ids: tuple[str, ...] = Field(default_factory=tuple)
+    environments: tuple[str, ...] = Field(default_factory=tuple)
+    runtime_modes: tuple[str, ...] = Field(default_factory=tuple)
+    tool_names: tuple[str, ...] = Field(default_factory=tuple)
+
+
 class Settings(BaseModel):
     app_name: str = Field(default="Agent Governance Control Plane API")
     app_version: str = Field(default="0.1.0")
@@ -54,6 +85,9 @@ class Settings(BaseModel):
         default_factory=tuple
     )
     service_actor_scopes: tuple[ServiceActorScopes, ...] = Field(default_factory=tuple)
+    service_actor_scope_rules: tuple[ServiceActorScopeRule, ...] = Field(
+        default_factory=tuple
+    )
 
 
 @lru_cache
@@ -81,6 +115,9 @@ def get_settings() -> Settings:
         ),
         service_actor_scopes=_get_service_actor_scopes_env(
             "AGCP_SERVICE_ACTOR_SCOPES",
+        ),
+        service_actor_scope_rules=_get_service_actor_scope_rules_env(
+            "AGCP_SERVICE_ACTOR_SCOPE_RULES",
         ),
     )
 
@@ -166,6 +203,83 @@ def _get_service_actor_scopes_env(name: str) -> tuple[ServiceActorScopes, ...]:
     return tuple(entries)
 
 
+def _get_service_actor_scope_rules_env(
+    name: str,
+) -> tuple[ServiceActorScopeRule, ...]:
+    raw_value = getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return ()
+
+    try:
+        parsed_value = loads(raw_value)
+    except JSONDecodeError as exc:
+        raise ValueError(f"{name} must be a JSON object.") from exc
+
+    if not isinstance(parsed_value, dict):
+        raise ValueError(f"{name} must be a JSON object.")
+
+    entries: list[ServiceActorScopeRule] = []
+    for raw_actor_id, raw_rule in parsed_value.items():
+        if not isinstance(raw_actor_id, str):
+            raise ValueError(f"{name} actor ids must be strings.")
+        actor_id = raw_actor_id.strip()
+        _validate_service_actor_id(name, actor_id)
+
+        if not isinstance(raw_rule, dict):
+            raise ValueError(f"{name} entries must be JSON objects.")
+
+        unsupported_keys = sorted(
+            key
+            for key in raw_rule
+            if key not in SUPPORTED_SERVICE_ACTOR_SCOPE_RULE_KEYS
+        )
+        if unsupported_keys:
+            unsupported_values = ", ".join(unsupported_keys)
+            raise ValueError(f"{name} unsupported fields: {unsupported_values}.")
+
+        agent_ids = _validate_service_actor_scope_rule_values(
+            name,
+            raw_rule.get("agent_ids"),
+            field_name="agent_ids",
+        )
+        environments = _validate_service_actor_scope_rule_values(
+            name,
+            raw_rule.get("environments"),
+            field_name="environments",
+            supported_values=SUPPORTED_SERVICE_ACTOR_SCOPE_ENVIRONMENTS,
+            normalize=True,
+        )
+        runtime_modes = _validate_service_actor_scope_rule_values(
+            name,
+            raw_rule.get("runtime_modes"),
+            field_name="runtime_modes",
+            supported_values=SUPPORTED_SERVICE_ACTOR_RUNTIME_MODES,
+            normalize=True,
+        )
+        tool_names = _validate_service_actor_scope_rule_values(
+            name,
+            raw_rule.get("tool_names"),
+            field_name="tool_names",
+        )
+
+        if not any((agent_ids, environments, runtime_modes, tool_names)):
+            raise ValueError(
+                f"{name} entries must include at least one fine-grained restriction."
+            )
+
+        entries.append(
+            ServiceActorScopeRule(
+                actor_id=actor_id,
+                agent_ids=agent_ids,
+                environments=environments,
+                runtime_modes=runtime_modes,
+                tool_names=tool_names,
+            )
+        )
+
+    return tuple(entries)
+
+
 def _validate_service_actor_id(name: str, actor_id: str) -> None:
     if not actor_id.startswith("service:") or actor_id == "service:":
         raise ValueError(f"{name} actor ids must use service:<stable-id>.")
@@ -204,3 +318,41 @@ def _validate_service_actor_scopes(name: str, raw_scopes: str) -> tuple[str, ...
         )
 
     return scopes
+
+
+def _validate_service_actor_scope_rule_values(
+    name: str,
+    raw_values: object,
+    *,
+    field_name: str,
+    supported_values: frozenset[str] | None = None,
+    normalize: bool = False,
+) -> tuple[str, ...]:
+    if raw_values is None:
+        return ()
+    if not isinstance(raw_values, list):
+        raise ValueError(f"{name}.{field_name} must be a list of strings.")
+
+    values: list[str] = []
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(f"{name}.{field_name} values must be non-empty strings.")
+
+        value = raw_value.strip()
+        if normalize:
+            value = value.lower()
+
+        if (
+            supported_values is not None
+            and value != SERVICE_ACTOR_FINE_GRAINED_WILDCARD
+            and value not in supported_values
+        ):
+            supported = ", ".join(sorted(supported_values))
+            raise ValueError(
+                f"{name}.{field_name} unsupported value: {value}. "
+                f"Supported values: {supported}, {SERVICE_ACTOR_FINE_GRAINED_WILDCARD}."
+            )
+
+        values.append(value)
+
+    return tuple(dict.fromkeys(values))

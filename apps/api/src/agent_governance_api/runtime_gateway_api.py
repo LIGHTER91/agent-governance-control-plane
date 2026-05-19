@@ -13,6 +13,7 @@ from agent_governance_api.auth import (
     ActorContext,
     get_current_integration_actor,
     require_scope,
+    require_service_actor_fine_grained_scope,
 )
 from agent_governance_api.config import RuntimeFailureDefault, Settings, get_settings
 from agent_governance_api.database import get_db_session
@@ -52,6 +53,7 @@ router = APIRouter(prefix="/runtime", tags=["runtime"])
 SIMULATED_RUN_STATUS = "simulated"
 ENFORCED_RUN_STATUS = "enforced"
 RESUME_CHECKED_RUN_STATUS = "resume_checked"
+RESUME_FINE_GRAINED_RUNTIME_MODE = "enforcement"
 POLICY_EVALUATION_FAILURE_ERRORS = (
     UnsupportedPolicyRuleConditionError,
     TypeError,
@@ -101,6 +103,14 @@ def decide_runtime_tool_call(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found.",
         )
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id=payload.agent_id,
+        environment=agent.environment,
+        runtime_mode=payload.mode,
+        tool_name=payload.tool_name,
+        settings=settings,
+    )
 
     existing_event = _runtime_trace_event_for_request(session, payload)
     if existing_event is not None:
@@ -243,6 +253,13 @@ def resume_runtime_tool_call(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found.",
         )
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id=payload.agent_id,
+        environment=agent.environment,
+        runtime_mode=RESUME_FINE_GRAINED_RUNTIME_MODE,
+        tool_name=payload.tool_name,
+    )
 
     approval = _human_approval_or_404(session, payload.human_approval_id)
     policy_decision = _policy_decision_or_404(session, payload.policy_decision_id)
