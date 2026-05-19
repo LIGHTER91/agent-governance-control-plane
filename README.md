@@ -202,6 +202,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Tool, Data Source, Model, and Permission domain models.
 - Full authentication and RBAC.
 - User login, OIDC, SAML, or JWT auth.
+- DB-backed service actor or API key registry.
 - API key rotation and persistent API key management.
 - Service actor scopes by Agent, environment, or runtime mode.
 - Frontend or dashboard UI.
@@ -219,14 +220,14 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Design and implement service actor scopes by Agent, environment, and runtime
-   mode.
-2. Add production deployment guidance for `AGCP_REQUIRE_SERVICE_AUTH=true`.
-3. Add RBAC design and checks for HumanApproval review.
-4. Add RBAC checks for Evidence Bundle export.
-5. Add a minimal dashboard shell and agent list page.
-6. Implement Tool, Data Source, Model, and Permission domain models.
-7. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Design per-Agent, per-environment, and runtime-mode service scopes.
+2. Implement per-Agent, per-environment, and runtime-mode service scopes.
+3. Add API key rotation design.
+4. Add RBAC checks for HumanApproval review.
+5. Add RBAC checks for Evidence Bundle export.
+6. Add a minimal dashboard shell and agent list page.
+7. Implement Tool, Data Source, Model, and Permission domain models.
+8. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 

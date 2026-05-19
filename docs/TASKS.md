@@ -23,9 +23,11 @@ Runtime request
 Important caveat: AGCP does not execute tools. Runtime enforcement depends on
 wrappers or adapters consistently calling AGCP and honoring `proceed`.
 Minimal config-based service actor API key authentication exists for runtime and
-telemetry endpoints, but it is not production-grade auth. Service actor scopes,
-production-required service auth, API key rotation, user login, OIDC/SAML, and
-RBAC are not implemented yet.
+telemetry endpoints, including endpoint/action scopes and
+`AGCP_REQUIRE_SERVICE_AUTH=true` strict mode. This is not production-grade auth:
+there is no DB-backed key registry, no API key rotation, no OIDC/SAML/JWT, and
+no human RBAC yet. Per-Agent, per-environment, and runtime-mode service actor
+scopes are not implemented yet.
 
 References:
 
@@ -35,37 +37,35 @@ References:
 - `docs/LANGGRAPH_INTEGRATION_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
+- `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
 
 ## Next Tasks
 
 Recommended order:
 
-1. Design service actor scopes.
-2. Implement service actor scopes for Agent, environment, and endpoint access.
-3. Add production mode requiring service auth for runtime and telemetry.
-4. Add RBAC design for HumanApproval review.
-5. Add RBAC checks for HumanApproval approve/reject/cancel.
-6. Add RBAC checks for Evidence Bundle export.
-7. Add audit event for Evidence Bundle export.
-8. Add dashboard shell.
-9. Add agent list page.
-10. Add agent detail page.
-11. Add human approval review view.
-12. Add Tool domain model.
-13. Add Data Source domain model.
-14. Add Model domain model.
-15. Add Permission domain model.
-16. Add Policy CRUD API.
-17. Add PolicyRule CRUD API.
-18. Add audit records for Policy and PolicyRule mutations.
+1. Design per-Agent, per-environment, and runtime-mode service scopes.
+2. Implement per-Agent, per-environment, and runtime-mode service scopes.
+3. Add API key rotation design.
+4. Add RBAC checks for HumanApproval approve/reject/cancel.
+5. Add RBAC checks for Evidence Bundle export.
+6. Add audit event for Evidence Bundle export.
+7. Add dashboard shell.
+8. Add agent list page.
+9. Add agent detail page.
+10. Add human approval review view.
+11. Add Tool domain model.
+12. Add Data Source domain model.
+13. Add Model domain model.
+14. Add Permission domain model.
+15. Add Policy CRUD API.
+16. Add PolicyRule CRUD API.
+17. Add audit records for Policy and PolicyRule mutations.
 
 ## Backlog
 
-- [ ] Design service actor scopes.
-- [ ] Implement service actor scopes for Agent, environment, and endpoint
-      access.
-- [ ] Add production mode requiring service auth for runtime and telemetry.
-- [ ] Add RBAC design for HumanApproval review.
+- [ ] Design per-Agent, per-environment, and runtime-mode service scopes.
+- [ ] Implement per-Agent, per-environment, and runtime-mode service scopes.
+- [ ] Add API key rotation design.
 - [ ] Add RBAC checks for HumanApproval approve/reject/cancel.
 - [ ] Add RBAC checks for Evidence Bundle export.
 - [ ] Add audit event for Evidence Bundle export.
@@ -171,6 +171,11 @@ Empty.
 - [x] Add service actor and API key authentication design.
 - [x] Implement minimal config-based service actor API key authentication for
       telemetry and Runtime Gateway endpoints.
+- [x] Add service actor scopes design.
+- [x] Implement endpoint/action service actor scopes for telemetry and Runtime
+      Gateway endpoints.
+- [x] Add strict service authentication mode for telemetry and Runtime Gateway
+      endpoints with `AGCP_REQUIRE_SERVICE_AUTH`.
 
 ## Blocked
 

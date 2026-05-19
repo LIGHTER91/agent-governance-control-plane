@@ -180,11 +180,9 @@ Completed foundation:
 
 Recommended next work:
 
-- Design and implement service actor scopes for Agent, environment, and runtime
-  mode access.
-- Add production deployment guidance for requiring service auth on runtime and
-  telemetry endpoints.
-- Add RBAC design for HumanApproval review.
+- Design per-Agent, per-environment, and runtime-mode service actor scopes.
+- Implement per-Agent, per-environment, and runtime-mode service actor scopes.
+- Add API key rotation design.
 - Add RBAC checks for HumanApproval approve/reject/cancel.
 - Add RBAC checks for Evidence Bundle export.
 - Add audit event for Evidence Bundle export.
@@ -194,6 +192,7 @@ Recommended next work:
 Important limitations:
 
 - Auth is still minimal and config-based.
+- No DB-backed service actor or API key registry exists.
 - API key rotation is not implemented.
 - Service actor scopes are endpoint/action-only.
 - Per-Agent, per-environment, and runtime-mode service actor scopes are not

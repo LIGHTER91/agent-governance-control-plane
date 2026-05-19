@@ -90,6 +90,7 @@ Service actor API keys:
 - Missing API keys keep the local `development/dev-placeholder` fallback by default.
 - Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
 - Raw API keys must not be stored, logged, echoed in responses, or included in audit, telemetry, or evidence metadata.
+- This is still config-based authentication only. There is no DB-backed key registry, API key rotation, OIDC/SAML/JWT, or human RBAC yet.
 
 ## Database migrations
 
