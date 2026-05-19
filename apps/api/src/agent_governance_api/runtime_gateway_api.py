@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
-from agent_governance_api.auth import ActorContext, get_current_actor
+from agent_governance_api.auth import ActorContext, get_current_integration_actor
 from agent_governance_api.config import RuntimeFailureDefault, Settings, get_settings
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
@@ -64,7 +64,7 @@ def decide_runtime_tool_call(
     response: Response,
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
-    actor: ActorContext = Depends(get_current_actor),
+    actor: ActorContext = Depends(get_current_integration_actor),
 ) -> RuntimeToolCallDecisionResponse:
     if payload.mode is RuntimeDecisionMode.TELEMETRY:
         raise HTTPException(
@@ -225,7 +225,7 @@ def resume_runtime_tool_call(
     payload: RuntimeToolCallResumeRequest,
     response: Response,
     session: Session = Depends(get_db_session),
-    actor: ActorContext = Depends(get_current_actor),
+    actor: ActorContext = Depends(get_current_integration_actor),
 ) -> RuntimeToolCallResumeResponse:
     agent = session.get(Agent, payload.agent_id)
     if agent is None:

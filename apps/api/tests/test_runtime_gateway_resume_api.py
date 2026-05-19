@@ -10,6 +10,7 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from agent_governance_api.auth import hash_service_actor_api_key
 from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
@@ -33,6 +34,8 @@ from agent_governance_api.models import (
 )
 
 SessionFactory = Callable[[], Session]
+SERVICE_ACTOR_ID = "service:runtime-resume-test"
+SERVICE_API_KEY = "local-test-runtime-resume-key"
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,39 @@ def test_runtime_resume_approved_approval_returns_allow_and_records_evidence(
     assert resume_audit_log.metadata_["trace_event_id"] == str(resume_trace.id)
     assert resume_audit_log.metadata_["decision"] == "allow"
     assert resume_audit_log.metadata_["proceed"] is True
+
+
+def test_runtime_resume_with_service_api_key_uses_service_actor(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    configure_service_actor_api_key(monkeypatch)
+    client, session_factory = api_client
+    chain = create_review_chain(
+        client,
+        session_factory,
+        approval_status=HumanApprovalStatus.APPROVED,
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/resume",
+        json=runtime_resume_payload(chain),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+    bundle_response = client.get(f"/agents/{chain.agent_id}/evidence-bundle")
+
+    assert response.status_code == 201
+    assert bundle_response.status_code == 200
+    [resume_audit_log] = fetch_resume_audit_logs(session_factory)
+    assert resume_audit_log.actor_type is ActorType.SERVICE
+    assert resume_audit_log.actor_id == SERVICE_ACTOR_ID
+    [resume_trace] = fetch_resume_trace_events(session_factory)
+    assert SERVICE_API_KEY not in str(resume_trace.metadata_)
+    assert SERVICE_API_KEY not in response.text
+    assert SERVICE_API_KEY not in bundle_response.text
+    assert SERVICE_API_KEY not in str(resume_audit_log.metadata_)
+    assert SERVICE_API_KEY not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -620,6 +656,14 @@ def runtime_resume_payload(
         "correlation_id": "support-run-001",
         "metadata": {"resume_channel": "polling"},
     }
+
+
+def configure_service_actor_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_API_KEYS",
+        f"{SERVICE_ACTOR_ID}={hash_service_actor_api_key(SERVICE_API_KEY)}",
+    )
+    get_settings.cache_clear()
 
 
 def fetch_trace_events(session_factory: SessionFactory) -> list[TraceEventRecord]:

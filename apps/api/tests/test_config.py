@@ -1,3 +1,5 @@
+from hashlib import sha256
+
 import pytest
 
 from agent_governance_api.config import RuntimeFailureDefault, get_settings
@@ -102,6 +104,59 @@ def test_invalid_runtime_failure_default_values_are_rejected(
                 "fail_closed_deny, fail_closed_human_review, record_only."
             ),
         ):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_service_actor_api_keys_are_empty_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_SERVICE_ACTOR_API_KEYS", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.service_actor_api_keys == ()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> None:
+    get_settings.cache_clear()
+    key_hash = sha256(b"local-test-service-key").hexdigest()
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_API_KEYS",
+        f"service:runtime-test=sha256:{key_hash}",
+    )
+
+    try:
+        settings = get_settings()
+
+        [configured_key] = settings.service_actor_api_keys
+        assert configured_key.actor_id == "service:runtime-test"
+        assert configured_key.key_hash == f"sha256:{key_hash}"
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "env_value",
+    [
+        "runtime-test=sha256:"
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "service:runtime-test=local-test-service-key",
+        "service:runtime-test=sha256:not-hex",
+    ],
+)
+def test_invalid_service_actor_api_key_config_is_rejected(
+    monkeypatch,
+    env_value: str,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_API_KEYS", env_value)
+
+    try:
+        with pytest.raises(ValueError, match="AGCP_SERVICE_ACTOR_API_KEYS"):
             get_settings()
     finally:
         get_settings.cache_clear()

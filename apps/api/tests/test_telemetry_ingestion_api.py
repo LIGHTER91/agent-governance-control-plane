@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import agent_governance_api.telemetry_api as telemetry_api
+from agent_governance_api.auth import hash_service_actor_api_key
+from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
@@ -34,10 +36,13 @@ from agent_governance_api.models import (
 )
 
 SessionFactory = Callable[[], Session]
+SERVICE_ACTOR_ID = "service:telemetry-test"
+SERVICE_API_KEY = "local-test-telemetry-key"
 
 
 @pytest.fixture()
 def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
+    get_settings.cache_clear()
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -68,6 +73,7 @@ def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
             yield client, testing_session_factory
     finally:
         app.dependency_overrides.clear()
+        get_settings.cache_clear()
         Base.metadata.drop_all(engine)
         engine.dispose()
 
@@ -307,6 +313,67 @@ def test_tool_call_requested_with_review_policy_creates_decision_and_approval(
     assert audit_log.entity_id == str(approval.id)
     assert audit_log.metadata_["agent_id"] == str(agent_id)
     assert audit_log.metadata_["policy_decision_id"] == str(saved_decision.id)
+
+
+def test_tool_call_requested_with_service_api_key_uses_service_actor(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    configure_service_actor_api_key(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "require_human_review",
+            "reason": "The requested tool requires human review.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+    bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 201
+    assert bundle_response.status_code == 200
+    [approval] = fetch_human_approvals(session_factory)
+    assert approval.requested_by_actor_type is ActorType.SERVICE
+    assert approval.requested_by_actor_id == SERVICE_ACTOR_ID
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+    assert audit_log.actor_type is ActorType.SERVICE
+    assert audit_log.actor_id == SERVICE_ACTOR_ID
+    [trace_event] = fetch_trace_events(session_factory)
+    assert SERVICE_API_KEY not in str(trace_event.metadata_)
+    assert SERVICE_API_KEY not in response.text
+    assert SERVICE_API_KEY not in bundle_response.text
+    assert SERVICE_API_KEY not in str(audit_log.metadata_)
+    assert SERVICE_API_KEY not in caplog.text
+
+
+def test_ingest_invalid_service_api_key_is_rejected_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+        headers={"X-AGCP-API-Key": "invalid-local-test-key"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid AGCP service actor API key."
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
 
 
 def test_duplicate_review_event_returns_existing_approval(
@@ -721,6 +788,14 @@ def create_policy_rule(
         session.add(rule)
         session.commit()
         return policy.id, rule.id
+
+
+def configure_service_actor_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_API_KEYS",
+        f"{SERVICE_ACTOR_ID}={hash_service_actor_api_key(SERVICE_API_KEY)}",
+    )
+    get_settings.cache_clear()
 
 
 def trace_event_payload(
