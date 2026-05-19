@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
-    ActorType,
     Agent,
     HumanApproval,
     HumanApprovalStatus,
@@ -28,9 +28,6 @@ from agent_governance_api.schemas import (
 
 router = APIRouter(tags=["human-approvals"])
 
-DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
-DEVELOPMENT_ACTOR_ID = "dev-placeholder"
-
 
 @router.post(
     "/human-approvals",
@@ -41,6 +38,7 @@ DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 def create_human_approval(
     payload: HumanApprovalRequest,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> HumanApproval:
     _get_agent_or_404(session, payload.agent_id)
     if payload.policy_decision_id is not None:
@@ -54,8 +52,8 @@ def create_human_approval(
         agent_id=payload.agent_id,
         policy_decision_id=payload.policy_decision_id,
         status=HumanApprovalStatus.PENDING,
-        requested_by_actor_type=DEVELOPMENT_ACTOR_TYPE,
-        requested_by_actor_id=DEVELOPMENT_ACTOR_ID,
+        requested_by_actor_type=actor.actor_type,
+        requested_by_actor_id=actor.actor_id,
         reason=payload.reason,
         expires_at=payload.expires_at,
         created_at=datetime.now(UTC),
@@ -67,6 +65,7 @@ def create_human_approval(
         approval,
         event_type="human_approval_requested",
         summary="Human approval requested.",
+        actor=actor,
     )
     session.commit()
     session.refresh(approval)
@@ -108,14 +107,15 @@ def approve_human_approval(
     approval_id: UUID,
     payload: HumanApprovalDecisionRequest | None = None,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
 
     now = datetime.now(UTC)
     approval.status = HumanApprovalStatus.APPROVED
-    approval.reviewed_by_actor_type = DEVELOPMENT_ACTOR_TYPE
-    approval.reviewed_by_actor_id = DEVELOPMENT_ACTOR_ID
+    approval.reviewed_by_actor_type = actor.actor_type
+    approval.reviewed_by_actor_id = actor.actor_id
     approval.reviewed_at = now
     if payload is not None:
         approval.reason = payload.reason or approval.reason
@@ -126,6 +126,7 @@ def approve_human_approval(
         approval,
         event_type="human_approval_approved",
         summary="Human approval approved.",
+        actor=actor,
     )
     session.commit()
     session.refresh(approval)
@@ -142,14 +143,15 @@ def reject_human_approval(
     approval_id: UUID,
     payload: HumanApprovalDecisionRequest | None = None,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
 
     now = datetime.now(UTC)
     approval.status = HumanApprovalStatus.REJECTED
-    approval.reviewed_by_actor_type = DEVELOPMENT_ACTOR_TYPE
-    approval.reviewed_by_actor_id = DEVELOPMENT_ACTOR_ID
+    approval.reviewed_by_actor_type = actor.actor_type
+    approval.reviewed_by_actor_id = actor.actor_id
     approval.reviewed_at = now
     if payload is not None:
         approval.reason = payload.reason or approval.reason
@@ -160,6 +162,7 @@ def reject_human_approval(
         approval,
         event_type="human_approval_rejected",
         summary="Human approval rejected.",
+        actor=actor,
     )
     session.commit()
     session.refresh(approval)
@@ -175,6 +178,7 @@ def reject_human_approval(
 def cancel_human_approval(
     approval_id: UUID,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
@@ -185,6 +189,7 @@ def cancel_human_approval(
         approval,
         event_type="human_approval_cancelled",
         summary="Human approval cancelled.",
+        actor=actor,
     )
     session.commit()
     session.refresh(approval)
@@ -253,6 +258,7 @@ def _append_human_approval_audit_log(
     *,
     event_type: str,
     summary: str,
+    actor: ActorContext,
 ) -> None:
     metadata = {
         "agent_id": str(approval.agent_id),
@@ -264,8 +270,8 @@ def _append_human_approval_audit_log(
     append_audit_log(
         session,
         event_type=event_type,
-        actor_type=DEVELOPMENT_ACTOR_TYPE,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
         entity_type="human_approval",
         entity_id=str(approval.id),
         summary=summary,

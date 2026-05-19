@@ -14,6 +14,7 @@ from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentStatus,
     AuditLog,
@@ -129,6 +130,8 @@ def test_runtime_resume_approved_approval_returns_allow_and_records_evidence(
 
     [resume_audit_log] = fetch_resume_audit_logs(session_factory)
     assert resume_audit_log.event_type == "runtime_tool_call_resume_checked"
+    assert resume_audit_log.actor_type is ActorType.DEVELOPMENT
+    assert resume_audit_log.actor_id == "dev-placeholder"
     assert resume_audit_log.entity_type == "agent"
     assert resume_audit_log.entity_id == str(chain.agent_id)
     assert resume_audit_log.metadata_["trace_event_id"] == str(resume_trace.id)

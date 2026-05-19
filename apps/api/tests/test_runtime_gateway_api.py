@@ -204,6 +204,8 @@ def test_runtime_simulation_with_review_policy_creates_human_approval(
 
     [audit_log] = fetch_human_approval_audit_logs(session_factory)
     assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.actor_type is ActorType.DEVELOPMENT
+    assert audit_log.actor_id == "dev-placeholder"
     assert audit_log.entity_id == str(approval.id)
     assert audit_log.metadata_ == {
         "agent_id": str(agent_id),
@@ -321,7 +323,11 @@ def test_runtime_policy_evaluation_failure_can_fail_closed_to_human_review(
     assert policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
     assert policy_decision.trace_event_id == trace_event.id
     assert human_approval.policy_decision_id == policy_decision.id
+    assert human_approval.requested_by_actor_type is ActorType.DEVELOPMENT
+    assert human_approval.requested_by_actor_id == "dev-placeholder"
     assert audit_log.event_type == "human_approval_requested"
+    assert audit_log.actor_type is ActorType.DEVELOPMENT
+    assert audit_log.actor_id == "dev-placeholder"
     assert audit_log.entity_id == str(human_approval.id)
 
 

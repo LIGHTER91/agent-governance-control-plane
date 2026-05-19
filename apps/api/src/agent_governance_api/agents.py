@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
-from agent_governance_api.models import ActorType, Agent
+from agent_governance_api.models import Agent
 from agent_governance_api.openapi_examples import (
     AGENT_CREATE_OPENAPI,
     AGENT_GET_OPENAPI,
@@ -25,9 +26,6 @@ from agent_governance_api.schemas import (
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
-DEVELOPMENT_ACTOR_ID = "dev-placeholder"
-
 
 @router.post(
     "",
@@ -38,6 +36,7 @@ DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 def create_agent(
     payload: AgentCreate,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> Agent:
     now = datetime.now(UTC)
     agent = Agent(
@@ -51,8 +50,8 @@ def create_agent(
     append_audit_log(
         session,
         event_type="agent_created",
-        actor_type=DEVELOPMENT_ACTOR_TYPE,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
         entity_type="agent",
         entity_id=str(agent.id),
         summary="Agent created.",
@@ -100,6 +99,7 @@ def update_agent(
     agent_id: UUID,
     payload: AgentUpdate,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> Agent:
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
@@ -125,8 +125,8 @@ def update_agent(
     append_audit_log(
         session,
         event_type=event_type,
-        actor_type=DEVELOPMENT_ACTOR_TYPE,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
         entity_type="agent",
         entity_id=str(agent.id),
         summary="Agent status changed." if status_changed else "Agent updated.",

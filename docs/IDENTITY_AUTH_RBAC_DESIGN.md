@@ -2,9 +2,9 @@
 
 ## Status
 
-Design proposal only. The current backend does not implement authentication,
-authorization, identity provider integration, service API keys, or persistent
-RBAC tables.
+Design proposal with a local `ActorContext` development stub implemented. The
+current backend does not implement real authentication, authorization, identity
+provider integration, service API keys, or persistent RBAC tables.
 
 V0 uses the structured development placeholder:
 
@@ -421,9 +421,9 @@ exist, so product behavior can be tested before enterprise IAM complexity.
 
 ## V1 Implementation Path
 
-1. Add a local Actor dependency or auth stub.
-   - Replace hardcoded `development/dev-placeholder` constants at call sites
-     with a request-scoped Actor.
+1. Continue using the local Actor dependency as the auth boundary.
+   - Keep replacing hardcoded `development/dev-placeholder` constants at
+     mutation call sites with a request-scoped Actor.
    - Keep default local behavior as the development actor.
 2. Add API key or service actor support for runtime endpoints.
    - Scope service actors to allowed Agents and endpoint families.
@@ -460,10 +460,10 @@ surface, while still moving away from the development placeholder early enough.
 
 ## Recommended Follow-up Issues
 
-1. Add an `ActorContext` schema and FastAPI dependency that returns
-   `development/dev-placeholder` in local mode.
-2. Replace hardcoded development actor constants in Agent, HumanApproval,
-   telemetry, and Runtime Gateway mutations with the Actor dependency.
+1. Replace remaining hardcoded development actor constants in telemetry and any
+   future mutation paths with the existing request-scoped Actor dependency.
+2. Add tests for overriding the Actor dependency once a non-development actor is
+   introduced.
 3. Add service actor authentication for telemetry and Runtime Gateway endpoints.
 4. Add minimal role checks for HumanApproval approve/reject/cancel.
 5. Add scoped Evidence Bundle export authorization.

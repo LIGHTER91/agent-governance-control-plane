@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.config import RuntimeFailureDefault, Settings, get_settings
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
-    ActorType,
     Agent,
     AgentRunRecord,
     HumanApproval,
@@ -46,8 +46,6 @@ router = APIRouter(prefix="/runtime", tags=["runtime"])
 SIMULATED_RUN_STATUS = "simulated"
 ENFORCED_RUN_STATUS = "enforced"
 RESUME_CHECKED_RUN_STATUS = "resume_checked"
-DEVELOPMENT_ACTOR_TYPE = ActorType.DEVELOPMENT
-DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 POLICY_EVALUATION_FAILURE_ERRORS = (
     UnsupportedPolicyRuleConditionError,
     TypeError,
@@ -66,6 +64,7 @@ def decide_runtime_tool_call(
     response: Response,
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> RuntimeToolCallDecisionResponse:
     if payload.mode is RuntimeDecisionMode.TELEMETRY:
         raise HTTPException(
@@ -175,6 +174,7 @@ def decide_runtime_tool_call(
                 payload=payload,
                 trace_event=trace_event,
                 failure_default=settings.runtime_failure_default,
+                actor=actor,
             )
         else:
             policy_decision = _persist_runtime_policy_decision(
@@ -187,6 +187,7 @@ def decide_runtime_tool_call(
                 human_approval = _create_human_approval_for_policy_decision(
                     session,
                     policy_decision,
+                    actor=actor,
                 )
 
         session.commit()
@@ -224,6 +225,7 @@ def resume_runtime_tool_call(
     payload: RuntimeToolCallResumeRequest,
     response: Response,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> RuntimeToolCallResumeResponse:
     agent = session.get(Agent, payload.agent_id)
     if agent is None:
@@ -300,6 +302,7 @@ def resume_runtime_tool_call(
             proceed=proceed,
             reason=reason,
             approval=approval,
+            actor=actor,
         )
 
         session.commit()
@@ -588,12 +591,13 @@ def _append_runtime_resume_audit_log(
     proceed: bool,
     reason: str,
     approval: HumanApproval,
+    actor: ActorContext,
 ) -> None:
     append_audit_log(
         session,
         event_type="runtime_tool_call_resume_checked",
-        actor_type=DEVELOPMENT_ACTOR_TYPE,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
         entity_type="agent",
         entity_id=str(payload.agent_id),
         summary="Runtime tool call resume checked.",
@@ -663,6 +667,7 @@ def _apply_runtime_failure_default(
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
     failure_default: RuntimeFailureDefault,
+    actor: ActorContext,
 ) -> tuple[PolicyDecision | None, HumanApproval | None, str | None]:
     effective_failure_default = failure_default
     if (
@@ -702,6 +707,7 @@ def _apply_runtime_failure_default(
         human_approval = _create_human_approval_for_policy_decision(
             session,
             policy_decision,
+            actor=actor,
         )
 
     return policy_decision, human_approval, None
@@ -750,6 +756,8 @@ def _policy_decision_for_trace_event(
 def _create_human_approval_for_policy_decision(
     session: Session,
     policy_decision: PolicyDecision,
+    *,
+    actor: ActorContext,
 ) -> HumanApproval:
     if policy_decision.agent_id is None:
         raise ValueError("HumanApproval requires a PolicyDecision linked to an Agent.")
@@ -758,8 +766,8 @@ def _create_human_approval_for_policy_decision(
         agent_id=policy_decision.agent_id,
         policy_decision_id=policy_decision.id,
         status=HumanApprovalStatus.PENDING,
-        requested_by_actor_type=DEVELOPMENT_ACTOR_TYPE,
-        requested_by_actor_id=DEVELOPMENT_ACTOR_ID,
+        requested_by_actor_type=actor.actor_type,
+        requested_by_actor_id=actor.actor_id,
         reason=policy_decision.reason,
         created_at=datetime.now(UTC),
     )
@@ -769,8 +777,8 @@ def _create_human_approval_for_policy_decision(
     append_audit_log(
         session,
         event_type="human_approval_requested",
-        actor_type=DEVELOPMENT_ACTOR_TYPE,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
         entity_type="human_approval",
         entity_id=str(approval.id),
         summary="Human approval requested.",
