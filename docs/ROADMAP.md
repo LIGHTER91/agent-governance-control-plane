@@ -20,9 +20,10 @@ This does not make the Runtime Gateway production-ready. Enforcement only works
 when wrappers or adapters consistently call AGCP and honor `proceed`. Minimal
 config-based service actor API key authentication now exists for runtime and
 telemetry endpoints, including endpoint/action scopes and an explicit
-service-auth-required mode. Per-Agent service scopes, per-environment service
-scopes, full RBAC, user login, OIDC/SAML, production deployment, and
-operational hardening are still missing.
+service-auth-required mode. Config-based fine-grained service actor scope rules
+also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
+Owner-based service actor restrictions, full RBAC, user login, OIDC/SAML,
+production deployment, and operational hardening are still missing.
 
 ## Phase 0 - Project Foundation
 
@@ -145,8 +146,10 @@ Important limitations:
   implemented for runtime and telemetry endpoints.
 - Endpoint/action service actor scopes and `AGCP_REQUIRE_SERVICE_AUTH=true` are
   implemented for runtime and telemetry endpoints.
-- Per-Agent scopes, per-environment scopes, runtime mode scopes, user login,
-  OIDC/SAML, API key rotation, and RBAC are not implemented.
+- Config-based fine-grained service actor scope rules are implemented for Agent
+  ID, environment, runtime mode, and tool-name restrictions.
+- Owner-based service actor restrictions, user login, OIDC/SAML, API key
+  rotation, DB-backed service actor records, and RBAC are not implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
 - Production deployment, monitoring, and operational runbooks are not
@@ -175,14 +178,18 @@ Completed foundation:
   `actor_id = "service:<stable-id>"`.
 - Endpoint/action service actor scopes for telemetry write, runtime decision,
   and runtime resume.
+- Config-based fine-grained service actor scope rules with
+  `AGCP_SERVICE_ACTOR_SCOPE_RULES` for Agent ID, environment, runtime mode, and
+  tool-name restrictions.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
 
 Recommended next work:
 
-- Design per-Agent, per-environment, and runtime-mode service actor scopes.
-- Implement per-Agent, per-environment, and runtime-mode service actor scopes.
+- Add owner-based service actor scopes design.
+- Add safe denied-scope audit events.
 - Add API key rotation design.
+- Add DB-backed service actor registry design.
 - Add RBAC checks for HumanApproval approve/reject/cancel.
 - Add RBAC checks for Evidence Bundle export.
 - Add audit event for Evidence Bundle export.
@@ -192,11 +199,10 @@ Recommended next work:
 Important limitations:
 
 - Auth is still minimal and config-based.
+- Fine-grained service actor scopes are still config/env-based.
 - No DB-backed service actor or API key registry exists.
 - API key rotation is not implemented.
-- Service actor scopes are endpoint/action-only.
-- Per-Agent, per-environment, and runtime-mode service actor scopes are not
-  implemented.
+- Owner-based service actor restrictions are not implemented.
 - No user login, OIDC, SAML, JWT auth, users table, or roles table exists.
 - RBAC checks are not implemented yet.
 
@@ -204,6 +210,8 @@ References:
 
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
+- `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
+- `docs/SERVICE_ACTOR_FINE_GRAINED_SCOPES_DESIGN.md`
 
 ## Phase 4 - Product UI And Review Workflows
 
@@ -248,6 +256,7 @@ Planned capabilities:
 
 The current backend is strong enough for local demos, deterministic backend
 tests, and governance-flow validation. It is not ready for production
-enforcement because service auth is still config-based and only endpoint-scoped,
-RBAC is not implemented, user authentication does not exist, and deployment,
-observability, rotation, and operational controls are still missing.
+enforcement because service auth and fine-grained scopes are still config-based,
+RBAC is not implemented, user authentication does not exist, API key rotation is
+missing, and deployment, observability, and operational controls are still
+missing.

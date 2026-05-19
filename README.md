@@ -45,10 +45,11 @@ scenario.
 
 This is still a V0 backend milestone, not a production-ready enterprise control
 plane. Runtime Gateway foundations and minimal config-based service actor API
-key authentication now exist, including endpoint scopes and an explicit
-service-auth-required mode for runtime and telemetry endpoints. Full RBAC, user
-login, OIDC/SAML, frontend workflows, notifications, production deployment, API
-key rotation, and enterprise integrations are intentionally not implemented yet.
+key authentication now exist, including endpoint scopes, config-based
+fine-grained scope rules, and an explicit service-auth-required mode for runtime
+and telemetry endpoints. Full RBAC, user login, OIDC/SAML, frontend workflows,
+notifications, production deployment, API key rotation, and enterprise
+integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -89,6 +90,9 @@ key rotation, and enterprise integrations are intentionally not implemented yet.
   Runtime Gateway endpoints.
 - Config-based service actor endpoint scopes for telemetry write, runtime
   decision, and runtime resume calls.
+- Config-based fine-grained service actor rules through
+  `AGCP_SERVICE_ACTOR_SCOPE_RULES` for Agent ID, environment, runtime mode, and
+  tool-name restrictions.
 - Optional `AGCP_REQUIRE_SERVICE_AUTH=true` mode that rejects missing service
   API keys on runtime and telemetry integration endpoints.
 
@@ -204,7 +208,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - User login, OIDC, SAML, or JWT auth.
 - DB-backed service actor or API key registry.
 - API key rotation and persistent API key management.
-- Service actor scopes by Agent, environment, or runtime mode.
+- Owner-based service actor restrictions.
+- Safe audit events for denied service actor scope checks.
 - Frontend or dashboard UI.
 - Human approval notifications.
 - Production SDKs or framework adapters.
@@ -220,14 +225,15 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Design per-Agent, per-environment, and runtime-mode service scopes.
-2. Implement per-Agent, per-environment, and runtime-mode service scopes.
+1. Add owner-based service actor scopes design.
+2. Add safe audit events for denied service actor scope checks.
 3. Add API key rotation design.
-4. Add RBAC checks for HumanApproval review.
-5. Add RBAC checks for Evidence Bundle export.
-6. Add a minimal dashboard shell and agent list page.
-7. Implement Tool, Data Source, Model, and Permission domain models.
-8. Add Policy and PolicyRule CRUD APIs with audit logging.
+4. Add DB-backed service actor registry design.
+5. Add RBAC checks for HumanApproval review.
+6. Add RBAC checks for Evidence Bundle export.
+7. Add a minimal dashboard shell and agent list page.
+8. Implement Tool, Data Source, Model, and Permission domain models.
+9. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 

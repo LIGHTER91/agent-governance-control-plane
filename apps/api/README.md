@@ -87,6 +87,9 @@ Service actor API keys:
 - Configure minimal fine-grained service actor rules with
   `AGCP_SERVICE_ACTOR_SCOPE_RULES`, for example
   `{"service:demo":{"agent_ids":["*"],"environments":["development"],"runtime_modes":["simulation"],"tool_names":["send_email"]}}`.
+- Fine-grained rules currently cover `agent_ids`, `environments`,
+  `runtime_modes`, and `tool_names`. Owner-based restrictions are not
+  implemented yet.
 - `POST /telemetry/events` requires `telemetry:write` for service actors.
 - `POST /runtime/tool-calls/decision` requires `runtime:decision` for service actors.
 - `POST /runtime/tool-calls/resume` requires `runtime:resume` for service actors.
@@ -94,7 +97,8 @@ Service actor API keys:
 - Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
 - In strict service-auth mode, service actors also need a matching fine-grained rule before telemetry or runtime records are created.
 - Raw API keys must not be stored, logged, echoed in responses, or included in audit, telemetry, or evidence metadata.
-- This is still config-based authentication only. There is no DB-backed key registry, API key rotation, OIDC/SAML/JWT, or human RBAC yet.
+- This is still config-based authentication and authorization only. There is no
+  DB-backed key registry, API key rotation, OIDC/SAML/JWT, or human RBAC yet.
 
 ## Database migrations
 
