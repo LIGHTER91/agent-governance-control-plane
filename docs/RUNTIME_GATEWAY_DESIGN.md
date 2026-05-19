@@ -5,7 +5,11 @@
 Design proposal with request/response schemas, simulation mode, and enforcement
 mode behind explicit configuration implemented. Runtime Gateway enforcement is
 disabled by default with `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mode
-for this endpoint, SDKs, and framework adapters do not exist yet.
+for this endpoint and production SDKs do not exist yet. Dependency-free adapter
+examples and a LangGraph adapter spike exist as documentation/examples only.
+Runtime and telemetry integration endpoints can resolve minimal config-based
+service actor API keys, but service scopes, production-required service auth,
+full RBAC, user login, and API key rotation are not implemented.
 
 This document describes a possible V1 path for runtime governance in the Agent
 Governance Control Plane. It keeps the product boundary clear: the gateway is a
@@ -320,7 +324,7 @@ Mitigations:
 6. Add tests for allow, deny, require human review, not applicable, duplicates,
    unsupported metadata, and transaction rollback.
 7. Add a small local integration example only after the endpoint behavior is
-   stable.
+   stable. Implemented as documentation/example code.
 
 V1 should stay inside the existing FastAPI modular monolith. It should not add
 Kafka, Kubernetes, OPA/Rego, Cedar, Redis, a workflow engine, GraphQL, or a new
@@ -328,14 +332,13 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-2. Add Runtime Gateway enforcement hardening and failure-path tests.
-3. Add runtime failure policy configuration for fail-open and fail-closed behavior.
-4. Add runtime evidence bundle coverage tests for enforcement mode.
-5. Add Policy and PolicyRule versioning design.
-6. Add HumanApproval notification design.
-7. Add one framework adapter design, starting with LangGraph only after the
-    gateway contract is stable.
+1. Add service actor scopes for Runtime Gateway calls.
+2. Add production mode requiring service auth for Runtime Gateway calls.
+3. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+4. Add Policy and PolicyRule versioning design.
+5. Add HumanApproval notification design.
+6. Add production SDK or framework adapter only if explicitly requested after
+   the examples and spike are proven.
 
 ## Open Questions
 

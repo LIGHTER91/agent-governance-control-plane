@@ -4,7 +4,26 @@ This roadmap tracks product maturity, not legal compliance status. The project
 supports evidence collection and governance workflows; it does not certify that
 an organization is compliant with any regulation or standard.
 
-## Phase 0 - Repository and Codex setup
+AGCP remains a governance and evidence control plane. It is not an agent
+orchestrator and must not be positioned as a replacement for LangGraph, n8n,
+Dataiku, CrewAI, AutoGen, cloud AI platforms, MCP servers, or other agent
+runtimes.
+
+## Current Reality
+
+The Runtime Gateway foundation was pulled forward from the original roadmap.
+The backend now has a significant runtime governance foundation, including
+simulation, optional enforcement mode, resume checks, failure-policy basics, and
+adapter examples.
+
+This does not make the Runtime Gateway production-ready. Enforcement only works
+when wrappers or adapters consistently call AGCP and honor `proceed`. Minimal
+config-based service actor API key authentication now exists for runtime and
+telemetry endpoints, but scoped service permissions, production-required service
+auth, full RBAC, user login, OIDC/SAML, production deployment, and operational
+hardening are still missing.
+
+## Phase 0 - Project Foundation
 
 Status: Completed.
 
@@ -20,8 +39,9 @@ Completed:
 - Initial backlog.
 - Backend quality CI.
 - Documentation baseline check.
+- Backend toolchain decisions.
 
-## Phase 1 - V0 backend governance flow
+## Phase 1 - V0 Backend Governance Flow
 
 Status: Completed.
 
@@ -32,6 +52,8 @@ Completed capabilities:
 - FastAPI backend skeleton.
 - PostgreSQL-targeted SQLAlchemy 2.x and Alembic baseline.
 - Agent domain model and Agent Registry API.
+- Agent ownership model using `owner_type`, `owner_id`, `owner_name`, and
+  optional contact email.
 - Immutable application-level AuditLog foundation.
 - Agent mutation audit records.
 - Policy, PolicyRule, and PolicyDecision domain models.
@@ -69,27 +91,113 @@ Agent Registry
 
 Reference: `docs/V0_GOVERNANCE_FLOW.md`.
 
-## Phase 2 - Domain coverage and API completeness
+## Phase 2 - Runtime Gateway Foundation
 
-Status: Next.
+Status: Completed as a V0/V1 foundation; not production-ready.
 
-Goal: make the governance domain broader without adding runtime enforcement too
-early.
+Goal: provide a governed decision contract and evidence chain for runtime tool
+calls without turning AGCP into an orchestrator.
+
+Completed capabilities:
+
+- Runtime Gateway design proposal.
+- Runtime Gateway request and response schemas.
+- `POST /runtime/tool-calls/decision` in simulation mode.
+- Enforcement mode behind explicit configuration with
+  `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false` by default.
+- Conservative `proceed` behavior:
+  - `allow` -> `true`;
+  - `deny` -> `false`;
+  - `require_human_review` -> `false`;
+  - `not_applicable` -> `false`.
+- Runtime idempotency by `agent_id`, `run_id`, and `request_id`.
+- Runtime TraceEventRecord creation.
+- Runtime PolicyDecision persistence.
+- Pending HumanApproval creation for runtime decisions that require review.
+- Runtime HumanApproval audit logging.
+- Runtime evidence bundle coverage tests.
+- Runtime failure strategy design.
+- Minimal global runtime failure policy config.
+- Failure-path and rollback tests.
+- OpenAPI examples for Runtime Gateway decision responses.
+- HumanApproval resume pattern design.
+- Runtime Gateway resume endpoint design.
+- Runtime resume request and response schemas.
+- `POST /runtime/tool-calls/resume`.
+- Runtime resume idempotency by `agent_id`, `run_id`, and `resume_id`.
+- Runtime resume TraceEventRecord and AuditLog evidence.
+- OpenAPI examples for Runtime Gateway resume responses.
+- Minimal Python runtime wrapper example.
+- Generic runtime adapter example with retry, idempotency, and resume handling.
+- Runtime Gateway enforcement mode design.
+- LangGraph integration design.
+- Dependency-free LangGraph adapter spike.
+
+Important limitations:
+
+- The gateway does not execute tools.
+- Enforcement depends on wrappers or adapters respecting `proceed`.
+- Framework adapters are examples/spikes, not production SDKs.
+- Telemetry mode is still handled by `POST /telemetry/events`, not the runtime
+  decision endpoint.
+- Local `ActorContext` and minimal config-based service actor API key auth are
+  implemented for runtime and telemetry endpoints.
+- Service actor scopes, production-required service auth, user login, OIDC/SAML,
+  API key rotation, and RBAC are not implemented.
+- Policy versioning is not implemented.
+- Runtime failure policy is global and minimal.
+- Production deployment, monitoring, and operational runbooks are not
+  implemented.
+
+## Phase 3 - Identity, Service Actors, API Keys, and RBAC
+
+Status: Started.
+
+Goal: replace development actor placeholders with real actor identity and
+minimal authorization checks before production runtime use.
+
+Completed foundation:
+
+- Identity, authentication, actor model, and RBAC design.
+- Local `ActorContext` development actor abstraction.
+- `ActorContext` usage in telemetry ingestion.
+- Service actor and API key authentication design.
+- Minimal config-based service actor API key authentication for:
+  - `POST /telemetry/events`;
+  - `POST /runtime/tool-calls/decision`;
+  - `POST /runtime/tool-calls/resume`.
+- Default local/dev behavior remains `development/dev-placeholder` when no API
+  key is supplied.
+- Valid service API keys resolve to `actor_type = "service"` and configured
+  `actor_id = "service:<stable-id>"`.
 
 Recommended next work:
 
-- Tool domain model.
-- Data Source domain model.
-- Model domain model.
-- Permission domain model.
-- Policy CRUD API.
-- PolicyRule CRUD API.
-- Audit logging for Policy and PolicyRule mutations.
-- Evidence Bundle coverage for Tool, Data Source, Model, and Permission records
-  once those records exist.
-- Improved local demo seed path for V0 policies once Policy CRUD exists.
+- Design service actor scopes.
+- Implement service actor scopes for Agent, environment, and endpoint access.
+- Add production mode requiring service auth for runtime and telemetry
+  endpoints.
+- Add RBAC design for HumanApproval review.
+- Add RBAC checks for HumanApproval approve/reject/cancel.
+- Add RBAC checks for Evidence Bundle export.
+- Add audit event for Evidence Bundle export.
+- Add tests for overriding the Actor dependency with a non-development actor.
+- Add separation-of-duties checks for HumanApproval review.
 
-## Phase 3 - Minimal operational control plane UI
+Important limitations:
+
+- Auth is still minimal and config-based.
+- API key rotation is not implemented.
+- Service actor scopes are not implemented.
+- No user login, OIDC, SAML, JWT auth, users table, or roles table exists.
+- RBAC checks are not implemented yet.
+
+References:
+
+- `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
+- `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
+
+## Phase 4 - Product UI And Review Workflows
 
 Status: Not started.
 
@@ -105,52 +213,33 @@ Planned capabilities:
 - Human approval review view.
 - Evidence Bundle viewer.
 
-## Phase 4 - Runtime governance spike
+## Phase 5 - Enterprise Hardening And Expansion
 
 Status: Not started.
 
-Goal: evaluate runtime enforcement or simulation without turning the product into
-an orchestrator.
+Goal: prepare for serious enterprise usage while preserving the control-plane
+boundary.
 
 Planned capabilities:
 
-- Runtime Gateway design proposal.
-- Runtime gateway prototype.
-- Allow/deny/review decision path.
-- Policy simulation mode.
-- SDK or middleware spike for one framework.
-- Incident creation concept.
-
-## Phase 5 - Enterprise governance
-
-Status: Not started.
-
-Goal: prepare for serious enterprise usage.
-
-Planned capabilities:
-
-- Authentication and RBAC.
-- SSO integration.
+- OIDC/SAML SSO integration.
 - Retention policies.
 - Signed or packaged evidence exports.
 - Approval workflow enhancements.
+- Policy and PolicyRule versioning.
 - Risk review dashboard.
 - SIEM/GRC integrations.
-- Policy versioning.
-
-## Phase 6 - Platform expansion
-
-Status: Not started.
-
-Goal: broaden integrations while preserving the control-plane boundary.
-
-Planned capabilities:
-
-- LangGraph integration.
-- n8n/Dataiku integration.
-- MCP integration.
-- Cloud AI platform connectors.
-- Advanced reporting.
+- Tool, Data Source, Model, and Permission domain coverage.
+- Policy and PolicyRule CRUD APIs with audit logging.
+- LangGraph integration package only if requested after the spike is proven.
+- Additional runtime/framework integrations.
 - Compliance framework mapping support for evidence workflows, without claiming
   automatic compliance.
-- Policy template library.
+
+## Readiness Notes
+
+The current backend is strong enough for local demos, deterministic backend
+tests, and governance-flow validation. It is not ready for production
+enforcement because service auth is still config-based and unscoped, RBAC is not
+implemented, user authentication does not exist, and deployment, observability,
+rotation, and operational controls are still missing.

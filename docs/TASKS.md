@@ -5,42 +5,80 @@ source of truth once the repository is managed primarily through GitHub.
 
 ## Current Milestone
 
-V0 backend governance flow: Done.
+Runtime Gateway foundation: Done as a V0/V1 foundation, not production-ready.
 
-Implemented flow:
+Implemented runtime foundation:
 
 ```text
-Agent Registry
--> Telemetry tool_call_requested
+Runtime request
+-> TraceEventRecord
 -> Policy evaluation
 -> PolicyDecision
--> HumanApproval pending when require_human_review
+-> optional HumanApproval
 -> AuditLog
--> Evidence Bundle JSON export
+-> Evidence Bundle links
+-> wrapper/adapter decides whether local tool execution proceeds
 ```
 
-Reference: `docs/V0_GOVERNANCE_FLOW.md`.
+Important caveat: AGCP does not execute tools. Runtime enforcement depends on
+wrappers or adapters consistently calling AGCP and honoring `proceed`.
+Minimal config-based service actor API key authentication exists for runtime and
+telemetry endpoints, but it is not production-grade auth. Service actor scopes,
+production-required service auth, API key rotation, user login, OIDC/SAML, and
+RBAC are not implemented yet.
+
+References:
+
+- `docs/RUNTIME_GATEWAY_DESIGN.md`
+- `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
+- `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
+- `docs/LANGGRAPH_INTEGRATION_DESIGN.md`
+- `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
+- `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 
 ## Next Tasks
 
 Recommended order:
 
-1. Implement Tool domain model.
-2. Implement Data Source domain model.
-3. Implement Model domain model.
-4. Implement Permission domain model.
-5. Add Policy CRUD API.
-6. Add PolicyRule CRUD API.
-7. Add audit records for Policy and PolicyRule mutations.
-8. Extend Evidence Bundle with Tool, Data Source, Model, and Permission records
-   once those concepts exist.
-9. Add dashboard shell.
-10. Add agent list page.
-11. Prepare Runtime Gateway design proposal.
-12. Prepare LangGraph integration design.
+1. Design service actor scopes.
+2. Implement service actor scopes for Agent, environment, and endpoint access.
+3. Add production mode requiring service auth for runtime and telemetry.
+4. Add RBAC design for HumanApproval review.
+5. Add RBAC checks for HumanApproval approve/reject/cancel.
+6. Add RBAC checks for Evidence Bundle export.
+7. Add audit event for Evidence Bundle export.
+8. Add dashboard shell.
+9. Add agent list page.
+10. Add agent detail page.
+11. Add human approval review view.
+12. Add Tool domain model.
+13. Add Data Source domain model.
+14. Add Model domain model.
+15. Add Permission domain model.
+16. Add Policy CRUD API.
+17. Add PolicyRule CRUD API.
+18. Add audit records for Policy and PolicyRule mutations.
 
 ## Backlog
 
+- [ ] Design service actor scopes.
+- [ ] Implement service actor scopes for Agent, environment, and endpoint
+      access.
+- [ ] Add production mode requiring service auth for runtime and telemetry.
+- [ ] Add RBAC design for HumanApproval review.
+- [ ] Add RBAC checks for HumanApproval approve/reject/cancel.
+- [ ] Add RBAC checks for Evidence Bundle export.
+- [ ] Add audit event for Evidence Bundle export.
+- [ ] Add tests for overriding the Actor dependency with a non-development
+      actor.
+- [ ] Add separation-of-duties checks for HumanApproval review.
+- [ ] Add dashboard shell.
+- [ ] Add agent list page.
+- [ ] Add agent detail page.
+- [ ] Add agent run timeline.
+- [ ] Add policy decision timeline.
+- [ ] Add human approval review view.
+- [ ] Add Evidence Bundle viewer.
 - [ ] Implement Tool domain model.
 - [ ] Implement Data Source domain model.
 - [ ] Implement Model domain model.
@@ -50,17 +88,11 @@ Recommended order:
 - [ ] Add audit records for Policy and PolicyRule mutations.
 - [ ] Extend Evidence Bundle for Tool, Data Source, Model, and Permission
       records.
-- [ ] Add dashboard shell.
-- [ ] Add agent list page.
-- [ ] Add agent detail page.
-- [ ] Add agent run timeline.
-- [ ] Add policy decision timeline.
-- [ ] Add human approval review view.
-- [ ] Add Evidence Bundle viewer.
-- [ ] Runtime Gateway design proposal.
-- [ ] LangGraph integration design.
-- [ ] Authentication and RBAC design.
-- [ ] Retention policy design.
+- [ ] Add policy versioning design.
+- [ ] Add approval notification design.
+- [ ] Add retention policy design.
+- [ ] Add production deployment design.
+- [ ] Add LangGraph production adapter package only if explicitly requested.
 
 ## In Progress
 
@@ -111,6 +143,34 @@ Empty.
 - [x] Add OpenAPI documentation examples for core backend endpoints.
 - [x] Add executable V0 governance flow demo.
 - [x] Consolidate V0 backend milestone documentation.
+- [x] Add Runtime Gateway design proposal.
+- [x] Add Runtime Gateway request/response schemas.
+- [x] Implement Runtime Gateway simulation endpoint.
+- [x] Add Runtime Gateway OpenAPI examples.
+- [x] Add Runtime Gateway failure strategy design.
+- [x] Add Runtime Gateway failure policy configuration design.
+- [x] Add minimal runtime failure policy configuration.
+- [x] Add Runtime Gateway failure-path tests.
+- [x] Apply runtime failure default to selected policy evaluation failures.
+- [x] Add Runtime Gateway enforcement mode design.
+- [x] Implement Runtime Gateway enforcement mode behind explicit config.
+- [x] Add Runtime Gateway evidence chain tests.
+- [x] Add minimal runtime tool wrapper example.
+- [x] Add generic runtime adapter example with retry and idempotency.
+- [x] Add HumanApproval resume pattern design.
+- [x] Add Runtime Gateway resume endpoint design.
+- [x] Add Runtime Gateway resume schemas.
+- [x] Implement Runtime Gateway resume endpoint.
+- [x] Add Runtime Gateway resume OpenAPI examples.
+- [x] Update generic runtime adapter example with resume flow.
+- [x] Add LangGraph integration design.
+- [x] Add dependency-free LangGraph adapter spike.
+- [x] Add identity, authentication, actor model, and RBAC design.
+- [x] Add local `ActorContext` development actor abstraction.
+- [x] Use `ActorContext` in telemetry ingestion.
+- [x] Add service actor and API key authentication design.
+- [x] Implement minimal config-based service actor API key authentication for
+      telemetry and Runtime Gateway endpoints.
 
 ## Blocked
 

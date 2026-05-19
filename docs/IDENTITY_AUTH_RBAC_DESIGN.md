@@ -2,9 +2,11 @@
 
 ## Status
 
-Design proposal with a local `ActorContext` development stub implemented. The
-current backend does not implement real authentication, authorization, identity
-provider integration, service API keys, or persistent RBAC tables.
+Design proposal with a local `ActorContext` development stub and minimal
+config-based service actor API key authentication implemented for runtime and
+telemetry integration endpoints. The current backend does not implement full
+authentication, authorization, identity provider integration, API key rotation,
+service actor scopes, or persistent RBAC tables.
 
 V0 uses the structured development placeholder:
 
@@ -51,14 +53,14 @@ create HumanApproval records, approve or reject them, append AuditLog records,
 and export Evidence Bundles. These flows need an actor shape even before real
 authentication exists.
 
-Using `development/dev-placeholder` in V0 is acceptable because:
+Using `development/dev-placeholder` as the local fallback is acceptable because:
 
 - it proves every privileged mutation has a place to store actor identity;
 - it keeps AuditLog and HumanApproval schemas compatible with future auth;
 - it avoids blocking backend domain work on enterprise IAM decisions;
 - it makes local tests deterministic.
 
-It is not production-ready because:
+It is not production-ready by itself because:
 
 - all users and integrations appear as the same actor;
 - reviewer identity is not meaningful;
@@ -395,16 +397,22 @@ Actor through one place.
 Runtime adapters and telemetry emitters need machine identity before full
 enterprise SSO.
 
-V1 can support API keys or signed service tokens that map to:
+The current backend has minimal config-based API key support for runtime and
+telemetry integration endpoints. A valid configured key maps to:
 
 - `actor_type = "service"`;
 - `actor_id = "service:<service-account-id>"`;
-- allowed Agent IDs;
-- allowed endpoints;
-- allowed environments.
 
-The API key secret must never be stored or logged in plaintext. This design does
-not choose the storage mechanism yet.
+The current implementation is intentionally narrow:
+
+- raw API keys are accepted only through `X-AGCP-API-Key`;
+- config stores SHA-256 key hashes, not raw keys;
+- missing keys preserve the local development actor behavior;
+- invalid keys are rejected before endpoint records are created.
+
+Allowed Agent IDs, endpoints, environments, rotation, and persistent key
+management are still future work. Raw API keys must never be stored or logged in
+plaintext.
 
 ### OIDC/SAML Later For Enterprise Users
 
@@ -425,9 +433,11 @@ exist, so product behavior can be tested before enterprise IAM complexity.
    - Keep replacing hardcoded `development/dev-placeholder` constants at
      mutation call sites with a request-scoped Actor.
    - Keep default local behavior as the development actor.
-2. Add API key or service actor support for runtime endpoints.
-   - Scope service actors to allowed Agents and endpoint families.
-   - Start with telemetry ingestion and Runtime Gateway decision/resume calls.
+2. Add API key or service actor support for runtime endpoints. Implemented as a
+   minimal config-based foundation for telemetry ingestion and Runtime Gateway
+   decision/resume calls.
+   - Scope service actors to allowed Agents and endpoint families. Not yet
+     implemented.
 3. Add RBAC checks for HumanApproval review.
    - Ensure only scoped reviewers can approve, reject, or cancel.
    - Record real reviewer actor fields.
@@ -445,8 +455,10 @@ surface, while still moving away from the development placeholder early enough.
 
 ## Security Risks And Limitations
 
-- Placeholder actors make V0 evidence useful for flow validation, not for
+- Placeholder actors make local evidence useful for flow validation, not for
   production accountability.
+- Minimal service API keys identify runtime integrations, but they are still
+  config-based and unscoped.
 - API keys can be over-scoped if service actors are not restricted by Agent,
   environment, or endpoint.
 - Group claims can be stale; reviewer scope should not rely only on unchecked
@@ -464,14 +476,16 @@ surface, while still moving away from the development placeholder early enough.
    paths with the existing request-scoped Actor dependency.
 2. Add tests for overriding the Actor dependency once a non-development actor is
    introduced.
-3. Add service actor authentication for telemetry and Runtime Gateway endpoints.
-4. Add minimal role checks for HumanApproval approve/reject/cancel.
-5. Add scoped Evidence Bundle export authorization.
-6. Add audit event for Evidence Bundle export.
-7. Design service API key storage and rotation.
-8. Design OIDC user mapping to `user:<external-id>` and role claims.
-9. Design team membership resolution for Agent ownership checks.
-10. Add separation-of-duties checks for HumanApproval review.
+3. Design service actor scopes for Agent, environment, and endpoint access.
+4. Implement service actor scopes.
+5. Add production mode requiring service auth for runtime and telemetry.
+6. Add minimal role checks for HumanApproval approve/reject/cancel.
+7. Add scoped Evidence Bundle export authorization.
+8. Add audit event for Evidence Bundle export.
+9. Design service API key storage and rotation.
+10. Design OIDC user mapping to `user:<external-id>` and role claims.
+11. Design team membership resolution for Agent ownership checks.
+12. Add separation-of-duties checks for HumanApproval review.
 
 ## Open Questions
 

@@ -2,18 +2,20 @@
 
 ## Status
 
-Design proposal for a future V1 service actor authentication path. The current
-backend still uses the local `ActorContext` development placeholder by default:
+Design proposal with a minimal local/config-based implementation now in place
+for runtime and telemetry integration endpoints. The backend still uses the
+local `ActorContext` development placeholder by default when no API key is
+provided:
 
 ```text
 actor_type = "development"
 actor_id = "dev-placeholder"
 ```
 
-This document does not implement API key authentication, database tables, RBAC,
-OIDC, SAML, JWTs, or a production identity system. It defines the smallest
-pragmatic path for runtime integrations and telemetry emitters to act as
-identified service actors later.
+The current implementation supports `X-AGCP-API-Key` and
+`AGCP_SERVICE_ACTOR_API_KEYS` with SHA-256 key hashes. It does not implement
+database tables, API key rotation, service actor scopes, RBAC, OIDC, SAML, JWTs,
+or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -92,7 +94,7 @@ cases, but they should not become broad administrator accounts.
 
 ## API Key Behavior
 
-V1 can use an optional API key header for service integrations, for example:
+V1 uses an optional API key header for service integrations:
 
 ```http
 X-AGCP-API-Key: <raw-api-key>
@@ -136,7 +138,7 @@ should contain the resolved service actor:
 It should not contain the raw header value or a reversible representation of the
 key.
 
-## V1 Approach
+## Current Minimal Approach
 
 ### Development Default
 
@@ -155,16 +157,15 @@ This keeps tests and demos deterministic while application code continues to use
 Runtime and telemetry integration endpoints can inspect an optional API key
 header such as `X-AGCP-API-Key`.
 
-Proposed behavior:
+Implemented behavior:
 
 1. If a valid API key is present, resolve it to:
    - `actor_type = "service"`;
    - `actor_id = "service:<stable-id>"`;
-   - optional roles or scopes.
 2. If the header is missing in local development, return the development actor.
 3. If the header is invalid, reject the request before creating records.
-4. In production, require service authentication for runtime and telemetry
-   endpoints.
+4. In production later, require service authentication for runtime and telemetry
+   endpoints. This is not implemented yet.
 
 The production requirement should be controlled by explicit configuration. It
 should not silently switch a local developer flow into strict auth without a
@@ -190,9 +191,9 @@ acting as every Agent in every environment.
 
 ## Audit Behavior
 
-Once service actor authentication exists, runtime and telemetry flows should use
-the resolved service actor identity wherever they currently use the development
-placeholder.
+When service actor authentication is used, runtime and telemetry flows use the
+resolved service actor identity wherever they would otherwise use the
+development placeholder.
 
 Expected behavior:
 
@@ -322,24 +323,27 @@ Mitigations:
 - redact `X-AGCP-API-Key` and authorization-like headers by default;
 - avoid request body logging;
 - keep metadata safety rules centralized;
-- add tests for logging and evidence redaction when API key auth is
-  implemented.
+- keep tests proving raw keys do not appear in responses, logs, audit metadata,
+  telemetry metadata, or Evidence Bundles.
 
 ## V1 Implementation Sketch
 
-1. Extend `ActorContext` resolution.
+1. Extend `ActorContext` resolution. Implemented for runtime and telemetry
+   integration endpoints.
    - Keep local default behavior for development.
-   - Add optional `X-AGCP-API-Key` parsing behind configuration.
+   - Add optional `X-AGCP-API-Key` parsing behind configuration. Implemented.
 2. Add an in-memory or configuration-backed service actor registry for the first
-   development implementation.
+   development implementation. Implemented as hashed environment configuration.
    - Avoid database tables until rotation, management, and scope requirements
      are clearer.
 3. Resolve a valid key to `ActorContext(actor_type="service",
-   actor_id="service:<stable-id>")`.
+   actor_id="service:<stable-id>")`. Implemented.
 4. Require service auth for runtime and telemetry endpoints when production auth
-   mode is enabled.
-5. Add scope checks for Agent ID, environment, and endpoint family.
+   mode is enabled. Not implemented.
+5. Add scope checks for Agent ID, environment, and endpoint family. Not
+   implemented.
 6. Add tests proving raw keys are not logged, persisted, returned, or exported.
+   Implemented for the minimal config-based path.
 7. Add persistent hashed API key storage only when a real management workflow is
    needed.
 
@@ -348,21 +352,17 @@ integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Add service actor API key design review acceptance criteria.
-2. Add configurable service actor registry for local/dev API key validation.
-3. Extend the runtime and telemetry Actor dependency to resolve
-   `X-AGCP-API-Key` to a service actor.
-4. Require service actor authentication for runtime endpoints when production
+1. Add service actor scopes design.
+2. Implement service actor scopes for Agent, environment, and endpoint access.
+3. Add production mode requiring service authentication for runtime endpoints
+   when production auth mode is enabled.
+4. Require service actor authentication for telemetry ingestion when production
    auth mode is enabled.
-5. Require service actor authentication for telemetry ingestion when production
-   auth mode is enabled.
-6. Add service actor scopes for Agent IDs, environments, and endpoint families.
-7. Add tests that raw API keys are never logged, audited, persisted in metadata,
-   or exported in Evidence Bundles.
-8. Design hashed API key persistence and rotation.
-9. Add audit visibility for service actor usage.
-10. Add documentation for integration owners on request IDs, service actors, and
-    safe metadata.
+5. Add API key rotation design and implementation.
+6. Add persistent hashed API key storage when key management workflows exist.
+7. Add audit visibility for service actor usage.
+8. Add documentation for integration owners on request IDs, service actors, and
+   safe metadata.
 
 ## Open Questions
 

@@ -44,9 +44,10 @@ See [V0_GOVERNANCE_FLOW.md](docs/V0_GOVERNANCE_FLOW.md) for the executable demo
 scenario.
 
 This is still a V0 backend milestone, not a production-ready enterprise control
-plane. Authentication, RBAC, frontend workflows, notifications, runtime
-blocking, production deployment, and enterprise integrations are intentionally
-not implemented yet.
+plane. Runtime Gateway foundations and minimal config-based service actor API
+key authentication now exist, but full RBAC, user login, OIDC/SAML, frontend
+workflows, notifications, production deployment, API key rotation, and
+enterprise integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -75,6 +76,16 @@ not implemented yet.
   HumanApproval, and related AuditLog.
 - Central metadata safety filtering for telemetry, audit, and evidence export.
 - OpenAPI examples for core backend endpoints.
+- Runtime Gateway simulation endpoint for governed tool-call decisions.
+- Runtime Gateway enforcement mode behind explicit
+  `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true`.
+- Runtime resume endpoint for checking whether a previously blocked action may
+  proceed after HumanApproval.
+- Generic runtime adapter example and dependency-free LangGraph adapter spike.
+- Local `ActorContext` abstraction with the default
+  `development/dev-placeholder` actor.
+- Minimal config-based service actor API key authentication for telemetry and
+  Runtime Gateway endpoints.
 
 ## V0 Governance Flow
 
@@ -111,6 +122,11 @@ Agent Registry:
 Telemetry:
 
 - `POST /telemetry/events`
+
+Runtime Gateway:
+
+- `POST /runtime/tool-calls/decision`
+- `POST /runtime/tool-calls/resume`
 
 Human Approvals:
 
@@ -180,12 +196,15 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Policy CRUD API.
 - Tool, Data Source, Model, and Permission domain models.
 - Full authentication and RBAC.
+- User login, OIDC, SAML, or JWT auth.
+- API key rotation and persistent API key management.
+- Service actor scopes by Agent, environment, or endpoint.
 - Frontend or dashboard UI.
 - Human approval notifications.
-- Runtime gateway or runtime blocking.
-- SDKs or framework adapters.
+- Production SDKs or framework adapters.
 - Docker Compose or production deployment.
-- Policy versioning and simulation mode.
+- Policy versioning and Runtime Gateway telemetry mode on the runtime decision
+  endpoint.
 - Retention policies.
 - Signed or PDF evidence bundles.
 - SIEM/GRC integrations.
@@ -195,12 +214,14 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Implement Tool, Data Source, Model, and Permission domain models.
-2. Add Policy and PolicyRule CRUD APIs with audit logging.
-3. Add a minimal dashboard shell and agent list page.
-4. Design the Runtime Gateway spike without adding enforcement prematurely.
-5. Design the first framework integration spike, likely LangGraph.
-6. Add authentication/RBAC only after the core domain workflows are stable.
+1. Design service actor scopes for Agent, environment, and endpoint access.
+2. Implement service actor scopes for runtime and telemetry endpoints.
+3. Add production mode requiring service auth for runtime and telemetry.
+4. Add RBAC design and checks for HumanApproval review.
+5. Add RBAC checks for Evidence Bundle export.
+6. Add a minimal dashboard shell and agent list page.
+7. Implement Tool, Data Source, Model, and Permission domain models.
+8. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 
