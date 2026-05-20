@@ -16,6 +16,19 @@ export type AgentRecord = {
   updated_at: string;
 };
 
+export type AgentActivityItem = {
+  id: string;
+  type: string;
+  timestamp: string;
+  title: string;
+  summary: string | null;
+  trace_event_id: string | null;
+  policy_decision_id: string | null;
+  human_approval_id: string | null;
+  audit_log_id: string | null;
+  run_id: string | null;
+};
+
 export { getApiBaseUrl };
 
 export async function fetchAgents(signal?: AbortSignal): Promise<AgentRecord[]> {
@@ -33,4 +46,17 @@ export async function fetchAgent(
     errorLabel: "GET /agents/{agent_id}",
     signal
   });
+}
+
+export async function fetchAgentActivity(
+  agentId: string,
+  signal?: AbortSignal
+): Promise<AgentActivityItem[]> {
+  return fetchApiJson<AgentActivityItem[]>(
+    `/agents/${encodeURIComponent(agentId)}/activity`,
+    {
+      errorLabel: "GET /agents/{agent_id}/activity",
+      signal
+    }
+  );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiRequestError, getApiBaseUrl } from "../../lib/api";
-import { AgentRecord, fetchAgent } from "../../lib/agents";
+import type { AgentActivityItem, AgentRecord } from "../../lib/agents";
+import { fetchAgent, fetchAgentActivity } from "../../lib/agents";
 import { EvidenceBundle, fetchEvidenceBundle } from "../../lib/evidence";
 import {
   HumanApprovalRecord,
@@ -23,6 +24,11 @@ type EvidenceState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; bundle: EvidenceBundle };
+
+type ActivityState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; items: AgentActivityItem[] };
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -75,12 +81,31 @@ function evidenceErrorMessage(error: unknown) {
     : "Unable to load the Evidence Bundle from the backend.";
 }
 
+function activityErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 403) {
+      return "Agent activity requires reviewer, auditor, or platform_admin role.";
+    }
+
+    if (error.status === 404) {
+      return "Agent not found.";
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Unable to load Agent activity from the backend.";
+}
+
 function ownerDisplay(agent: AgentRecord) {
   return agent.owner_name || agent.owner_id;
 }
 
 export function AgentDetail({ agentId }: { agentId: string }) {
   const [state, setState] = useState<AgentDetailState>({ status: "loading" });
+  const [activityState, setActivityState] = useState<ActivityState>({
+    status: "loading"
+  });
   const [evidenceState, setEvidenceState] = useState<EvidenceState>({
     status: "idle"
   });
@@ -89,6 +114,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     const controller = new AbortController();
 
     setState({ status: "loading" });
+    setActivityState({ status: "loading" });
     setEvidenceState({ status: "idle" });
 
     Promise.all([
@@ -104,6 +130,21 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         }
 
         setState({ status: "error", message: agentErrorMessage(error) });
+      });
+
+    fetchAgentActivity(agentId, controller.signal)
+      .then((items) => {
+        setActivityState({ status: "ready", items });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setActivityState({
+          status: "error",
+          message: activityErrorMessage(error)
+        });
       });
 
     return () => {
@@ -168,6 +209,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         agent={state.agent}
         humanApprovals={state.humanApprovals}
       />
+      <ActivityTimelineSection activityState={activityState} />
       <HumanApprovalsSection humanApprovals={state.humanApprovals} />
       <EvidenceAccessSection
         evidenceState={evidenceState}
@@ -175,6 +217,93 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       />
       <RuntimePolicyPlaceholder />
     </>
+  );
+}
+
+function ActivityTimelineSection({
+  activityState
+}: {
+  activityState: ActivityState;
+}) {
+  return (
+    <>
+      <h3 className="section-title">Activity / Timeline</h3>
+      <section className="detail-card" aria-label="Agent activity timeline">
+        <div className="detail-card-header">
+          <div>
+            <strong>Governance activity</strong>
+            <p>
+              Reads `GET /agents/{"{agent_id}"}/activity` for a lightweight
+              navigation view across trace events, PolicyDecision records,
+              HumanApproval records, and AuditLog entries.
+            </p>
+          </div>
+        </div>
+
+        {activityState.status === "loading" ? (
+          <div className="state-message compact" aria-live="polite">
+            <strong>Loading Agent activity</strong>
+            <p>Requesting the read-only activity timeline from the backend.</p>
+          </div>
+        ) : null}
+
+        {activityState.status === "error" ? (
+          <div className="state-message error compact" role="alert">
+            <strong>Unable to load Agent activity</strong>
+            <p>{activityState.message}</p>
+          </div>
+        ) : null}
+
+        {activityState.status === "ready" && activityState.items.length === 0 ? (
+          <div className="state-message compact">
+            <strong>No activity records for this Agent</strong>
+            <p>
+              Trace events, policy decisions, HumanApprovals, and audit entries
+              will appear here after backend governance workflows run.
+            </p>
+          </div>
+        ) : null}
+
+        {activityState.status === "ready" && activityState.items.length > 0 ? (
+          <ol className="activity-list">
+            {activityState.items.map((item) => (
+              <ActivityTimelineItem item={item} key={`${item.type}-${item.id}`} />
+            ))}
+          </ol>
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+function ActivityTimelineItem({ item }: { item: AgentActivityItem }) {
+  const relatedIds: Array<[string, string | null]> = [
+    ["trace_event_id", item.trace_event_id],
+    ["policy_decision_id", item.policy_decision_id],
+    ["human_approval_id", item.human_approval_id],
+    ["audit_log_id", item.audit_log_id],
+    ["run_id", item.run_id]
+  ].filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+
+  return (
+    <li className="activity-item">
+      <div className="activity-item-header">
+        <span className="table-pill">{formatValue(item.type)}</span>
+        <time dateTime={item.timestamp}>{formatTimestamp(item.timestamp)}</time>
+      </div>
+      <strong>{item.title}</strong>
+      <p>{item.summary || "No summary provided."}</p>
+      {relatedIds.length > 0 ? (
+        <dl className="activity-related" aria-label="Related activity IDs">
+          {relatedIds.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </li>
   );
 }
 
@@ -428,9 +557,9 @@ function RuntimePolicyPlaceholder() {
       <h3 className="section-title">Runtime / policy decisions</h3>
       <section className="placeholder-panel">
         <p>
-          No dedicated Agent-specific runtime or policy decision endpoint is
-          wired into the frontend yet. Authorized Evidence Bundle access can
-          show linked trace events and PolicyDecision records for this Agent.
+          The Activity / Timeline section provides lightweight navigation across
+          linked runtime and policy records. A dedicated runtime decision
+          drill-down view remains future work.
         </p>
       </section>
     </>
