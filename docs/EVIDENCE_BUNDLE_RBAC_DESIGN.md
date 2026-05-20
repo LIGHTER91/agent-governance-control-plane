@@ -2,8 +2,8 @@
 
 ## Status
 
-Design proposal only. The current backend exports a JSON Evidence Bundle for a
-single Agent through:
+Design plus minimal V1 implementation. The current backend exports a JSON
+Evidence Bundle for a single Agent through:
 
 ```text
 GET /agents/{agent_id}/evidence-bundle
@@ -11,8 +11,12 @@ GET /agents/{agent_id}/evidence-bundle
 
 The current export includes Agent metadata, related AuditLogs, Agent runs, Trace
 Events, PolicyDecisions, HumanApprovals, and Policy or PolicyRule references
-when available. Metadata is filtered before export, but the endpoint does not
-yet enforce RBAC, scoped ownership checks, or export audit events.
+when available. Metadata is filtered before export. The endpoint now enforces a
+minimal RBAC check that allows only actors with `auditor` or `platform_admin`
+roles. Service actors are denied by default.
+
+The current implementation still does not enforce scoped ownership checks,
+team membership, policy-linked visibility, or export audit events.
 
 AGCP remains an Agent Governance Control Plane. Evidence Bundle RBAC should
 control who can inspect governance evidence. It should not turn AGCP into an
@@ -252,10 +256,10 @@ receive `evidence:read`.
 
 ## Minimal Implementation Path
 
-1. Use existing role-aware ActorContext.
+1. Use existing role-aware ActorContext. Implemented for the minimal V1 check.
    - `ActorContext.roles` already exists and can carry local test roles.
    - Keep this as a local boundary, not full authentication.
-2. Require `auditor` or `platform_admin` initially.
+2. Require `auditor` or `platform_admin` initially. Implemented.
    - Add an Actor dependency to `GET /agents/{agent_id}/evidence-bundle`.
    - Deny service actors unless they explicitly carry a future allowed export
      role or `evidence:read` behavior is designed.
@@ -263,7 +267,9 @@ receive `evidence:read`.
    - Start with direct `owner_type = "user"` and matching `owner_id`.
    - Add team and organization-unit resolution only after identity direction is
      clearer.
-4. Add tests.
+4. Add tests. Implemented for auditor, platform admin, unauthorized actors,
+   service actor denial, denied payload shape, authorized `404`, and metadata
+   filtering.
    - auditor can export;
    - platform_admin can export;
    - viewer cannot export;
@@ -277,15 +283,13 @@ receive `evidence:read`.
 
 ## Recommended Follow-up Issues
 
-1. Add Evidence Bundle RBAC check for `auditor` and `platform_admin`.
-2. Add tests proving unauthorized actors receive `403` without bundle payloads.
-3. Add service actor denial tests for Evidence Bundle export.
-4. Add direct `agent_owner` Evidence Bundle export checks.
-5. Design team and organization-unit membership resolver for ownership checks.
-6. Add policy-linked evidence visibility design for `policy_admin`.
-7. Add successful export audit event design and implementation.
-8. Add safe denied-export audit event design.
-9. Add environment-specific export restrictions for production Agents if needed.
+1. Add direct `agent_owner` Evidence Bundle export checks.
+2. Design team and organization-unit membership resolver for ownership checks.
+3. Add policy-linked evidence visibility design for `policy_admin`.
+4. Add successful export audit event design and implementation.
+5. Add safe denied-export audit event design.
+6. Add environment-specific export restrictions for production Agents if needed.
+7. Decide whether service actors should ever receive explicit `evidence:read`.
 
 ## Open Questions
 

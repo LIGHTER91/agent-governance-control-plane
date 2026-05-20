@@ -22,8 +22,10 @@ config-based service actor API key authentication now exists for runtime and
 telemetry endpoints, including endpoint/action scopes and an explicit
 service-auth-required mode. Config-based fine-grained service actor scope rules
 also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
-Owner-based service actor restrictions, full RBAC, user login, OIDC/SAML,
-production deployment, and operational hardening are still missing.
+Minimal RBAC checks now exist for HumanApproval review actions and Evidence
+Bundle export. Owner-based service actor restrictions, full user authentication,
+OIDC/SAML, team membership resolution, production deployment, and operational
+hardening are still missing.
 
 ## Phase 0 - Project Foundation
 
@@ -149,7 +151,8 @@ Important limitations:
 - Config-based fine-grained service actor scope rules are implemented for Agent
   ID, environment, runtime mode, and tool-name restrictions.
 - Owner-based service actor restrictions, user login, OIDC/SAML, API key
-  rotation, DB-backed service actor records, and RBAC are not implemented.
+  rotation, DB-backed service actor records, and broad user RBAC are not
+  implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
 - Production deployment, monitoring, and operational runbooks are not
@@ -183,18 +186,24 @@ Completed foundation:
   tool-name restrictions.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
+- Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
+- Minimal Evidence Bundle export RBAC for `auditor` and `platform_admin`.
+- Service actors are denied Evidence Bundle export by default.
 
 Recommended next work:
 
+- Add dashboard shell.
+- Add agent list page.
+- Add human approvals page.
+- Add Evidence Bundle page.
+- Add owner-based access checks.
+- Add API key rotation design.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
-- Add API key rotation design.
 - Add DB-backed service actor registry design.
-- Add RBAC checks for HumanApproval approve/reject/cancel.
-- Add RBAC checks for Evidence Bundle export.
 - Add audit event for Evidence Bundle export.
 - Add tests for overriding the Actor dependency with a non-development actor.
-- Add separation-of-duties checks for HumanApproval review.
+- Add deeper separation-of-duties checks for HumanApproval review.
 
 Important limitations:
 
@@ -204,7 +213,9 @@ Important limitations:
 - API key rotation is not implemented.
 - Owner-based service actor restrictions are not implemented.
 - No user login, OIDC, SAML, JWT auth, users table, or roles table exists.
-- RBAC checks are not implemented yet.
+- No team membership or organization-unit resolver exists.
+- HumanApproval and Evidence Bundle RBAC are minimal local checks, not full
+  enterprise authorization.
 
 References:
 
@@ -212,6 +223,8 @@ References:
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
 - `docs/SERVICE_ACTOR_FINE_GRAINED_SCOPES_DESIGN.md`
+- `docs/HUMAN_APPROVAL_RBAC_DESIGN.md`
+- `docs/EVIDENCE_BUNDLE_RBAC_DESIGN.md`
 
 ## Phase 4 - Product UI And Review Workflows
 
@@ -257,6 +270,6 @@ Planned capabilities:
 The current backend is strong enough for local demos, deterministic backend
 tests, and governance-flow validation. It is not ready for production
 enforcement because service auth and fine-grained scopes are still config-based,
-RBAC is not implemented, user authentication does not exist, API key rotation is
-missing, and deployment, observability, and operational controls are still
-missing.
+HumanApproval and Evidence Bundle RBAC are minimal, user authentication does not
+exist, API key rotation is missing, and deployment, observability, and
+operational controls are still missing.

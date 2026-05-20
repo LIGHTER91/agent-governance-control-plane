@@ -2,11 +2,15 @@
 
 ## Status
 
-Design proposal only. The current backend has HumanApproval persistence,
-explicit transition endpoints, ActorContext-based requester and reviewer fields,
-and AuditLog records for create, approve, reject, and cancel actions. It does
-not yet enforce RBAC, separation of duties, team membership, or enterprise user
-authentication.
+Design plus minimal V1 implementation. The current backend has HumanApproval
+persistence, explicit transition endpoints, ActorContext-based requester and
+reviewer fields, AuditLog records for create, approve, reject, and cancel
+actions, and minimal RBAC checks for approve, reject, and cancel actions.
+
+The current implementation still does not provide enterprise user
+authentication, persistent users or roles, team membership resolution, or full
+workflow assignment. Separation of duties is implemented only at the local role
+check level.
 
 The current local development actor remains:
 
@@ -224,19 +228,21 @@ keys, or sensitive notes.
    - Continue using the existing ActorContext boundary.
    - Treat `roles` as the first local role source.
    - Keep service actor scopes separate from human RBAC roles where possible.
-2. Add a local/dev reviewer role stub.
+2. Add a local/dev reviewer role stub. Implemented for local/test behavior.
    - In local/dev, allow `development/dev-placeholder` to carry enough role
      context for tests and demo flows.
    - Do not present this as production auth.
-3. Require reviewer or platform_admin for approve/reject.
+3. Require reviewer or platform_admin for approve/reject. Implemented.
    - Check status is pending as today.
    - Check actor role and scope before mutating the approval.
    - Reject service actors by default.
-4. Allow cancel only by requester or platform_admin initially.
+4. Allow cancel only by requester or platform_admin initially. Implemented.
    - A requester can cancel a still-pending approval they created.
    - Platform admin can cancel with clear audit evidence.
    - Reviewer cancel can remain future work unless a real workflow requires it.
-5. Add tests.
+5. Add tests. Implemented for reviewer, platform admin, service actor denial,
+   self-approval denial, requester cancel, unauthorized cancel, and denied
+   status preservation.
    - reviewer can approve assigned or allowed approval;
    - reviewer can reject assigned or allowed approval;
    - auditor can view but not mutate;
@@ -248,16 +254,12 @@ keys, or sensitive notes.
 
 ## Recommended Follow-up Issues
 
-1. Add local role-aware ActorContext support for human users.
-2. Add HumanApproval RBAC checks for approve and reject.
-3. Add HumanApproval cancel authorization for requester and platform admin.
-4. Add scoped read checks for `GET /human-approvals/{approval_id}`.
-5. Add scoped read checks for `GET /agents/{agent_id}/human-approvals`.
-6. Add separation-of-duties check preventing requester self-approval.
-7. Add safe denied-authorization audit events for HumanApproval review actions.
-8. Add tests proving service actors cannot approve or reject by default.
-9. Design team membership resolution for Agent ownership checks.
-10. Align Evidence Bundle export RBAC with HumanApproval visibility rules.
+1. Add scoped read checks for `GET /human-approvals/{approval_id}`.
+2. Add scoped read checks for `GET /agents/{agent_id}/human-approvals`.
+3. Add safe denied-authorization audit events for HumanApproval review actions.
+4. Design team membership resolution for Agent ownership checks.
+5. Add assigned-reviewer or ownership scope checks beyond global local roles.
+6. Add production identity mapping for reviewers through OIDC/SAML later.
 
 ## Open Questions
 

@@ -2,12 +2,14 @@
 
 ## Status
 
-Design proposal with a local `ActorContext` development stub and minimal
-config-based service actor API key authentication implemented for runtime and
-telemetry integration endpoints. The current backend does not implement full
-authentication, authorization, identity provider integration, API key rotation,
-per-Agent service actor scopes, per-environment service actor scopes, or
-persistent RBAC tables.
+Design proposal with a local `ActorContext` development stub, minimal
+config-based service actor API key authentication for runtime and telemetry
+integration endpoints, endpoint/action service scopes, fine-grained
+config-based service actor rules, minimal HumanApproval review RBAC, and
+minimal Evidence Bundle export RBAC. The current backend does not implement
+full user authentication, identity provider integration, API key rotation,
+owner-based access checks, team membership resolution, or persistent RBAC
+tables.
 
 V0 uses the structured development placeholder:
 
@@ -414,9 +416,10 @@ The current implementation is intentionally narrow:
   integration endpoints.
 - endpoint/action scopes are configured through `AGCP_SERVICE_ACTOR_SCOPES`.
 
-Allowed Agent IDs, environments, runtime modes, rotation, and persistent key
-management are still future work. Raw API keys must never be stored or logged
-in plaintext.
+Allowed Agent IDs, environments, runtime modes, and tool names are now supported
+through config-based fine-grained service actor rules. API key rotation,
+owner-based restrictions, and persistent key management are still future work.
+Raw API keys must never be stored or logged in plaintext.
 
 ### OIDC/SAML Later For Enterprise Users
 
@@ -442,13 +445,15 @@ exist, so product behavior can be tested before enterprise IAM complexity.
    decision/resume calls.
    - Scope service actors to endpoint/action families. Implemented.
    - Scope service actors to allowed Agents, environments, and runtime modes.
-     Not yet implemented.
-3. Add RBAC checks for HumanApproval review.
+     Implemented through config-based fine-grained rules.
+3. Add RBAC checks for HumanApproval review. Implemented as minimal local role
+   checks.
    - Ensure only scoped reviewers can approve, reject, or cancel.
-   - Record real reviewer actor fields.
-   - Prevent requester self-approval where configured.
-4. Add RBAC checks for Evidence Bundle export.
-   - Allow auditors and scoped Agent owners.
+   - Record reviewer actor fields from ActorContext.
+   - Prevent requester self-approval except for platform admin.
+4. Add RBAC checks for Evidence Bundle export. Implemented as a minimal
+   `auditor` or `platform_admin` check.
+   - Add scoped Agent owner checks later.
    - Audit exports when export auditing is implemented.
 5. Add OIDC later.
    - Map enterprise user identity to `user:<external-id>`.
@@ -463,14 +468,15 @@ surface, while still moving away from the development placeholder early enough.
 - Placeholder actors make local evidence useful for flow validation, not for
   production accountability.
 - Minimal service API keys identify runtime integrations, but they are still
-  config-based and only endpoint-scoped.
-- API keys can be over-scoped if service actors are not restricted by Agent,
-  environment, or endpoint.
+  config-based.
+- API keys can be over-scoped if service actors use explicit wildcard access
+  too broadly or if owner-based restrictions are missing.
 - Group claims can be stale; reviewer scope should not rely only on unchecked
   client-provided data.
 - AuditLog access can itself reveal sensitive operational context, even after
   metadata filtering.
-- Evidence Bundle export may need stricter controls than ordinary read access.
+- Evidence Bundle export now has minimal RBAC, but it may need stricter
+  ownership, environment, and export-audit controls than ordinary read access.
 - Break-glass platform admin actions must be rare and clearly audited.
 - Separation of duties is partly organizational; V1 should enforce the rules it
   can prove from structured identity data.
@@ -481,17 +487,14 @@ surface, while still moving away from the development placeholder early enough.
    paths with the existing request-scoped Actor dependency.
 2. Add tests for overriding the Actor dependency once a non-development actor is
    introduced.
-3. Design and implement service actor scopes for Agent, environment, and
-   runtime mode access.
+3. Add owner-based access checks for service actors and Evidence Bundle export.
 4. Add production deployment guidance for requiring service auth on runtime and
    telemetry endpoints.
-6. Add minimal role checks for HumanApproval approve/reject/cancel.
-7. Add scoped Evidence Bundle export authorization.
-8. Add audit event for Evidence Bundle export.
-9. Design service API key storage and rotation.
-10. Design OIDC user mapping to `user:<external-id>` and role claims.
-11. Design team membership resolution for Agent ownership checks.
-12. Add separation-of-duties checks for HumanApproval review.
+5. Add audit event for Evidence Bundle export.
+6. Design service API key storage and rotation.
+7. Design OIDC user mapping to `user:<external-id>` and role claims.
+8. Design team membership resolution for Agent ownership checks.
+9. Add deeper separation-of-duties checks for HumanApproval review.
 
 ## Open Questions
 

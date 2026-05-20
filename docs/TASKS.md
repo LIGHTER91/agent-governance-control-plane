@@ -29,7 +29,9 @@ actor rules now cover Agent ID, environment, runtime mode, and tool-name
 restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. This is not
 production-grade auth: scopes are still config/env-based, there is no DB-backed
 key registry, no API key rotation, no owner-based restrictions, no
-OIDC/SAML/JWT, and no human RBAC yet.
+OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
+RBAC and Evidence Bundle export RBAC exist, but they are local role checks, not
+full enterprise authorization.
 
 References:
 
@@ -41,22 +43,24 @@ References:
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
 - `docs/SERVICE_ACTOR_FINE_GRAINED_SCOPES_DESIGN.md`
+- `docs/HUMAN_APPROVAL_RBAC_DESIGN.md`
+- `docs/EVIDENCE_BUNDLE_RBAC_DESIGN.md`
 
 ## Next Tasks
 
 Recommended order:
 
-1. Add owner-based service actor scopes design.
-2. Add safe denied-scope audit events.
-3. Add API key rotation design.
-4. Add DB-backed service actor registry design.
-5. Add RBAC checks for HumanApproval approve/reject/cancel.
-6. Add RBAC checks for Evidence Bundle export.
-7. Add audit event for Evidence Bundle export.
-8. Add dashboard shell.
-9. Add agent list page.
-10. Add agent detail page.
-11. Add human approval review view.
+1. Add dashboard shell.
+2. Add agent list page.
+3. Add human approvals page.
+4. Add Evidence Bundle page.
+5. Add owner-based access checks.
+6. Add API key rotation design.
+7. Add owner-based service actor scopes design.
+8. Add safe denied-scope audit events.
+9. Add DB-backed service actor registry design.
+10. Add audit event for Evidence Bundle export.
+11. Add agent detail page.
 12. Add Tool domain model.
 13. Add Data Source domain model.
 14. Add Model domain model.
@@ -71,18 +75,19 @@ Recommended order:
 - [ ] Add safe denied-scope audit events.
 - [ ] Add API key rotation design.
 - [ ] Add DB-backed service actor registry design.
-- [ ] Add RBAC checks for HumanApproval approve/reject/cancel.
-- [ ] Add RBAC checks for Evidence Bundle export.
 - [ ] Add audit event for Evidence Bundle export.
 - [ ] Add tests for overriding the Actor dependency with a non-development
       actor.
-- [ ] Add separation-of-duties checks for HumanApproval review.
+- [ ] Add owner-based access checks for Evidence Bundle export.
+- [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [ ] Add dashboard shell.
 - [ ] Add agent list page.
 - [ ] Add agent detail page.
 - [ ] Add agent run timeline.
 - [ ] Add policy decision timeline.
 - [ ] Add human approval review view.
+- [ ] Add human approvals page.
+- [ ] Add Evidence Bundle page.
 - [ ] Add Evidence Bundle viewer.
 - [ ] Implement Tool domain model.
 - [ ] Implement Data Source domain model.
@@ -184,6 +189,10 @@ Empty.
 - [x] Add service actor fine-grained scopes design.
 - [x] Implement config-based fine-grained service actor scopes for Agent ID,
       environment, runtime mode, and tool-name restrictions.
+- [x] Add HumanApproval RBAC design.
+- [x] Implement minimal RBAC checks for HumanApproval approve/reject/cancel.
+- [x] Add Evidence Bundle RBAC design.
+- [x] Implement minimal RBAC checks for Evidence Bundle export.
 
 ## Blocked
 

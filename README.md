@@ -47,9 +47,11 @@ This is still a V0 backend milestone, not a production-ready enterprise control
 plane. Runtime Gateway foundations and minimal config-based service actor API
 key authentication now exist, including endpoint scopes, config-based
 fine-grained scope rules, and an explicit service-auth-required mode for runtime
-and telemetry endpoints. Full RBAC, user login, OIDC/SAML, frontend workflows,
-notifications, production deployment, API key rotation, and enterprise
-integrations are intentionally not implemented yet.
+and telemetry endpoints. Minimal RBAC exists for HumanApproval review actions
+and Evidence Bundle export. Full user authentication, OIDC/SAML, team
+membership resolution, frontend workflows, notifications, production
+deployment, API key rotation, and enterprise integrations are intentionally not
+implemented yet.
 
 ## Implemented Capabilities
 
@@ -73,7 +75,10 @@ integrations are intentionally not implemented yet.
 - HumanApproval model and explicit transition API.
 - Automatic pending HumanApproval creation for telemetry decisions that require
   human review.
+- Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
 - JSON Evidence Bundle export for one agent.
+- Minimal Evidence Bundle export RBAC requiring `auditor` or `platform_admin`.
+- Service actors cannot export Evidence Bundles by default.
 - Evidence chain coverage across TraceEventRecord, PolicyDecision,
   HumanApproval, and related AuditLog.
 - Central metadata safety filtering for telemetry, audit, and evidence export.
@@ -204,11 +209,13 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 - Policy CRUD API.
 - Tool, Data Source, Model, and Permission domain models.
-- Full authentication and RBAC.
+- Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
+- Team membership or organization-unit ownership resolution.
 - DB-backed service actor or API key registry.
 - API key rotation and persistent API key management.
 - Owner-based service actor restrictions.
+- Owner-based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
 - Frontend or dashboard UI.
 - Human approval notifications.
@@ -225,15 +232,17 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add owner-based service actor scopes design.
-2. Add safe audit events for denied service actor scope checks.
-3. Add API key rotation design.
-4. Add DB-backed service actor registry design.
-5. Add RBAC checks for HumanApproval review.
-6. Add RBAC checks for Evidence Bundle export.
-7. Add a minimal dashboard shell and agent list page.
-8. Implement Tool, Data Source, Model, and Permission domain models.
-9. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Add dashboard shell.
+2. Add agent list page.
+3. Add human approvals page.
+4. Add Evidence Bundle page.
+5. Add owner-based access checks.
+6. Add API key rotation design.
+7. Add owner-based service actor scopes design.
+8. Add safe audit events for denied service actor scope checks.
+9. Add DB-backed service actor registry design.
+10. Implement Tool, Data Source, Model, and Permission domain models.
+11. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 
