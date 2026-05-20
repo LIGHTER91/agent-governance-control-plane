@@ -164,6 +164,7 @@ def test_runtime_resume_with_service_api_key_uses_service_actor(
         json=runtime_resume_payload(chain),
         headers={"X-AGCP-API-Key": SERVICE_API_KEY},
     )
+    set_current_actor(auditor_actor())
     bundle_response = client.get(f"/agents/{chain.agent_id}/evidence-bundle")
 
     assert response.status_code == 201
@@ -552,6 +553,7 @@ def test_evidence_bundle_includes_runtime_resume_trace_and_audit(
         json=runtime_resume_payload(chain),
     )
 
+    set_current_actor(auditor_actor())
     bundle_response = client.get(f"/agents/{chain.agent_id}/evidence-bundle")
 
     assert resume_response.status_code == 201
@@ -680,6 +682,14 @@ def set_approval_status(
 
 def set_current_actor(actor: ActorContext) -> None:
     app.dependency_overrides[get_current_actor] = lambda: actor
+
+
+def auditor_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:runtime-resume-auditor",
+        roles=("auditor",),
+    )
 
 
 def create_agent(

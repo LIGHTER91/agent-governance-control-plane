@@ -10,9 +10,11 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
+    ActorType,
     AuditLog,
     HumanApproval,
     HumanApprovalStatus,
@@ -130,6 +132,7 @@ def test_v0_governance_flow_demo(
             "policy_decision_id": str(policy_decision.id),
         }
 
+    set_evidence_export_actor()
     evidence_response = client.get(f"/agents/{agent_id}/evidence-bundle")
 
     assert evidence_response.status_code == 200
@@ -188,6 +191,14 @@ def insert_active_human_review_policy(
         session.add(rule)
         session.commit()
         return policy.id, rule.id
+
+
+def set_evidence_export_actor() -> None:
+    app.dependency_overrides[get_current_actor] = lambda: ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:v0-demo-auditor",
+        roles=("auditor",),
+    )
 
 
 def agent_payload() -> dict[str, object]:

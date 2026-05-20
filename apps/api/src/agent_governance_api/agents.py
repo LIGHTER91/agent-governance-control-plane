@@ -6,10 +6,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
-from agent_governance_api.auth import ActorContext, get_current_actor
+from agent_governance_api.auth import (
+    ROLE_AUDITOR,
+    ROLE_PLATFORM_ADMIN,
+    ActorContext,
+    get_current_actor,
+    has_role,
+)
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
-from agent_governance_api.models import Agent
+from agent_governance_api.models import ActorType, Agent
 from agent_governance_api.openapi_examples import (
     AGENT_CREATE_OPENAPI,
     AGENT_GET_OPENAPI,
@@ -85,7 +91,9 @@ def get_agent(
 def export_agent_evidence_bundle(
     agent_id: UUID,
     session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
 ) -> EvidenceBundleRead:
+    _require_evidence_bundle_exporter(actor)
     agent = _get_agent_or_404(session, agent_id)
     return build_agent_evidence_bundle(session, agent=agent)
 
@@ -146,6 +154,22 @@ def _get_agent_or_404(session: Session, agent_id: UUID) -> Agent:
             detail="Agent not found.",
         )
     return agent
+
+
+def _require_evidence_bundle_exporter(actor: ActorContext) -> None:
+    if actor.actor_type is ActorType.SERVICE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Evidence Bundle export is not permitted for this actor.",
+        )
+
+    if has_role(actor, ROLE_AUDITOR) or has_role(actor, ROLE_PLATFORM_ADMIN):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Evidence Bundle export is not permitted for this actor.",
+    )
 
 
 def _value(value: object) -> str:

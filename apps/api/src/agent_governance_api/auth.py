@@ -18,6 +18,7 @@ SERVICE_ACTOR_API_KEY_HEADER = "X-AGCP-API-Key"
 SCOPE_TELEMETRY_WRITE = "telemetry:write"
 SCOPE_RUNTIME_DECISION = "runtime:decision"
 SCOPE_RUNTIME_RESUME = "runtime:resume"
+ROLE_AUDITOR = "auditor"
 ROLE_REVIEWER = "reviewer"
 ROLE_PLATFORM_ADMIN = "platform_admin"
 

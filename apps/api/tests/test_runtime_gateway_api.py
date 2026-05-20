@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import agent_governance_api.runtime_gateway_api as runtime_gateway_api
-from agent_governance_api.auth import hash_service_actor_api_key
+from agent_governance_api.auth import (
+    ActorContext,
+    get_current_actor,
+    hash_service_actor_api_key,
+)
 from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
@@ -236,6 +240,7 @@ def test_runtime_simulation_with_service_api_key_uses_service_actor(
         json=runtime_decision_payload(agent_id),
         headers={"X-AGCP-API-Key": SERVICE_API_KEY},
     )
+    set_evidence_export_actor()
     bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
 
     assert response.status_code == 201
@@ -1300,6 +1305,7 @@ def test_evidence_bundle_includes_runtime_trace_event_and_policy_decision(
         "/runtime/tool-calls/decision",
         json=runtime_decision_payload(agent_id),
     )
+    set_evidence_export_actor()
     bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
 
     assert runtime_response.status_code == 201
@@ -1387,6 +1393,7 @@ def test_evidence_bundle_includes_runtime_review_evidence_chain(
         "policy_decision_id": str(policy_decision.id),
     }
 
+    set_evidence_export_actor()
     bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
 
     assert bundle_response.status_code == 200
@@ -1470,6 +1477,14 @@ def create_agent(
         session.add(agent)
         session.commit()
         return agent.id
+
+
+def set_evidence_export_actor() -> None:
+    app.dependency_overrides[get_current_actor] = lambda: ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:runtime-auditor",
+        roles=("auditor",),
+    )
 
 
 def create_policy_rule(

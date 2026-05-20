@@ -9,6 +9,7 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
@@ -57,6 +58,7 @@ def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
             yield session
 
     app.dependency_overrides[get_db_session] = override_get_db_session
+    app.dependency_overrides[get_current_actor] = lambda: auditor_actor()
     try:
         with TestClient(app) as client:
             yield client, testing_session_factory
@@ -87,6 +89,82 @@ def test_successful_evidence_bundle_export(
         "policy_decisions",
         "human_approvals",
     }
+
+
+def test_platform_admin_can_export_evidence_bundle(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:platform-admin",
+            roles=("platform_admin",),
+        )
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    assert response.json()["agent"]["id"] == str(agent_id)
+
+
+@pytest.mark.parametrize(
+    "actor",
+    [
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        ),
+        ActorContext(
+            actor_type=ActorType.DEVELOPMENT,
+            actor_id="dev-placeholder",
+            roles=(),
+        ),
+    ],
+)
+def test_actor_without_auditor_or_platform_admin_gets_403(
+    api_client: tuple[TestClient, SessionFactory],
+    actor: ActorContext,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(actor)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Evidence Bundle export is not permitted for this actor."
+    }
+    assert_denied_response_has_no_bundle_sections(response.json())
+
+
+def test_service_actor_gets_403_by_default(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.SERVICE,
+            actor_id="service:runtime-adapter",
+            roles=("runtime:decision", "runtime:resume", "telemetry:write"),
+        )
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Evidence Bundle export is not permitted for this actor."
+    }
+    assert_denied_response_has_no_bundle_sections(response.json())
 
 
 def test_evidence_bundle_unknown_agent_returns_404(
@@ -333,6 +411,29 @@ def create_agent(client: TestClient) -> UUID:
 
     assert response.status_code == 201
     return UUID(response.json()["id"])
+
+
+def auditor_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:auditor-1",
+        roles=("auditor",),
+    )
+
+
+def set_current_actor(actor: ActorContext) -> None:
+    app.dependency_overrides[get_current_actor] = lambda: actor
+
+
+def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> None:
+    assert not {
+        "agent",
+        "audit_logs",
+        "agent_runs",
+        "trace_events",
+        "policy_decisions",
+        "human_approvals",
+    } & set(body)
 
 
 def seed_evidence_records(
