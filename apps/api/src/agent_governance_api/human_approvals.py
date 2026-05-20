@@ -6,9 +6,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
-from agent_governance_api.auth import ActorContext, get_current_actor
+from agent_governance_api.auth import (
+    ROLE_PLATFORM_ADMIN,
+    ROLE_REVIEWER,
+    ActorContext,
+    get_current_actor,
+    has_role,
+    require_role,
+)
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     HumanApproval,
     HumanApprovalStatus,
@@ -111,6 +119,8 @@ def approve_human_approval(
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
+    _require_human_approval_reviewer(actor)
+    _ensure_not_self_review(actor, approval)
 
     now = datetime.now(UTC)
     approval.status = HumanApprovalStatus.APPROVED
@@ -147,6 +157,8 @@ def reject_human_approval(
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
+    _require_human_approval_reviewer(actor)
+    _ensure_not_self_review(actor, approval)
 
     now = datetime.now(UTC)
     approval.status = HumanApprovalStatus.REJECTED
@@ -182,6 +194,7 @@ def cancel_human_approval(
 ) -> HumanApproval:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
+    _require_human_approval_canceller(actor, approval)
 
     approval.status = HumanApprovalStatus.CANCELLED
     _append_human_approval_audit_log(
@@ -250,6 +263,69 @@ def _ensure_pending(approval: HumanApproval) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail="Only pending human approvals can transition.",
         )
+
+
+def _require_human_approval_reviewer(actor: ActorContext) -> None:
+    if actor.actor_type is ActorType.SERVICE and not has_role(
+        actor,
+        ROLE_PLATFORM_ADMIN,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Service actors cannot review human approvals.",
+        )
+
+    require_role(actor, (ROLE_REVIEWER, ROLE_PLATFORM_ADMIN))
+
+
+def _require_human_approval_canceller(
+    actor: ActorContext,
+    approval: HumanApproval,
+) -> None:
+    if actor.actor_type is ActorType.SERVICE and not has_role(
+        actor,
+        ROLE_PLATFORM_ADMIN,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Service actors cannot review human approvals.",
+        )
+    if has_role(actor, ROLE_PLATFORM_ADMIN) or _same_actor(
+        actor,
+        approval.requested_by_actor_type,
+        approval.requested_by_actor_id,
+    ):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Human approval cancellation requires platform_admin or requester.",
+    )
+
+
+def _ensure_not_self_review(
+    actor: ActorContext,
+    approval: HumanApproval,
+) -> None:
+    if has_role(actor, ROLE_PLATFORM_ADMIN):
+        return
+    if _same_actor(
+        actor,
+        approval.requested_by_actor_type,
+        approval.requested_by_actor_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requester cannot approve or reject their own human approval.",
+        )
+
+
+def _same_actor(
+    actor: ActorContext,
+    actor_type: ActorType,
+    actor_id: str,
+) -> bool:
+    return actor.actor_type is actor_type and actor.actor_id == actor_id
 
 
 def _append_human_approval_audit_log(

@@ -10,7 +10,11 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from agent_governance_api.auth import hash_service_actor_api_key
+from agent_governance_api.auth import (
+    ActorContext,
+    get_current_actor,
+    hash_service_actor_api_key,
+)
 from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
@@ -635,6 +639,13 @@ def set_approval_status(
     if approval_status is HumanApprovalStatus.PENDING:
         return
     if approval_status is HumanApprovalStatus.APPROVED:
+        set_current_actor(
+            ActorContext(
+                actor_type=ActorType.USER,
+                actor_id="user:resume-reviewer",
+                roles=("reviewer",),
+            )
+        )
         response = client.post(
             f"/human-approvals/{chain.human_approval_id}/approve",
             json={"decision_note": "Approved for resume test."},
@@ -642,6 +653,13 @@ def set_approval_status(
         assert response.status_code == 200
         return
     if approval_status is HumanApprovalStatus.REJECTED:
+        set_current_actor(
+            ActorContext(
+                actor_type=ActorType.USER,
+                actor_id="user:resume-reviewer",
+                roles=("reviewer",),
+            )
+        )
         response = client.post(
             f"/human-approvals/{chain.human_approval_id}/reject",
             json={"decision_note": "Rejected for resume test."},
@@ -658,6 +676,10 @@ def set_approval_status(
         assert approval is not None
         approval.status = HumanApprovalStatus.EXPIRED
         session.commit()
+
+
+def set_current_actor(actor: ActorContext) -> None:
+    app.dependency_overrides[get_current_actor] = lambda: actor
 
 
 def create_agent(

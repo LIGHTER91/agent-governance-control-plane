@@ -18,6 +18,8 @@ SERVICE_ACTOR_API_KEY_HEADER = "X-AGCP-API-Key"
 SCOPE_TELEMETRY_WRITE = "telemetry:write"
 SCOPE_RUNTIME_DECISION = "runtime:decision"
 SCOPE_RUNTIME_RESUME = "runtime:resume"
+ROLE_REVIEWER = "reviewer"
+ROLE_PLATFORM_ADMIN = "platform_admin"
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,21 @@ def has_scope(actor: ActorContext, scope: str) -> bool:
     if actor.actor_type is not ActorType.SERVICE:
         return True
     return scope in actor.roles
+
+
+def has_role(actor: ActorContext, role: str) -> bool:
+    return role in actor.roles
+
+
+def require_role(actor: ActorContext, allowed_roles: tuple[str, ...]) -> None:
+    if any(has_role(actor, role) for role in allowed_roles):
+        return
+
+    allowed = ", ".join(allowed_roles)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Actor requires one of these roles: {allowed}.",
+    )
 
 
 def require_scope(actor: ActorContext, scope: str) -> None:

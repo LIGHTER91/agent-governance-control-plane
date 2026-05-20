@@ -8,6 +8,7 @@ from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
@@ -16,6 +17,8 @@ from agent_governance_api.models import (
     AgentStatus,
     AuditLog,
     Environment,
+    HumanApproval,
+    HumanApprovalStatus,
     OwnerType,
     PolicyDecision,
     PolicyDecisionValue,
@@ -168,6 +171,13 @@ def test_approve_pending_human_approval(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:reviewer-1",
+            roles=("reviewer",),
+        )
+    )
 
     response = client.post(
         f"/human-approvals/{approval_id}/approve",
@@ -177,8 +187,8 @@ def test_approve_pending_human_approval(
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "approved"
-    assert body["reviewed_by_actor_type"] == "development"
-    assert body["reviewed_by_actor_id"] == "dev-placeholder"
+    assert body["reviewed_by_actor_type"] == "user"
+    assert body["reviewed_by_actor_id"] == "user:reviewer-1"
     assert body["reviewed_at"] is not None
     assert body["decision_note"] == "Approved for this governed action."
 
@@ -189,6 +199,13 @@ def test_reject_pending_human_approval(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:reviewer-1",
+            roles=("reviewer",),
+        )
+    )
 
     response = client.post(
         f"/human-approvals/{approval_id}/reject",
@@ -201,8 +218,8 @@ def test_reject_pending_human_approval(
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "rejected"
-    assert body["reviewed_by_actor_type"] == "development"
-    assert body["reviewed_by_actor_id"] == "dev-placeholder"
+    assert body["reviewed_by_actor_type"] == "user"
+    assert body["reviewed_by_actor_id"] == "user:reviewer-1"
     assert body["reviewed_at"] is not None
     assert body["reason"] == "The requested tool is too broad."
     assert body["decision_note"] == "Rejected pending narrower scope."
@@ -213,6 +230,13 @@ def test_cancel_pending_human_approval(
 ) -> None:
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:requester-1",
+            roles=(),
+        )
+    )
     approval_id = create_human_approval(client, agent_id)
 
     response = client.post(f"/human-approvals/{approval_id}/cancel")
@@ -231,6 +255,13 @@ def test_approve_already_approved_human_approval_is_rejected(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:reviewer-1",
+            roles=("reviewer",),
+        )
+    )
     first_response = client.post(f"/human-approvals/{approval_id}/approve", json={})
 
     second_response = client.post(f"/human-approvals/{approval_id}/approve", json={})
@@ -274,6 +305,180 @@ def test_create_human_approval_unknown_policy_decision_returns_404(
     assert response.json()["detail"] == "Policy decision not found."
 
 
+@pytest.mark.parametrize("transition_path", ["approve", "reject"])
+def test_actor_without_reviewer_or_platform_admin_cannot_approve_or_reject(
+    api_client: tuple[TestClient, SessionFactory],
+    transition_path: str,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        )
+    )
+
+    response = client.post(f"/human-approvals/{approval_id}/{transition_path}", json={})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Actor requires one of these roles: reviewer, platform_admin."
+    )
+    assert_human_approval_status(
+        session_factory,
+        approval_id,
+        HumanApprovalStatus.PENDING,
+    )
+    assert [
+        log.event_type
+        for log in fetch_human_approval_audit_logs(
+            session_factory,
+            approval_id,
+        )
+    ] == ["human_approval_requested"]
+
+
+@pytest.mark.parametrize("transition_path", ["approve", "reject"])
+def test_service_actor_cannot_approve_or_reject_by_default(
+    api_client: tuple[TestClient, SessionFactory],
+    transition_path: str,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.SERVICE,
+            actor_id="service:runtime-adapter",
+            roles=("reviewer",),
+        )
+    )
+
+    response = client.post(f"/human-approvals/{approval_id}/{transition_path}", json={})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Service actors cannot review human approvals."
+    assert_human_approval_status(
+        session_factory,
+        approval_id,
+        HumanApprovalStatus.PENDING,
+    )
+
+
+@pytest.mark.parametrize("transition_path", ["approve", "reject"])
+def test_requester_self_approval_is_denied(
+    api_client: tuple[TestClient, SessionFactory],
+    transition_path: str,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    requester = ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:requester-reviewer",
+        roles=("reviewer",),
+    )
+    set_current_actor(requester)
+    approval_id = create_human_approval(client, agent_id)
+
+    response = client.post(f"/human-approvals/{approval_id}/{transition_path}", json={})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Requester cannot approve or reject their own human approval."
+    )
+    assert_human_approval_status(
+        session_factory,
+        approval_id,
+        HumanApprovalStatus.PENDING,
+    )
+
+
+def test_platform_admin_can_approve_even_if_requester(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    admin = ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:platform-admin",
+        roles=("platform_admin",),
+    )
+    set_current_actor(admin)
+    approval_id = create_human_approval(client, agent_id)
+
+    response = client.post(f"/human-approvals/{approval_id}/approve", json={})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "approved"
+    assert body["reviewed_by_actor_type"] == "user"
+    assert body["reviewed_by_actor_id"] == "user:platform-admin"
+
+
+def test_unrelated_actor_cannot_cancel_human_approval(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:requester-1",
+            roles=(),
+        )
+    )
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:unrelated-1",
+            roles=("reviewer",),
+        )
+    )
+
+    response = client.post(f"/human-approvals/{approval_id}/cancel")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Human approval cancellation requires platform_admin or requester."
+    )
+    assert_human_approval_status(
+        session_factory,
+        approval_id,
+        HumanApprovalStatus.PENDING,
+    )
+    assert [
+        log.event_type
+        for log in fetch_human_approval_audit_logs(
+            session_factory,
+            approval_id,
+        )
+    ] == ["human_approval_requested"]
+
+
+def test_platform_admin_can_cancel_human_approval(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:platform-admin",
+            roles=("platform_admin",),
+        )
+    )
+
+    response = client.post(f"/human-approvals/{approval_id}/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+
+
 @pytest.mark.parametrize(
     ("transition_path", "event_type"),
     [
@@ -290,6 +495,18 @@ def test_human_approval_transition_audit_logs_are_created(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     approval_id = create_human_approval(client, agent_id)
+    expected_actor_type = ActorType.DEVELOPMENT
+    expected_actor_id = "dev-placeholder"
+    if transition_path in {"approve", "reject"}:
+        expected_actor_type = ActorType.USER
+        expected_actor_id = "user:reviewer-1"
+        set_current_actor(
+            ActorContext(
+                actor_type=expected_actor_type,
+                actor_id=expected_actor_id,
+                roles=("reviewer",),
+            )
+        )
 
     response = client.post(f"/human-approvals/{approval_id}/{transition_path}", json={})
 
@@ -300,8 +517,8 @@ def test_human_approval_transition_audit_logs_are_created(
         event_type,
     ]
     transition_log = audit_logs[-1]
-    assert transition_log.actor_type is ActorType.DEVELOPMENT
-    assert transition_log.actor_id == "dev-placeholder"
+    assert transition_log.actor_type is expected_actor_type
+    assert transition_log.actor_id == expected_actor_id
     assert transition_log.entity_type == "human_approval"
     assert transition_log.entity_id == str(approval_id)
     assert transition_log.metadata_["agent_id"] == str(agent_id)
@@ -378,6 +595,22 @@ def create_human_approval(client: TestClient, agent_id: UUID) -> UUID:
 
     assert response.status_code == 201
     return UUID(response.json()["id"])
+
+
+def set_current_actor(actor: ActorContext) -> None:
+    app.dependency_overrides[get_current_actor] = lambda: actor
+
+
+def assert_human_approval_status(
+    session_factory: SessionFactory,
+    approval_id: UUID,
+    expected_status: HumanApprovalStatus,
+) -> None:
+    with session_factory() as session:
+        approval = session.get(HumanApproval, approval_id)
+
+    assert approval is not None
+    assert approval.status is expected_status
 
 
 def fetch_human_approval_audit_logs(

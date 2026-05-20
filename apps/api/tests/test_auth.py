@@ -3,10 +3,13 @@ from fastapi import HTTPException
 
 from agent_governance_api.auth import (
     DEVELOPMENT_ACTOR_ID,
+    ActorContext,
     get_current_actor,
     get_current_integration_actor,
+    has_role,
     has_scope,
     hash_service_actor_api_key,
+    require_role,
     require_scope,
     require_service_actor_fine_grained_scope,
     service_actor_from_api_key,
@@ -84,6 +87,33 @@ def test_service_actor_context_resolves_valid_api_key() -> None:
     assert actor.roles == ("runtime:decision",)
     assert has_scope(actor, "runtime:decision") is True
     assert has_scope(actor, "runtime:resume") is False
+
+
+def test_has_role_reads_actor_context_roles() -> None:
+    actor = ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:reviewer-1",
+        roles=("reviewer",),
+    )
+
+    assert has_role(actor, "reviewer") is True
+    assert has_role(actor, "platform_admin") is False
+
+
+def test_require_role_rejects_actor_without_allowed_role() -> None:
+    actor = ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:viewer-1",
+        roles=("viewer",),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_role(actor, ("reviewer", "platform_admin"))
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == (
+        "Actor requires one of these roles: reviewer, platform_admin."
+    )
 
 
 def test_service_actor_context_rejects_invalid_api_key() -> None:
