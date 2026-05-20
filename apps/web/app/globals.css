@@ -273,6 +273,36 @@ a {
   overflow: hidden;
 }
 
+.filter-bar {
+  align-items: center;
+  background: #f8faf9;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 16px;
+}
+
+.filter-bar label {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 10px;
+}
+
+.filter-bar select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  min-height: 38px;
+  min-width: 180px;
+  padding: 7px 10px;
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -281,6 +311,10 @@ a {
   border-collapse: collapse;
   min-width: 920px;
   width: 100%;
+}
+
+.human-approvals-table {
+  min-width: 1320px;
 }
 
 .data-table th,
@@ -328,6 +362,32 @@ a {
 .table-pill.risk-low {
   background: #e3f1ec;
   color: var(--accent-strong);
+}
+
+.table-pill.approval-pending {
+  background: #f7eadf;
+  color: var(--warning);
+}
+
+.table-pill.approval-approved {
+  background: #e3f1ec;
+  color: var(--accent-strong);
+}
+
+.table-pill.approval-rejected,
+.table-pill.approval-cancelled,
+.table-pill.approval-expired {
+  background: #f6e2e4;
+  color: var(--danger);
+}
+
+.id-cell {
+  color: #33423f;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  max-width: 220px;
+  overflow-wrap: anywhere;
 }
 
 .state-message {

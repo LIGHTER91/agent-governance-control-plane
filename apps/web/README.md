@@ -3,7 +3,8 @@
 Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
 The shell is intentionally minimal. The Agents page reads from the backend
-Agent Registry API, while the remaining sections are placeholders. It does not
+Agent Registry API, and the Human Approvals page reads from the backend
+HumanApproval API. The remaining sections are placeholders. It does not
 implement login, does not render charts, and does not claim production
 readiness or legal compliance certification.
 
@@ -36,10 +37,11 @@ http://localhost:3000
 
 ## Backend API Configuration
 
-The Agents page calls:
+The implemented read-only pages call:
 
 ```text
 GET /agents
+GET /human-approvals
 ```
 
 Configure the backend base URL with:
@@ -53,6 +55,10 @@ If this variable is not set, the web app defaults to:
 ```text
 http://127.0.0.1:8000
 ```
+
+The backend API must be running for the Agent list and Human Approvals list to
+show data. Depending on your local browser and API setup, CORS configuration or
+a Next.js proxy may be needed before browser requests to the backend succeed.
 
 ## Checks
 
@@ -88,8 +94,13 @@ npm run build
 ## Current Limitations
 
 - No login or auth UI.
+- No role-aware frontend behavior.
+- Agent list is read-only.
+- Human Approvals list is read-only.
 - No create, edit, or delete Agent forms.
+- No approve, reject, or cancel actions in the UI.
 - No Policy CRUD.
 - No Evidence Bundle viewer.
+- No Runtime Gateway page yet.
 - No charts or metrics.
 - No production deployment configuration.
