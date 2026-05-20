@@ -110,6 +110,8 @@ npm run build
 - Evidence Bundle viewer is read-only JSON inspection.
 - No create, edit, or delete Agent forms.
 - No approve, reject, or cancel actions in the UI.
+- No dedicated Agent runtime or policy timeline endpoint is wired into the
+  frontend yet.
 - No Policy CRUD.
 - No download, PDF, or signed Evidence Bundle export in the UI.
 - Runtime Gateway page is read-only and does not call runtime endpoints.

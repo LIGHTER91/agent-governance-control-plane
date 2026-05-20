@@ -32,11 +32,15 @@ key registry, no API key rotation, no owner-based restrictions, no
 OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
 RBAC and Evidence Bundle export RBAC exist, but they are local role checks, not
 full enterprise authorization. The frontend has a minimal dashboard shell, a
-read-only Agent list page backed by `GET /agents`, and a read-only Human
-Approvals page backed by `GET /human-approvals`, and a read-only Evidence
-Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`, but no
-login/auth UI, no role-aware frontend behavior, no approval transition UI, and
-no Evidence Bundle PDF/download/signature actions.
+read-only Agent list page backed by `GET /agents`, a read-only Agent detail
+page backed by `GET /agents/{agent_id}` and
+`GET /agents/{agent_id}/human-approvals`, a read-only Runtime Gateway overview
+page, a read-only Human Approvals page backed by `GET /human-approvals`, and a
+read-only Evidence Bundle page backed by
+`GET /agents/{agent_id}/evidence-bundle`, but no login/auth UI, no role-aware
+frontend behavior, no Agent edit form, no dedicated Agent runtime/policy
+timeline endpoint, no approval transition UI, and no Evidence Bundle
+PDF/download/signature actions.
 
 References:
 
@@ -55,25 +59,27 @@ References:
 
 Recommended order:
 
-1. Add Runtime Gateway page.
-2. Add Agent detail page.
+1. Add Agent activity/timeline backend endpoint.
+2. Add Agent activity/timeline frontend section.
 3. Add HumanApproval review actions UI later.
-4. Add frontend auth and role-aware UI later.
-5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-6. Add OpenAPI examples for `GET /human-approvals` if missing.
-7. Add owner-based access checks.
-8. Add API key rotation design.
-9. Add owner-based service actor scopes design.
-10. Add safe denied-scope audit events.
-11. Add DB-backed service actor registry design.
-12. Add audit event for Evidence Bundle export.
-13. Add Tool domain model.
-14. Add Data Source domain model.
-15. Add Model domain model.
-16. Add Permission domain model.
-17. Add Policy CRUD API.
-18. Add PolicyRule CRUD API.
-19. Add audit records for Policy and PolicyRule mutations.
+4. Add Runtime decisions/activity page.
+5. Add Policy CRUD UI after backend Policy CRUD exists.
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Add owner-based access checks.
+10. Add API key rotation design.
+11. Add owner-based service actor scopes design.
+12. Add safe denied-scope audit events.
+13. Add DB-backed service actor registry design.
+14. Add audit event for Evidence Bundle export.
+15. Add Tool domain model.
+16. Add Data Source domain model.
+17. Add Model domain model.
+18. Add Permission domain model.
+19. Add Policy CRUD API.
+20. Add PolicyRule CRUD API.
+21. Add audit records for Policy and PolicyRule mutations.
 
 ## Backlog
 
@@ -86,12 +92,12 @@ Recommended order:
       actor.
 - [ ] Add owner-based access checks for Evidence Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [ ] Add agent detail page.
-- [ ] Add agent run timeline.
-- [ ] Add policy decision timeline.
+- [ ] Add Agent activity/timeline backend endpoint.
+- [ ] Add Agent activity/timeline frontend section.
+- [ ] Add Runtime decisions/activity page.
 - [ ] Add human approval review view.
-- [ ] Add Runtime Gateway page.
 - [ ] Add HumanApproval review actions UI later.
+- [ ] Add Policy CRUD UI after backend Policy CRUD exists.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
@@ -202,6 +208,8 @@ Empty.
 - [x] Implement minimal RBAC checks for Evidence Bundle export.
 - [x] Add frontend dashboard shell.
 - [x] Add read-only frontend Agent list page.
+- [x] Add read-only frontend Agent detail page.
+- [x] Add read-only frontend Runtime Gateway page.
 - [x] Add read-only frontend Human Approvals page.
 - [x] Add read-only frontend Evidence Bundle page.
 

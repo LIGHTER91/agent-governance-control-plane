@@ -102,6 +102,10 @@ implemented yet.
   API keys on runtime and telemetry integration endpoints.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
+- Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
+  `GET /agents/{agent_id}/human-approvals`, and optional Evidence Bundle
+  access.
+- Read-only frontend Runtime Gateway overview page.
 - Read-only frontend Human Approvals page backed by `GET /human-approvals`.
 - Read-only frontend Evidence Bundle page backed by
   `GET /agents/{agent_id}/evidence-bundle`.
@@ -240,11 +244,14 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Owner-based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
 - Full frontend workflows beyond the dashboard shell, read-only Agent list,
-  read-only Human Approvals list, and read-only Evidence Bundle viewer.
+  read-only Agent detail, read-only Runtime Gateway overview, read-only Human
+  Approvals list, and read-only Evidence Bundle viewer.
 - Frontend login or role-aware UI.
+- Agent edit forms.
+- Dedicated Agent activity or runtime/policy timeline endpoints and frontend
+  sections.
 - HumanApproval approve, reject, and cancel buttons in the UI.
 - Evidence Bundle PDF/download/signature actions in the UI.
-- Runtime Gateway and Agent detail frontend pages.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
@@ -259,19 +266,21 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Runtime Gateway page.
-2. Add Agent detail page.
+1. Add Agent activity/timeline backend endpoint.
+2. Add Agent activity/timeline frontend section.
 3. Add HumanApproval review actions UI later.
-4. Add frontend auth and role-aware UI later.
-5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-6. Add OpenAPI examples for `GET /human-approvals` if missing.
-7. Add owner-based access checks.
-8. Add API key rotation design.
-9. Add owner-based service actor scopes design.
-10. Add safe audit events for denied service actor scope checks.
-11. Add DB-backed service actor registry design.
-12. Implement Tool, Data Source, Model, and Permission domain models.
-13. Add Policy and PolicyRule CRUD APIs with audit logging.
+4. Add Runtime decisions/activity page.
+5. Add Policy CRUD UI after backend Policy CRUD exists.
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Add owner-based access checks.
+10. Add API key rotation design.
+11. Add owner-based service actor scopes design.
+12. Add safe audit events for denied service actor scope checks.
+13. Add DB-backed service actor registry design.
+14. Implement Tool, Data Source, Model, and Permission domain models.
+15. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 
