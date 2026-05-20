@@ -2,8 +2,9 @@
 
 Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
-The shell is intentionally static for now. It does not call the backend, does
-not implement login, does not render charts, and does not claim production
+The shell is intentionally minimal. The Agents page reads from the backend
+Agent Registry API, while the remaining sections are placeholders. It does not
+implement login, does not render charts, and does not claim production
 readiness or legal compliance certification.
 
 ## Stack
@@ -31,6 +32,26 @@ Open the URL printed by Next.js, usually:
 
 ```text
 http://localhost:3000
+```
+
+## Backend API Configuration
+
+The Agents page calls:
+
+```text
+GET /agents
+```
+
+Configure the backend base URL with:
+
+```bash
+NEXT_PUBLIC_AGCP_API_BASE_URL=http://127.0.0.1:8000
+```
+
+If this variable is not set, the web app defaults to:
+
+```text
+http://127.0.0.1:8000
 ```
 
 ## Checks
@@ -66,9 +87,8 @@ npm run build
 
 ## Current Limitations
 
-- No backend calls.
 - No login or auth UI.
-- No Agent list page data.
+- No create, edit, or delete Agent forms.
 - No Policy CRUD.
 - No Evidence Bundle viewer.
 - No charts or metrics.

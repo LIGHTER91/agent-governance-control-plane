@@ -1,16 +1,18 @@
-import { PlaceholderPage } from "../placeholder-content";
+import { AgentsList } from "./agents-list";
 
 export default function AgentsPage() {
   return (
-    <PlaceholderPage
-      eyebrow="Agent Registry"
-      title="Agents"
-      summary="A future registry workspace for agent ownership, environment, status, and risk review."
-      plannedItems={[
-        { label: "Agent list", status: "next" },
-        { label: "Agent detail", status: "planned" },
-        { label: "Ownership and risk fields", status: "backend exists" }
-      ]}
-    />
+    <>
+      <section className="page-header">
+        <p className="eyebrow">Agent Registry</p>
+        <h2>Agents</h2>
+        <p>
+          Registered agents from the backend API, shown with ownership,
+          environment, lifecycle status, risk level, and framework metadata.
+        </p>
+      </section>
+
+      <AgentsList />
+    </>
   );
 }
