@@ -25,7 +25,11 @@ also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
 Minimal RBAC checks now exist for HumanApproval review actions and Evidence
 Bundle export. Owner-based service actor restrictions, full user authentication,
 OIDC/SAML, team membership resolution, production deployment, and operational
-hardening are still missing.
+hardening are still missing. The frontend now has a minimal dashboard shell,
+a read-only Agent list page backed by the backend Agent Registry API, and a
+read-only Human Approvals page backed by the HumanApproval API. It does not
+have login, role-aware views, HumanApproval transition buttons, or full review
+workflows.
 
 ## Phase 0 - Project Foundation
 
@@ -189,13 +193,18 @@ Completed foundation:
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
 - Minimal Evidence Bundle export RBAC for `auditor` and `platform_admin`.
 - Service actors are denied Evidence Bundle export by default.
+- Next.js dashboard shell.
+- Read-only Agent list page backed by `GET /agents`.
+- Read-only Human Approvals page backed by `GET /human-approvals`.
 
 Recommended next work:
 
-- Add dashboard shell.
-- Add agent list page.
-- Add human approvals page.
 - Add Evidence Bundle page.
+- Add Runtime Gateway page.
+- Add Agent detail page.
+- Add HumanApproval review actions UI later.
+- Add OpenAPI examples for `GET /human-approvals` if missing.
+- Add frontend auth and role-aware UI later.
 - Add owner-based access checks.
 - Add API key rotation design.
 - Add owner-based service actor scopes design.
@@ -216,6 +225,11 @@ Important limitations:
 - No team membership or organization-unit resolver exists.
 - HumanApproval and Evidence Bundle RBAC are minimal local checks, not full
   enterprise authorization.
+- Frontend authentication and role-aware navigation are not implemented.
+- The Agent list and Human Approvals list are read-only and require the backend
+  API to be running.
+- The Human Approvals page does not provide approve, reject, or cancel buttons.
+- Local CORS or a frontend proxy may be needed depending on browser/API setup.
 
 References:
 
@@ -228,19 +242,22 @@ References:
 
 ## Phase 4 - Product UI And Review Workflows
 
-Status: Not started.
+Status: Started.
 
 Goal: make the backend workflow visible and reviewable for humans.
 
 Planned capabilities:
 
-- Dashboard shell.
-- Agent list page.
+- Dashboard shell. Completed.
+- Agent list page. Completed as read-only.
+- Human Approvals page. Completed as read-only.
 - Agent detail page.
 - Agent run timeline.
 - Policy decision timeline.
-- Human approval review view.
+- Human approval review actions UI.
 - Evidence Bundle viewer.
+- Runtime Gateway review page.
+- Frontend auth and role-aware UI later.
 
 ## Phase 5 - Enterprise Hardening And Expansion
 

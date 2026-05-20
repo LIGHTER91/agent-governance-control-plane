@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -163,6 +164,207 @@ def test_list_human_approvals_for_agent(
         str(first_approval_id),
         str(second_approval_id),
     ]
+
+
+def test_platform_admin_can_list_human_approvals(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:platform-admin",
+            roles=("platform_admin",),
+        )
+    )
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(approval_id)]
+
+
+@pytest.mark.parametrize("role", ["reviewer", "auditor"])
+def test_reviewer_and_auditor_can_list_human_approvals(
+    api_client: tuple[TestClient, SessionFactory],
+    role: str,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approval_id = create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id=f"user:{role}-1",
+            roles=(role,),
+        )
+    )
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(approval_id)]
+
+
+def test_actor_without_read_role_cannot_list_human_approvals(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        )
+    )
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Actor requires one of these roles: reviewer, auditor, platform_admin."
+    )
+
+
+def test_service_actor_cannot_list_human_approvals_by_default(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_human_approval(client, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.SERVICE,
+            actor_id="service:runtime-adapter",
+            roles=("reviewer", "auditor", "platform_admin"),
+        )
+    )
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Service actors cannot list human approvals."
+
+
+def test_list_human_approvals_filters_by_status(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    approved_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        status=HumanApprovalStatus.APPROVED,
+    )
+    insert_human_approval(
+        session_factory,
+        agent_id,
+        status=HumanApprovalStatus.PENDING,
+    )
+    set_current_actor(auditor_actor())
+
+    response = client.get("/human-approvals", params={"status": "approved"})
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(approved_id)]
+    assert all(item["status"] == "approved" for item in response.json())
+
+
+def test_list_human_approvals_filters_by_agent_id(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory, name="Support assistant")
+    other_agent_id = create_agent(session_factory, name="Risk review assistant")
+    approval_id = insert_human_approval(session_factory, agent_id)
+    insert_human_approval(session_factory, other_agent_id)
+    set_current_actor(auditor_actor())
+
+    response = client.get("/human-approvals", params={"agent_id": str(agent_id)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body] == [str(approval_id)]
+    assert body[0]["agent_id"] == str(agent_id)
+
+
+def test_list_human_approvals_filters_by_policy_decision_id(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_decision_id = create_policy_decision(session_factory, agent_id)
+    other_policy_decision_id = create_policy_decision(session_factory, agent_id)
+    approval_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        policy_decision_id=policy_decision_id,
+    )
+    insert_human_approval(
+        session_factory,
+        agent_id,
+        policy_decision_id=other_policy_decision_id,
+    )
+    set_current_actor(auditor_actor())
+
+    response = client.get(
+        "/human-approvals",
+        params={"policy_decision_id": str(policy_decision_id)},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body] == [str(approval_id)]
+    assert body[0]["policy_decision_id"] == str(policy_decision_id)
+
+
+def test_list_human_approvals_orders_newest_first(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    base_time = datetime(2026, 1, 1, tzinfo=UTC)
+    oldest_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        created_at=base_time,
+    )
+    newest_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        created_at=base_time + timedelta(minutes=2),
+    )
+    middle_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        created_at=base_time + timedelta(minutes=1),
+    )
+    set_current_actor(auditor_actor())
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [
+        str(newest_id),
+        str(middle_id),
+        str(oldest_id),
+    ]
+
+
+def test_list_human_approvals_returns_empty_list(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    set_current_actor(auditor_actor())
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_approve_pending_human_approval(
@@ -597,8 +799,65 @@ def create_human_approval(client: TestClient, agent_id: UUID) -> UUID:
     return UUID(response.json()["id"])
 
 
+def insert_human_approval(
+    session_factory: SessionFactory,
+    agent_id: UUID,
+    *,
+    status: HumanApprovalStatus = HumanApprovalStatus.PENDING,
+    policy_decision_id: UUID | None = None,
+    created_at: datetime | None = None,
+) -> UUID:
+    with session_factory() as session:
+        approval = HumanApproval(
+            agent_id=agent_id,
+            policy_decision_id=policy_decision_id,
+            status=status,
+            requested_by_actor_type=ActorType.DEVELOPMENT,
+            requested_by_actor_id="dev-placeholder",
+            reviewed_by_actor_type=(
+                ActorType.USER
+                if status
+                in {
+                    HumanApprovalStatus.APPROVED,
+                    HumanApprovalStatus.REJECTED,
+                }
+                else None
+            ),
+            reviewed_by_actor_id=(
+                "user:reviewer-1"
+                if status
+                in {
+                    HumanApprovalStatus.APPROVED,
+                    HumanApprovalStatus.REJECTED,
+                }
+                else None
+            ),
+            created_at=created_at or datetime.now(UTC),
+            reviewed_at=(
+                datetime.now(UTC)
+                if status
+                in {
+                    HumanApprovalStatus.APPROVED,
+                    HumanApprovalStatus.REJECTED,
+                }
+                else None
+            ),
+        )
+        session.add(approval)
+        session.commit()
+        return approval.id
+
+
 def set_current_actor(actor: ActorContext) -> None:
     app.dependency_overrides[get_current_actor] = lambda: actor
+
+
+def auditor_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:auditor-1",
+        roles=("auditor",),
+    )
 
 
 def assert_human_approval_status(

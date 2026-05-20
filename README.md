@@ -49,7 +49,7 @@ key authentication now exist, including endpoint scopes, config-based
 fine-grained scope rules, and an explicit service-auth-required mode for runtime
 and telemetry endpoints. Minimal RBAC exists for HumanApproval review actions
 and Evidence Bundle export. Full user authentication, OIDC/SAML, team
-membership resolution, frontend workflows, notifications, production
+membership resolution, full frontend workflows, notifications, production
 deployment, API key rotation, and enterprise integrations are intentionally not
 implemented yet.
 
@@ -100,6 +100,9 @@ implemented yet.
   tool-name restrictions.
 - Optional `AGCP_REQUIRE_SERVICE_AUTH=true` mode that rejects missing service
   API keys on runtime and telemetry integration endpoints.
+- Next.js dashboard shell.
+- Read-only frontend Agent list page backed by `GET /agents`.
+- Read-only frontend Human Approvals page backed by `GET /human-approvals`.
 
 ## V0 Governance Flow
 
@@ -145,6 +148,7 @@ Runtime Gateway:
 Human Approvals:
 
 - `POST /human-approvals`
+- `GET /human-approvals`
 - `GET /human-approvals/{approval_id}`
 - `GET /agents/{agent_id}/human-approvals`
 - `POST /human-approvals/{approval_id}/approve`
@@ -233,7 +237,11 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Owner-based service actor restrictions.
 - Owner-based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
-- Frontend or dashboard UI.
+- Full frontend workflows beyond the dashboard shell, read-only Agent list, and
+  read-only Human Approvals list.
+- Frontend login or role-aware UI.
+- HumanApproval approve, reject, and cancel buttons in the UI.
+- Evidence Bundle, Runtime Gateway, and Agent detail frontend pages.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
@@ -248,17 +256,19 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add dashboard shell.
-2. Add agent list page.
-3. Add human approvals page.
-4. Add Evidence Bundle page.
-5. Add owner-based access checks.
-6. Add API key rotation design.
-7. Add owner-based service actor scopes design.
-8. Add safe audit events for denied service actor scope checks.
-9. Add DB-backed service actor registry design.
-10. Implement Tool, Data Source, Model, and Permission domain models.
-11. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Add Evidence Bundle page.
+2. Add Runtime Gateway page.
+3. Add Agent detail page.
+4. Add HumanApproval review actions UI later.
+5. Add OpenAPI examples for `GET /human-approvals` if missing.
+6. Add frontend auth and role-aware UI later.
+7. Add owner-based access checks.
+8. Add API key rotation design.
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Add DB-backed service actor registry design.
+12. Implement Tool, Data Source, Model, and Permission domain models.
+13. Add Policy and PolicyRule CRUD APIs with audit logging.
 
 ## Repository Map
 

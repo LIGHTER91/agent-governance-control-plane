@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import (
+    ROLE_AUDITOR,
     ROLE_PLATFORM_ADMIN,
     ROLE_REVIEWER,
     ActorContext,
@@ -79,6 +80,33 @@ def create_human_approval(
     session.refresh(approval)
 
     return approval
+
+
+@router.get("/human-approvals", response_model=list[HumanApprovalRead])
+def list_human_approvals(
+    approval_status: HumanApprovalStatus | None = Query(default=None, alias="status"),
+    agent_id: UUID | None = None,
+    policy_decision_id: UUID | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> list[HumanApproval]:
+    _require_human_approval_reader(actor)
+
+    statement = select(HumanApproval)
+    if approval_status is not None:
+        statement = statement.where(HumanApproval.status == approval_status)
+    if agent_id is not None:
+        statement = statement.where(HumanApproval.agent_id == agent_id)
+    if policy_decision_id is not None:
+        statement = statement.where(
+            HumanApproval.policy_decision_id == policy_decision_id,
+        )
+
+    statement = statement.order_by(
+        HumanApproval.created_at.desc(),
+        HumanApproval.id.desc(),
+    )
+    return list(session.scalars(statement).all())
 
 
 @router.get("/human-approvals/{approval_id}", response_model=HumanApprovalRead)
@@ -263,6 +291,16 @@ def _ensure_pending(approval: HumanApproval) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail="Only pending human approvals can transition.",
         )
+
+
+def _require_human_approval_reader(actor: ActorContext) -> None:
+    if actor.actor_type is ActorType.SERVICE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Service actors cannot list human approvals.",
+        )
+
+    require_role(actor, (ROLE_REVIEWER, ROLE_AUDITOR, ROLE_PLATFORM_ADMIN))
 
 
 def _require_human_approval_reviewer(actor: ActorContext) -> None:

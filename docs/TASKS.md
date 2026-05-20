@@ -31,7 +31,10 @@ production-grade auth: scopes are still config/env-based, there is no DB-backed
 key registry, no API key rotation, no owner-based restrictions, no
 OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
 RBAC and Evidence Bundle export RBAC exist, but they are local role checks, not
-full enterprise authorization.
+full enterprise authorization. The frontend has a minimal dashboard shell, a
+read-only Agent list page backed by `GET /agents`, and a read-only Human
+Approvals page backed by `GET /human-approvals`, but no login/auth UI, no
+role-aware frontend behavior, and no approval transition UI.
 
 References:
 
@@ -50,24 +53,25 @@ References:
 
 Recommended order:
 
-1. Add dashboard shell.
-2. Add agent list page.
-3. Add human approvals page.
-4. Add Evidence Bundle page.
-5. Add owner-based access checks.
-6. Add API key rotation design.
-7. Add owner-based service actor scopes design.
-8. Add safe denied-scope audit events.
-9. Add DB-backed service actor registry design.
-10. Add audit event for Evidence Bundle export.
-11. Add agent detail page.
-12. Add Tool domain model.
-13. Add Data Source domain model.
-14. Add Model domain model.
-15. Add Permission domain model.
-16. Add Policy CRUD API.
-17. Add PolicyRule CRUD API.
-18. Add audit records for Policy and PolicyRule mutations.
+1. Add Evidence Bundle page.
+2. Add Runtime Gateway page.
+3. Add Agent detail page.
+4. Add HumanApproval review actions UI later.
+5. Add OpenAPI examples for `GET /human-approvals` if missing.
+6. Add frontend auth and role-aware UI later.
+7. Add owner-based access checks.
+8. Add API key rotation design.
+9. Add owner-based service actor scopes design.
+10. Add safe denied-scope audit events.
+11. Add DB-backed service actor registry design.
+12. Add audit event for Evidence Bundle export.
+13. Add Tool domain model.
+14. Add Data Source domain model.
+15. Add Model domain model.
+16. Add Permission domain model.
+17. Add Policy CRUD API.
+18. Add PolicyRule CRUD API.
+19. Add audit records for Policy and PolicyRule mutations.
 
 ## Backlog
 
@@ -80,15 +84,16 @@ Recommended order:
       actor.
 - [ ] Add owner-based access checks for Evidence Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [ ] Add dashboard shell.
-- [ ] Add agent list page.
 - [ ] Add agent detail page.
 - [ ] Add agent run timeline.
 - [ ] Add policy decision timeline.
 - [ ] Add human approval review view.
-- [ ] Add human approvals page.
 - [ ] Add Evidence Bundle page.
 - [ ] Add Evidence Bundle viewer.
+- [ ] Add Runtime Gateway page.
+- [ ] Add HumanApproval review actions UI later.
+- [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
+- [ ] Add frontend auth and role-aware UI.
 - [ ] Implement Tool domain model.
 - [ ] Implement Data Source domain model.
 - [ ] Implement Model domain model.
@@ -193,6 +198,9 @@ Empty.
 - [x] Implement minimal RBAC checks for HumanApproval approve/reject/cancel.
 - [x] Add Evidence Bundle RBAC design.
 - [x] Implement minimal RBAC checks for Evidence Bundle export.
+- [x] Add frontend dashboard shell.
+- [x] Add read-only frontend Agent list page.
+- [x] Add read-only frontend Human Approvals page.
 
 ## Blocked
 
