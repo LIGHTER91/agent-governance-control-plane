@@ -16,7 +16,9 @@ const files = [
   "app/runtime-gateway/page.tsx",
   "app/human-approvals/page.tsx",
   "app/human-approvals/human-approvals-list.tsx",
+  "app/lib/evidence.ts",
   "app/evidence/page.tsx",
+  "app/evidence/evidence-bundle-viewer.tsx",
   "app/audit/page.tsx",
   "app/settings/page.tsx"
 ];
@@ -63,6 +65,16 @@ const requiredText = [
   "expired",
   "Human Approval",
   "Evidence Bundle",
+  "GET /agents/{agent_id}/evidence-bundle",
+  "Loading Evidence Bundle",
+  "Unable to load Evidence Bundle",
+  "Evidence Bundle export requires an auditor or platform_admin role",
+  "Agent not found",
+  "audit_logs",
+  "agent_runs",
+  "trace_events",
+  "policy_decisions",
+  "human_approvals",
   "RBAC Foundations"
 ];
 

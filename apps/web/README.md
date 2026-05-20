@@ -3,8 +3,9 @@
 Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
 The shell is intentionally minimal. The Agents page reads from the backend
-Agent Registry API, and the Human Approvals page reads from the backend
-HumanApproval API. The remaining sections are placeholders. It does not
+Agent Registry API, the Human Approvals page reads from the backend
+HumanApproval API, and the Evidence page reads filtered Evidence Bundle JSON
+for a single Agent. The remaining sections are placeholders. It does not
 implement login, does not render charts, and does not claim production
 readiness or legal compliance certification.
 
@@ -42,6 +43,7 @@ The implemented read-only pages call:
 ```text
 GET /agents
 GET /human-approvals
+GET /agents/{agent_id}/evidence-bundle
 ```
 
 Configure the backend base URL with:
@@ -56,9 +58,11 @@ If this variable is not set, the web app defaults to:
 http://127.0.0.1:8000
 ```
 
-The backend API must be running for the Agent list and Human Approvals list to
-show data. Depending on your local browser and API setup, CORS configuration or
-a Next.js proxy may be needed before browser requests to the backend succeed.
+The backend API must be running for the Agent list, Human Approvals list, and
+Evidence Bundle viewer to show data. Depending on your local browser and API
+setup, CORS configuration or a Next.js proxy may be needed before browser
+requests to the backend succeed. Evidence Bundle export also requires a backend
+actor with `auditor` or `platform_admin` role.
 
 ## Checks
 
@@ -97,10 +101,11 @@ npm run build
 - No role-aware frontend behavior.
 - Agent list is read-only.
 - Human Approvals list is read-only.
+- Evidence Bundle viewer is read-only JSON inspection.
 - No create, edit, or delete Agent forms.
 - No approve, reject, or cancel actions in the UI.
 - No Policy CRUD.
-- No Evidence Bundle viewer.
+- No download, PDF, or signed Evidence Bundle export in the UI.
 - No Runtime Gateway page yet.
 - No charts or metrics.
 - No production deployment configuration.

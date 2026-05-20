@@ -35,3 +35,37 @@ export async function fetchApiArray<T>(
 
   return data as T[];
 }
+
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+export async function fetchApiJson<T>(
+  path: string,
+  options: {
+    errorLabel: string;
+    signal?: AbortSignal;
+  }
+): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: {
+      Accept: "application/json"
+    },
+    signal: options.signal
+  });
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      `${options.errorLabel} failed with status ${response.status}`,
+      response.status
+    );
+  }
+
+  return (await response.json()) as T;
+}

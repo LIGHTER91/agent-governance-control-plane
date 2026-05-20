@@ -1,16 +1,19 @@
-import { PlaceholderPage } from "../placeholder-content";
+import { EvidenceBundleViewer } from "./evidence-bundle-viewer";
 
 export default function EvidencePage() {
   return (
-    <PlaceholderPage
-      eyebrow="Evidence Review"
-      title="Evidence"
-      summary="A future viewer for filtered Evidence Bundle JSON and linked governance records."
-      plannedItems={[
-        { label: "Bundle export", status: "backend exists" },
-        { label: "Trace to decision links", status: "backend exists" },
-        { label: "Safe evidence viewer", status: "planned" }
-      ]}
-    />
+    <>
+      <section className="page-header">
+        <p className="eyebrow">Evidence Review</p>
+        <h2>Evidence</h2>
+        <p>
+          Read-only Evidence Bundle JSON from the backend API, organized by
+          Agent metadata, audit logs, runs, trace events, policy decisions, and
+          human approvals.
+        </p>
+      </section>
+
+      <EvidenceBundleViewer />
+    </>
   );
 }
