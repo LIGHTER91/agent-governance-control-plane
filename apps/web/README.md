@@ -2,12 +2,14 @@
 
 Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
-The shell is intentionally minimal. The Agents page reads from the backend
-Agent Registry API, the Human Approvals page reads from the backend
-HumanApproval API, and the Evidence page reads filtered Evidence Bundle JSON
-for a single Agent. The remaining sections are placeholders. It does not
-implement login, does not render charts, and does not claim production
-readiness or legal compliance certification.
+The shell is intentionally minimal. The Agents page and Agent detail page read
+from the backend Agent Registry API, the Human Approvals page reads from the
+backend HumanApproval API, and the Evidence page reads filtered Evidence Bundle
+JSON for a single Agent. The Runtime Gateway page is a static read-only overview
+of runtime modes, endpoints, configuration flags, and current limitations. The
+remaining sections are placeholders. It does not implement login, does not
+render charts, and does not claim production readiness or legal compliance
+certification.
 
 ## Stack
 
@@ -42,6 +44,8 @@ The implemented read-only pages call:
 
 ```text
 GET /agents
+GET /agents/{agent_id}
+GET /agents/{agent_id}/human-approvals
 GET /human-approvals
 GET /agents/{agent_id}/evidence-bundle
 ```
@@ -58,11 +62,11 @@ If this variable is not set, the web app defaults to:
 http://127.0.0.1:8000
 ```
 
-The backend API must be running for the Agent list, Human Approvals list, and
-Evidence Bundle viewer to show data. Depending on your local browser and API
-setup, CORS configuration or a Next.js proxy may be needed before browser
-requests to the backend succeed. Evidence Bundle export also requires a backend
-actor with `auditor` or `platform_admin` role.
+The backend API must be running for the Agent list, Agent detail page, Human
+Approvals list, and Evidence Bundle viewer to show data. Depending on your local
+browser and API setup, CORS configuration or a Next.js proxy may be needed
+before browser requests to the backend succeed. Evidence Bundle export also
+requires a backend actor with `auditor` or `platform_admin` role.
 
 ## Checks
 
@@ -88,6 +92,7 @@ npm run build
 
 - `/`
 - `/agents`
+- `/agents/[agentId]`
 - `/policies`
 - `/runtime-gateway`
 - `/human-approvals`
@@ -100,12 +105,13 @@ npm run build
 - No login or auth UI.
 - No role-aware frontend behavior.
 - Agent list is read-only.
+- Agent detail page is read-only.
 - Human Approvals list is read-only.
 - Evidence Bundle viewer is read-only JSON inspection.
 - No create, edit, or delete Agent forms.
 - No approve, reject, or cancel actions in the UI.
 - No Policy CRUD.
 - No download, PDF, or signed Evidence Bundle export in the UI.
-- No Runtime Gateway page yet.
+- Runtime Gateway page is read-only and does not call runtime endpoints.
 - No charts or metrics.
 - No production deployment configuration.

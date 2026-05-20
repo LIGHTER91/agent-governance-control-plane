@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AgentRecord, fetchAgents, getApiBaseUrl } from "../lib/agents";
 
@@ -118,7 +119,12 @@ export function AgentsList() {
             {state.agents.map((agent) => (
               <tr key={agent.id}>
                 <td>
-                  <strong>{agent.name}</strong>
+                  <Link
+                    className="row-link"
+                    href={`/agents/${encodeURIComponent(agent.id)}`}
+                  >
+                    {agent.name}
+                  </Link>
                 </td>
                 <td>{ownerDisplay(agent)}</td>
                 <td>{formatValue(agent.owner_type)}</td>

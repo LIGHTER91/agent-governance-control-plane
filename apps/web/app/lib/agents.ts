@@ -1,4 +1,4 @@
-import { fetchApiArray, getApiBaseUrl } from "./api";
+import { fetchApiArray, fetchApiJson, getApiBaseUrl } from "./api";
 
 export type AgentRecord = {
   id: string;
@@ -21,6 +21,16 @@ export { getApiBaseUrl };
 export async function fetchAgents(signal?: AbortSignal): Promise<AgentRecord[]> {
   return fetchApiArray<AgentRecord>("/agents", {
     errorLabel: "GET /agents",
+    signal
+  });
+}
+
+export async function fetchAgent(
+  agentId: string,
+  signal?: AbortSignal
+): Promise<AgentRecord> {
+  return fetchApiJson<AgentRecord>(`/agents/${encodeURIComponent(agentId)}`, {
+    errorLabel: "GET /agents/{agent_id}",
     signal
   });
 }

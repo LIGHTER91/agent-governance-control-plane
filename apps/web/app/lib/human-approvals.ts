@@ -43,3 +43,16 @@ export async function fetchHumanApprovals(
     signal
   });
 }
+
+export async function fetchAgentHumanApprovals(
+  agentId: string,
+  signal?: AbortSignal
+): Promise<HumanApprovalRecord[]> {
+  return fetchApiArray<HumanApprovalRecord>(
+    `/agents/${encodeURIComponent(agentId)}/human-approvals`,
+    {
+      errorLabel: "GET /agents/{agent_id}/human-approvals",
+      signal
+    }
+  );
+}
