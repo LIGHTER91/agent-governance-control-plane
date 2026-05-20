@@ -181,6 +181,22 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+Run the web dashboard shell:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Run web checks:
+
+```bash
+npm run smoke
+npm run typecheck
+npm run build
+```
+
 Run database migrations against PostgreSQL:
 
 ```bash
