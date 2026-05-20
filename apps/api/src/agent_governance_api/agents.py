@@ -5,13 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from agent_governance_api.activity import build_agent_activity
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import (
     ROLE_AUDITOR,
     ROLE_PLATFORM_ADMIN,
+    ROLE_REVIEWER,
     ActorContext,
     get_current_actor,
     has_role,
+    require_role,
 )
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
@@ -24,6 +27,7 @@ from agent_governance_api.openapi_examples import (
     EVIDENCE_BUNDLE_OPENAPI,
 )
 from agent_governance_api.schemas import (
+    AgentActivityItemRead,
     AgentCreate,
     AgentRead,
     AgentUpdate,
@@ -81,6 +85,17 @@ def get_agent(
     session: Session = Depends(get_db_session),
 ) -> Agent:
     return _get_agent_or_404(session, agent_id)
+
+
+@router.get("/{agent_id}/activity", response_model=list[AgentActivityItemRead])
+def list_agent_activity(
+    agent_id: UUID,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> list[AgentActivityItemRead]:
+    _require_agent_activity_reader(actor)
+    agent = _get_agent_or_404(session, agent_id)
+    return build_agent_activity(session, agent=agent)
 
 
 @router.get(
@@ -170,6 +185,16 @@ def _require_evidence_bundle_exporter(actor: ActorContext) -> None:
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Evidence Bundle export is not permitted for this actor.",
     )
+
+
+def _require_agent_activity_reader(actor: ActorContext) -> None:
+    if actor.actor_type is ActorType.SERVICE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Service actors cannot view Agent activity.",
+        )
+
+    require_role(actor, (ROLE_REVIEWER, ROLE_AUDITOR, ROLE_PLATFORM_ADMIN))
 
 
 def _value(value: object) -> str:

@@ -168,6 +168,19 @@ class EvidenceBundleRead(BaseModel):
     human_approvals: list[EvidenceHumanApprovalRead]
 
 
+class AgentActivityItemRead(BaseModel):
+    id: UUID
+    type: str
+    timestamp: datetime
+    title: str
+    summary: str
+    trace_event_id: UUID | None = None
+    policy_decision_id: UUID | None = None
+    human_approval_id: UUID | None = None
+    audit_log_id: UUID | None = None
+    run_id: UUID | None = None
+
+
 class PolicyBase(BaseModel):
     name: str
     description: str | None = None
