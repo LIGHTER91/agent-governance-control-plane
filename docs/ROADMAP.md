@@ -27,9 +27,10 @@ Bundle export. Owner-based service actor restrictions, full user authentication,
 OIDC/SAML, team membership resolution, production deployment, and operational
 hardening are still missing. The frontend now has a minimal dashboard shell,
 a read-only Agent list page backed by the backend Agent Registry API, and a
-read-only Human Approvals page backed by the HumanApproval API. It does not
-have login, role-aware views, HumanApproval transition buttons, or full review
-workflows.
+read-only Human Approvals page backed by the HumanApproval API, and a read-only
+Evidence Bundle page backed by the backend Evidence Bundle export API. It does
+not have login, role-aware views, HumanApproval transition buttons, Evidence
+Bundle PDF/download/signature actions, or full review workflows.
 
 ## Phase 0 - Project Foundation
 
@@ -196,15 +197,17 @@ Completed foundation:
 - Next.js dashboard shell.
 - Read-only Agent list page backed by `GET /agents`.
 - Read-only Human Approvals page backed by `GET /human-approvals`.
+- Read-only Evidence Bundle page backed by
+  `GET /agents/{agent_id}/evidence-bundle`.
 
 Recommended next work:
 
-- Add Evidence Bundle page.
 - Add Runtime Gateway page.
 - Add Agent detail page.
 - Add HumanApproval review actions UI later.
-- Add OpenAPI examples for `GET /human-approvals` if missing.
 - Add frontend auth and role-aware UI later.
+- Add CORS/proxy setup guidance if needed for local frontend/backend use.
+- Add OpenAPI examples for `GET /human-approvals` if missing.
 - Add owner-based access checks.
 - Add API key rotation design.
 - Add owner-based service actor scopes design.
@@ -226,9 +229,13 @@ Important limitations:
 - HumanApproval and Evidence Bundle RBAC are minimal local checks, not full
   enterprise authorization.
 - Frontend authentication and role-aware navigation are not implemented.
-- The Agent list and Human Approvals list are read-only and require the backend
-  API to be running.
+- The Agent list, Human Approvals list, and Evidence Bundle viewer are read-only
+  and require the backend API to be running.
 - The Human Approvals page does not provide approve, reject, or cancel buttons.
+- The Evidence page does not provide PDF export, download, or cryptographic
+  signing.
+- Evidence Bundle export requires the backend actor to have `auditor` or
+  `platform_admin` role.
 - Local CORS or a frontend proxy may be needed depending on browser/API setup.
 
 References:
@@ -251,11 +258,12 @@ Planned capabilities:
 - Dashboard shell. Completed.
 - Agent list page. Completed as read-only.
 - Human Approvals page. Completed as read-only.
+- Evidence Bundle page. Completed as read-only.
 - Agent detail page.
 - Agent run timeline.
 - Policy decision timeline.
 - Human approval review actions UI.
-- Evidence Bundle viewer.
+- Evidence Bundle download, PDF, and signing actions.
 - Runtime Gateway review page.
 - Frontend auth and role-aware UI later.
 

@@ -103,6 +103,8 @@ implemented yet.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Human Approvals page backed by `GET /human-approvals`.
+- Read-only frontend Evidence Bundle page backed by
+  `GET /agents/{agent_id}/evidence-bundle`.
 
 ## V0 Governance Flow
 
@@ -237,11 +239,12 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Owner-based service actor restrictions.
 - Owner-based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
-- Full frontend workflows beyond the dashboard shell, read-only Agent list, and
-  read-only Human Approvals list.
+- Full frontend workflows beyond the dashboard shell, read-only Agent list,
+  read-only Human Approvals list, and read-only Evidence Bundle viewer.
 - Frontend login or role-aware UI.
 - HumanApproval approve, reject, and cancel buttons in the UI.
-- Evidence Bundle, Runtime Gateway, and Agent detail frontend pages.
+- Evidence Bundle PDF/download/signature actions in the UI.
+- Runtime Gateway and Agent detail frontend pages.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
@@ -256,12 +259,12 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Evidence Bundle page.
-2. Add Runtime Gateway page.
-3. Add Agent detail page.
-4. Add HumanApproval review actions UI later.
-5. Add OpenAPI examples for `GET /human-approvals` if missing.
-6. Add frontend auth and role-aware UI later.
+1. Add Runtime Gateway page.
+2. Add Agent detail page.
+3. Add HumanApproval review actions UI later.
+4. Add frontend auth and role-aware UI later.
+5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+6. Add OpenAPI examples for `GET /human-approvals` if missing.
 7. Add owner-based access checks.
 8. Add API key rotation design.
 9. Add owner-based service actor scopes design.

@@ -33,8 +33,10 @@ OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
 RBAC and Evidence Bundle export RBAC exist, but they are local role checks, not
 full enterprise authorization. The frontend has a minimal dashboard shell, a
 read-only Agent list page backed by `GET /agents`, and a read-only Human
-Approvals page backed by `GET /human-approvals`, but no login/auth UI, no
-role-aware frontend behavior, and no approval transition UI.
+Approvals page backed by `GET /human-approvals`, and a read-only Evidence
+Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`, but no
+login/auth UI, no role-aware frontend behavior, no approval transition UI, and
+no Evidence Bundle PDF/download/signature actions.
 
 References:
 
@@ -53,12 +55,12 @@ References:
 
 Recommended order:
 
-1. Add Evidence Bundle page.
-2. Add Runtime Gateway page.
-3. Add Agent detail page.
-4. Add HumanApproval review actions UI later.
-5. Add OpenAPI examples for `GET /human-approvals` if missing.
-6. Add frontend auth and role-aware UI later.
+1. Add Runtime Gateway page.
+2. Add Agent detail page.
+3. Add HumanApproval review actions UI later.
+4. Add frontend auth and role-aware UI later.
+5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+6. Add OpenAPI examples for `GET /human-approvals` if missing.
 7. Add owner-based access checks.
 8. Add API key rotation design.
 9. Add owner-based service actor scopes design.
@@ -88,10 +90,10 @@ Recommended order:
 - [ ] Add agent run timeline.
 - [ ] Add policy decision timeline.
 - [ ] Add human approval review view.
-- [ ] Add Evidence Bundle page.
-- [ ] Add Evidence Bundle viewer.
 - [ ] Add Runtime Gateway page.
 - [ ] Add HumanApproval review actions UI later.
+- [ ] Add Evidence Bundle PDF/download/signature actions later.
+- [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Implement Tool domain model.
@@ -201,6 +203,7 @@ Empty.
 - [x] Add frontend dashboard shell.
 - [x] Add read-only frontend Agent list page.
 - [x] Add read-only frontend Human Approvals page.
+- [x] Add read-only frontend Evidence Bundle page.
 
 ## Blocked
 
