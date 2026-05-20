@@ -13,7 +13,14 @@ uv sync
 Run the API:
 
 ```bash
-uv run uvicorn agent_governance_api.main:app --reload
+uv run uvicorn --app-dir src agent_governance_api.main:app --reload
+```
+
+The API uses a `src` layout, so `--app-dir src` is required when running from
+`apps/api`. After startup, `GET /health` should return:
+
+```json
+{"status":"ok","service":"Agent Governance Control Plane API","environment":"development"}
 ```
 
 Run tests:
@@ -39,6 +46,7 @@ Agent Registry:
 - `POST /agents` creates an agent and appends an internal `agent_created` audit event.
 - `GET /agents` lists agents.
 - `GET /agents/{agent_id}` returns one agent.
+- `GET /agents/{agent_id}/activity` returns a read-only activity timeline sorted newest first for product navigation.
 - `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle for one agent, including related audit logs, runs, trace events, policy decisions, and human approvals.
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.

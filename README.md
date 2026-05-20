@@ -139,8 +139,13 @@ Agent Registry:
 - `POST /agents`
 - `GET /agents`
 - `GET /agents/{agent_id}`
+- `GET /agents/{agent_id}/activity`
 - `PATCH /agents/{agent_id}`
 - `GET /agents/{agent_id}/evidence-bundle`
+
+Agent activity returns a read-only timeline sorted newest first. It is intended
+for product navigation; Evidence Bundle JSON export remains the canonical review
+export.
 
 Telemetry:
 
@@ -175,7 +180,14 @@ uv sync
 Run the API locally:
 
 ```bash
-uv run uvicorn agent_governance_api.main:app --reload
+uv run uvicorn --app-dir src agent_governance_api.main:app --reload
+```
+
+The backend uses a `src` layout, so `--app-dir src` is required when running
+from `apps/api`. After startup, `GET /health` should return:
+
+```json
+{"status":"ok","service":"Agent Governance Control Plane API","environment":"development"}
 ```
 
 Run backend tests:
