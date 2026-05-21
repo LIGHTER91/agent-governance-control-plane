@@ -20,6 +20,7 @@ from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
 from agent_governance_api.models import ActorType, Agent
 from agent_governance_api.openapi_examples import (
+    AGENT_ACTIVITY_OPENAPI,
     AGENT_CREATE_OPENAPI,
     AGENT_GET_OPENAPI,
     AGENT_LIST_OPENAPI,
@@ -87,7 +88,11 @@ def get_agent(
     return _get_agent_or_404(session, agent_id)
 
 
-@router.get("/{agent_id}/activity", response_model=list[AgentActivityItemRead])
+@router.get(
+    "/{agent_id}/activity",
+    response_model=list[AgentActivityItemRead],
+    openapi_extra=AGENT_ACTIVITY_OPENAPI,
+)
 def list_agent_activity(
     agent_id: UUID,
     session: Session = Depends(get_db_session),

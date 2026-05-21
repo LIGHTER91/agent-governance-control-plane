@@ -50,6 +50,65 @@ AGENT_UPDATED_RESPONSE = {
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
+AGENT_ACTIVITY_RESPONSE = [
+    {
+        "id": TRACE_EVENT_ID,
+        "type": "trace_event",
+        "timestamp": TRACE_EVENT_TIMESTAMP,
+        "title": "Trace event: Tool Call Requested",
+        "summary": "Agent requested send_email tool.",
+        "severity": "info",
+        "trace_event_id": TRACE_EVENT_ID,
+        "policy_decision_id": None,
+        "human_approval_id": None,
+        "audit_log_id": None,
+        "run_id": RUN_ID,
+        "related_ids": {
+            "trace_event_id": TRACE_EVENT_ID,
+            "run_id": RUN_ID,
+        },
+        "metadata": {
+            "tool_name": "send_email",
+        },
+    },
+    {
+        "id": POLICY_DECISION_ID,
+        "type": "policy_decision",
+        "timestamp": POLICY_DECISION_CREATED_AT,
+        "title": "Policy decision: Require Human Review",
+        "summary": "Email tool use requires human review.",
+        "severity": "warning",
+        "trace_event_id": TRACE_EVENT_ID,
+        "policy_decision_id": POLICY_DECISION_ID,
+        "human_approval_id": None,
+        "audit_log_id": None,
+        "run_id": None,
+        "related_ids": {
+            "trace_event_id": TRACE_EVENT_ID,
+            "policy_decision_id": POLICY_DECISION_ID,
+        },
+        "metadata": {},
+    },
+    {
+        "id": HUMAN_APPROVAL_ID,
+        "type": "human_approval",
+        "timestamp": HUMAN_APPROVAL_CREATED_AT,
+        "title": "Human approval: Pending",
+        "summary": "Email tool use requires human review.",
+        "severity": "info",
+        "trace_event_id": None,
+        "policy_decision_id": POLICY_DECISION_ID,
+        "human_approval_id": HUMAN_APPROVAL_ID,
+        "audit_log_id": None,
+        "run_id": None,
+        "related_ids": {
+            "policy_decision_id": POLICY_DECISION_ID,
+            "human_approval_id": HUMAN_APPROVAL_ID,
+        },
+        "metadata": {},
+    },
+]
+
 TELEMETRY_EVENT_REQUEST = {
     "id": TRACE_EVENT_ID,
     "agent_id": AGENT_ID,
@@ -438,6 +497,12 @@ AGENT_GET_OPENAPI = _response_example(
     200,
     "Read the V0 demo agent.",
     AGENT_RESPONSE,
+)
+
+AGENT_ACTIVITY_OPENAPI = _response_example(
+    200,
+    "Read the V0 demo agent activity timeline, newest first.",
+    AGENT_ACTIVITY_RESPONSE,
 )
 
 AGENT_UPDATE_OPENAPI = _request_response_example(

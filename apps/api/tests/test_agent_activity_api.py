@@ -69,6 +69,18 @@ def api_client() -> Iterator[tuple[TestClient, SessionFactory]]:
         engine.dispose()
 
 
+def test_agent_activity_returns_empty_list_for_existing_agent(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+
+    response = client.get(f"/agents/{agent_id}/activity")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_agent_activity_includes_trace_events(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -86,6 +98,12 @@ def test_agent_activity_includes_trace_events(
     assert trace_item["run_id"] == str(seeded.run_id)
     assert trace_item["title"] == "Trace event: Tool Call Requested"
     assert trace_item["summary"] == "Tool call requested."
+    assert trace_item["severity"] == "info"
+    assert trace_item["related_ids"] == {
+        "trace_event_id": str(seeded.trace_event_id),
+        "run_id": str(seeded.run_id),
+    }
+    assert trace_item["metadata"] == {"tool_name": "send_email"}
 
 
 def test_agent_activity_includes_policy_decisions(
@@ -107,6 +125,12 @@ def test_agent_activity_includes_policy_decisions(
     assert decision_item["trace_event_id"] == str(seeded.trace_event_id)
     assert decision_item["title"] == "Policy decision: Deny"
     assert decision_item["summary"] == "Email tool is denied."
+    assert decision_item["severity"] == "warning"
+    assert decision_item["related_ids"] == {
+        "trace_event_id": str(seeded.trace_event_id),
+        "policy_decision_id": str(seeded.policy_decision_id),
+    }
+    assert decision_item["metadata"] == {}
 
 
 def test_agent_activity_includes_human_approvals(
@@ -128,6 +152,12 @@ def test_agent_activity_includes_human_approvals(
     assert approval_item["policy_decision_id"] == str(seeded.policy_decision_id)
     assert approval_item["title"] == "Human approval: Pending"
     assert approval_item["summary"] == "Review required for email tool."
+    assert approval_item["severity"] == "info"
+    assert approval_item["related_ids"] == {
+        "policy_decision_id": str(seeded.policy_decision_id),
+        "human_approval_id": str(seeded.human_approval_id),
+    }
+    assert approval_item["metadata"] == {}
 
 
 def test_agent_activity_includes_audit_logs(
@@ -156,6 +186,12 @@ def test_agent_activity_includes_audit_logs(
     assert human_approval_audit_item["policy_decision_id"] == str(
         seeded.policy_decision_id,
     )
+    assert human_approval_audit_item["severity"] == "info"
+    assert human_approval_audit_item["related_ids"] == {
+        "audit_log_id": str(seeded.human_approval_audit_log_id),
+        "human_approval_id": str(seeded.human_approval_id),
+        "policy_decision_id": str(seeded.policy_decision_id),
+    }
 
 
 def test_agent_activity_orders_newest_first(
@@ -243,8 +279,15 @@ def test_agent_activity_does_not_expose_unsafe_metadata(
     response = client.get(f"/agents/{agent_id}/activity")
 
     assert response.status_code == 200
+    trace_item = next(item for item in response.json() if item["type"] == "trace_event")
+    audit_item = next(
+        item
+        for item in response.json()
+        if item["audit_log_id"] == str(seeded.agent_audit_log_id)
+    )
+    assert trace_item["metadata"] == {"tool_name": "send_email"}
+    assert audit_item["metadata"] == {"safe_note": "kept"}
     body_text = response.text
-    assert "metadata" not in body_text
     assert "do-not-export" not in body_text
     assert "raw_payload" not in body_text
     assert "authorization" not in body_text

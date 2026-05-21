@@ -21,6 +21,7 @@ def api_client() -> Iterator[TestClient]:
         ("/agents", "post", "201", True),
         ("/agents", "get", "200", False),
         ("/agents/{agent_id}", "get", "200", False),
+        ("/agents/{agent_id}/activity", "get", "200", False),
         ("/agents/{agent_id}", "patch", "200", True),
         ("/telemetry/events", "post", "201", True),
         ("/agents/{agent_id}/evidence-bundle", "get", "200", False),

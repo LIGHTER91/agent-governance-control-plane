@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_governance_api.models import (
     ActorType,
@@ -76,6 +76,7 @@ class AgentRead(AgentBase):
 
 EvidenceMetadataValue = str | int | float | bool | None
 EvidenceMetadata = dict[str, EvidenceMetadataValue]
+AgentActivitySeverity = Literal["info", "warning", "error"]
 
 
 class EvidenceAuditLogRead(BaseModel):
@@ -174,11 +175,14 @@ class AgentActivityItemRead(BaseModel):
     timestamp: datetime
     title: str
     summary: str
+    severity: AgentActivitySeverity
     trace_event_id: UUID | None = None
     policy_decision_id: UUID | None = None
     human_approval_id: UUID | None = None
     audit_log_id: UUID | None = None
     run_id: UUID | None = None
+    related_ids: dict[str, UUID] = Field(default_factory=dict)
+    metadata: EvidenceMetadata = Field(default_factory=dict)
 
 
 class PolicyBase(BaseModel):

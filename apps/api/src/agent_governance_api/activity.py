@@ -11,8 +11,11 @@ from agent_governance_api.models import (
     Agent,
     AuditLog,
     HumanApproval,
+    HumanApprovalStatus,
     PolicyDecision,
+    PolicyDecisionValue,
     TraceEventRecord,
+    TraceEventType,
 )
 from agent_governance_api.schemas import AgentActivityItemRead
 
@@ -97,59 +100,94 @@ def _load_agent_audit_logs(
 def _trace_event_activity_item(
     trace_event: TraceEventRecord,
 ) -> AgentActivityItemRead:
+    related_ids = _related_ids(
+        trace_event_id=trace_event.id,
+        run_id=trace_event.run_id,
+    )
     return AgentActivityItemRead(
         id=trace_event.id,
         type="trace_event",
         timestamp=trace_event.timestamp,
         title=f"Trace event: {_display_value(trace_event.event_type)}",
         summary=_safe_text(trace_event.summary),
+        severity=_trace_event_severity(trace_event),
         trace_event_id=trace_event.id,
         run_id=trace_event.run_id,
+        related_ids=related_ids,
+        metadata=filter_safe_metadata(trace_event.metadata_),
     )
 
 
 def _policy_decision_activity_item(
     policy_decision: PolicyDecision,
 ) -> AgentActivityItemRead:
+    related_ids = _related_ids(
+        trace_event_id=policy_decision.trace_event_id,
+        policy_decision_id=policy_decision.id,
+    )
     return AgentActivityItemRead(
         id=policy_decision.id,
         type="policy_decision",
         timestamp=policy_decision.created_at,
         title=f"Policy decision: {_display_value(policy_decision.decision)}",
         summary=_safe_text(policy_decision.reason),
+        severity=_policy_decision_severity(policy_decision),
         trace_event_id=policy_decision.trace_event_id,
         policy_decision_id=policy_decision.id,
+        related_ids=related_ids,
     )
 
 
 def _human_approval_activity_item(
     human_approval: HumanApproval,
 ) -> AgentActivityItemRead:
+    related_ids = _related_ids(
+        policy_decision_id=human_approval.policy_decision_id,
+        human_approval_id=human_approval.id,
+    )
     return AgentActivityItemRead(
         id=human_approval.id,
         type="human_approval",
         timestamp=human_approval.created_at,
         title=f"Human approval: {_display_value(human_approval.status)}",
         summary=_human_approval_summary(human_approval),
+        severity=_human_approval_severity(human_approval),
         policy_decision_id=human_approval.policy_decision_id,
         human_approval_id=human_approval.id,
+        related_ids=related_ids,
     )
 
 
 def _audit_log_activity_item(audit_log: AuditLog) -> AgentActivityItemRead:
     safe_metadata = filter_safe_metadata(audit_log.metadata_)
+    trace_event_id = _metadata_uuid(safe_metadata, "trace_event_id")
+    policy_decision_id = _metadata_uuid(safe_metadata, "policy_decision_id")
+    human_approval_id = _audit_log_human_approval_id(audit_log) or _metadata_uuid(
+        safe_metadata,
+        "human_approval_id",
+    )
+    run_id = _metadata_uuid(safe_metadata, "run_id")
+    related_ids = _related_ids(
+        trace_event_id=trace_event_id,
+        policy_decision_id=policy_decision_id,
+        human_approval_id=human_approval_id,
+        audit_log_id=audit_log.id,
+        run_id=run_id,
+    )
     return AgentActivityItemRead(
         id=audit_log.id,
         type="audit_log",
         timestamp=audit_log.created_at,
         title=f"Audit log: {_display_value(audit_log.event_type)}",
         summary=_safe_text(audit_log.summary),
-        trace_event_id=_metadata_uuid(safe_metadata, "trace_event_id"),
-        policy_decision_id=_metadata_uuid(safe_metadata, "policy_decision_id"),
-        human_approval_id=_audit_log_human_approval_id(audit_log)
-        or _metadata_uuid(safe_metadata, "human_approval_id"),
+        severity=_audit_log_severity(audit_log),
+        trace_event_id=trace_event_id,
+        policy_decision_id=policy_decision_id,
+        human_approval_id=human_approval_id,
         audit_log_id=audit_log.id,
-        run_id=_metadata_uuid(safe_metadata, "run_id"),
+        run_id=run_id,
+        related_ids=related_ids,
+        metadata=safe_metadata,
     )
 
 
@@ -168,6 +206,49 @@ def _audit_log_human_approval_id(audit_log: AuditLog) -> UUID | None:
 
 def _metadata_uuid(metadata: dict[str, object], key: str) -> UUID | None:
     return _parse_uuid(metadata.get(key))
+
+
+def _related_ids(**ids: UUID | None) -> dict[str, UUID]:
+    return {key: value for key, value in ids.items() if value is not None}
+
+
+def _trace_event_severity(trace_event: TraceEventRecord) -> str:
+    if trace_event.event_type is TraceEventType.ERROR:
+        return "error"
+    if trace_event.event_type in {
+        TraceEventType.TOOL_CALL_DENIED,
+        TraceEventType.HUMAN_REVIEW_REQUESTED,
+    }:
+        return "warning"
+    return "info"
+
+
+def _policy_decision_severity(policy_decision: PolicyDecision) -> str:
+    if policy_decision.decision in {
+        PolicyDecisionValue.DENY,
+        PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+    }:
+        return "warning"
+    return "info"
+
+
+def _human_approval_severity(human_approval: HumanApproval) -> str:
+    if human_approval.status in {
+        HumanApprovalStatus.REJECTED,
+        HumanApprovalStatus.EXPIRED,
+        HumanApprovalStatus.CANCELLED,
+    }:
+        return "warning"
+    return "info"
+
+
+def _audit_log_severity(audit_log: AuditLog) -> str:
+    event_type = audit_log.event_type.lower()
+    if "error" in event_type or "failed" in event_type:
+        return "error"
+    if any(term in event_type for term in ("denied", "rejected", "cancelled")):
+        return "warning"
+    return "info"
 
 
 def _parse_uuid(value: object) -> UUID | None:
