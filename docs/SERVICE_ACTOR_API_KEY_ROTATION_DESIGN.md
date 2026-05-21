@@ -336,24 +336,28 @@ The rotation model fits naturally into the DB-backed registry design in
 `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`:
 
 - `service_actors` stores stable service actor identity and enabled/disabled
-  status.
+  status. Persistence foundation implemented.
 - `service_actor_api_keys` stores key IDs, hashed secrets, lifecycle state, and
-  timestamps.
+  timestamps. Persistence foundation and authentication lookup implemented
+  behind a disabled-by-default feature flag.
 - service actor scopes move from environment variables into database records.
 - lifecycle operations append AuditLog records.
-- runtime and telemetry authentication uses the DB registry first.
-- local config-based auth can remain a development fallback until production
-  configuration is ready.
+- runtime and telemetry authentication uses config by default and the DB
+  registry when `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
+- local config-based auth remains the default until registry records, operations,
+  and rollout practices are ready.
 
 Suggested implementation phases:
 
-1. Add DB-backed service actor registry design. Completed as design only.
-2. Add service actor and key persistence models plus migrations.
-3. Add internal service functions for create, rotate, revoke, expire, and
-   authenticate key records.
-4. Add tests proving raw keys and hashes never enter AuditLog, telemetry
+1. Add DB-backed service actor registry design. Completed.
+2. Add service actor and key persistence models plus migrations. Completed as a
+   disabled foundation.
+3. Add internal service functions for authenticating key records. Completed.
+4. Add internal service functions for create, rotate, revoke, and expire key
+   records.
+5. Add tests proving raw keys and hashes never enter AuditLog, telemetry
    metadata, responses, or Evidence Bundles.
-5. Add guarded administrative endpoints only after user/admin authentication is
+6. Add guarded administrative endpoints only after user/admin authentication is
    available.
 
 ## Open Questions

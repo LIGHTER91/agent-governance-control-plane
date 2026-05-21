@@ -2,9 +2,12 @@
 
 ## Status
 
-Design only. This document does not add migrations, SQLAlchemy models, Pydantic
-schemas, registry CRUD endpoints, frontend UI, or changes to the current
-runtime and telemetry authentication behavior.
+Design plus a disabled-by-default backend foundation. The backend now has
+SQLAlchemy models, an Alembic migration, internal lookup helpers, and a
+registry-backed service actor authentication path behind
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`. It does not add public registry CRUD
+endpoints, frontend UI, key rotation endpoints, or production-ready key
+management.
 
 AGCP currently authenticates service actors through configuration:
 
@@ -14,10 +17,12 @@ AGCP currently authenticates service actors through configuration:
 - `AGCP_SERVICE_ACTOR_SCOPE_RULES`;
 - `AGCP_REQUIRE_SERVICE_AUTH`.
 
-That config-based path is useful for V0, but it is not a persistent source of
-truth. This design describes the future database-backed service actor registry
-that can eventually own service actors, scopes, fine-grained rules, and API key
-lifecycle.
+That config-based path remains the default behavior. When
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, runtime and telemetry service actor
+authentication can resolve keys from the DB-backed registry. Endpoint/action
+scopes and fine-grained rules still come from config. This design describes how
+the registry can eventually own service actors, scopes, fine-grained rules, and
+API key lifecycle.
 
 AGCP remains an Agent Governance Control Plane. A service actor registry should
 govern machine integrations that call AGCP; it should not turn AGCP into an
@@ -26,19 +31,21 @@ product.
 
 ## Goals
 
-- Persist stable service actor identities.
-- Persist API key metadata and hashed key material.
+- Persist stable service actor identities. Foundation implemented for service
+  actor records.
+- Persist API key metadata and hashed key material. Foundation implemented for
+  API key records.
 - Reuse the API key rotation lifecycle from
   `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
 - Move endpoint/action scopes and fine-grained rules out of environment
-  variables when production-like key management is needed.
+  variables when production-like key management is needed. Not implemented yet.
 - Keep raw keys, credentials, request headers, raw prompts, and private customer
   data out of storage, logs, audit metadata, responses, and Evidence Bundles.
-- Preserve local config-based auth as a development fallback during migration.
+- Preserve local config-based auth as the default behavior.
 
 ## Non-goals
 
-- Do not implement this registry in the current issue.
+- Do not enable registry-backed auth by default.
 - Do not add registry CRUD APIs until real user/admin authentication exists.
 - Do not add OIDC, SAML, JWT, users, teams, or role tables here.
 - Do not implement team or organization-unit ownership resolution here.
@@ -99,7 +106,8 @@ Status rules:
 
 ## Registry Tables
 
-This is a design-level shape, not an implementation contract.
+The first persistence foundation implements `service_actors` and
+`service_actor_api_keys`. Scope and fine-grained rule tables remain future work.
 
 ### `service_actors`
 
@@ -153,6 +161,8 @@ should not appear in AuditLog metadata or Evidence Bundles.
 
 ### `service_actor_scopes`
 
+Not implemented yet.
+
 Suggested fields:
 
 | Field | Purpose |
@@ -181,6 +191,8 @@ scopes by default.
 
 ### `service_actor_scope_rules`
 
+Not implemented yet.
+
 Suggested fields:
 
 | Field | Purpose |
@@ -200,7 +212,7 @@ inventing a broader authorization engine.
 
 ## API Key Rotation Connection
 
-The registry is the persistence layer for the key lifecycle defined in
+The registry is intended to become the persistence layer for the key lifecycle defined in
 `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
 
 Key states:
@@ -210,7 +222,9 @@ Key states:
 - `revoked`;
 - `expired`.
 
-The registry should support:
+The current registry-backed auth path accepts only active service actors with
+active or retiring non-expired API keys. Future rotation workflows should
+support:
 
 - multiple key rows for the same service actor;
 - two valid keys during a planned rotation grace period;
@@ -224,17 +238,19 @@ service actor `actor_id` or broaden scopes.
 
 ## Request-time Resolution
 
-Future DB-backed request-time resolution should run before creating governance
-records for telemetry or Runtime Gateway requests.
+DB-backed request-time resolution runs before creating governance records for
+telemetry or Runtime Gateway requests when
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
 
 1. Extract `X-AGCP-API-Key`.
-2. Parse a non-secret `key_id`, if the raw key format supports one.
+2. Hash the submitted key with the existing SHA-256 hash format.
 3. Load the matching key and service actor from the registry.
 4. Reject unknown, revoked, expired, disabled, or retired identities.
-5. Compare the submitted secret to `key_hash` with timing-safe comparison.
+5. Compare the submitted secret hash to `key_hash` with timing-safe comparison.
 6. Resolve `ActorContext(actor_type="service", actor_id=service_actor.actor_id)`.
-7. Check endpoint/action scope.
-8. Check fine-grained Agent, environment, runtime mode, and tool-name rules.
+7. Check endpoint/action scope from config.
+8. Check config-based fine-grained Agent, environment, runtime mode, and
+   tool-name rules.
 9. Only then continue into telemetry ingestion, runtime decision, or runtime
    resume behavior.
 
@@ -327,20 +343,20 @@ The registry should not require a flag day.
 
 Suggested migration path:
 
-1. Keep current config-based auth unchanged.
-2. Add database tables and internal registry services behind tests.
+1. Keep current config-based auth unchanged. Implemented.
+2. Add database tables and internal registry services behind tests. Implemented
+   for service actors and API key records.
 3. Add a registry read path behind an explicit feature flag such as
-   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED`.
-4. Support dual-read mode:
-   - first check DB registry;
-   - optionally fall back to config for local development and staged rollout.
-5. Provide a one-way import tool or documented manual process that converts
+   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED`. Implemented for service actor API key
+   authentication on runtime and telemetry integration endpoints.
+4. Provide a one-way import tool or documented manual process that converts
    existing safe config entries into service actor records, scopes, scope
    rules, and hashed key rows.
-6. Validate parity in staging by comparing accepted/rejected service actor
+5. Validate parity in staging by comparing accepted/rejected service actor
    behavior.
-7. Enable DB-first auth in production-like environments.
-8. Disable config fallback in strict deployments after operators confirm parity.
+6. Enable registry-backed auth in production-like environments.
+7. Move scopes and fine-grained rules into persisted registry tables after real
+   admin auth exists.
 
 The import process must not require raw keys from existing deployments. If only
 hashes exist, imported keys should preserve hashes and be marked with the hash
@@ -350,10 +366,13 @@ algorithm used by config.
 
 Recommended phases:
 
-1. Design and document the registry. Completed by this document.
-2. Add persistence models and migrations only after review.
-3. Add internal create/read/update services with no public CRUD endpoints.
+1. Design and document the registry. Completed.
+2. Add persistence models and migrations. Completed for service actors and API
+   key records.
+3. Add internal lookup services with no public CRUD endpoints. Completed for
+   lookup by actor ID, key ID, and key hash behind the disabled feature flag.
 4. Add authentication lookup using the registry behind a feature flag.
+   Completed for runtime and telemetry integration endpoints.
 5. Add audit events for actor, scope, rule, and key lifecycle changes.
 6. Add migration/import tooling for existing config-based service actors.
 7. Add admin endpoints only after real user auth and admin RBAC exist.
@@ -369,9 +388,9 @@ service boundary.
 If registry lookup fails, strict runtime enforcement should fail closed. The
 wrapper must not execute tools without an authenticated decision.
 
-During staged rollout, a feature flag may allow config fallback for local/dev or
-non-strict environments. Production-like deployments should choose explicitly
-whether fallback is allowed.
+The current implementation uses config auth when the registry flag is disabled
+and registry auth when the flag is enabled. It does not implement an automatic
+dual-read fallback.
 
 ### Bad Migration
 
@@ -382,7 +401,8 @@ Mitigations:
 
 - compare config and DB decisions in staging;
 - start with read-only validation tools;
-- keep config fallback available during rollout;
+- keep the ability to disable the registry flag and return to config auth during
+  rollout;
 - audit registry changes;
 - provide a quick way to disable an actor or revoke a key.
 
@@ -457,8 +477,8 @@ The following should wait for real user auth, OIDC/SAML/JWT, and admin RBAC:
 
 ## Open Questions
 
-- Should registry-backed auth be DB-first with config fallback, or should each
-  environment choose one source of truth?
+- Should a future migration mode compare config and registry auth decisions
+  before operators switch an environment to registry-backed auth?
 - Should scopes be attached only to service actors, or can individual keys be
   narrower than the actor?
 - Should service actors have environment as a top-level field, a scope rule, or

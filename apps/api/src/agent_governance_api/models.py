@@ -16,6 +16,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
+from agent_governance_api.config import (
+    SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH,
+    SERVICE_ACTOR_API_KEY_HASH_PREFIX,
+)
 from agent_governance_api.database import Base
 from agent_governance_api.metadata_safety import (
     SafeMetadata,
@@ -63,6 +67,18 @@ class ActorType(StrEnum):
     DEVELOPMENT = "development"
 
 
+class ServiceActorStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class ServiceActorApiKeyStatus(StrEnum):
+    ACTIVE = "active"
+    RETIRING = "retiring"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
 class PolicyStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -94,6 +110,35 @@ class HumanApprovalStatus(StrEnum):
     REJECTED = "rejected"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
+
+
+def validate_service_actor_id(value: str) -> str:
+    if not value.startswith("service:") or value == "service:":
+        raise ValueError("Service actor IDs must use service:<stable-id>.")
+    return value
+
+
+def validate_service_actor_key_hash(value: str) -> str:
+    normalized_value = value.lower()
+    if not normalized_value.startswith(SERVICE_ACTOR_API_KEY_HASH_PREFIX):
+        raise ValueError("Service actor API key hashes must use sha256:<digest>.")
+
+    digest = normalized_value.removeprefix(SERVICE_ACTOR_API_KEY_HASH_PREFIX)
+    if len(digest) != SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH or any(
+        char not in "0123456789abcdef" for char in digest
+    ):
+        raise ValueError("Service actor API key hashes must use sha256:<64 hex chars>.")
+
+    return normalized_value
+
+
+def validate_service_actor_key_id(value: str) -> str:
+    normalized_value = value.strip()
+    if not normalized_value:
+        raise ValueError("Service actor API key IDs must be non-empty.")
+    if normalized_value.startswith(SERVICE_ACTOR_API_KEY_HASH_PREFIX):
+        raise ValueError("Service actor API key IDs must not be key hashes.")
+    return normalized_value
 
 
 class Agent(Base):
@@ -196,6 +241,128 @@ class AuditLog(Base):
         default=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class ServiceActor(Base):
+    __tablename__ = "service_actors"
+    __table_args__ = (UniqueConstraint("actor_id", name="uq_service_actors_actor_id"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ServiceActorStatus] = mapped_column(
+        Enum(
+            ServiceActorStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="service_actor_status",
+        ),
+        nullable=False,
+        default=ServiceActorStatus.ACTIVE,
+        server_default=ServiceActorStatus.ACTIVE.value,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    disabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    api_keys: Mapped[list["ServiceActorApiKey"]] = relationship(
+        back_populates="service_actor",
+    )
+
+    @validates("actor_id")
+    def validate_actor_id(self, _key: str, value: str) -> str:
+        return validate_service_actor_id(value)
+
+
+class ServiceActorApiKey(Base):
+    __tablename__ = "service_actor_api_keys"
+    __table_args__ = (
+        UniqueConstraint("key_id", name="uq_service_actor_api_keys_key_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    service_actor_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("service_actors.id"),
+        nullable=False,
+    )
+    key_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    hash_algorithm: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="sha256",
+        server_default="sha256",
+    )
+    status: Mapped[ServiceActorApiKeyStatus] = mapped_column(
+        Enum(
+            ServiceActorApiKeyStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="service_actor_api_key_status",
+        ),
+        nullable=False,
+        default=ServiceActorApiKeyStatus.ACTIVE,
+        server_default=ServiceActorApiKeyStatus.ACTIVE.value,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    retiring_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    grace_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_used_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    service_actor: Mapped[ServiceActor] = relationship(back_populates="api_keys")
+
+    @validates("key_id")
+    def validate_key_id(self, _key: str, value: str) -> str:
+        return validate_service_actor_key_id(value)
+
+    @validates("key_hash")
+    def validate_key_hash(self, _key: str, value: str) -> str:
+        return validate_service_actor_key_hash(value)
 
 
 class Policy(Base):

@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from hashlib import sha256
 from hmac import compare_digest
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.orm import Session
 
 from agent_governance_api.config import (
     SERVICE_ACTOR_API_KEY_HASH_PREFIX,
@@ -11,7 +12,11 @@ from agent_governance_api.config import (
     Settings,
     get_settings,
 )
+from agent_governance_api.database import get_db_session
 from agent_governance_api.models import ActorType
+from agent_governance_api.service_actor_registry import (
+    get_authenticatable_service_actor_api_key_by_hash,
+)
 
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
 SERVICE_ACTOR_API_KEY_HEADER = "X-AGCP-API-Key"
@@ -50,6 +55,7 @@ def get_current_integration_actor(
         str | None,
         Header(alias=SERVICE_ACTOR_API_KEY_HEADER),
     ] = None,
+    session: Session | None = Depends(get_db_session),
 ) -> ActorContext:
     """Resolve optional service API key auth for runtime integrations.
 
@@ -67,7 +73,11 @@ def get_current_integration_actor(
             )
         return get_current_actor()
 
-    actor = service_actor_from_api_key(api_key, settings=settings)
+    actor = service_actor_from_api_key(
+        api_key,
+        settings=settings,
+        session=_session_or_none(session),
+    )
     if actor is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,11 +91,21 @@ def service_actor_from_api_key(
     api_key: str,
     *,
     settings: Settings,
+    session: Session | None = None,
 ) -> ActorContext | None:
     if not api_key.strip():
         return None
 
     candidate_hash = hash_service_actor_api_key(api_key)
+    if settings.service_actor_registry_enabled:
+        if session is None:
+            return None
+        return _service_actor_from_registry_key_hash(
+            candidate_hash,
+            settings=settings,
+            session=session,
+        )
+
     for configured_key in settings.service_actor_api_keys:
         if compare_digest(candidate_hash, configured_key.key_hash):
             return ActorContext(
@@ -94,6 +114,33 @@ def service_actor_from_api_key(
                 roles=_service_actor_scopes(configured_key.actor_id, settings),
             )
 
+    return None
+
+
+def _service_actor_from_registry_key_hash(
+    key_hash: str,
+    *,
+    settings: Settings,
+    session: Session,
+) -> ActorContext | None:
+    api_key = get_authenticatable_service_actor_api_key_by_hash(
+        session,
+        key_hash,
+        settings=settings,
+    )
+    if api_key is None:
+        return None
+
+    return ActorContext(
+        actor_type=ActorType.SERVICE,
+        actor_id=api_key.service_actor.actor_id,
+        roles=_service_actor_scopes(api_key.service_actor.actor_id, settings),
+    )
+
+
+def _session_or_none(session: Any) -> Session | None:
+    if isinstance(session, Session):
+        return session
     return None
 
 

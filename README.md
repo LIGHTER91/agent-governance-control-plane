@@ -113,6 +113,10 @@ integrations are intentionally not implemented yet.
   tool-name restrictions.
 - Optional `AGCP_REQUIRE_SERVICE_AUTH=true` mode that rejects missing service
   API keys on runtime and telemetry integration endpoints.
+- DB-backed service actor and API key registry lookup behind
+  `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default; when enabled, active
+  service actors can authenticate with active or retiring non-expired registry
+  keys while scopes remain config-based.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
@@ -273,7 +277,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
-- DB-backed service actor or API key registry.
+- DB-backed service actor registry auth integration, admin workflows, or public
+  registry APIs.
 - API key rotation implementation and persistent API key management.
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
@@ -308,8 +313,10 @@ Near-term recommended work:
    export.
 8. Add owner-based service actor scopes design.
 9. Add safe audit events for denied service actor scope checks.
-10. Implement DB-backed service actor registry and API key storage.
-11. Implement service actor API key rotation after a DB-backed registry exists.
+10. Add registry import or manual seeding guidance for config-based service
+    actors.
+11. Implement service actor API key rotation and admin workflows after registry
+    import/management behavior is designed.
 12. Add deeper separation-of-duties checks for HumanApproval review.
 13. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.

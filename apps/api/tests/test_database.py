@@ -13,6 +13,8 @@ from agent_governance_api.models import (
     Policy,
     PolicyDecision,
     PolicyRule,
+    ServiceActor,
+    ServiceActorApiKey,
     TraceEventRecord,
 )
 
@@ -38,6 +40,8 @@ def test_declarative_base_includes_domain_tables() -> None:
     assert HumanApproval.__tablename__ in Base.metadata.tables
     assert AgentRunRecord.__tablename__ in Base.metadata.tables
     assert TraceEventRecord.__tablename__ in Base.metadata.tables
+    assert ServiceActor.__tablename__ in Base.metadata.tables
+    assert ServiceActorApiKey.__tablename__ in Base.metadata.tables
 
 
 def test_db_session_dependency_yields_session_without_connecting() -> None:

@@ -1,5 +1,10 @@
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from agent_governance_api.auth import (
     DEVELOPMENT_ACTOR_ID,
@@ -21,7 +26,30 @@ from agent_governance_api.config import (
     Settings,
     get_settings,
 )
-from agent_governance_api.models import ActorType, Environment
+from agent_governance_api.database import Base
+from agent_governance_api.models import (
+    ActorType,
+    Environment,
+    ServiceActor,
+    ServiceActorApiKeyStatus,
+    ServiceActorStatus,
+)
+from agent_governance_api.models import (
+    ServiceActorApiKey as ServiceActorApiKeyRecord,
+)
+
+
+@pytest.fixture()
+def registry_session() -> Iterator[Session]:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    try:
+        with Session(engine) as session:
+            yield session
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
 
 
 def test_default_actor_context_is_development_placeholder() -> None:
@@ -146,6 +174,181 @@ def test_service_actor_context_without_configured_scopes_has_no_scopes() -> None
     assert has_scope(actor, "runtime:decision") is False
 
 
+def test_config_service_actor_auth_is_unchanged_when_registry_disabled(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(registry_session, raw_key="registry-only-key")
+    settings = Settings(
+        service_actor_registry_enabled=False,
+        service_actor_api_keys=(
+            ServiceActorApiKey(
+                actor_id="service:config-test",
+                key_hash=hash_service_actor_api_key("config-key"),
+            ),
+        ),
+        service_actor_scopes=(
+            ServiceActorScopes(
+                actor_id="service:config-test",
+                scopes=("runtime:decision",),
+            ),
+        ),
+    )
+
+    actor = service_actor_from_api_key(
+        "config-key",
+        settings=settings,
+        session=registry_session,
+    )
+
+    assert actor is not None
+    assert actor.actor_type is ActorType.SERVICE
+    assert actor.actor_id == "service:config-test"
+    assert actor.roles == ("runtime:decision",)
+    assert (
+        service_actor_from_api_key(
+            "registry-only-key",
+            settings=settings,
+            session=registry_session,
+        )
+        is None
+    )
+
+
+def test_registry_active_key_authenticates_when_enabled(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(registry_session, raw_key="registry-active-key")
+    settings = Settings(
+        service_actor_registry_enabled=True,
+        service_actor_scopes=(
+            ServiceActorScopes(
+                actor_id="service:registry-test",
+                scopes=("runtime:decision",),
+            ),
+        ),
+    )
+
+    actor = service_actor_from_api_key(
+        "registry-active-key",
+        settings=settings,
+        session=registry_session,
+    )
+
+    assert actor is not None
+    assert actor.actor_type is ActorType.SERVICE
+    assert actor.actor_id == "service:registry-test"
+    assert actor.roles == ("runtime:decision",)
+
+
+def test_registry_retiring_non_expired_key_authenticates(
+    registry_session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-retiring-key",
+        key_status=ServiceActorApiKeyStatus.RETIRING,
+        grace_expires_at=now + timedelta(hours=1),
+    )
+    settings = Settings(
+        service_actor_registry_enabled=True,
+        service_actor_scopes=(
+            ServiceActorScopes(
+                actor_id="service:registry-test",
+                scopes=("runtime:decision",),
+            ),
+        ),
+    )
+
+    actor = service_actor_from_api_key(
+        "registry-retiring-key",
+        settings=settings,
+        session=registry_session,
+    )
+
+    assert actor is not None
+    assert actor.actor_id == "service:registry-test"
+
+
+@pytest.mark.parametrize(
+    ("key_status", "expires_at", "grace_expires_at"),
+    [
+        (ServiceActorApiKeyStatus.REVOKED, None, None),
+        (ServiceActorApiKeyStatus.EXPIRED, None, None),
+        (ServiceActorApiKeyStatus.ACTIVE, datetime.now(UTC) - timedelta(hours=1), None),
+        (
+            ServiceActorApiKeyStatus.RETIRING,
+            None,
+            datetime.now(UTC) - timedelta(hours=1),
+        ),
+    ],
+)
+def test_registry_invalid_key_lifecycle_is_rejected(
+    registry_session: Session,
+    key_status: ServiceActorApiKeyStatus,
+    expires_at: datetime | None,
+    grace_expires_at: datetime | None,
+) -> None:
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-invalid-key",
+        key_status=key_status,
+        expires_at=expires_at,
+        grace_expires_at=grace_expires_at,
+    )
+    settings = Settings(service_actor_registry_enabled=True)
+
+    assert (
+        service_actor_from_api_key(
+            "registry-invalid-key",
+            settings=settings,
+            session=registry_session,
+        )
+        is None
+    )
+
+
+def test_registry_disabled_service_actor_is_rejected(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-disabled-actor-key",
+        actor_status=ServiceActorStatus.DISABLED,
+    )
+    settings = Settings(service_actor_registry_enabled=True)
+
+    assert (
+        service_actor_from_api_key(
+            "registry-disabled-actor-key",
+            settings=settings,
+            session=registry_session,
+        )
+        is None
+    )
+
+
+def test_registry_actor_without_configured_scope_is_rejected_by_scope_check(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(registry_session, raw_key="registry-no-scope-key")
+    settings = Settings(service_actor_registry_enabled=True)
+
+    actor = service_actor_from_api_key(
+        "registry-no-scope-key",
+        settings=settings,
+        session=registry_session,
+    )
+
+    assert actor is not None
+    assert actor.roles == ()
+    with pytest.raises(HTTPException) as exc_info:
+        require_scope(actor, "runtime:decision")
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Service actor requires scope: runtime:decision."
+
+
 def test_require_scope_rejects_service_actor_without_scope() -> None:
     settings = Settings(
         service_actor_api_keys=(
@@ -246,3 +449,31 @@ def service_actor_for_test():
     )
     assert actor is not None
     return actor
+
+
+def add_registry_service_actor_key(
+    session: Session,
+    *,
+    raw_key: str,
+    actor_id: str = "service:registry-test",
+    actor_status: ServiceActorStatus = ServiceActorStatus.ACTIVE,
+    key_status: ServiceActorApiKeyStatus = ServiceActorApiKeyStatus.ACTIVE,
+    expires_at: datetime | None = None,
+    grace_expires_at: datetime | None = None,
+) -> None:
+    actor = ServiceActor(
+        actor_id=actor_id,
+        display_name="Registry test service",
+        status=actor_status,
+    )
+    api_key = ServiceActorApiKeyRecord(
+        service_actor=actor,
+        key_id=f"sak_{actor_id.removeprefix('service:').replace('-', '_')}",
+        key_hash=hash_service_actor_api_key(raw_key),
+        status=key_status,
+        expires_at=expires_at,
+        grace_expires_at=grace_expires_at,
+    )
+    session.add(actor)
+    session.add(api_key)
+    session.commit()

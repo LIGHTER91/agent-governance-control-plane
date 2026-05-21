@@ -6,12 +6,12 @@ Design proposal with a local `ActorContext` development stub, minimal
 config-based service actor API key authentication for runtime and telemetry
 integration endpoints, endpoint/action service scopes, fine-grained
 config-based service actor rules, minimal HumanApproval review RBAC, and
-minimal Evidence Bundle export RBAC. Service actor API key rotation and the
-DB-backed service actor registry are documented as design-only. The current
-backend does not implement full user authentication, identity provider
-integration, persisted service actor records, persisted API key rotation, team
-membership resolution, organization-unit ownership resolution, or persistent
-RBAC tables.
+minimal Evidence Bundle export RBAC. Service actor API key rotation is
+documented as design-only, and the DB-backed service actor registry has a
+disabled-by-default authentication path for runtime and telemetry service
+actors. The current backend does not implement full user authentication,
+identity provider integration, persisted API key rotation, team membership resolution,
+organization-unit ownership resolution, or persistent RBAC tables.
 
 V0 uses the structured development placeholder:
 
@@ -420,10 +420,10 @@ The current implementation is intentionally narrow:
 - endpoint/action scopes are configured through `AGCP_SERVICE_ACTOR_SCOPES`.
 
 Allowed Agent IDs, environments, runtime modes, and tool names are now supported
-through config-based fine-grained service actor rules. API key rotation and the
-DB-backed service actor registry have designs only; owner-based restrictions
-and persistent key management are still future work. Raw API keys must never be
-stored or logged in plaintext.
+through config-based fine-grained service actor rules. API key rotation has a
+design only, and the DB-backed service actor registry is disabled by default;
+owner-based service actor restrictions remain future work. Raw API keys must
+never be stored or logged in plaintext.
 
 ### OIDC/SAML Later For Enterprise Users
 
@@ -496,8 +496,8 @@ surface, while still moving away from the development placeholder early enough.
 4. Add production deployment guidance for requiring service auth on runtime and
    telemetry endpoints.
 5. Add audit-read event design.
-6. Implement DB-backed service actor storage, scope storage, key storage, and
-   rotation after the design is reviewed.
+6. Add registry import or manual seeding guidance for existing config-based
+   service actors.
 7. Design OIDC user mapping to `user:<external-id>` and role claims.
 8. Design team membership resolution for Agent ownership checks.
 9. Add deeper separation-of-duties checks for HumanApproval review.

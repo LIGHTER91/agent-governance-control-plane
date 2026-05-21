@@ -108,8 +108,13 @@ Service actor API keys:
 - Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
 - In strict service-auth mode, service actors also need a matching fine-grained rule before telemetry or runtime records are created.
 - Raw API keys must not be stored, logged, echoed in responses, or included in audit, telemetry, or evidence metadata.
-- This is still config-based authentication and authorization only. There is no
-  DB-backed key registry, API key rotation, OIDC/SAML/JWT, or human RBAC yet.
+- `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default. With the flag disabled,
+  runtime and telemetry auth remain config-based. With the flag enabled, service
+  actor API keys are resolved from the DB-backed registry and only active
+  service actors with active or retiring non-expired keys can authenticate.
+  Endpoint/action scopes and fine-grained rules still come from config.
+- This is not production-ready authentication. There are no public registry CRUD
+  APIs, key rotation endpoints, OIDC/SAML/JWT, or human RBAC yet.
 
 ## Database migrations
 

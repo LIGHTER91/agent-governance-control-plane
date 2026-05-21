@@ -26,10 +26,13 @@ Minimal config-based service actor API key authentication exists for runtime and
 telemetry endpoints, including endpoint/action scopes and
 `AGCP_REQUIRE_SERVICE_AUTH=true` strict mode. Config-based fine-grained service
 actor rules now cover Agent ID, environment, runtime mode, and tool-name
-restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. This is not
-production-grade auth: scopes are still config/env-based, there is no DB-backed
-key registry, no persisted API key rotation implementation, no owner-based
-service actor restrictions, no OIDC/SAML/JWT, and no team membership resolver.
+restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. The DB-backed service
+actor registry can authenticate active service actors with active or retiring
+non-expired keys behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, but this is
+not production-grade auth: config auth remains the default, scopes are still
+config/env-based, there is no persisted API key rotation implementation, no
+owner-based service actor restrictions, no OIDC/SAML/JWT, and no team membership
+resolver.
 Minimal HumanApproval review RBAC and Evidence Bundle export RBAC exist,
 including direct user owner Evidence Bundle export, but they are local role
 checks, not full enterprise authorization. Evidence Bundle successful exports
@@ -78,8 +81,10 @@ Recommended order:
     export.
 13. Add owner-based service actor scopes design.
 14. Add safe denied-scope audit events.
-15. Implement DB-backed service actor registry and API key storage.
-16. Implement service actor API key rotation after a DB-backed registry exists.
+15. Add registry import or manual seeding guidance for existing config-based
+    service actors.
+16. Implement service actor API key rotation and admin workflows after registry
+    management behavior is designed.
 17. Add tests for overriding the Actor dependency with a non-development actor.
 18. Add deeper separation-of-duties checks for HumanApproval review.
 19. Add broad filtering and pagination for Runtime and Agent activity only
@@ -89,9 +94,10 @@ Recommended order:
 
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add safe denied-scope audit events.
-- [ ] Implement DB-backed service actor registry and API key storage.
-- [ ] Implement service actor API key rotation after a DB-backed registry
-      exists.
+- [ ] Add registry import or manual seeding guidance for existing config-based
+      service actors.
+- [ ] Implement service actor API key rotation and admin workflows after
+      registry management behavior is designed.
 - [ ] Add tests for overriding the Actor dependency with a non-development
       actor.
 - [ ] Design team and organization-unit ownership resolution for Evidence
@@ -121,7 +127,11 @@ Recommended order:
 
 ## In Progress
 
-Empty.
+- [ ] Wire DB-backed service actor registry lookup into integration auth behind
+      `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
 
 ## Implementation Complete, Validation Pending
 
@@ -206,6 +216,8 @@ Empty.
       environment, runtime mode, and tool-name restrictions.
 - [x] Add service actor API key rotation design.
 - [x] Add DB-backed service actor registry design.
+- [x] Add DB-backed service actor and API key registry persistence foundation
+      behind a disabled feature flag.
 - [x] Add HumanApproval RBAC design.
 - [x] Implement minimal RBAC checks for HumanApproval approve/reject/cancel.
 - [x] Add Evidence Bundle RBAC design.

@@ -170,6 +170,30 @@ def test_service_actor_scope_rules_are_empty_by_default(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_service_actor_registry_is_disabled_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_SERVICE_ACTOR_REGISTRY_ENABLED", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.service_actor_registry_enabled is False
+    finally:
+        get_settings.cache_clear()
+
+
+def test_service_actor_registry_flag_can_be_enabled(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_REGISTRY_ENABLED", "true")
+
+    try:
+        settings = get_settings()
+
+        assert settings.service_actor_registry_enabled is True
+    finally:
+        get_settings.cache_clear()
+
+
 def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> None:
     get_settings.cache_clear()
     key_hash = sha256(b"local-test-service-key").hexdigest()

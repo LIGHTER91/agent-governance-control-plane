@@ -284,7 +284,7 @@ which key versions can authenticate that service actor.
 
 ## Service Actor Registry
 
-Future persistent registry for machine integrations that call runtime and
+Persistent registry foundation for machine integrations that call runtime and
 telemetry endpoints.
 
 Suggested service actor fields:
@@ -305,8 +305,11 @@ Allowed service actor statuses:
 - disabled;
 - retired.
 
-The registry is design-only today. Current service actor authentication remains
-configuration-based.
+The registry is disabled by default. With
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, runtime and telemetry service actor
+authentication can resolve active service actors with active or retiring
+non-expired API keys from the registry. Endpoint/action scopes and fine-grained
+rules remain configuration-based.
 
 ## Audit Log
 

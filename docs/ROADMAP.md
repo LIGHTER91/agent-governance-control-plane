@@ -196,7 +196,9 @@ Completed foundation:
   `AGCP_SERVICE_ACTOR_SCOPE_RULES` for Agent ID, environment, runtime mode, and
   tool-name restrictions.
 - Service actor API key rotation design.
-- DB-backed service actor registry design.
+- DB-backed service actor and API key registry lookup behind
+  `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default; when enabled, active
+  service actors can authenticate with active or retiring non-expired keys.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
@@ -231,16 +233,19 @@ Recommended next work:
   export.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
-- Implement DB-backed service actor registry and API key storage.
-- Implement service actor API key rotation after a DB-backed registry exists.
+- Add registry import or manual seeding guidance for config-based service
+  actors.
+- Implement service actor API key rotation and admin workflows after registry
+  management behavior is designed.
 - Add tests for overriding the Actor dependency with a non-development actor.
 - Add deeper separation-of-duties checks for HumanApproval review.
 
 Important limitations:
 
-- Auth is still minimal and config-based.
+- Auth is still minimal. Config-based auth remains the default behavior.
 - Fine-grained service actor scopes are still config/env-based.
-- No DB-backed service actor or API key registry exists.
+- Registry-backed service actor auth is disabled by default and does not yet
+  include public management APIs, persisted scopes, or rotation endpoints.
 - API key rotation has a design only; persisted rotation is not implemented.
 - Owner-based service actor restrictions are not implemented.
 - No user login, OIDC, SAML, JWT auth, users table, or roles table exists.

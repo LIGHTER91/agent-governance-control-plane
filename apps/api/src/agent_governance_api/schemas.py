@@ -13,6 +13,8 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyStatus,
     RiskLevel,
+    ServiceActorApiKeyStatus,
+    ServiceActorStatus,
 )
 
 
@@ -278,3 +280,34 @@ class HumanApprovalRead(HumanApprovalBase):
 
     id: UUID
     created_at: datetime
+
+
+class ServiceActorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    actor_id: str
+    display_name: str
+    description: str | None = None
+    status: ServiceActorStatus
+    created_at: datetime
+    updated_at: datetime
+    disabled_at: datetime | None = None
+
+
+class ServiceActorApiKeyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    service_actor_id: UUID
+    key_id: str
+    hash_algorithm: str
+    status: ServiceActorApiKeyStatus
+    created_at: datetime
+    activated_at: datetime | None = None
+    retiring_at: datetime | None = None
+    grace_expires_at: datetime | None = None
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_used_at: datetime | None = None
+    last_used_endpoint: str | None = None

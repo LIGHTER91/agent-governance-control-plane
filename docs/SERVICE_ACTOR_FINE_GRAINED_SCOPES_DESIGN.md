@@ -6,9 +6,11 @@ Design proposal with a minimal config-based implementation now in place for
 Agent ID, environment, runtime mode, and tool-name restrictions on telemetry and
 Runtime Gateway integration endpoints. The backend still does not implement
 owner-based restrictions, Evidence Bundle service scopes, HumanApproval review
-scopes, database-backed service actor records, or persisted API key rotation.
-The DB-backed service actor registry is documented in
-`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`, but not implemented.
+scopes, persisted fine-grained scope tables, or persisted API key rotation. The
+DB-backed service actor registry is documented in
+`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; it can authenticate active service
+actors with active or retiring non-expired keys behind a disabled-by-default
+feature flag, while scopes remain config-based.
 
 AGCP remains an Agent Governance Control Plane. Fine-grained service actor
 scopes should govern which integrations may call AGCP for which Agents and
@@ -426,8 +428,8 @@ authorization config.
 3. Add HumanApproval read/review service scope design if a real integration
    needs it.
 4. Add safe denied-scope audit event design before enabling denial auditing.
-5. Implement the DB-backed service actor registry and API key rotation after
-   config-based restrictions are proven.
+5. Add registry import or manual seeding guidance, then implement API key
+   rotation after config-based restrictions are proven.
 
 ## Open Questions
 

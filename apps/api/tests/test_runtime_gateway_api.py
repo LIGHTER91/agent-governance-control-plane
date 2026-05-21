@@ -34,6 +34,10 @@ from agent_governance_api.models import (
     PolicyRule,
     PolicyStatus,
     RiskLevel,
+    ServiceActor,
+    ServiceActorApiKey,
+    ServiceActorApiKeyStatus,
+    ServiceActorStatus,
     TraceEventRecord,
     TraceEventType,
 )
@@ -259,6 +263,52 @@ def test_runtime_simulation_with_service_api_key_uses_service_actor(
     assert SERVICE_API_KEY not in caplog.text
 
 
+def test_runtime_simulation_with_registry_service_api_key_uses_service_actor(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, session_factory = api_client
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+    )
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="The requested tool requires human review.",
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+    set_evidence_export_actor()
+    bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 201
+    assert bundle_response.status_code == 200
+    [approval] = fetch_human_approvals(session_factory)
+    assert approval.requested_by_actor_type is ActorType.SERVICE
+    assert approval.requested_by_actor_id == SERVICE_ACTOR_ID
+    [audit_log] = fetch_human_approval_audit_logs(session_factory)
+    assert audit_log.actor_type is ActorType.SERVICE
+    assert audit_log.actor_id == SERVICE_ACTOR_ID
+    [trace_event] = fetch_trace_events(session_factory)
+    assert SERVICE_API_KEY not in str(trace_event.metadata_)
+    assert SERVICE_API_KEY not in response.text
+    assert SERVICE_API_KEY not in bundle_response.text
+    assert SERVICE_API_KEY not in str(audit_log.metadata_)
+    assert SERVICE_API_KEY not in caplog.text
+    with session_factory() as session:
+        [api_key] = session.scalars(select(ServiceActorApiKey)).all()
+        assert api_key.key_hash == hash_service_actor_api_key(SERVICE_API_KEY)
+        assert SERVICE_API_KEY not in str(api_key.__dict__)
+
+
 def test_runtime_missing_api_key_when_service_auth_required_rejects_without_records(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -280,6 +330,35 @@ def test_runtime_missing_api_key_when_service_auth_required_rejects_without_reco
     assert fetch_policy_decisions(session_factory) == []
     assert fetch_human_approvals(session_factory) == []
     assert fetch_human_approval_audit_logs(session_factory) == []
+
+
+def test_runtime_registry_service_api_key_without_decision_scope_is_rejected(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        scopes=("telemetry:write",),
+        require_auth=True,
+    )
+    agent_id = create_agent(session_factory)
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor requires scope: runtime:decision."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
 
 
 def test_runtime_service_api_key_without_decision_scope_is_rejected_without_records(
@@ -1607,6 +1686,54 @@ def configure_service_actor_api_key(
                 }
             ),
         )
+    if require_auth:
+        monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
+    get_settings.cache_clear()
+
+
+def configure_service_actor_registry_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: SessionFactory,
+    *,
+    scopes: tuple[str, ...] = ("runtime:decision",),
+    require_auth: bool = False,
+    actor_status: ServiceActorStatus = ServiceActorStatus.ACTIVE,
+    key_status: ServiceActorApiKeyStatus = ServiceActorApiKeyStatus.ACTIVE,
+) -> None:
+    with session_factory() as session:
+        actor = ServiceActor(
+            actor_id=SERVICE_ACTOR_ID,
+            display_name="Runtime registry test service",
+            status=actor_status,
+        )
+        api_key = ServiceActorApiKey(
+            service_actor=actor,
+            key_id="sak_runtime_registry_test",
+            key_hash=hash_service_actor_api_key(SERVICE_API_KEY),
+            status=key_status,
+        )
+        session.add(actor)
+        session.add(api_key)
+        session.commit()
+
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_REGISTRY_ENABLED", "true")
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPES",
+        f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
+    )
+    monkeypatch.setenv(
+        "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+        json.dumps(
+            {
+                SERVICE_ACTOR_ID: {
+                    "agent_ids": ["*"],
+                    "environments": ["*"],
+                    "runtime_modes": ["*"],
+                    "tool_names": ["*"],
+                }
+            }
+        ),
+    )
     if require_auth:
         monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()

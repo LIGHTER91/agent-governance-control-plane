@@ -88,6 +88,7 @@ class Settings(BaseModel):
     service_actor_scope_rules: tuple[ServiceActorScopeRule, ...] = Field(
         default_factory=tuple
     )
+    service_actor_registry_enabled: bool = Field(default=False)
 
 
 @lru_cache
@@ -118,6 +119,10 @@ def get_settings() -> Settings:
         ),
         service_actor_scope_rules=_get_service_actor_scope_rules_env(
             "AGCP_SERVICE_ACTOR_SCOPE_RULES",
+        ),
+        service_actor_registry_enabled=_get_bool_env(
+            "AGCP_SERVICE_ACTOR_REGISTRY_ENABLED",
+            default=False,
         ),
     )
 

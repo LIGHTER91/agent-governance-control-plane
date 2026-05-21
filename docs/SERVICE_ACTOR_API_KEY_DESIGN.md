@@ -20,9 +20,12 @@ mode, and tool-name restrictions. `AGCP_REQUIRE_SERVICE_AUTH` can reject missing
 service keys on runtime and telemetry integration endpoints. API key rotation is
 documented in `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`, but not
 implemented. The future DB-backed service actor registry is documented in
-`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`, but not implemented. The backend does
-not implement database tables, persisted key rotation, RBAC, OIDC, SAML, JWTs,
-or a production identity system.
+`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; its first persistence foundation exists
+behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default. When enabled,
+runtime and telemetry auth can resolve active service actors with active or
+retiring non-expired registry keys; endpoint scopes and fine-grained rules still
+come from config. The backend does not implement persisted key rotation, RBAC,
+OIDC, SAML, JWTs, or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -363,18 +366,20 @@ Mitigations:
    Implemented for the minimal config-based path.
 8. Add API key rotation design. Implemented as design only in
    `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
-9. Add DB-backed service actor registry design. Implemented as design only in
+9. Add DB-backed service actor registry design. Implemented in
    `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`.
-10. Add persistent hashed API key storage only when a real management workflow
-    is needed.
+10. Add minimal DB-backed service actor and API key persistence behind a
+    disabled feature flag. Implemented.
+11. Wire registry-backed auth behind the existing disabled-by-default feature
+    flag. Implemented for runtime and telemetry integration endpoints.
 
 This path keeps the first implementation small while still moving runtime
 integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Implement DB-backed service actor and API key storage from
-   `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md` when key management workflows exist.
+1. Add registry import or manual seeding guidance for existing config-based
+   service actors.
 2. Implement API key rotation lifecycle states, grace periods, and safe audit
    events from `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
 3. Add audit visibility for service actor usage.
