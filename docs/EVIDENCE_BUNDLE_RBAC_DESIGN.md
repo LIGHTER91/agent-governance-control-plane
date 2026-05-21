@@ -14,10 +14,12 @@ Events, PolicyDecisions, HumanApprovals, and Policy or PolicyRule references
 when available. Metadata is filtered before export. The endpoint now enforces a
 minimal RBAC check that allows only actors with `auditor` or `platform_admin`
 roles. Successful JSON exports append a safe `evidence_bundle_exported`
-AuditLog event. Service actors are denied by default.
+AuditLog event. Denied exports for known Agents append a safe
+`evidence_bundle_export_denied` AuditLog event. Service actors are denied by
+default.
 
 The current implementation still does not enforce scoped ownership checks,
-team membership, policy-linked visibility, or denied export audit events.
+team membership, or policy-linked visibility.
 
 AGCP remains an Agent Governance Control Plane. Evidence Bundle RBAC should
 control who can inspect governance evidence. It should not turn AGCP into an
@@ -190,7 +192,7 @@ Denied export attempts should:
 - avoid returning partial bundles;
 - avoid exposing raw actor credentials, API keys, request headers, or unsafe
   metadata;
-- optionally create a safe audit event later.
+- create a safe denied-export audit event when the Agent is known.
 
 The response should be clear but not overly specific:
 
@@ -207,8 +209,8 @@ Safe denied-attempt audit metadata could include:
 ```json
 {
   "agent_id": "agent-id",
-  "action": "evidence_bundle_export",
-  "denial_reason": "missing_export_role"
+  "reason": "forbidden",
+  "export_format": "json"
 }
 ```
 
@@ -280,17 +282,18 @@ receive `evidence:read`.
 5. Add successful export audit events. Implemented.
    - Append `evidence_bundle_exported` with safe metadata after successful
      JSON export.
-6. Add safe audit of denied attempts later.
+6. Add safe audit of denied attempts. Implemented for known Agents.
    - Audit denied attempts only with safe metadata.
+   - Preserve existing unknown-agent response behavior without creating an
+     export audit event.
 
 ## Recommended Follow-up Issues
 
 1. Add direct `agent_owner` Evidence Bundle export checks.
 2. Design team and organization-unit membership resolver for ownership checks.
 3. Add policy-linked evidence visibility design for `policy_admin`.
-4. Add safe denied-export audit event design.
-5. Add environment-specific export restrictions for production Agents if needed.
-6. Decide whether service actors should ever receive explicit `evidence:read`.
+4. Add environment-specific export restrictions for production Agents if needed.
+5. Decide whether service actors should ever receive explicit `evidence:read`.
 
 ## Open Questions
 

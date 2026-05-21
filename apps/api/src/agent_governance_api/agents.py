@@ -113,8 +113,34 @@ def export_agent_evidence_bundle(
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
 ) -> EvidenceBundleRead:
-    _require_evidence_bundle_exporter(actor)
-    agent = _get_agent_or_404(session, agent_id)
+    agent = session.get(Agent, agent_id)
+    try:
+        _require_evidence_bundle_exporter(actor)
+    except HTTPException:
+        if agent is not None:
+            append_audit_log(
+                session,
+                event_type="evidence_bundle_export_denied",
+                actor_type=actor.actor_type,
+                actor_id=actor.actor_id,
+                entity_type="agent",
+                entity_id=str(agent.id),
+                summary="Evidence Bundle export denied.",
+                metadata={
+                    "agent_id": str(agent.id),
+                    "reason": "forbidden",
+                    "export_format": "json",
+                },
+            )
+            session.commit()
+        raise
+
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found.",
+        )
+
     evidence_bundle = build_agent_evidence_bundle(session, agent=agent)
 
     append_audit_log(

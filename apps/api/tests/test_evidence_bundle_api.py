@@ -121,6 +121,49 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
     assert "trace_events" not in audit_log.metadata_
     assert "policy_decisions" not in audit_log.metadata_
     assert "human_approvals" not in audit_log.metadata_
+    assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
+
+
+def test_denied_evidence_bundle_export_creates_safe_audit_log(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        )
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Evidence Bundle export is not permitted for this actor."
+    }
+    assert_denied_response_has_no_bundle_sections(response.json())
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    [audit_log] = fetch_evidence_bundle_export_denied_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_export_denied"
+    assert audit_log.actor_type is ActorType.USER
+    assert audit_log.actor_id == "user:viewer-1"
+    assert audit_log.entity_type == "agent"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.summary == "Evidence Bundle export denied."
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "reason": "forbidden",
+        "export_format": "json",
+    }
+    assert "audit_logs" not in audit_log.metadata_
+    assert "agent_runs" not in audit_log.metadata_
+    assert "trace_events" not in audit_log.metadata_
+    assert "policy_decisions" not in audit_log.metadata_
+    assert "human_approvals" not in audit_log.metadata_
+    assert "send_email" not in str(audit_log.metadata_)
 
 
 def test_platform_admin_can_export_evidence_bundle(
@@ -175,6 +218,14 @@ def test_actor_without_auditor_or_platform_admin_gets_403(
     }
     assert_denied_response_has_no_bundle_sections(response.json())
     assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    [audit_log] = fetch_evidence_bundle_export_denied_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_export_denied"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "reason": "forbidden",
+        "export_format": "json",
+    }
 
 
 def test_service_actor_gets_403_by_default(
@@ -199,6 +250,16 @@ def test_service_actor_gets_403_by_default(
     }
     assert_denied_response_has_no_bundle_sections(response.json())
     assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    [audit_log] = fetch_evidence_bundle_export_denied_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_export_denied"
+    assert audit_log.actor_type is ActorType.SERVICE
+    assert audit_log.actor_id == "service:runtime-adapter"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "reason": "forbidden",
+        "export_format": "json",
+    }
 
 
 def test_evidence_bundle_unknown_agent_returns_404(
@@ -212,6 +273,32 @@ def test_evidence_bundle_unknown_agent_returns_404(
     assert response.status_code == 404
     assert response.json()["detail"] == "Agent not found."
     assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
+
+
+def test_denied_evidence_bundle_unknown_agent_returns_403_without_audit_log(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    missing_agent_id = uuid4()
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        )
+    )
+
+    response = client.get(f"/agents/{missing_agent_id}/evidence-bundle")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Evidence Bundle export is not permitted for this actor."
+    }
+    assert str(missing_agent_id) not in response.text
+    assert_denied_response_has_no_bundle_sections(response.json())
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
 
 
 def test_evidence_bundle_includes_audit_logs(
@@ -474,12 +561,30 @@ def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> No
 def fetch_evidence_bundle_export_audit_logs(
     session_factory: SessionFactory,
 ) -> list[AuditLog]:
+    return fetch_evidence_bundle_audit_logs(
+        session_factory,
+        event_type="evidence_bundle_exported",
+    )
+
+
+def fetch_evidence_bundle_export_denied_audit_logs(
+    session_factory: SessionFactory,
+) -> list[AuditLog]:
+    return fetch_evidence_bundle_audit_logs(
+        session_factory,
+        event_type="evidence_bundle_export_denied",
+    )
+
+
+def fetch_evidence_bundle_audit_logs(
+    session_factory: SessionFactory,
+    *,
+    event_type: str,
+) -> list[AuditLog]:
     with session_factory() as session:
         return list(
             session.scalars(
-                select(AuditLog).where(
-                    AuditLog.event_type == "evidence_bundle_exported"
-                )
+                select(AuditLog).where(AuditLog.event_type == event_type)
             ).all()
         )
 
