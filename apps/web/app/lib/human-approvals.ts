@@ -1,4 +1,4 @@
-import { fetchApiArray } from "./api";
+import { fetchApiArray, postApiJson } from "./api";
 
 export const HUMAN_APPROVAL_STATUSES = [
   "pending",
@@ -27,6 +27,8 @@ export type HumanApprovalRecord = {
   expires_at: string | null;
 };
 
+export type HumanApprovalAction = "approve" | "reject" | "cancel";
+
 export async function fetchHumanApprovals(
   status: HumanApprovalStatusFilter,
   signal?: AbortSignal
@@ -52,6 +54,30 @@ export async function fetchAgentHumanApprovals(
     `/agents/${encodeURIComponent(agentId)}/human-approvals`,
     {
       errorLabel: "GET /agents/{agent_id}/human-approvals",
+      signal
+    }
+  );
+}
+
+export async function transitionHumanApproval(
+  approvalId: string,
+  action: HumanApprovalAction,
+  decisionNote?: string,
+  signal?: AbortSignal
+): Promise<HumanApprovalRecord> {
+  const trimmedNote = decisionNote?.trim();
+  const body =
+    action === "cancel"
+      ? undefined
+      : trimmedNote
+        ? { decision_note: trimmedNote }
+        : {};
+
+  return postApiJson<HumanApprovalRecord>(
+    `/human-approvals/${encodeURIComponent(approvalId)}/${action}`,
+    {
+      body,
+      errorLabel: `POST /human-approvals/{approval_id}/${action}`,
       signal
     }
   );

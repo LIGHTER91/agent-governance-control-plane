@@ -69,3 +69,38 @@ export async function fetchApiJson<T>(
 
   return (await response.json()) as T;
 }
+
+export async function postApiJson<T>(
+  path: string,
+  options: {
+    body?: object;
+    errorLabel: string;
+    signal?: AbortSignal;
+  }
+): Promise<T> {
+  const headers: Record<string, string> = {
+    Accept: "application/json"
+  };
+  const body =
+    options.body === undefined ? undefined : JSON.stringify(options.body);
+
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    body,
+    headers,
+    method: "POST",
+    signal: options.signal
+  });
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      `${options.errorLabel} failed with status ${response.status}`,
+      response.status
+    );
+  }
+
+  return (await response.json()) as T;
+}

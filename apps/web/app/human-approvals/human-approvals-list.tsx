@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getApiBaseUrl } from "../lib/api";
 import {
+  HumanApprovalActions,
+  actionPastTense
+} from "./human-approval-actions";
+import {
   HUMAN_APPROVAL_STATUSES,
-  HumanApprovalRecord,
-  HumanApprovalStatusFilter,
   fetchHumanApprovals
+} from "../lib/human-approvals";
+import type {
+  HumanApprovalAction,
+  HumanApprovalRecord,
+  HumanApprovalStatusFilter
 } from "../lib/human-approvals";
 
 type HumanApprovalsState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; approvals: HumanApprovalRecord[] };
+
+type ReviewActionMessage =
+  | { status: "success"; message: string }
+  | { status: "error"; message: string }
+  | null;
 
 const columns = [
   "ID",
@@ -25,7 +37,8 @@ const columns = [
   "Reviewer ID",
   "Created",
   "Reviewed",
-  "Expires"
+  "Expires",
+  "Actions"
 ];
 
 function formatValue(value: string | null | undefined) {
@@ -67,18 +80,18 @@ export function HumanApprovalsList() {
   const [state, setState] = useState<HumanApprovalsState>({
     status: "loading"
   });
+  const [reviewActionMessage, setReviewActionMessage] =
+    useState<ReviewActionMessage>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const loadHumanApprovals = useCallback(
+    async (signal?: AbortSignal) => {
+      setState({ status: "loading" });
 
-    setState({ status: "loading" });
-
-    fetchHumanApprovals(statusFilter, controller.signal)
-      .then((approvals) => {
+      try {
+        const approvals = await fetchHumanApprovals(statusFilter, signal);
         setState({ status: "ready", approvals });
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) {
+      } catch (error: unknown) {
+        if (signal?.aborted) {
           return;
         }
 
@@ -87,12 +100,33 @@ export function HumanApprovalsList() {
             ? error.message
             : "Unable to load human approvals from the backend.";
         setState({ status: "error", message });
-      });
+      }
+    },
+    [statusFilter]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void loadHumanApprovals(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, [statusFilter]);
+  }, [loadHumanApprovals]);
+
+  async function handleActionCompleted(
+    approval: HumanApprovalRecord,
+    action: HumanApprovalAction
+  ) {
+    setReviewActionMessage({
+      status: "success",
+      message: `HumanApproval ${approval.id} ${actionPastTense(
+        action
+      )}. Refreshing the review queue.`
+    });
+    await loadHumanApprovals();
+  }
 
   return (
     <section className="data-panel" aria-label="Human approvals">
@@ -115,6 +149,15 @@ export function HumanApprovalsList() {
           </select>
         </label>
       </div>
+
+      {reviewActionMessage ? (
+        <div
+          className={`review-action-message ${reviewActionMessage.status}`}
+          role={reviewActionMessage.status === "error" ? "alert" : undefined}
+        >
+          {reviewActionMessage.message}
+        </div>
+      ) : null}
 
       {state.status === "loading" ? (
         <div className="state-message" aria-live="polite">
@@ -179,6 +222,12 @@ export function HumanApprovalsList() {
                   <td>{formatTimestamp(approval.created_at)}</td>
                   <td>{formatTimestamp(approval.reviewed_at)}</td>
                   <td>{formatTimestamp(approval.expires_at)}</td>
+                  <td>
+                    <HumanApprovalActions
+                      approval={approval}
+                      onCompleted={handleActionCompleted}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

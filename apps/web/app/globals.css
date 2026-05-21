@@ -446,11 +446,11 @@ a {
 }
 
 .human-approvals-table {
-  min-width: 1320px;
+  min-width: 1540px;
 }
 
 .agent-approvals-table {
-  min-width: 1180px;
+  min-width: 1400px;
 }
 
 .evidence-table {
@@ -539,6 +539,106 @@ a {
 .table-pill.decision-not_applicable {
   background: #e8edf8;
   color: var(--info);
+}
+
+.approval-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 230px;
+}
+
+.approval-note {
+  display: grid;
+  gap: 6px;
+}
+
+.approval-note span,
+.approval-action-note {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.approval-note textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-height: 58px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.approval-note textarea:disabled {
+  opacity: 0.65;
+}
+
+.approval-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.table-action-button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 6px 9px;
+}
+
+.table-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.table-action-button.approve {
+  background: #e3f1ec;
+  color: var(--accent-strong);
+}
+
+.table-action-button.reject,
+.table-action-button.cancel {
+  background: #f6e2e4;
+  color: var(--danger);
+}
+
+.table-action-button:hover:not(:disabled),
+.table-action-button:focus-visible:not(:disabled) {
+  border-color: currentColor;
+  outline: none;
+}
+
+.approval-action-status,
+.review-action-message {
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.approval-action-status.success,
+.review-action-message.success {
+  background: #e3f1ec;
+  color: var(--accent-strong);
+}
+
+.approval-action-status.error,
+.review-action-message.error {
+  background: #f6e2e4;
+  color: var(--danger);
+}
+
+.review-action-message {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 16px;
 }
 
 .row-link {

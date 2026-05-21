@@ -10,8 +10,15 @@ import type {
 import { fetchAgent, fetchAgentActivity } from "../../lib/agents";
 import { EvidenceBundle, fetchEvidenceBundle } from "../../lib/evidence";
 import {
-  HumanApprovalRecord,
+  HumanApprovalActions,
+  actionPastTense
+} from "../../human-approvals/human-approval-actions";
+import {
   fetchAgentHumanApprovals
+} from "../../lib/human-approvals";
+import type {
+  HumanApprovalAction,
+  HumanApprovalRecord
 } from "../../lib/human-approvals";
 
 type AgentDetailState =
@@ -33,6 +40,11 @@ type ActivityState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; items: AgentActivityItem[] };
+
+type ReviewActionMessage =
+  | { status: "success"; message: string }
+  | { status: "error"; message: string }
+  | null;
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -113,6 +125,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   const [evidenceState, setEvidenceState] = useState<EvidenceState>({
     status: "idle"
   });
+  const [reviewActionMessage, setReviewActionMessage] =
+    useState<ReviewActionMessage>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -120,6 +134,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     setState({ status: "loading" });
     setActivityState({ status: "loading" });
     setEvidenceState({ status: "idle" });
+    setReviewActionMessage(null);
 
     Promise.all([
       fetchAgent(agentId, controller.signal),
@@ -176,6 +191,40 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     }
   }
 
+  async function handleApprovalActionCompleted(
+    approval: HumanApprovalRecord,
+    action: HumanApprovalAction
+  ) {
+    setReviewActionMessage({
+      status: "success",
+      message: `HumanApproval ${approval.id} ${actionPastTense(
+        action
+      )}. Refreshing Agent governance records.`
+    });
+
+    try {
+      const [humanApprovals, activityItems] = await Promise.all([
+        fetchAgentHumanApprovals(agentId),
+        fetchAgentActivity(agentId)
+      ]);
+
+      setState((currentState) =>
+        currentState.status === "ready"
+          ? { ...currentState, humanApprovals }
+          : currentState
+      );
+      setActivityState({ status: "ready", items: activityItems });
+    } catch (error: unknown) {
+      setReviewActionMessage({
+        status: "error",
+        message:
+          error instanceof Error
+            ? `HumanApproval action succeeded, but refresh failed: ${error.message}`
+            : "HumanApproval action succeeded, but refresh failed."
+      });
+    }
+  }
+
   if (state.status === "loading") {
     return (
       <section className="data-panel" aria-live="polite">
@@ -214,7 +263,11 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         humanApprovals={state.humanApprovals}
       />
       <ActivityTimelineSection activityState={activityState} />
-      <HumanApprovalsSection humanApprovals={state.humanApprovals} />
+      <HumanApprovalsSection
+        actionMessage={reviewActionMessage}
+        humanApprovals={state.humanApprovals}
+        onActionCompleted={handleApprovalActionCompleted}
+      />
       <EvidenceAccessSection
         evidenceState={evidenceState}
         onLoadEvidence={handleLoadEvidence}
@@ -480,14 +533,29 @@ function GovernanceSummary({
 }
 
 function HumanApprovalsSection({
-  humanApprovals
+  actionMessage,
+  humanApprovals,
+  onActionCompleted
 }: {
+  actionMessage: ReviewActionMessage;
   humanApprovals: HumanApprovalRecord[];
+  onActionCompleted: (
+    approval: HumanApprovalRecord,
+    action: HumanApprovalAction
+  ) => Promise<void> | void;
 }) {
   return (
     <>
       <h3 className="section-title">Human approvals</h3>
       <section className="data-panel" aria-label="Agent Human Approvals">
+        {actionMessage ? (
+          <div
+            className={`review-action-message ${actionMessage.status}`}
+            role={actionMessage.status === "error" ? "alert" : undefined}
+          >
+            {actionMessage.message}
+          </div>
+        ) : null}
         {humanApprovals.length === 0 ? (
           <div className="state-message">
             <strong>No HumanApproval records for this Agent</strong>
@@ -510,6 +578,7 @@ function HumanApprovalsSection({
                   <th>Created</th>
                   <th>Reviewed</th>
                   <th>Expires</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -536,6 +605,12 @@ function HumanApprovalsSection({
                     <td>{formatTimestamp(approval.created_at)}</td>
                     <td>{formatTimestamp(approval.reviewed_at)}</td>
                     <td>{formatTimestamp(approval.expires_at)}</td>
+                    <td>
+                      <HumanApprovalActions
+                        approval={approval}
+                        onCompleted={onActionCompleted}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
