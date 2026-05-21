@@ -4,7 +4,8 @@
 
 Design proposal with a minimal endpoint-scope implementation now in place.
 Service actor API key authentication exists as a configuration-based foundation
-for runtime and telemetry integration endpoints. It identifies a caller as:
+for runtime and telemetry integration endpoints, with DB-backed scope
+persistence available but not wired into auth yet. It identifies a caller as:
 
 ```text
 actor_type = "service"
@@ -15,8 +16,9 @@ The current implementation supports endpoint/action scopes through
 `AGCP_SERVICE_ACTOR_SCOPES`, minimal fine-grained restrictions through
 `AGCP_SERVICE_ACTOR_SCOPE_RULES`, and can require service authentication for
 runtime and telemetry endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does
-not yet implement owner-based restrictions, Evidence Bundle service scopes,
-HumanApproval review scopes, or AuditLog read scopes.
+not yet implement auth lookup from persisted scope/rule tables, owner-based
+restrictions, Evidence Bundle service scopes, HumanApproval review scopes, or
+AuditLog read scopes.
 
 AGCP remains an Agent Governance Control Plane. Service actor scopes should
 govern integrations that call AGCP; they should not turn AGCP into an

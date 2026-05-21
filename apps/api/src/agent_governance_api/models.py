@@ -19,6 +19,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from agent_governance_api.config import (
     SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH,
     SERVICE_ACTOR_API_KEY_HASH_PREFIX,
+    SERVICE_ACTOR_FINE_GRAINED_WILDCARD,
+    SUPPORTED_SERVICE_ACTOR_RUNTIME_MODES,
+    SUPPORTED_SERVICE_ACTOR_SCOPE_ENVIRONMENTS,
+    SUPPORTED_SERVICE_ACTOR_SCOPES,
 )
 from agent_governance_api.database import Base
 from agent_governance_api.metadata_safety import (
@@ -139,6 +143,51 @@ def validate_service_actor_key_id(value: str) -> str:
     if normalized_value.startswith(SERVICE_ACTOR_API_KEY_HASH_PREFIX):
         raise ValueError("Service actor API key IDs must not be key hashes.")
     return normalized_value
+
+
+def validate_service_actor_scope(value: str) -> str:
+    normalized_value = value.strip()
+    if normalized_value not in SUPPORTED_SERVICE_ACTOR_SCOPES:
+        supported_scopes = ", ".join(sorted(SUPPORTED_SERVICE_ACTOR_SCOPES))
+        raise ValueError(f"Service actor scope must be one of: {supported_scopes}.")
+    return normalized_value
+
+
+def validate_service_actor_scope_rule_values(
+    values: object,
+    *,
+    field_name: str,
+    supported_values: frozenset[str] | None = None,
+    normalize: bool = False,
+) -> list[str]:
+    if values is None:
+        return []
+    if not isinstance(values, list | tuple):
+        raise ValueError(f"{field_name} must be a list of strings.")
+
+    normalized_values: list[str] = []
+    for raw_value in values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(f"{field_name} values must be non-empty strings.")
+
+        value = raw_value.strip()
+        if normalize:
+            value = value.lower()
+
+        if (
+            supported_values is not None
+            and value != SERVICE_ACTOR_FINE_GRAINED_WILDCARD
+            and value not in supported_values
+        ):
+            supported = ", ".join(sorted(supported_values))
+            raise ValueError(
+                f"{field_name} unsupported value: {value}. "
+                f"Supported values: {supported}, {SERVICE_ACTOR_FINE_GRAINED_WILDCARD}."
+            )
+
+        normalized_values.append(value)
+
+    return list(dict.fromkeys(normalized_values))
 
 
 class Agent(Base):
@@ -284,6 +333,12 @@ class ServiceActor(Base):
     api_keys: Mapped[list["ServiceActorApiKey"]] = relationship(
         back_populates="service_actor",
     )
+    scopes: Mapped[list["ServiceActorScope"]] = relationship(
+        back_populates="service_actor",
+    )
+    scope_rules: Mapped[list["ServiceActorScopeRule"]] = relationship(
+        back_populates="service_actor",
+    )
 
     @validates("actor_id")
     def validate_actor_id(self, _key: str, value: str) -> str:
@@ -363,6 +418,117 @@ class ServiceActorApiKey(Base):
     @validates("key_hash")
     def validate_key_hash(self, _key: str, value: str) -> str:
         return validate_service_actor_key_hash(value)
+
+
+class ServiceActorScope(Base):
+    __tablename__ = "service_actor_scopes"
+    __table_args__ = (
+        UniqueConstraint(
+            "service_actor_id",
+            "scope",
+            name="uq_service_actor_scopes_actor_scope",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    service_actor_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("service_actors.id"),
+        nullable=False,
+    )
+    scope: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    service_actor: Mapped[ServiceActor] = relationship(back_populates="scopes")
+
+    @validates("scope")
+    def validate_scope(self, _key: str, value: str) -> str:
+        return validate_service_actor_scope(value)
+
+
+class ServiceActorScopeRule(Base):
+    __tablename__ = "service_actor_scope_rules"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    service_actor_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("service_actors.id"),
+        nullable=False,
+    )
+    agent_ids: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    environments: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    runtime_modes: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    tool_names: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    service_actor: Mapped[ServiceActor] = relationship(back_populates="scope_rules")
+
+    @validates("agent_ids")
+    def validate_agent_ids(self, _key: str, value: object) -> list[str]:
+        return validate_service_actor_scope_rule_values(
+            value,
+            field_name="agent_ids",
+        )
+
+    @validates("environments")
+    def validate_environments(self, _key: str, value: object) -> list[str]:
+        return validate_service_actor_scope_rule_values(
+            value,
+            field_name="environments",
+            supported_values=SUPPORTED_SERVICE_ACTOR_SCOPE_ENVIRONMENTS,
+            normalize=True,
+        )
+
+    @validates("runtime_modes")
+    def validate_runtime_modes(self, _key: str, value: object) -> list[str]:
+        return validate_service_actor_scope_rule_values(
+            value,
+            field_name="runtime_modes",
+            supported_values=SUPPORTED_SERVICE_ACTOR_RUNTIME_MODES,
+            normalize=True,
+        )
+
+    @validates("tool_names")
+    def validate_tool_names(self, _key: str, value: object) -> list[str]:
+        return validate_service_actor_scope_rule_values(
+            value,
+            field_name="tool_names",
+        )
 
 
 class Policy(Base):

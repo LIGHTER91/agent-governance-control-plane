@@ -24,8 +24,9 @@ implemented. The DB-backed service actor registry is documented in
 seeding helper and exists behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by
 default. When enabled, runtime and telemetry auth can resolve active service
 actors with active or retiring non-expired registry keys; endpoint scopes and
-fine-grained rules still come from config. The backend does not implement
-persisted key rotation, RBAC, OIDC, SAML, JWTs, or a production identity system.
+fine-grained rules still come from config even though DB persistence for those
+records now exists. The backend does not implement persisted key rotation, RBAC,
+OIDC, SAML, JWTs, or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -378,10 +379,12 @@ integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Implement API key rotation lifecycle states, grace periods, and safe audit
+1. Wire persisted service actor scopes and fine-grained rules into auth behind
+   the registry flag.
+2. Implement API key rotation lifecycle states, grace periods, and safe audit
    events from `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
-2. Add audit visibility for service actor usage.
-3. Add documentation for integration owners on request IDs, service actors, and
+3. Add audit visibility for service actor usage.
+4. Add documentation for integration owners on request IDs, service actors, and
    safe metadata.
 
 ## Open Questions

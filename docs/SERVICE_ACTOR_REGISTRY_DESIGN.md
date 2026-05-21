@@ -106,8 +106,11 @@ Status rules:
 
 ## Registry Tables
 
-The first persistence foundation implements `service_actors` and
-`service_actor_api_keys`. Scope and fine-grained rule tables remain future work.
+The persistence foundation implements `service_actors`,
+`service_actor_api_keys`, `service_actor_scopes`, and
+`service_actor_scope_rules`. Runtime and telemetry auth still read
+endpoint/action scopes and fine-grained rules from config until the persisted
+scope path is explicitly wired.
 
 ### `service_actors`
 
@@ -161,9 +164,9 @@ should not appear in AuditLog metadata or Evidence Bundles.
 
 ### `service_actor_scopes`
 
-Not implemented yet.
+Implemented as a persistence foundation. Auth does not read these rows yet.
 
-Suggested fields:
+Fields:
 
 | Field | Purpose |
 | --- | --- |
@@ -171,8 +174,8 @@ Suggested fields:
 | `service_actor_id` | FK to `service_actors.id`. |
 | `scope` | Endpoint/action scope string. |
 | `created_at` | Creation timestamp. |
-| `created_by_actor_type` | Actor type that granted the scope. |
-| `created_by_actor_id` | Actor ID that granted the scope. |
+| `created_by_actor_type` | Future actor type that granted the scope. Not implemented yet. |
+| `created_by_actor_id` | Future actor ID that granted the scope. Not implemented yet. |
 
 Initial scope values should match the existing config model:
 
@@ -191,21 +194,22 @@ scopes by default.
 
 ### `service_actor_scope_rules`
 
-Not implemented yet.
+Implemented as a persistence foundation. Auth does not read these rows yet.
 
-Suggested fields:
+Fields:
 
 | Field | Purpose |
 | --- | --- |
 | `id` | Internal UUID primary key. |
 | `service_actor_id` | FK to `service_actors.id`. |
-| `agent_id` | Optional allowed Agent ID. |
-| `environment` | Optional allowed environment. |
-| `runtime_mode` | Optional allowed runtime mode. |
-| `tool_name` | Optional allowed tool name. |
+| `agent_ids` | JSON list of allowed Agent IDs or `*`. |
+| `environments` | JSON list of allowed environments or `*`. |
+| `runtime_modes` | JSON list of allowed runtime modes or `*`. |
+| `tool_names` | JSON list of allowed tool names or `*`. |
 | `created_at` | Creation timestamp. |
-| `created_by_actor_type` | Actor type that created the rule. |
-| `created_by_actor_id` | Actor ID that created the rule. |
+| `updated_at` | Last rule metadata update timestamp. |
+| `created_by_actor_type` | Future actor type that created the rule. Not implemented yet. |
+| `created_by_actor_id` | Future actor ID that created the rule. Not implemented yet. |
 
 This mirrors the current `AGCP_SERVICE_ACTOR_SCOPE_RULES` behavior without
 inventing a broader authorization engine.
@@ -345,7 +349,8 @@ Suggested migration path:
 
 1. Keep current config-based auth unchanged. Implemented.
 2. Add database tables and internal registry services behind tests. Implemented
-   for service actors and API key records.
+   for service actors, API key records, endpoint/action scopes, and
+   fine-grained scope rules.
 3. Add a registry read path behind an explicit feature flag such as
    `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED`. Implemented for service actor API key
    authentication on runtime and telemetry integration endpoints.
@@ -356,15 +361,15 @@ Suggested migration path:
 5. Validate parity in staging by comparing accepted/rejected service actor
    behavior.
 6. Enable registry-backed auth in production-like environments.
-7. Move scopes and fine-grained rules into persisted registry tables after real
-   admin auth exists.
+7. Wire auth to read persisted scopes and fine-grained rules after parity tests
+   and rollout behavior are defined.
 
 The import process must not require raw keys from existing deployments. The
 current helper reads only `AGCP_SERVICE_ACTOR_API_KEYS` entries that already use
 `sha256:<digest>`, creates missing `service_actors` and
 `service_actor_api_keys` rows, and never prints or persists raw API keys.
 
-Because persisted scope and rule tables do not exist yet,
+Because persisted scope and rule tables are not wired into auth yet,
 `AGCP_SERVICE_ACTOR_SCOPES` and `AGCP_SERVICE_ACTOR_SCOPE_RULES` must remain
 configured after registry seeding. Registry-backed auth validates the service
 actor and key lifecycle; the existing config continues to define endpoint/action
@@ -388,17 +393,19 @@ Manual seeding workflow:
 Recommended phases:
 
 1. Design and document the registry. Completed.
-2. Add persistence models and migrations. Completed for service actors and API
-   key records.
+2. Add persistence models and migrations. Completed for service actors, API key
+   records, endpoint/action scopes, and fine-grained scope rules.
 3. Add internal lookup services with no public CRUD endpoints. Completed for
    lookup by actor ID, key ID, and key hash behind the disabled feature flag.
 4. Add authentication lookup using the registry behind a feature flag.
    Completed for runtime and telemetry integration endpoints.
-5. Add audit events for actor, scope, rule, and key lifecycle changes.
-6. Add migration/import tooling for existing config-based service actors.
+5. Wire persisted endpoint/action scopes and fine-grained rules into auth behind
+   the registry flag.
+6. Add audit events for actor, scope, rule, and key lifecycle changes.
+7. Add migration/import tooling for existing config-based service actors.
    Completed for local/manual seeding of hashed API key config.
-7. Add admin endpoints only after real user auth and admin RBAC exist.
-8. Consider frontend UI only after admin endpoints and user auth exist.
+8. Add admin endpoints only after real user auth and admin RBAC exist.
+9. Consider frontend UI only after admin endpoints and user auth exist.
 
 This keeps the registry inside the modular monolith and avoids adding a new
 service boundary.

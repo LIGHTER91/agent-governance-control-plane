@@ -28,11 +28,12 @@ telemetry endpoints, including endpoint/action scopes and
 actor rules now cover Agent ID, environment, runtime mode, and tool-name
 restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. The DB-backed service
 actor registry can authenticate active service actors with active or retiring
-non-expired keys behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, but this is
-not production-grade auth: config auth remains the default, scopes are still
-config/env-based, there is no persisted API key rotation implementation, no
-owner-based service actor restrictions, no OIDC/SAML/JWT, and no team membership
-resolver.
+non-expired keys behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, and DB
+persistence exists for endpoint/action scopes and fine-grained rules. This is
+not production-grade auth: config auth remains the default, scope/rule auth is
+still config/env-based, there is no persisted API key rotation implementation,
+no owner-based service actor restrictions, no OIDC/SAML/JWT, and no team
+membership resolver.
 Minimal HumanApproval review RBAC and Evidence Bundle export RBAC exist,
 including direct user owner Evidence Bundle export, but they are local role
 checks, not full enterprise authorization. Evidence Bundle successful exports
@@ -81,17 +82,21 @@ Recommended order:
     export.
 13. Add owner-based service actor scopes design.
 14. Add safe denied-scope audit events.
-15. Implement service actor API key rotation and admin workflows after registry
+15. Wire persisted service actor scopes and fine-grained rules into auth behind
+    the registry flag.
+16. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-16. Add tests for overriding the Actor dependency with a non-development actor.
-17. Add deeper separation-of-duties checks for HumanApproval review.
-18. Add broad filtering and pagination for Runtime and Agent activity only
+17. Add tests for overriding the Actor dependency with a non-development actor.
+18. Add deeper separation-of-duties checks for HumanApproval review.
+19. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add safe denied-scope audit events.
+- [ ] Wire persisted service actor scopes and fine-grained rules into auth
+      behind the registry flag.
 - [ ] Implement service actor API key rotation and admin workflows after
       registry management behavior is designed.
 - [ ] Add tests for overriding the Actor dependency with a non-development
@@ -133,6 +138,10 @@ credentials.
 
 - [ ] Wire DB-backed service actor registry lookup into integration auth behind
       `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Add DB-backed service actor scope and fine-grained rule persistence.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

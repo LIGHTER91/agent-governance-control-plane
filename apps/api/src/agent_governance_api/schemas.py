@@ -311,3 +311,25 @@ class ServiceActorApiKeyRead(BaseModel):
     revoked_at: datetime | None = None
     last_used_at: datetime | None = None
     last_used_endpoint: str | None = None
+
+
+class ServiceActorScopeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    service_actor_id: UUID
+    scope: str
+    created_at: datetime
+
+
+class ServiceActorScopeRuleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    service_actor_id: UUID
+    agent_ids: list[str]
+    environments: list[str]
+    runtime_modes: list[str]
+    tool_names: list[str]
+    created_at: datetime
+    updated_at: datetime

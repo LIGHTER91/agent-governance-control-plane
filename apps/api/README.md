@@ -113,6 +113,9 @@ Service actor API keys:
   actor API keys are resolved from the DB-backed registry and only active
   service actors with active or retiring non-expired keys can authenticate.
   Endpoint/action scopes and fine-grained rules still come from config.
+- DB-backed `service_actor_scopes` and `service_actor_scope_rules` tables exist
+  as a persistence foundation, but runtime and telemetry auth does not read
+  them yet.
 - This is not production-ready authentication. There are no public registry CRUD
   APIs, key rotation endpoints, OIDC/SAML/JWT, or human RBAC yet.
 
@@ -130,8 +133,8 @@ The seeding helper imports only `service:<stable-id>=sha256:<digest>` entries
 from `AGCP_SERVICE_ACTOR_API_KEYS`. Raw API keys must never be committed, logged,
 or passed to the helper. Existing `AGCP_SERVICE_ACTOR_SCOPES` and
 `AGCP_SERVICE_ACTOR_SCOPE_RULES` values must remain configured because
-endpoint/action scopes and fine-grained rules are not persisted in registry
-tables yet.
+endpoint/action scopes and fine-grained rules are not wired into auth from the
+registry tables yet.
 
 Suggested rollout:
 

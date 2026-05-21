@@ -117,6 +117,9 @@ integrations are intentionally not implemented yet.
   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default; when enabled, active
   service actors can authenticate with active or retiring non-expired registry
   keys while scopes remain config-based.
+- DB-backed service actor endpoint/action scope and fine-grained rule
+  persistence foundation. Auth still uses config-based scopes and rules until
+  explicitly wired.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
