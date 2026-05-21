@@ -80,6 +80,8 @@ Telemetry:
 
 Runtime Gateway:
 
+- `GET /runtime/tool-calls/activity` returns read-only Runtime Gateway tool-call activity sorted newest first from persisted trace, policy decision, and human approval links.
+- Older or shared `tool_call_requested` records without a persisted runtime mode return `mode = null`.
 - `POST /runtime/tool-calls/decision` accepts governed tool-call decision requests.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
@@ -101,6 +103,7 @@ Service actor API keys:
 - `POST /telemetry/events` requires `telemetry:write` for service actors.
 - `POST /runtime/tool-calls/decision` requires `runtime:decision` for service actors.
 - `POST /runtime/tool-calls/resume` requires `runtime:resume` for service actors.
+- `GET /runtime/tool-calls/activity` is a human-facing read endpoint for reviewer, auditor, or platform admin actors; service actors cannot read it by default.
 - Missing API keys keep the local `development/dev-placeholder` fallback by default.
 - Set `AGCP_REQUIRE_SERVICE_AUTH=true` to reject missing API keys on runtime and telemetry integration endpoints.
 - In strict service-auth mode, service actors also need a matching fine-grained rule before telemetry or runtime records are created.

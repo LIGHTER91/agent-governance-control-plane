@@ -154,8 +154,16 @@ Telemetry:
 
 Runtime Gateway:
 
+- `GET /runtime/tool-calls/activity`
 - `POST /runtime/tool-calls/decision`
 - `POST /runtime/tool-calls/resume`
+
+Runtime activity returns a read-only tool-call activity list sorted newest first.
+It is built from persisted Runtime Gateway trace events, linked policy decisions,
+and linked human approvals. Fields that are not persisted for a record are
+returned as `null` instead of being inferred from fake data.
+Older or shared `tool_call_requested` records without a persisted runtime mode
+therefore return `mode = null`.
 
 Human Approvals:
 

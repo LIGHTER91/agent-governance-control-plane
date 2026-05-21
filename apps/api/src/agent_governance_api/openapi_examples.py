@@ -15,6 +15,7 @@ UPDATED_AT = "2026-01-15T12:00:00Z"
 TRACE_EVENT_TIMESTAMP = "2026-01-15T12:05:00Z"
 POLICY_DECISION_CREATED_AT = "2026-01-15T12:05:01Z"
 HUMAN_APPROVAL_CREATED_AT = "2026-01-15T12:05:02Z"
+RUNTIME_RESUME_TRACE_EVENT_TIMESTAMP = "2026-01-15T12:20:01Z"
 RUNTIME_REQUEST_ID = "runtime-request-001"
 RUNTIME_RESUME_ID = "runtime-request-001:resume:001"
 
@@ -363,6 +364,54 @@ RUNTIME_TOOL_CALL_RESUME_CONTEXT_MISMATCH_RESPONSE = {
     "detail": "Tool name does not match the original trace event.",
 }
 
+RUNTIME_TOOL_CALL_ACTIVITY_RESPONSE = [
+    {
+        "id": RUNTIME_RESUME_TRACE_EVENT_ID,
+        "type": "tool_call_resume",
+        "agent_id": AGENT_ID,
+        "run_id": RUN_ID,
+        "request_id": RUNTIME_RESUME_ID,
+        "timestamp": RUNTIME_RESUME_TRACE_EVENT_TIMESTAMP,
+        "tool_name": "send_email",
+        "mode": None,
+        "decision": "allow",
+        "proceed": True,
+        "reason": "Human approval is approved and the resume context matches.",
+        "trace_event_id": RUNTIME_RESUME_TRACE_EVENT_ID,
+        "policy_decision_id": POLICY_DECISION_ID,
+        "human_approval_id": HUMAN_APPROVAL_ID,
+        "related_ids": {
+            "trace_event_id": RUNTIME_RESUME_TRACE_EVENT_ID,
+            "policy_decision_id": POLICY_DECISION_ID,
+            "human_approval_id": HUMAN_APPROVAL_ID,
+            "run_id": RUN_ID,
+            "original_request_id": RUNTIME_REQUEST_ID,
+        },
+    },
+    {
+        "id": TRACE_EVENT_ID,
+        "type": "tool_call_decision",
+        "agent_id": AGENT_ID,
+        "run_id": RUN_ID,
+        "request_id": RUNTIME_REQUEST_ID,
+        "timestamp": TRACE_EVENT_TIMESTAMP,
+        "tool_name": "send_email",
+        "mode": "simulation",
+        "decision": "require_human_review",
+        "proceed": False,
+        "reason": "Email tool use requires human review.",
+        "trace_event_id": TRACE_EVENT_ID,
+        "policy_decision_id": POLICY_DECISION_ID,
+        "human_approval_id": HUMAN_APPROVAL_ID,
+        "related_ids": {
+            "trace_event_id": TRACE_EVENT_ID,
+            "policy_decision_id": POLICY_DECISION_ID,
+            "human_approval_id": HUMAN_APPROVAL_ID,
+            "run_id": RUN_ID,
+        },
+    },
+]
+
 EVIDENCE_BUNDLE_RESPONSE = {
     "agent": AGENT_RESPONSE,
     "audit_logs": [
@@ -674,6 +723,12 @@ RUNTIME_TOOL_CALL_RESUME_OPENAPI = {
         },
     },
 }
+
+RUNTIME_TOOL_CALL_ACTIVITY_OPENAPI = _response_example(
+    200,
+    "List Runtime Gateway tool-call activity, newest first.",
+    RUNTIME_TOOL_CALL_ACTIVITY_RESPONSE,
+)
 
 EVIDENCE_BUNDLE_OPENAPI = _response_example(
     200,

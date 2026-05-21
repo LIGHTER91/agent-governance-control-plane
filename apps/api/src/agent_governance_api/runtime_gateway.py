@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import Self
 from uuid import UUID
@@ -15,6 +16,11 @@ class RuntimeDecisionMode(StrEnum):
     TELEMETRY = "telemetry"
     SIMULATION = "simulation"
     ENFORCEMENT = "enforcement"
+
+
+class RuntimeToolCallActivityType(StrEnum):
+    TOOL_CALL_DECISION = "tool_call_decision"
+    TOOL_CALL_RESUME = "tool_call_resume"
 
 
 class RuntimeToolCallDecisionRequest(BaseModel):
@@ -151,6 +157,33 @@ class RuntimeToolCallResumeResponse(BaseModel):
             )
 
         return self
+
+
+class RuntimeToolCallActivityItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    type: RuntimeToolCallActivityType
+    agent_id: UUID
+    run_id: UUID
+    request_id: str | None = None
+    timestamp: datetime
+    tool_name: str | None = None
+    mode: RuntimeDecisionMode | None = None
+    decision: PolicyDecisionValue | None = None
+    proceed: bool | None = None
+    reason: str | None = None
+    trace_event_id: UUID
+    policy_decision_id: UUID | None = None
+    human_approval_id: UUID | None = None
+    related_ids: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("request_id", "tool_name", "reason")
+    @classmethod
+    def require_optional_non_empty_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _require_non_empty_text(value)
 
 
 def _require_non_empty_text(value: str) -> str:

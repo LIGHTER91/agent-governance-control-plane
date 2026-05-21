@@ -8,16 +8,22 @@ from sqlalchemy.orm import Session
 
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import (
+    ROLE_AUDITOR,
+    ROLE_PLATFORM_ADMIN,
+    ROLE_REVIEWER,
     SCOPE_RUNTIME_DECISION,
     SCOPE_RUNTIME_RESUME,
     ActorContext,
+    get_current_actor,
     get_current_integration_actor,
+    require_role,
     require_scope,
     require_service_actor_fine_grained_scope,
 )
 from agent_governance_api.config import RuntimeFailureDefault, Settings, get_settings
 from agent_governance_api.database import get_db_session
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentRunRecord,
     HumanApproval,
@@ -28,6 +34,7 @@ from agent_governance_api.models import (
     TraceEventType,
 )
 from agent_governance_api.openapi_examples import (
+    RUNTIME_TOOL_CALL_ACTIVITY_OPENAPI,
     RUNTIME_TOOL_CALL_DECISION_OPENAPI,
     RUNTIME_TOOL_CALL_RESUME_OPENAPI,
 )
@@ -40,8 +47,10 @@ from agent_governance_api.policy_rule_adapter import (
     UnsupportedPolicyRuleConditionError,
     load_active_policy_evaluation_rules,
 )
+from agent_governance_api.runtime_activity import build_runtime_tool_call_activity
 from agent_governance_api.runtime_gateway import (
     RuntimeDecisionMode,
+    RuntimeToolCallActivityItem,
     RuntimeToolCallDecisionRequest,
     RuntimeToolCallDecisionResponse,
     RuntimeToolCallResumeRequest,
@@ -59,6 +68,21 @@ POLICY_EVALUATION_FAILURE_ERRORS = (
     TypeError,
     ValueError,
 )
+
+
+@router.get(
+    "/tool-calls/activity",
+    response_model=list[RuntimeToolCallActivityItem],
+    openapi_extra=RUNTIME_TOOL_CALL_ACTIVITY_OPENAPI,
+)
+def list_runtime_tool_call_activity(
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> list[RuntimeToolCallActivityItem]:
+    """Return Runtime Gateway tool-call activity sorted newest first."""
+
+    _require_runtime_activity_reader(actor)
+    return build_runtime_tool_call_activity(session)
 
 
 @router.post(
@@ -834,6 +858,16 @@ def _trace_event_metadata(
     payload: RuntimeToolCallDecisionRequest,
 ) -> dict[str, str | int | float | bool | None]:
     return {**payload.metadata, "tool_name": payload.tool_name}
+
+
+def _require_runtime_activity_reader(actor: ActorContext) -> None:
+    if actor.actor_type is ActorType.SERVICE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Service actors cannot view Runtime activity.",
+        )
+
+    require_role(actor, (ROLE_REVIEWER, ROLE_AUDITOR, ROLE_PLATFORM_ADMIN))
 
 
 def _policy_context_hash(

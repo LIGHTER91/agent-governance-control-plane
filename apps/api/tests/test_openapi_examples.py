@@ -25,6 +25,7 @@ def api_client() -> Iterator[TestClient]:
         ("/agents/{agent_id}", "patch", "200", True),
         ("/telemetry/events", "post", "201", True),
         ("/agents/{agent_id}/evidence-bundle", "get", "200", False),
+        ("/runtime/tool-calls/activity", "get", "200", False),
         ("/human-approvals", "post", "201", True),
         ("/human-approvals/{approval_id}/approve", "post", "200", True),
         ("/human-approvals/{approval_id}/reject", "post", "200", True),
@@ -209,6 +210,29 @@ def test_runtime_gateway_resume_openapi_examples_cover_approval_statuses(
         conflict_examples["contextMismatch"]["value"]["detail"]
         == "Tool name does not match the original trace event."
     )
+
+
+def test_runtime_gateway_activity_openapi_example_is_newest_first(
+    api_client: TestClient,
+) -> None:
+    operation = api_client.get("/openapi.json").json()["paths"][
+        "/runtime/tool-calls/activity"
+    ]["get"]
+
+    activity = _response_example_value(operation, "200")
+
+    assert [item["type"] for item in activity] == [
+        "tool_call_resume",
+        "tool_call_decision",
+    ]
+    assert [item["timestamp"] for item in activity] == sorted(
+        [item["timestamp"] for item in activity],
+        reverse=True,
+    )
+    resume_item = activity[0]
+    assert resume_item["request_id"] == "runtime-request-001:resume:001"
+    assert resume_item.get("mode") is None
+    assert resume_item["related_ids"]["original_request_id"] == "runtime-request-001"
 
 
 def test_openapi_examples_do_not_include_sensitive_payloads(
