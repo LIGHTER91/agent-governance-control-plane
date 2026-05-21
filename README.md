@@ -277,8 +277,9 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
-- DB-backed service actor registry auth integration, admin workflows, or public
-  registry APIs.
+- DB-backed service actor registry auth is available behind a disabled feature
+  flag, with a manual hashed-config seeding helper. Admin workflows and public
+  registry APIs are not complete.
 - API key rotation implementation and persistent API key management.
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
@@ -313,12 +314,10 @@ Near-term recommended work:
    export.
 8. Add owner-based service actor scopes design.
 9. Add safe audit events for denied service actor scope checks.
-10. Add registry import or manual seeding guidance for config-based service
-    actors.
-11. Implement service actor API key rotation and admin workflows after registry
+10. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-12. Add deeper separation-of-duties checks for HumanApproval review.
-13. Add broad filtering and pagination for Runtime and Agent activity only
+11. Add deeper separation-of-duties checks for HumanApproval review.
+12. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

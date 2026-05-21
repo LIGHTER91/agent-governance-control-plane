@@ -81,21 +81,17 @@ Recommended order:
     export.
 13. Add owner-based service actor scopes design.
 14. Add safe denied-scope audit events.
-15. Add registry import or manual seeding guidance for existing config-based
-    service actors.
-16. Implement service actor API key rotation and admin workflows after registry
+15. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-17. Add tests for overriding the Actor dependency with a non-development actor.
-18. Add deeper separation-of-duties checks for HumanApproval review.
-19. Add broad filtering and pagination for Runtime and Agent activity only
+16. Add tests for overriding the Actor dependency with a non-development actor.
+17. Add deeper separation-of-duties checks for HumanApproval review.
+18. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add safe denied-scope audit events.
-- [ ] Add registry import or manual seeding guidance for existing config-based
-      service actors.
 - [ ] Implement service actor API key rotation and admin workflows after
       registry management behavior is designed.
 - [ ] Add tests for overriding the Actor dependency with a non-development
@@ -127,11 +123,7 @@ Recommended order:
 
 ## In Progress
 
-- [ ] Wire DB-backed service actor registry lookup into integration auth behind
-      `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
-      Implementation complete; validation pending only for online
-      `uv run alembic upgrade head` against a reachable local PostgreSQL
-      instance.
+Empty.
 
 ## Implementation Complete, Validation Pending
 
@@ -139,7 +131,11 @@ Use this section when implementation is complete but tests/checks cannot run
 because the local environment is missing required tooling, services, or
 credentials.
 
-Empty.
+- [ ] Wire DB-backed service actor registry lookup into integration auth behind
+      `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
 
 ## Done
 
@@ -218,6 +214,8 @@ Empty.
 - [x] Add DB-backed service actor registry design.
 - [x] Add DB-backed service actor and API key registry persistence foundation
       behind a disabled feature flag.
+- [x] Add registry import or manual seeding guidance for existing config-based
+      service actors.
 - [x] Add HumanApproval RBAC design.
 - [x] Implement minimal RBAC checks for HumanApproval approve/reject/cancel.
 - [x] Add Evidence Bundle RBAC design.

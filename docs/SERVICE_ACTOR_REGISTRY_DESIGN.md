@@ -350,17 +350,38 @@ Suggested migration path:
    `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED`. Implemented for service actor API key
    authentication on runtime and telemetry integration endpoints.
 4. Provide a one-way import tool or documented manual process that converts
-   existing safe config entries into service actor records, scopes, scope
-   rules, and hashed key rows.
+   existing safe config entries into service actor records and hashed key rows.
+   Implemented as the internal `scripts/seed_service_actor_registry.py` helper
+   for hashed API key config only.
 5. Validate parity in staging by comparing accepted/rejected service actor
    behavior.
 6. Enable registry-backed auth in production-like environments.
 7. Move scopes and fine-grained rules into persisted registry tables after real
    admin auth exists.
 
-The import process must not require raw keys from existing deployments. If only
-hashes exist, imported keys should preserve hashes and be marked with the hash
-algorithm used by config.
+The import process must not require raw keys from existing deployments. The
+current helper reads only `AGCP_SERVICE_ACTOR_API_KEYS` entries that already use
+`sha256:<digest>`, creates missing `service_actors` and
+`service_actor_api_keys` rows, and never prints or persists raw API keys.
+
+Because persisted scope and rule tables do not exist yet,
+`AGCP_SERVICE_ACTOR_SCOPES` and `AGCP_SERVICE_ACTOR_SCOPE_RULES` must remain
+configured after registry seeding. Registry-backed auth validates the service
+actor and key lifecycle; the existing config continues to define endpoint/action
+scopes and fine-grained rules.
+
+Manual seeding workflow:
+
+1. Keep `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
+2. Ensure migrations have been applied.
+3. Keep only hashed entries in `AGCP_SERVICE_ACTOR_API_KEYS`.
+4. Run `uv run python scripts/seed_service_actor_registry.py` from `apps/api`
+   to preview created actor/key IDs.
+5. Run `uv run python scripts/seed_service_actor_registry.py --apply` from
+   `apps/api` to create missing registry records.
+6. Validate one test service actor in a controlled environment with
+   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
+7. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
 
 ## Rollout Strategy
 
@@ -375,6 +396,7 @@ Recommended phases:
    Completed for runtime and telemetry integration endpoints.
 5. Add audit events for actor, scope, rule, and key lifecycle changes.
 6. Add migration/import tooling for existing config-based service actors.
+   Completed for local/manual seeding of hashed API key config.
 7. Add admin endpoints only after real user auth and admin RBAC exist.
 8. Consider frontend UI only after admin endpoints and user auth exist.
 

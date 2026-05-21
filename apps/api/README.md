@@ -116,6 +116,31 @@ Service actor API keys:
 - This is not production-ready authentication. There are no public registry CRUD
   APIs, key rotation endpoints, OIDC/SAML/JWT, or human RBAC yet.
 
+Manual registry seeding from hashed config:
+
+```powershell
+# Dry run. Reads AGCP_SERVICE_ACTOR_API_KEYS and writes nothing.
+uv run python scripts/seed_service_actor_registry.py
+
+# Apply. Creates missing service_actors and service_actor_api_keys records.
+uv run python scripts/seed_service_actor_registry.py --apply
+```
+
+The seeding helper imports only `service:<stable-id>=sha256:<digest>` entries
+from `AGCP_SERVICE_ACTOR_API_KEYS`. Raw API keys must never be committed, logged,
+or passed to the helper. Existing `AGCP_SERVICE_ACTOR_SCOPES` and
+`AGCP_SERVICE_ACTOR_SCOPE_RULES` values must remain configured because
+endpoint/action scopes and fine-grained rules are not persisted in registry
+tables yet.
+
+Suggested rollout:
+
+1. Keep `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
+2. Run migrations and seed the registry from hashed config.
+3. Dry-run, then apply the seed helper in a controlled environment.
+4. Test one service actor with the registry flag enabled.
+5. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
+
 ## Database migrations
 
 Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`.

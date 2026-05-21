@@ -233,8 +233,6 @@ Recommended next work:
   export.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
-- Add registry import or manual seeding guidance for config-based service
-  actors.
 - Implement service actor API key rotation and admin workflows after registry
   management behavior is designed.
 - Add tests for overriding the Actor dependency with a non-development actor.
@@ -325,7 +323,7 @@ Planned capabilities:
 
 The current backend is strong enough for local demos, deterministic backend
 tests, and governance-flow validation. It is not ready for production
-enforcement because service auth and fine-grained scopes are still config-based,
-HumanApproval and Evidence Bundle RBAC are minimal, user authentication does not
-exist, the service actor registry and API key rotation are design-only, and
-deployment, observability, and operational controls are still missing.
+enforcement because config-based auth remains the default, fine-grained scopes
+are still config-based, HumanApproval and Evidence Bundle RBAC are minimal, user
+authentication does not exist, API key rotation is design-only, and deployment,
+observability, and operational controls are still missing.

@@ -428,8 +428,7 @@ authorization config.
 3. Add HumanApproval read/review service scope design if a real integration
    needs it.
 4. Add safe denied-scope audit event design before enabling denial auditing.
-5. Add registry import or manual seeding guidance, then implement API key
-   rotation after config-based restrictions are proven.
+5. Implement API key rotation after config-based restrictions are proven.
 
 ## Open Questions
 

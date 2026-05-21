@@ -19,13 +19,13 @@ The current implementation supports `X-AGCP-API-Key`,
 mode, and tool-name restrictions. `AGCP_REQUIRE_SERVICE_AUTH` can reject missing
 service keys on runtime and telemetry integration endpoints. API key rotation is
 documented in `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`, but not
-implemented. The future DB-backed service actor registry is documented in
-`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; its first persistence foundation exists
-behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default. When enabled,
-runtime and telemetry auth can resolve active service actors with active or
-retiring non-expired registry keys; endpoint scopes and fine-grained rules still
-come from config. The backend does not implement persisted key rotation, RBAC,
-OIDC, SAML, JWTs, or a production identity system.
+implemented. The DB-backed service actor registry is documented in
+`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; it includes a manual hashed-config
+seeding helper and exists behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by
+default. When enabled, runtime and telemetry auth can resolve active service
+actors with active or retiring non-expired registry keys; endpoint scopes and
+fine-grained rules still come from config. The backend does not implement
+persisted key rotation, RBAC, OIDC, SAML, JWTs, or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -378,12 +378,10 @@ integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Add registry import or manual seeding guidance for existing config-based
-   service actors.
-2. Implement API key rotation lifecycle states, grace periods, and safe audit
+1. Implement API key rotation lifecycle states, grace periods, and safe audit
    events from `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
-3. Add audit visibility for service actor usage.
-4. Add documentation for integration owners on request IDs, service actors, and
+2. Add audit visibility for service actor usage.
+3. Add documentation for integration owners on request IDs, service actors, and
    safe metadata.
 
 ## Open Questions

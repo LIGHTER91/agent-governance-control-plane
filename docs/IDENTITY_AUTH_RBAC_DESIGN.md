@@ -496,11 +496,9 @@ surface, while still moving away from the development placeholder early enough.
 4. Add production deployment guidance for requiring service auth on runtime and
    telemetry endpoints.
 5. Add audit-read event design.
-6. Add registry import or manual seeding guidance for existing config-based
-   service actors.
-7. Design OIDC user mapping to `user:<external-id>` and role claims.
-8. Design team membership resolution for Agent ownership checks.
-9. Add deeper separation-of-duties checks for HumanApproval review.
+6. Design OIDC user mapping to `user:<external-id>` and role claims.
+7. Design team membership resolution for Agent ownership checks.
+8. Add deeper separation-of-duties checks for HumanApproval review.
 
 ## Open Questions
 
