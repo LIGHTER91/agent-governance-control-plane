@@ -28,14 +28,14 @@ telemetry endpoints, including endpoint/action scopes and
 actor rules now cover Agent ID, environment, runtime mode, and tool-name
 restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. This is not
 production-grade auth: scopes are still config/env-based, there is no DB-backed
-key registry, no API key rotation, no owner-based service actor restrictions, no
-OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
-RBAC and Evidence Bundle export RBAC exist, including direct user owner Evidence
-Bundle export, but they are local role checks, not full enterprise
-authorization. Evidence Bundle successful exports and denied attempts against
-known Agents are audited with safe metadata. The frontend has a minimal
-dashboard shell, a read-only Agent list page backed by `GET /agents`, a
-read-only Agent detail page backed by `GET /agents/{agent_id}`,
+key registry, no persisted API key rotation implementation, no owner-based
+service actor restrictions, no OIDC/SAML/JWT, and no team membership resolver.
+Minimal HumanApproval review RBAC and Evidence Bundle export RBAC exist,
+including direct user owner Evidence Bundle export, but they are local role
+checks, not full enterprise authorization. Evidence Bundle successful exports
+and denied attempts against known Agents are audited with safe metadata. The
+frontend has a minimal dashboard shell, a read-only Agent list page backed by
+`GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
 `GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
 and Runtime activity pages, a Human Approvals page with pending review actions,
@@ -52,6 +52,8 @@ References:
 - `docs/LANGGRAPH_INTEGRATION_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
+- `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
+- `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`
 - `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
 - `docs/SERVICE_ACTOR_FINE_GRAINED_SCOPES_DESIGN.md`
 - `docs/HUMAN_APPROVAL_RBAC_DESIGN.md`
@@ -74,10 +76,10 @@ Recommended order:
 11. Add OpenAPI examples for `GET /human-approvals` if missing.
 12. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-13. Add API key rotation design.
-14. Add owner-based service actor scopes design.
-15. Add safe denied-scope audit events.
-16. Add DB-backed service actor registry design.
+13. Add owner-based service actor scopes design.
+14. Add safe denied-scope audit events.
+15. Implement DB-backed service actor registry and API key storage.
+16. Implement service actor API key rotation after a DB-backed registry exists.
 17. Add tests for overriding the Actor dependency with a non-development actor.
 18. Add deeper separation-of-duties checks for HumanApproval review.
 19. Add broad filtering and pagination for Runtime and Agent activity only
@@ -87,8 +89,9 @@ Recommended order:
 
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add safe denied-scope audit events.
-- [ ] Add API key rotation design.
-- [ ] Add DB-backed service actor registry design.
+- [ ] Implement DB-backed service actor registry and API key storage.
+- [ ] Implement service actor API key rotation after a DB-backed registry
+      exists.
 - [ ] Add tests for overriding the Actor dependency with a non-development
       actor.
 - [ ] Design team and organization-unit ownership resolution for Evidence
@@ -201,6 +204,8 @@ Empty.
 - [x] Add service actor fine-grained scopes design.
 - [x] Implement config-based fine-grained service actor scopes for Agent ID,
       environment, runtime mode, and tool-name restrictions.
+- [x] Add service actor API key rotation design.
+- [x] Add DB-backed service actor registry design.
 - [x] Add HumanApproval RBAC design.
 - [x] Implement minimal RBAC checks for HumanApproval approve/reject/cancel.
 - [x] Add Evidence Bundle RBAC design.

@@ -161,8 +161,8 @@ Important limitations:
   implemented for runtime and telemetry endpoints.
 - Config-based fine-grained service actor scope rules are implemented for Agent
   ID, environment, runtime mode, and tool-name restrictions.
-- Owner-based service actor restrictions, user login, OIDC/SAML, API key
-  rotation, DB-backed service actor records, and broad user RBAC are not
+- Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
+  key rotation, DB-backed service actor records, and broad user RBAC are not
   implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
@@ -195,6 +195,8 @@ Completed foundation:
 - Config-based fine-grained service actor scope rules with
   `AGCP_SERVICE_ACTOR_SCOPE_RULES` for Agent ID, environment, runtime mode, and
   tool-name restrictions.
+- Service actor API key rotation design.
+- DB-backed service actor registry design.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
@@ -227,10 +229,10 @@ Recommended next work:
 - Add OpenAPI examples for `GET /human-approvals` if missing.
 - Design team and organization-unit ownership resolution for Evidence Bundle
   export.
-- Add API key rotation design.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
-- Add DB-backed service actor registry design.
+- Implement DB-backed service actor registry and API key storage.
+- Implement service actor API key rotation after a DB-backed registry exists.
 - Add tests for overriding the Actor dependency with a non-development actor.
 - Add deeper separation-of-duties checks for HumanApproval review.
 
@@ -239,7 +241,7 @@ Important limitations:
 - Auth is still minimal and config-based.
 - Fine-grained service actor scopes are still config/env-based.
 - No DB-backed service actor or API key registry exists.
-- API key rotation is not implemented.
+- API key rotation has a design only; persisted rotation is not implemented.
 - Owner-based service actor restrictions are not implemented.
 - No user login, OIDC, SAML, JWT auth, users table, or roles table exists.
 - No team membership or organization-unit resolver exists.
@@ -262,6 +264,8 @@ References:
 
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
+- `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
+- `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`
 - `docs/SERVICE_ACTOR_SCOPES_DESIGN.md`
 - `docs/SERVICE_ACTOR_FINE_GRAINED_SCOPES_DESIGN.md`
 - `docs/HUMAN_APPROVAL_RBAC_DESIGN.md`
@@ -318,5 +322,5 @@ The current backend is strong enough for local demos, deterministic backend
 tests, and governance-flow validation. It is not ready for production
 enforcement because service auth and fine-grained scopes are still config-based,
 HumanApproval and Evidence Bundle RBAC are minimal, user authentication does not
-exist, API key rotation is missing, and deployment, observability, and
-operational controls are still missing.
+exist, the service actor registry and API key rotation are design-only, and
+deployment, observability, and operational controls are still missing.

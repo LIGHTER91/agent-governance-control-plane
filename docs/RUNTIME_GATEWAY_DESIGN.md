@@ -12,8 +12,8 @@ documentation/examples only. Runtime and telemetry integration endpoints can
 resolve minimal config-based service actor API keys, enforce endpoint/action
 scopes, enforce config-based Agent, environment, runtime mode, and tool-name
 restrictions, and reject missing keys when `AGCP_REQUIRE_SERVICE_AUTH=true`.
-Owner-based service actor restrictions, full RBAC, user login, and API key
-rotation are not implemented.
+Owner-based service actor restrictions, full RBAC, user login, persisted API key
+rotation, and the DB-backed service actor registry are not implemented.
 
 This document describes the implemented runtime governance foundation and the
 remaining V1 path for the Agent Governance Control Plane. It keeps the product

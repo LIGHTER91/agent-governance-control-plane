@@ -53,8 +53,9 @@ RBAC exists for HumanApproval review actions and Evidence Bundle export. The
 frontend now exposes the core read-only governance views plus pending
 HumanApproval review actions and Runtime activity.
 Full user authentication, OIDC/SAML, team membership resolution, enterprise
-auth-backed frontend workflows, notifications, production deployment, API key
-rotation, and enterprise integrations are intentionally not implemented yet.
+auth-backed frontend workflows, notifications, production deployment, persisted
+service actor registry, API key rotation implementation, and enterprise
+integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -273,7 +274,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
 - DB-backed service actor or API key registry.
-- API key rotation and persistent API key management.
+- API key rotation implementation and persistent API key management.
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
@@ -305,10 +306,10 @@ Near-term recommended work:
 6. Add OpenAPI examples for `GET /human-approvals` if missing.
 7. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-8. Add API key rotation design.
-9. Add owner-based service actor scopes design.
-10. Add safe audit events for denied service actor scope checks.
-11. Add DB-backed service actor registry design.
+8. Add owner-based service actor scopes design.
+9. Add safe audit events for denied service actor scope checks.
+10. Implement DB-backed service actor registry and API key storage.
+11. Implement service actor API key rotation after a DB-backed registry exists.
 12. Add deeper separation-of-duties checks for HumanApproval review.
 13. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.

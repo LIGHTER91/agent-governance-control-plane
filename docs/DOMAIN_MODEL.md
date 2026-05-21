@@ -278,6 +278,36 @@ Initial actor types:
 
 Before full authentication exists, audit records may use a system actor or development actor placeholder. The placeholder must still be represented with structured `actor_type` and `actor_id` fields so later authentication can replace it without changing the audit model.
 
+Service actor API keys are credentials for service actors, not actor identities.
+API key rotation must not change the stable `actor_id`; it should only change
+which key versions can authenticate that service actor.
+
+## Service Actor Registry
+
+Future persistent registry for machine integrations that call runtime and
+telemetry endpoints.
+
+Suggested service actor fields:
+
+- id;
+- actor_id;
+- display_name;
+- description;
+- status;
+- owner_type;
+- owner_id;
+- created_at;
+- updated_at.
+
+Allowed service actor statuses:
+
+- active;
+- disabled;
+- retired.
+
+The registry is design-only today. Current service actor authentication remains
+configuration-based.
+
 ## Audit Log
 
 Append-only record for governance-relevant changes.
@@ -306,7 +336,16 @@ Examples:
 - human_approval_rejected;
 - evidence_bundle_exported;
 - evidence_bundle_export_denied;
-- runtime_tool_call_resume_checked.
+- runtime_tool_call_resume_checked;
+- service_actor_key_created;
+- service_actor_key_rotated;
+- service_actor_key_revoked;
+- service_actor_key_auth_failed;
+- service_actor_created;
+- service_actor_disabled;
+- service_actor_retired;
+- service_actor_scope_granted;
+- service_actor_scope_revoked.
 
 Audit metadata must contain only safe, non-sensitive context. Do not store raw prompts, credentials, tokens, secrets, private customer data, or raw sensitive payloads in audit metadata.
 

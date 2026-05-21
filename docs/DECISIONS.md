@@ -160,3 +160,36 @@ Alternatives considered:
 - Use email as the primary owner identifier.
 - Store only a free-form owner string.
 - Add full identity tables before the Agent model.
+
+## ADR-0007 - Service actor registry as internal control-plane state
+
+Date: 2026-05-21
+
+Status: accepted
+
+Context:
+Runtime and telemetry integrations need stable service actor identities, API key
+rotation, endpoint/action scopes, and fine-grained restrictions. The current
+configuration-based service actor authentication is useful for V0, but it is
+not a production-grade source of truth.
+
+Decision:
+Design a future database-backed service actor registry inside the existing
+modular monolith. The registry will persist service actor identities, API key
+metadata, hashed key material, lifecycle state, endpoint/action scopes, and
+fine-grained rules. It will not become an identity provider, workflow engine, or
+new service boundary.
+
+Consequences:
+- Service actor identity remains stable as `actor_type = "service"` and
+  `actor_id = "service:<stable-id>"`.
+- API key rotation can change credentials without changing governance evidence
+  identity.
+- Registry mutations must append safe AuditLog events.
+- Public registry management endpoints should wait for real user auth and admin
+  RBAC.
+
+Alternatives considered:
+- Keep service actors permanently in environment variables.
+- Implement a separate identity service.
+- Add public service actor CRUD endpoints before user authentication exists.

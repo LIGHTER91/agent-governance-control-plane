@@ -15,10 +15,14 @@ actor_id = "dev-placeholder"
 The current implementation supports `X-AGCP-API-Key`,
 `AGCP_SERVICE_ACTOR_API_KEYS` with SHA-256 key hashes,
 `AGCP_SERVICE_ACTOR_SCOPES` for endpoint/action scopes, and
-`AGCP_REQUIRE_SERVICE_AUTH` to reject missing service keys on runtime and
-telemetry integration endpoints. It does not implement database tables, API key
-rotation, per-Agent scopes, per-environment scopes, RBAC, OIDC, SAML, JWTs, or
-a production identity system.
+`AGCP_SERVICE_ACTOR_SCOPE_RULES` for config-based Agent, environment, runtime
+mode, and tool-name restrictions. `AGCP_REQUIRE_SERVICE_AUTH` can reject missing
+service keys on runtime and telemetry integration endpoints. API key rotation is
+documented in `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`, but not
+implemented. The future DB-backed service actor registry is documented in
+`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`, but not implemented. The backend does
+not implement database tables, persisted key rotation, RBAC, OIDC, SAML, JWTs,
+or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
 frameworks and runtime adapters; it should not become an orchestrator, tool
@@ -127,6 +131,11 @@ Required rules:
 - key comparison should use a timing-safe comparison when implemented;
 - key rotation should support multiple active key hashes during a short
   transition window if needed.
+
+The current environment-variable configuration is not a full rotation model.
+The future rotation design should use non-secret key identifiers, persisted
+hashed key records, lifecycle states, and safe audit events as described in
+`docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
 
 The API key is authentication material. It is not governance evidence. Evidence
 should contain the resolved service actor:
@@ -348,24 +357,28 @@ Mitigations:
 4. Require service auth for runtime and telemetry endpoints when
    `AGCP_REQUIRE_SERVICE_AUTH=true`. Implemented.
 5. Add endpoint/action scope checks. Implemented.
-6. Add scope checks for Agent ID, environment, and runtime mode. Not
-   implemented.
+6. Add scope checks for Agent ID, environment, runtime mode, and tool name.
+   Implemented as config-based fine-grained scope rules.
 7. Add tests proving raw keys are not logged, persisted, returned, or exported.
    Implemented for the minimal config-based path.
-8. Add persistent hashed API key storage only when a real management workflow is
-   needed.
+8. Add API key rotation design. Implemented as design only in
+   `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
+9. Add DB-backed service actor registry design. Implemented as design only in
+   `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`.
+10. Add persistent hashed API key storage only when a real management workflow
+    is needed.
 
 This path keeps the first implementation small while still moving runtime
 integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Add Agent and environment scope restrictions for service actors.
-2. Add runtime mode scope restrictions for service actors.
-3. Add API key rotation design and implementation.
-4. Add persistent hashed API key storage when key management workflows exist.
-5. Add audit visibility for service actor usage.
-6. Add documentation for integration owners on request IDs, service actors, and
+1. Implement DB-backed service actor and API key storage from
+   `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md` when key management workflows exist.
+2. Implement API key rotation lifecycle states, grace periods, and safe audit
+   events from `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
+3. Add audit visibility for service actor usage.
+4. Add documentation for integration owners on request IDs, service actors, and
    safe metadata.
 
 ## Open Questions
