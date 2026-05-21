@@ -13,10 +13,11 @@ The current export includes Agent metadata, related AuditLogs, Agent runs, Trace
 Events, PolicyDecisions, HumanApprovals, and Policy or PolicyRule references
 when available. Metadata is filtered before export. The endpoint now enforces a
 minimal RBAC check that allows only actors with `auditor` or `platform_admin`
-roles. Service actors are denied by default.
+roles. Successful JSON exports append a safe `evidence_bundle_exported`
+AuditLog event. Service actors are denied by default.
 
 The current implementation still does not enforce scoped ownership checks,
-team membership, policy-linked visibility, or export audit events.
+team membership, policy-linked visibility, or denied export audit events.
 
 AGCP remains an Agent Governance Control Plane. Evidence Bundle RBAC should
 control who can inspect governance evidence. It should not turn AGCP into an
@@ -63,7 +64,7 @@ values.
 | `auditor` | Can export Evidence Bundles within audit scope. Platform-wide audit scope may be acceptable for V1 if explicitly assigned. |
 | `agent_owner` | Can export Evidence Bundles for owned Agents when organization policy allows. Ownership checks are required. |
 | `policy_admin` | Can view policy-linked evidence when needed, but should not automatically receive broad export access. |
-| `platform_admin` | Can export Evidence Bundles for administration or break-glass review. Must be audited when export auditing exists. |
+| `platform_admin` | Can export Evidence Bundles for administration or break-glass review. Successful exports are audited. |
 | `viewer` | No export by default. May receive restricted read-only summaries later, not full Evidence Bundles. |
 
 V1 should start conservative. If ownership and policy-linked visibility are not
@@ -276,20 +277,20 @@ receive `evidence:read`.
    - service actor cannot export by default;
    - agent_owner direct owner can export when implemented;
    - denied export returns `403` and does not leak nested record details.
-5. Add safe audit of denied attempts later.
+5. Add successful export audit events. Implemented.
+   - Append `evidence_bundle_exported` with safe metadata after successful
+     JSON export.
+6. Add safe audit of denied attempts later.
    - Audit denied attempts only with safe metadata.
-   - Add successful export audit event such as `evidence_bundle_exported` when
-     export auditing is implemented.
 
 ## Recommended Follow-up Issues
 
 1. Add direct `agent_owner` Evidence Bundle export checks.
 2. Design team and organization-unit membership resolver for ownership checks.
 3. Add policy-linked evidence visibility design for `policy_admin`.
-4. Add successful export audit event design and implementation.
-5. Add safe denied-export audit event design.
-6. Add environment-specific export restrictions for production Agents if needed.
-7. Decide whether service actors should ever receive explicit `evidence:read`.
+4. Add safe denied-export audit event design.
+5. Add environment-specific export restrictions for production Agents if needed.
+6. Decide whether service actors should ever receive explicit `evidence:read`.
 
 ## Open Questions
 
@@ -299,7 +300,5 @@ receive `evidence:read`.
   rules?
 - Should service actors ever receive `evidence:read`, or should Evidence Bundle
   export remain human/auditor focused in V1?
-- Should Evidence Bundle export itself create an AuditLog record immediately, or
-  wait until denied-attempt audit behavior is also designed?
 - Should production Agents require stricter export roles than development
   Agents?

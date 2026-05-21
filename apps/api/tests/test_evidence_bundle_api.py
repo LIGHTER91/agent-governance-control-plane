@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -91,6 +91,38 @@ def test_successful_evidence_bundle_export(
     }
 
 
+def test_successful_evidence_bundle_export_creates_safe_audit_log(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seed_evidence_records(session_factory, agent_id)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [audit_log] = fetch_evidence_bundle_export_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_exported"
+    assert audit_log.actor_type is ActorType.USER
+    assert audit_log.actor_id == "user:auditor-1"
+    assert audit_log.entity_type == "agent"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.summary == "Evidence Bundle exported."
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "export_format": "json",
+        "audit_log_count": 2,
+        "agent_run_count": 1,
+        "trace_event_count": 1,
+        "policy_decision_count": 1,
+        "human_approval_count": 1,
+    }
+    assert "agent_runs" not in audit_log.metadata_
+    assert "trace_events" not in audit_log.metadata_
+    assert "policy_decisions" not in audit_log.metadata_
+    assert "human_approvals" not in audit_log.metadata_
+
+
 def test_platform_admin_can_export_evidence_bundle(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -142,6 +174,7 @@ def test_actor_without_auditor_or_platform_admin_gets_403(
         "detail": "Evidence Bundle export is not permitted for this actor."
     }
     assert_denied_response_has_no_bundle_sections(response.json())
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
 
 
 def test_service_actor_gets_403_by_default(
@@ -165,18 +198,20 @@ def test_service_actor_gets_403_by_default(
         "detail": "Evidence Bundle export is not permitted for this actor."
     }
     assert_denied_response_has_no_bundle_sections(response.json())
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
 
 
 def test_evidence_bundle_unknown_agent_returns_404(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
-    client, _ = api_client
+    client, session_factory = api_client
     missing_agent_id = uuid4()
 
     response = client.get(f"/agents/{missing_agent_id}/evidence-bundle")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Agent not found."
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
 
 
 def test_evidence_bundle_includes_audit_logs(
@@ -434,6 +469,19 @@ def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> No
         "policy_decisions",
         "human_approvals",
     } & set(body)
+
+
+def fetch_evidence_bundle_export_audit_logs(
+    session_factory: SessionFactory,
+) -> list[AuditLog]:
+    with session_factory() as session:
+        return list(
+            session.scalars(
+                select(AuditLog).where(
+                    AuditLog.event_type == "evidence_bundle_exported"
+                )
+            ).all()
+        )
 
 
 def seed_evidence_records(

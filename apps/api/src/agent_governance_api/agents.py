@@ -115,7 +115,29 @@ def export_agent_evidence_bundle(
 ) -> EvidenceBundleRead:
     _require_evidence_bundle_exporter(actor)
     agent = _get_agent_or_404(session, agent_id)
-    return build_agent_evidence_bundle(session, agent=agent)
+    evidence_bundle = build_agent_evidence_bundle(session, agent=agent)
+
+    append_audit_log(
+        session,
+        event_type="evidence_bundle_exported",
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
+        entity_type="agent",
+        entity_id=str(agent.id),
+        summary="Evidence Bundle exported.",
+        metadata={
+            "agent_id": str(agent.id),
+            "export_format": "json",
+            "audit_log_count": len(evidence_bundle.audit_logs),
+            "agent_run_count": len(evidence_bundle.agent_runs),
+            "trace_event_count": len(evidence_bundle.trace_events),
+            "policy_decision_count": len(evidence_bundle.policy_decisions),
+            "human_approval_count": len(evidence_bundle.human_approvals),
+        },
+    )
+    session.commit()
+
+    return evidence_bundle
 
 
 @router.patch(
