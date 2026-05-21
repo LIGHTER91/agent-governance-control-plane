@@ -16,17 +16,22 @@ export type AgentRecord = {
   updated_at: string;
 };
 
+export type AgentActivityMetadataValue = string | number | boolean | null;
+
 export type AgentActivityItem = {
   id: string;
   type: string;
   timestamp: string;
   title: string;
   summary: string | null;
-  trace_event_id: string | null;
-  policy_decision_id: string | null;
-  human_approval_id: string | null;
-  audit_log_id: string | null;
-  run_id: string | null;
+  severity?: "info" | "warning" | "error";
+  trace_event_id?: string | null;
+  policy_decision_id?: string | null;
+  human_approval_id?: string | null;
+  audit_log_id?: string | null;
+  run_id?: string | null;
+  related_ids?: Record<string, string>;
+  metadata?: Record<string, AgentActivityMetadataValue>;
 };
 
 export { getApiBaseUrl };

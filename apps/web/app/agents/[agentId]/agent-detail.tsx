@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiRequestError, getApiBaseUrl } from "../../lib/api";
-import type { AgentActivityItem, AgentRecord } from "../../lib/agents";
+import type {
+  AgentActivityItem,
+  AgentActivityMetadataValue,
+  AgentRecord
+} from "../../lib/agents";
 import { fetchAgent, fetchAgentActivity } from "../../lib/agents";
 import { EvidenceBundle, fetchEvidenceBundle } from "../../lib/evidence";
 import {
@@ -225,6 +229,23 @@ function ActivityTimelineSection({
 }: {
   activityState: ActivityState;
 }) {
+  const sortedItems = useMemo(() => {
+    if (activityState.status !== "ready") {
+      return [];
+    }
+
+    return [...activityState.items].sort((left, right) => {
+      const rightTime = Date.parse(right.timestamp);
+      const leftTime = Date.parse(left.timestamp);
+
+      if (Number.isNaN(rightTime) || Number.isNaN(leftTime)) {
+        return right.timestamp.localeCompare(left.timestamp);
+      }
+
+      return rightTime - leftTime;
+    });
+  }, [activityState]);
+
   return (
     <>
       <h3 className="section-title">Activity / Timeline</h3>
@@ -254,7 +275,7 @@ function ActivityTimelineSection({
           </div>
         ) : null}
 
-        {activityState.status === "ready" && activityState.items.length === 0 ? (
+        {activityState.status === "ready" && sortedItems.length === 0 ? (
           <div className="state-message compact">
             <strong>No activity records for this Agent</strong>
             <p>
@@ -264,9 +285,9 @@ function ActivityTimelineSection({
           </div>
         ) : null}
 
-        {activityState.status === "ready" && activityState.items.length > 0 ? (
+        {activityState.status === "ready" && sortedItems.length > 0 ? (
           <ol className="activity-list">
-            {activityState.items.map((item) => (
+            {sortedItems.map((item) => (
               <ActivityTimelineItem item={item} key={`${item.type}-${item.id}`} />
             ))}
           </ol>
@@ -277,34 +298,89 @@ function ActivityTimelineSection({
 }
 
 function ActivityTimelineItem({ item }: { item: AgentActivityItem }) {
-  const relatedIds: Array<[string, string | null]> = [
+  const severity = item.severity || "info";
+  const relatedIds = activityRelatedIds(item);
+  const metadataEntries = activityMetadataEntries(item);
+
+  return (
+    <li className="activity-item">
+      <div className="activity-item-header">
+        <div className="activity-badges">
+          <span className="table-pill">{formatValue(item.type)}</span>
+          <span className={`activity-severity severity-${severity}`}>
+            {formatValue(severity)}
+          </span>
+        </div>
+        <time dateTime={item.timestamp}>{formatTimestamp(item.timestamp)}</time>
+      </div>
+      <strong>{item.title}</strong>
+      <p>{item.summary || "No summary provided."}</p>
+      {relatedIds.length > 0 || metadataEntries.length > 0 ? (
+        <div className="activity-technical">
+          {relatedIds.length > 0 ? (
+            <details>
+              <summary>Related IDs</summary>
+              <dl className="activity-related" aria-label="Related activity IDs">
+                {relatedIds.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          ) : null}
+
+          {metadataEntries.length > 0 ? (
+            <details>
+              <summary>Filtered metadata</summary>
+              <dl className="activity-related" aria-label="Filtered metadata">
+                {metadataEntries.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function activityRelatedIds(item: AgentActivityItem): Array<[string, string]> {
+  if (item.related_ids && Object.keys(item.related_ids).length > 0) {
+    return Object.entries(item.related_ids);
+  }
+
+  return [
     ["trace_event_id", item.trace_event_id],
     ["policy_decision_id", item.policy_decision_id],
     ["human_approval_id", item.human_approval_id],
     ["audit_log_id", item.audit_log_id],
     ["run_id", item.run_id]
   ].filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+}
 
-  return (
-    <li className="activity-item">
-      <div className="activity-item-header">
-        <span className="table-pill">{formatValue(item.type)}</span>
-        <time dateTime={item.timestamp}>{formatTimestamp(item.timestamp)}</time>
-      </div>
-      <strong>{item.title}</strong>
-      <p>{item.summary || "No summary provided."}</p>
-      {relatedIds.length > 0 ? (
-        <dl className="activity-related" aria-label="Related activity IDs">
-          {relatedIds.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </li>
-  );
+function activityMetadataEntries(item: AgentActivityItem): Array<[string, string]> {
+  if (!item.metadata) {
+    return [];
+  }
+
+  return Object.entries(item.metadata).map(([key, value]) => [
+    key,
+    formatMetadataValue(value)
+  ]);
+}
+
+function formatMetadataValue(value: AgentActivityMetadataValue) {
+  if (value === null) {
+    return "null";
+  }
+
+  return String(value);
 }
 
 function AgentHeader({ agent }: { agent: AgentRecord }) {

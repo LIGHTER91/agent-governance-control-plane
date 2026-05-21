@@ -696,16 +696,66 @@ a {
   justify-content: space-between;
 }
 
+.activity-badges {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-severity {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.activity-severity.severity-info {
+  background: #e8edf8;
+  color: var(--info);
+}
+
+.activity-severity.severity-warning {
+  background: #f7eadf;
+  color: var(--warning);
+}
+
+.activity-severity.severity-error {
+  background: #f6e2e4;
+  color: var(--danger);
+}
+
 .activity-item-header time {
   color: var(--muted);
   font-size: 13px;
+}
+
+.activity-technical {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.activity-technical details {
+  background: #fbfcfc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.activity-technical summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .activity-related {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 4px 0 0;
+  margin: 10px 0 0;
 }
 
 .activity-related div {
