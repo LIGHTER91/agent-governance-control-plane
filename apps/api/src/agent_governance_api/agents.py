@@ -18,7 +18,7 @@ from agent_governance_api.auth import (
 )
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
-from agent_governance_api.models import ActorType, Agent
+from agent_governance_api.models import ActorType, Agent, OwnerType
 from agent_governance_api.openapi_examples import (
     AGENT_ACTIVITY_OPENAPI,
     AGENT_CREATE_OPENAPI,
@@ -115,7 +115,7 @@ def export_agent_evidence_bundle(
 ) -> EvidenceBundleRead:
     agent = session.get(Agent, agent_id)
     try:
-        _require_evidence_bundle_exporter(actor)
+        _require_evidence_bundle_exporter(actor, agent)
     except HTTPException:
         if agent is not None:
             append_audit_log(
@@ -224,7 +224,10 @@ def _get_agent_or_404(session: Session, agent_id: UUID) -> Agent:
     return agent
 
 
-def _require_evidence_bundle_exporter(actor: ActorContext) -> None:
+def _require_evidence_bundle_exporter(
+    actor: ActorContext,
+    agent: Agent | None,
+) -> None:
     if actor.actor_type is ActorType.SERVICE:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -234,9 +237,20 @@ def _require_evidence_bundle_exporter(actor: ActorContext) -> None:
     if has_role(actor, ROLE_AUDITOR) or has_role(actor, ROLE_PLATFORM_ADMIN):
         return
 
+    if agent is not None and _is_direct_user_owner(actor, agent):
+        return
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Evidence Bundle export is not permitted for this actor.",
+    )
+
+
+def _is_direct_user_owner(actor: ActorContext, agent: Agent) -> bool:
+    return (
+        actor.actor_type is ActorType.USER
+        and agent.owner_type is OwnerType.USER
+        and actor.actor_id == agent.owner_id
     )
 
 

@@ -23,9 +23,10 @@ telemetry endpoints, including endpoint/action scopes and an explicit
 service-auth-required mode. Config-based fine-grained service actor scope rules
 also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
 Minimal RBAC checks now exist for HumanApproval review actions and Evidence
-Bundle export. Owner-based service actor restrictions, full user authentication,
-OIDC/SAML, team membership resolution, production deployment, and operational
-hardening are still missing. The frontend now has a minimal dashboard shell,
+Bundle export, including direct user owner export. Owner-based service actor
+restrictions, full user authentication, OIDC/SAML, team membership resolution,
+production deployment, and operational hardening are still missing. The
+frontend now has a minimal dashboard shell,
 a read-only Agent list page backed by the backend Agent Registry API, a
 read-only Agent detail page backed by the Agent Registry and HumanApproval APIs,
 a read-only Runtime Gateway overview page, a read-only Human Approvals page
@@ -195,7 +196,8 @@ Completed foundation:
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
-- Minimal Evidence Bundle export RBAC for `auditor` and `platform_admin`.
+- Minimal Evidence Bundle export RBAC for `auditor`, `platform_admin`, and
+  direct user owners.
 - Service actors are denied Evidence Bundle export by default.
 - Next.js dashboard shell.
 - Read-only Agent list page backed by `GET /agents`.
@@ -217,7 +219,7 @@ Recommended next work:
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - Add OpenAPI examples for `GET /human-approvals` if missing.
-- Add owner-based access checks.
+- Add broader owner-based access checks.
 - Add API key rotation design.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
@@ -246,7 +248,7 @@ Important limitations:
 - The Evidence page does not provide PDF export, download, or cryptographic
   signing.
 - Evidence Bundle export requires the backend actor to have `auditor` or
-  `platform_admin` role.
+  `platform_admin` role, or to be the direct user owner of the Agent.
 - Local CORS or a frontend proxy may be needed depending on browser/API setup.
 
 References:

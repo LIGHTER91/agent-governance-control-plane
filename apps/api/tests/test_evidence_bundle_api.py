@@ -186,6 +186,88 @@ def test_platform_admin_can_export_evidence_bundle(
     assert response.json()["agent"]["id"] == str(agent_id)
 
 
+def test_direct_user_owner_can_export_evidence_bundle(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    owner_id = "user:evidence-owner-1"
+    agent_id = create_agent(
+        client,
+        agent_payload(
+            owner_type="user",
+            owner_id=owner_id,
+            owner_name="Evidence Owner",
+        ),
+    )
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id=owner_id,
+            roles=(),
+        )
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["agent"]["id"] == str(agent_id)
+    assert body["agent"]["owner_type"] == "user"
+    assert body["agent"]["owner_id"] == owner_id
+    [audit_log] = fetch_evidence_bundle_export_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_exported"
+    assert audit_log.actor_type is ActorType.USER
+    assert audit_log.actor_id == owner_id
+    assert audit_log.entity_type == "agent"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.metadata_["agent_id"] == str(agent_id)
+    assert audit_log.metadata_["export_format"] == "json"
+    assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
+
+
+def test_non_owner_user_is_denied_evidence_bundle_export(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(
+        client,
+        agent_payload(
+            owner_type="user",
+            owner_id="user:evidence-owner-1",
+            owner_name="Evidence Owner",
+        ),
+    )
+    seed_evidence_records(session_factory, agent_id)
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:not-the-owner",
+            roles=(),
+        )
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Evidence Bundle export is not permitted for this actor."
+    }
+    assert_denied_response_has_no_bundle_sections(response.json())
+    assert fetch_evidence_bundle_export_audit_logs(session_factory) == []
+    [audit_log] = fetch_evidence_bundle_export_denied_audit_logs(session_factory)
+    assert audit_log.event_type == "evidence_bundle_export_denied"
+    assert audit_log.actor_type is ActorType.USER
+    assert audit_log.actor_id == "user:not-the-owner"
+    assert audit_log.entity_type == "agent"
+    assert audit_log.entity_id == str(agent_id)
+    assert audit_log.metadata_ == {
+        "agent_id": str(agent_id),
+        "reason": "forbidden",
+        "export_format": "json",
+    }
+
+
 @pytest.mark.parametrize(
     "actor",
     [
@@ -528,8 +610,11 @@ class SeededEvidence:
         self.human_approval_id = human_approval_id
 
 
-def create_agent(client: TestClient) -> UUID:
-    response = client.post("/agents", json=agent_payload())
+def create_agent(
+    client: TestClient,
+    payload: dict[str, object] | None = None,
+) -> UUID:
+    response = client.post("/agents", json=payload or agent_payload())
 
     assert response.status_code == 201
     return UUID(response.json()["id"])
@@ -769,8 +854,8 @@ def inject_unsafe_metadata(
         session.commit()
 
 
-def agent_payload() -> dict[str, object]:
-    return {
+def agent_payload(**overrides: object) -> dict[str, object]:
+    payload = {
         "name": "Support assistant",
         "description": "Routes support requests.",
         "owner_type": "team",
@@ -782,6 +867,8 @@ def agent_payload() -> dict[str, object]:
         "risk_level": "low",
         "framework": "LangGraph",
     }
+    payload.update(overrides)
+    return payload
 
 
 def trace_event_payload(

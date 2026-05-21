@@ -8,8 +8,8 @@ integration endpoints, endpoint/action service scopes, fine-grained
 config-based service actor rules, minimal HumanApproval review RBAC, and
 minimal Evidence Bundle export RBAC. The current backend does not implement
 full user authentication, identity provider integration, API key rotation,
-owner-based access checks, team membership resolution, or persistent RBAC
-tables.
+team membership resolution, organization-unit ownership resolution, or
+persistent RBAC tables.
 
 V0 uses the structured development placeholder:
 
@@ -258,8 +258,9 @@ Allowed for:
 Rules:
 
 - Export should remain safe and filtered.
-- Export itself should eventually append an AuditLog event such as
-  `evidence_bundle_exported`.
+- Export itself appends safe AuditLog events for successful exports and denied
+  attempts against known Agents.
+- Direct user owners can export when `actor_id` matches Agent `owner_id`.
 - Export permissions may need environment-specific tightening for production
   Agents.
 
@@ -451,10 +452,10 @@ exist, so product behavior can be tested before enterprise IAM complexity.
    - Ensure only scoped reviewers can approve, reject, or cancel.
    - Record reviewer actor fields from ActorContext.
    - Prevent requester self-approval except for platform admin.
-4. Add RBAC checks for Evidence Bundle export. Implemented as a minimal
-   `auditor` or `platform_admin` check.
-   - Add scoped Agent owner checks later.
-   - Audit exports when export auditing is implemented.
+4. Add RBAC checks for Evidence Bundle export. Implemented as a minimal check
+   for `auditor`, `platform_admin`, and direct user owners.
+   - Add team and organization-unit owner checks later.
+   - Audit successful exports and denied attempts against known Agents.
 5. Add OIDC later.
    - Map enterprise user identity to `user:<external-id>`.
    - Map groups or claims to roles and ownership.
@@ -475,8 +476,9 @@ surface, while still moving away from the development placeholder early enough.
   client-provided data.
 - AuditLog access can itself reveal sensitive operational context, even after
   metadata filtering.
-- Evidence Bundle export now has minimal RBAC, but it may need stricter
-  ownership, environment, and export-audit controls than ordinary read access.
+- Evidence Bundle export now has minimal RBAC, but it may need stricter team,
+  organization-unit, environment, and audit-read controls than ordinary read
+  access.
 - Break-glass platform admin actions must be rare and clearly audited.
 - Separation of duties is partly organizational; V1 should enforce the rules it
   can prove from structured identity data.
@@ -487,10 +489,10 @@ surface, while still moving away from the development placeholder early enough.
    paths with the existing request-scoped Actor dependency.
 2. Add tests for overriding the Actor dependency once a non-development actor is
    introduced.
-3. Add owner-based access checks for service actors and Evidence Bundle export.
+3. Add team, organization-unit, and service owner access checks.
 4. Add production deployment guidance for requiring service auth on runtime and
    telemetry endpoints.
-5. Add audit event for Evidence Bundle export.
+5. Add audit-read event design.
 6. Design service API key storage and rotation.
 7. Design OIDC user mapping to `user:<external-id>` and role claims.
 8. Design team membership resolution for Agent ownership checks.

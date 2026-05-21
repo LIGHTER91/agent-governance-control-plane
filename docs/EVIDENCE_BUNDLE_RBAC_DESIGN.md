@@ -12,14 +12,14 @@ GET /agents/{agent_id}/evidence-bundle
 The current export includes Agent metadata, related AuditLogs, Agent runs, Trace
 Events, PolicyDecisions, HumanApprovals, and Policy or PolicyRule references
 when available. Metadata is filtered before export. The endpoint now enforces a
-minimal RBAC check that allows only actors with `auditor` or `platform_admin`
-roles. Successful JSON exports append a safe `evidence_bundle_exported`
-AuditLog event. Denied exports for known Agents append a safe
-`evidence_bundle_export_denied` AuditLog event. Service actors are denied by
-default.
+minimal RBAC check that allows actors with `auditor` or `platform_admin` roles,
+plus direct user owners whose `actor_id` matches the Agent `owner_id`.
+Successful JSON exports append a safe `evidence_bundle_exported` AuditLog event.
+Denied exports for known Agents append a safe `evidence_bundle_export_denied`
+AuditLog event. Service actors are denied by default.
 
-The current implementation still does not enforce scoped ownership checks,
-team membership, or policy-linked visibility.
+The current implementation still does not enforce team membership,
+organization-unit ownership, service ownership, or policy-linked visibility.
 
 AGCP remains an Agent Governance Control Plane. Evidence Bundle RBAC should
 control who can inspect governance evidence. It should not turn AGCP into an
@@ -64,18 +64,17 @@ values.
 | Role | V1 export expectation |
 | --- | --- |
 | `auditor` | Can export Evidence Bundles within audit scope. Platform-wide audit scope may be acceptable for V1 if explicitly assigned. |
-| `agent_owner` | Can export Evidence Bundles for owned Agents when organization policy allows. Ownership checks are required. |
+| `agent_owner` | Direct user owners can export Evidence Bundles for owned Agents. Team and organization-unit ownership checks are still future work. |
 | `policy_admin` | Can view policy-linked evidence when needed, but should not automatically receive broad export access. |
 | `platform_admin` | Can export Evidence Bundles for administration or break-glass review. Successful exports are audited. |
 | `viewer` | No export by default. May receive restricted read-only summaries later, not full Evidence Bundles. |
 
-V1 should start conservative. If ownership and policy-linked visibility are not
-implemented yet, the first RBAC implementation should allow only:
+V1 should stay conservative. The current minimal implementation allows:
 
 - `auditor`;
-- `platform_admin`.
-
-Then it can add scoped `agent_owner` export once ownership resolution is ready.
+- `platform_admin`;
+- direct user owners when `actor.actor_id == agent.owner_id` and
+  `agent.owner_type == "user"`.
 
 ## Service Actor Behavior
 
@@ -119,9 +118,8 @@ owner_type = "service"           -> owner_id = "service:<slug>"
 owner_type = "organization_unit" -> owner_id = "org_unit:<slug>"
 ```
 
-For `agent_owner` export, V1 should check whether the current actor is allowed
-for the Agent's owner reference. Direct user ownership is the easiest first
-case. Team and organization-unit ownership should wait for a resolver.
+For `agent_owner` export, V1 checks direct user ownership only. Team,
+service, and organization-unit ownership should wait for a resolver.
 
 ### Future Team Membership Resolver
 
@@ -135,8 +133,8 @@ actor -> organization-unit memberships
 actor -> delegated owner scopes
 ```
 
-Until that exists, `agent_owner` export should be limited to direct user owner
-matches or explicit local test mappings.
+Until that exists, owner-based Evidence Bundle export is limited to direct user
+owner matches.
 
 ### Policy-Linked Visibility
 
@@ -150,7 +148,7 @@ Recommended V1 rule:
 - future policy-linked read access may expose only decisions and references
   connected to policies they administer;
 - full Agent Evidence Bundle export still requires auditor, platform_admin, or
-  scoped ownership.
+  direct user ownership.
 
 ### Platform-Wide Auditor Visibility
 
@@ -167,19 +165,11 @@ Recommended initial behavior:
 
 - `platform_admin` can export;
 - `auditor` can export;
-- `agent_owner` can export for owned Agents once direct ownership checks exist;
+- direct user owners can export owned Agents;
 - `policy_admin` can view policy-linked evidence later if needed;
 - `viewer` cannot export full Evidence Bundles;
 - service actors cannot export by default;
 - all other actors are denied.
-
-If implementation starts before ownership resolution exists, the first safe
-step is:
-
-```text
-allowed roles: auditor, platform_admin
-denied roles: viewer, reviewer-only, policy_admin-only, service actor, unknown
-```
 
 This is intentionally conservative.
 
@@ -266,8 +256,8 @@ receive `evidence:read`.
    - Add an Actor dependency to `GET /agents/{agent_id}/evidence-bundle`.
    - Deny service actors unless they explicitly carry a future allowed export
      role or `evidence:read` behavior is designed.
-3. Add `agent_owner` checks later.
-   - Start with direct `owner_type = "user"` and matching `owner_id`.
+3. Add direct `agent_owner` checks. Implemented for direct user owners.
+   - Use direct `owner_type = "user"` and matching `owner_id`.
    - Add team and organization-unit resolution only after identity direction is
      clearer.
 4. Add tests. Implemented for auditor, platform admin, unauthorized actors,
@@ -277,7 +267,7 @@ receive `evidence:read`.
    - platform_admin can export;
    - viewer cannot export;
    - service actor cannot export by default;
-   - agent_owner direct owner can export when implemented;
+   - direct user owners can export owned Agents;
    - denied export returns `403` and does not leak nested record details.
 5. Add successful export audit events. Implemented.
    - Append `evidence_bundle_exported` with safe metadata after successful
@@ -289,16 +279,15 @@ receive `evidence:read`.
 
 ## Recommended Follow-up Issues
 
-1. Add direct `agent_owner` Evidence Bundle export checks.
-2. Design team and organization-unit membership resolver for ownership checks.
-3. Add policy-linked evidence visibility design for `policy_admin`.
-4. Add environment-specific export restrictions for production Agents if needed.
-5. Decide whether service actors should ever receive explicit `evidence:read`.
+1. Design team and organization-unit membership resolver for ownership checks.
+2. Add policy-linked evidence visibility design for `policy_admin`.
+3. Add environment-specific export restrictions for production Agents if needed.
+4. Decide whether service actors should ever receive explicit `evidence:read`.
 
 ## Open Questions
 
-- Should `agent_owner` export full bundles by default, or only a reduced owner
-  view?
+- Should team or organization-unit owners export full bundles by default, or
+  only a reduced owner view?
 - Should `policy_admin` see full bundles or only policy-linked decisions and
   rules?
 - Should service actors ever receive `evidence:read`, or should Evidence Bundle

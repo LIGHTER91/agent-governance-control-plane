@@ -77,7 +77,8 @@ implemented yet.
   human review.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
 - JSON Evidence Bundle export for one agent.
-- Minimal Evidence Bundle export RBAC requiring `auditor` or `platform_admin`.
+- Minimal Evidence Bundle export RBAC for `auditor`, `platform_admin`, and
+  direct user owners.
 - Service actors cannot export Evidence Bundles by default.
 - Evidence chain coverage across TraceEventRecord, PolicyDecision,
   HumanApproval, and related AuditLog.
@@ -253,7 +254,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - DB-backed service actor or API key registry.
 - API key rotation and persistent API key management.
 - Owner-based service actor restrictions.
-- Owner-based Evidence Bundle access checks.
+- Team or organization-unit based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
 - Full frontend workflows beyond the dashboard shell, read-only Agent list,
   read-only Agent detail, read-only Runtime Gateway overview, read-only Human
@@ -286,7 +287,7 @@ Near-term recommended work:
 6. Add frontend auth and role-aware UI later.
 7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
 8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Add owner-based access checks.
+9. Add broader owner-based access checks.
 10. Add API key rotation design.
 11. Add owner-based service actor scopes design.
 12. Add safe audit events for denied service actor scope checks.
