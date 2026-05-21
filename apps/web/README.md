@@ -4,12 +4,14 @@ Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
 The shell is intentionally minimal. The Agents page and Agent detail page read
 from the backend Agent Registry API, Agent activity API, and HumanApproval API.
-The Human Approvals page reads from the backend HumanApproval API, and the
-Evidence page reads filtered Evidence Bundle JSON for a single Agent. The
-Runtime Gateway page is a static read-only overview of runtime modes, endpoints,
-configuration flags, and current limitations. The remaining sections are
-placeholders. It does not implement login, does not render charts, and does not
-claim production readiness or legal compliance certification.
+The Human Approvals page reads from the backend HumanApproval API and lets
+pending HumanApprovals be approved, rejected, or cancelled through the existing
+review endpoints. The Evidence page reads filtered Evidence Bundle JSON for a
+single Agent. The Runtime Gateway page is a static read-only overview of
+runtime modes, endpoints, configuration flags, and current limitations. The
+remaining sections are placeholders. It does not implement login, does not
+render charts, and does not claim production readiness or legal compliance
+certification.
 
 ## Stack
 
@@ -49,6 +51,9 @@ GET /agents/{agent_id}/activity
 GET /agents/{agent_id}/human-approvals
 GET /human-approvals
 GET /agents/{agent_id}/evidence-bundle
+POST /human-approvals/{approval_id}/approve
+POST /human-approvals/{approval_id}/reject
+POST /human-approvals/{approval_id}/cancel
 ```
 
 Configure the backend base URL with:
@@ -110,10 +115,9 @@ npm run build
 - Agent list is read-only.
 - Agent detail page is read-only.
 - Agent activity timeline is read-only and lightweight.
-- Human Approvals list is read-only.
+- Human Approvals actions are available only for pending records.
 - Evidence Bundle viewer is read-only JSON inspection.
 - No create, edit, or delete Agent forms.
-- No approve, reject, or cancel actions in the UI.
 - No dedicated Agent runtime or policy drill-down page is wired into the
   frontend yet.
 - No Policy CRUD.
