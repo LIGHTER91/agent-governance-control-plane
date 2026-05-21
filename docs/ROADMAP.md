@@ -23,18 +23,19 @@ telemetry endpoints, including endpoint/action scopes and an explicit
 service-auth-required mode. Config-based fine-grained service actor scope rules
 also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
 Minimal RBAC checks now exist for HumanApproval review actions and Evidence
-Bundle export, including direct user owner export. Owner-based service actor
-restrictions, full user authentication, OIDC/SAML, team membership resolution,
-production deployment, and operational hardening are still missing. The
-frontend now has a minimal dashboard shell,
-a read-only Agent list page backed by the backend Agent Registry API, a
-read-only Agent detail page backed by the Agent Registry and HumanApproval APIs,
-a read-only Runtime Gateway overview page, a read-only Human Approvals page
-backed by the HumanApproval API, and a read-only Evidence Bundle page backed by
-the backend Evidence Bundle export API. It does not have login, role-aware
-views, Agent edit forms, dedicated Agent runtime/policy timelines,
-HumanApproval transition buttons, Evidence Bundle PDF/download/signature
-actions, or full review workflows.
+Bundle export, including direct user owner export. Successful Evidence Bundle
+exports and denied attempts against known Agents are audited with safe metadata.
+Owner-based service actor restrictions, full user authentication, OIDC/SAML,
+team membership resolution, production deployment, and operational hardening are
+still missing. The frontend now has a minimal dashboard shell, a read-only Agent
+list page backed by the backend Agent Registry API, a read-only Agent detail
+page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
+Bundle APIs, read-only Runtime Gateway overview and activity pages, a Human
+Approvals page with pending review actions, and a read-only Evidence Bundle
+page backed by the backend Evidence Bundle export API. It does not have login,
+role-aware views, Agent edit forms, broad activity filtering or pagination,
+Evidence Bundle PDF/download/signature actions, or enterprise-auth-backed review
+workflows.
 
 ## Phase 0 - Project Foundation
 
@@ -140,6 +141,7 @@ Completed capabilities:
 - Runtime resume idempotency by `agent_id`, `run_id`, and `resume_id`.
 - Runtime resume TraceEventRecord and AuditLog evidence.
 - OpenAPI examples for Runtime Gateway resume responses.
+- Read-only `GET /runtime/tool-calls/activity` endpoint sorted newest first.
 - Minimal Python runtime wrapper example.
 - Generic runtime adapter example with retry, idempotency, and resume handling.
 - Runtime Gateway enforcement mode design.
@@ -199,32 +201,36 @@ Completed foundation:
 - Minimal Evidence Bundle export RBAC for `auditor`, `platform_admin`, and
   direct user owners.
 - Service actors are denied Evidence Bundle export by default.
+- Successful Evidence Bundle export audit events.
+- Denied Evidence Bundle export audit events for known Agents.
 - Next.js dashboard shell.
 - Read-only Agent list page backed by `GET /agents`.
 - Read-only Agent detail page backed by `GET /agents/{agent_id}`,
+  `GET /agents/{agent_id}/activity`,
   `GET /agents/{agent_id}/human-approvals`, and optional Evidence Bundle
   access.
 - Read-only Runtime Gateway overview page.
-- Read-only Human Approvals page backed by `GET /human-approvals`.
+- Read-only Runtime activity page backed by
+  `GET /runtime/tool-calls/activity`.
+- Human Approvals page backed by `GET /human-approvals`, with approve, reject,
+  and cancel actions shown only for pending approvals.
 - Read-only Evidence Bundle page backed by
   `GET /agents/{agent_id}/evidence-bundle`.
 
 Recommended next work:
 
-- Add Agent activity/timeline backend endpoint.
-- Add Agent activity/timeline frontend section.
-- Add HumanApproval review actions UI later.
-- Add Runtime decisions/activity page.
+- Add Policy and PolicyRule CRUD APIs with audit logging.
+- Implement Tool, Data Source, Model, and Permission domain models.
 - Add Policy CRUD UI after backend Policy CRUD exists.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - Add OpenAPI examples for `GET /human-approvals` if missing.
-- Add broader owner-based access checks.
+- Design team and organization-unit ownership resolution for Evidence Bundle
+  export.
 - Add API key rotation design.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
 - Add DB-backed service actor registry design.
-- Add audit event for Evidence Bundle export.
 - Add tests for overriding the Actor dependency with a non-development actor.
 - Add deeper separation-of-duties checks for HumanApproval review.
 
@@ -240,11 +246,12 @@ Important limitations:
 - HumanApproval and Evidence Bundle RBAC are minimal local checks, not full
   enterprise authorization.
 - Frontend authentication and role-aware navigation are not implemented.
-- The Agent list, Agent detail page, Human Approvals list, and Evidence Bundle
-  viewer are read-only and require the backend API to be running.
-- The Agent detail page has no edit form and no dedicated runtime or policy
-  timeline endpoint yet.
-- The Human Approvals page does not provide approve, reject, or cancel buttons.
+- The Agent list, Agent detail page, Runtime activity, and Evidence Bundle
+  views are read-only and require the backend API to be running. Human Approval
+  review actions are available only for pending approvals.
+- The Agent detail page has no edit form.
+- Agent and Runtime activity views do not have broad filtering, search, or
+  pagination yet.
 - The Evidence page does not provide PDF export, download, or cryptographic
   signing.
 - Evidence Bundle export requires the backend actor to have `auditor` or
@@ -271,13 +278,13 @@ Planned capabilities:
 - Dashboard shell. Completed.
 - Agent list page. Completed as read-only.
 - Agent detail page. Completed as read-only.
+- Agent activity/timeline backend endpoint. Completed as read-only.
+- Agent activity/timeline frontend section. Completed as read-only.
 - Runtime Gateway overview page. Completed as read-only.
-- Human Approvals page. Completed as read-only.
+- Runtime decisions/activity backend endpoint. Completed as read-only.
+- Runtime decisions/activity page. Completed as read-only.
+- Human Approvals page. Completed with pending review actions.
 - Evidence Bundle page. Completed as read-only.
-- Agent activity/timeline backend endpoint.
-- Agent activity/timeline frontend section.
-- Runtime decisions/activity page.
-- Human approval review actions UI.
 - Policy CRUD UI after backend Policy CRUD exists.
 - Evidence Bundle download, PDF, and signing actions.
 - Frontend auth and role-aware UI later.

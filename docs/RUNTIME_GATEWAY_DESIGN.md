@@ -2,22 +2,24 @@
 
 ## Status
 
-Design proposal with request/response schemas, simulation mode, and enforcement
-mode behind explicit configuration implemented. Runtime Gateway enforcement is
+Design plus V0/V1 implementation. Request/response schemas, simulation mode,
+enforcement mode behind explicit configuration, resume checks, and a read-only
+runtime activity endpoint are implemented. Runtime Gateway enforcement is
 disabled by default with `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mode
-for this endpoint and production SDKs do not exist yet. Dependency-free adapter
-examples and a LangGraph adapter spike exist as documentation/examples only.
-Runtime and telemetry integration endpoints can resolve minimal config-based
-service actor API keys, enforce endpoint/action scopes, and reject missing keys
-when `AGCP_REQUIRE_SERVICE_AUTH=true`. Per-Agent service scopes,
-per-environment service scopes, full RBAC, user login, and API key rotation are
-not implemented.
+for the runtime decision endpoint and production SDKs do not exist yet.
+Dependency-free adapter examples and a LangGraph adapter spike exist as
+documentation/examples only. Runtime and telemetry integration endpoints can
+resolve minimal config-based service actor API keys, enforce endpoint/action
+scopes, enforce config-based Agent, environment, runtime mode, and tool-name
+restrictions, and reject missing keys when `AGCP_REQUIRE_SERVICE_AUTH=true`.
+Owner-based service actor restrictions, full RBAC, user login, and API key
+rotation are not implemented.
 
-This document describes a possible V1 path for runtime governance in the Agent
-Governance Control Plane. It keeps the product boundary clear: the gateway is a
-governance and decision layer, not an agent orchestrator, workflow engine, tool
-executor, or replacement for LangGraph, n8n, Dataiku, CrewAI, AutoGen, cloud AI
-platforms, or MCP servers.
+This document describes the implemented runtime governance foundation and the
+remaining V1 path for the Agent Governance Control Plane. It keeps the product
+boundary clear: the gateway is a governance and decision layer, not an agent
+orchestrator, workflow engine, tool executor, or replacement for LangGraph,
+n8n, Dataiku, CrewAI, AutoGen, cloud AI platforms, or MCP servers.
 
 The gateway would support evidence collection and governance workflows. It must
 not be described as legal compliance certification.
@@ -60,8 +62,7 @@ orchestration.
 
 ## Governed Tool Call Contract
 
-The exact endpoint name can be decided during implementation. A minimal V1
-contract could be:
+A minimal V1 contract is implemented at:
 
 ```http
 POST /runtime/tool-calls/decision
@@ -128,6 +129,39 @@ Response behavior:
 Trade-off: a small response is easier for SDKs to adopt, but it means clients
 must query the API later for full evidence details. That is acceptable for V1
 because Evidence Bundle export already provides the review surface.
+
+## Runtime Activity Read Model
+
+The backend also exposes a read-only Runtime Gateway activity endpoint:
+
+```http
+GET /runtime/tool-calls/activity
+```
+
+It returns runtime tool-call activity sorted newest first. The response is built
+from existing persisted TraceEventRecord rows, linked PolicyDecision rows, and
+linked HumanApproval rows where available. It does not execute tools, mutate
+runtime state, or change policy enforcement behavior.
+
+Safe fields include:
+
+- `agent_id`;
+- `run_id`;
+- `request_id`;
+- `timestamp`;
+- `tool_name`;
+- `mode`;
+- `decision`;
+- `proceed`;
+- `reason`;
+- `trace_event_id`;
+- `policy_decision_id`;
+- `human_approval_id`;
+- `related_ids`.
+
+Fields that are not persisted on older or shared records are returned as
+`null`. The endpoint must not infer fake runtime details or expose unsafe
+metadata.
 
 ## Minimal Python Wrapper Example
 
@@ -315,17 +349,23 @@ Mitigations:
 
 ## Minimal V1 Implementation Path
 
-1. Add telemetry mode to the Runtime Gateway endpoint when it is useful beyond
-   the existing `/telemetry/events` behavior.
-2. Reuse existing Agent lookup, Agent Run creation, TraceEventRecord
+1. Reuse existing Agent lookup, Agent Run creation, TraceEventRecord
    persistence, PolicyRule adapter, evaluator, PolicyDecision persistence,
-   HumanApproval creation, AuditLog, and Evidence Bundle behavior.
-3. Add idempotency by `agent_id`, `run_id`, and `request_id`.
-4. Add enforcement mode behind an explicit configuration flag. Implemented.
-5. Define a fail-open/fail-closed setting before production enforcement.
-6. Add tests for allow, deny, require human review, not applicable, duplicates,
-   unsupported metadata, and transaction rollback.
-7. Add a small local integration example only after the endpoint behavior is
+   HumanApproval creation, AuditLog, and Evidence Bundle behavior. Implemented.
+2. Add idempotency by `agent_id`, `run_id`, and `request_id`. Implemented.
+3. Add enforcement mode behind an explicit configuration flag. Implemented.
+4. Define a fail-open/fail-closed setting before production enforcement.
+   Implemented as a minimal global runtime failure policy.
+5. Add tests for allow, deny, require human review, not applicable, duplicates,
+   unsupported metadata, and transaction rollback. Implemented for the current
+   runtime foundation.
+6. Add resume checks for previously blocked actions after HumanApproval.
+   Implemented.
+7. Add a read-only runtime activity endpoint built from persisted records.
+   Implemented.
+8. Add telemetry mode to the Runtime Gateway decision endpoint only if it proves
+   useful beyond the existing `/telemetry/events` behavior.
+9. Add a small local integration example only after the endpoint behavior is
    stable. Implemented as documentation/example code.
 
 V1 should stay inside the existing FastAPI modular monolith. It should not add
@@ -334,12 +374,13 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add Agent, environment, and runtime mode scopes for Runtime Gateway calls.
-2. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-3. Add Policy and PolicyRule versioning design.
-4. Add HumanApproval notification design.
-5. Add production SDK or framework adapter only if explicitly requested after
+1. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+2. Add Policy and PolicyRule versioning design.
+3. Add HumanApproval notification design.
+4. Add production SDK or framework adapter only if explicitly requested after
    the examples and spike are proven.
+5. Add broader filtering or pagination to Runtime activity only after real
+   usage requires it.
 
 ## Open Questions
 

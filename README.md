@@ -47,11 +47,14 @@ This is still a V0 backend milestone, not a production-ready enterprise control
 plane. Runtime Gateway foundations and minimal config-based service actor API
 key authentication now exist, including endpoint scopes, config-based
 fine-grained scope rules, and an explicit service-auth-required mode for runtime
-and telemetry endpoints. Minimal RBAC exists for HumanApproval review actions
-and Evidence Bundle export. Full user authentication, OIDC/SAML, team
-membership resolution, full frontend workflows, notifications, production
-deployment, API key rotation, and enterprise integrations are intentionally not
-implemented yet.
+and telemetry endpoints. AGCP does not execute tools; runtime enforcement
+depends on wrappers or adapters calling AGCP and honoring `proceed`. Minimal
+RBAC exists for HumanApproval review actions and Evidence Bundle export. The
+frontend now exposes the core read-only governance views plus pending
+HumanApproval review actions and Runtime activity.
+Full user authentication, OIDC/SAML, team membership resolution, enterprise
+auth-backed frontend workflows, notifications, production deployment, API key
+rotation, and enterprise integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -76,12 +79,18 @@ implemented yet.
 - Automatic pending HumanApproval creation for telemetry decisions that require
   human review.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
+- Pending HumanApproval approve, reject, and cancel actions in the frontend.
 - JSON Evidence Bundle export for one agent.
 - Minimal Evidence Bundle export RBAC for `auditor`, `platform_admin`, and
   direct user owners.
 - Service actors cannot export Evidence Bundles by default.
+- Safe `evidence_bundle_exported` AuditLog records for successful Evidence
+  Bundle exports.
+- Safe `evidence_bundle_export_denied` AuditLog records for denied export
+  attempts against known Agents.
 - Evidence chain coverage across TraceEventRecord, PolicyDecision,
   HumanApproval, and related AuditLog.
+- Read-only Agent activity endpoint sorted newest first.
 - Central metadata safety filtering for telemetry, audit, and evidence export.
 - OpenAPI examples for core backend endpoints.
 - Runtime Gateway simulation endpoint for governed tool-call decisions.
@@ -89,6 +98,8 @@ implemented yet.
   `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true`.
 - Runtime resume endpoint for checking whether a previously blocked action may
   proceed after HumanApproval.
+- Read-only Runtime activity endpoint:
+  `GET /runtime/tool-calls/activity`.
 - Generic runtime adapter example and dependency-free LangGraph adapter spike.
 - Local `ActorContext` abstraction with the default
   `development/dev-placeholder` actor.
@@ -104,10 +115,12 @@ implemented yet.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
+  `GET /agents/{agent_id}/activity`,
   `GET /agents/{agent_id}/human-approvals`, and optional Evidence Bundle
   access.
-- Read-only frontend Runtime Gateway overview page.
-- Read-only frontend Human Approvals page backed by `GET /human-approvals`.
+- Read-only frontend Runtime Gateway overview and activity pages.
+- Frontend Human Approvals page backed by `GET /human-approvals`, with review
+  actions shown only for pending approvals.
 - Read-only frontend Evidence Bundle page backed by
   `GET /agents/{agent_id}/evidence-bundle`.
 
@@ -264,14 +277,11 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
 - Safe audit events for denied service actor scope checks.
-- Full frontend workflows beyond the dashboard shell, read-only Agent list,
-  read-only Agent detail, read-only Runtime Gateway overview, read-only Human
-  Approvals list, and read-only Evidence Bundle viewer.
+- Full enterprise-auth-backed frontend workflows beyond the current local API
+  views and HumanApproval review actions.
 - Frontend login or role-aware UI.
 - Agent edit forms.
-- Dedicated Agent activity or runtime/policy timeline endpoints and frontend
-  sections.
-- HumanApproval approve, reject, and cancel buttons in the UI.
+- Broad filtering, search, or pagination for Agent and Runtime activity views.
 - Evidence Bundle PDF/download/signature actions in the UI.
 - Human approval notifications.
 - Production SDKs or framework adapters.
@@ -287,21 +297,21 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Agent activity/timeline backend endpoint.
-2. Add Agent activity/timeline frontend section.
-3. Add HumanApproval review actions UI later.
-4. Add Runtime decisions/activity page.
-5. Add Policy CRUD UI after backend Policy CRUD exists.
-6. Add frontend auth and role-aware UI later.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Add broader owner-based access checks.
-10. Add API key rotation design.
-11. Add owner-based service actor scopes design.
-12. Add safe audit events for denied service actor scope checks.
-13. Add DB-backed service actor registry design.
-14. Implement Tool, Data Source, Model, and Permission domain models.
-15. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Add Policy and PolicyRule CRUD APIs with audit logging.
+2. Implement Tool, Data Source, Model, and Permission domain models.
+3. Add Policy CRUD UI after backend Policy CRUD exists.
+4. Add frontend auth and role-aware UI.
+5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+6. Add OpenAPI examples for `GET /human-approvals` if missing.
+7. Design team and organization-unit ownership resolution for Evidence Bundle
+   export.
+8. Add API key rotation design.
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Add DB-backed service actor registry design.
+12. Add deeper separation-of-duties checks for HumanApproval review.
+13. Add broad filtering and pagination for Runtime and Agent activity only
+    after the backend read models need it.
 
 ## Repository Map
 

@@ -52,6 +52,7 @@ workflow.
 Existing endpoints:
 
 - `POST /human-approvals`
+- `GET /human-approvals`
 - `GET /human-approvals/{approval_id}`
 - `GET /agents/{agent_id}/human-approvals`
 - `POST /human-approvals/{approval_id}/approve`
@@ -67,6 +68,12 @@ Existing transition rules:
 
 RBAC should preserve these transition rules and add authorization before
 mutation.
+
+The frontend Human Approvals page now uses these transition endpoints for
+pending approvals. It shows approve, reject, and cancel actions only when an
+approval is `pending`, sends optional decision notes for approve and reject, and
+does not send unsupported note fields for cancel. Backend RBAC remains the
+authoritative authorization boundary.
 
 ## Relevant Roles
 

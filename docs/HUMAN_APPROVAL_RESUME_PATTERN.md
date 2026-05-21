@@ -2,10 +2,11 @@
 
 ## Status
 
-Design proposal only. The current backend can create pending HumanApproval
-records, approve, reject, cancel, audit those transitions, and include them in
-Evidence Bundle export. It does not implement resume endpoints, notifications,
-workflow queues, SDK behavior, or framework adapters.
+Design plus minimal V1 implementation. The current backend can create pending
+HumanApproval records, approve, reject, cancel, audit those transitions, include
+them in Evidence Bundle export, and check runtime resume attempts through
+`POST /runtime/tool-calls/resume`. It does not implement notifications,
+workflow queues, production SDK behavior, or production framework adapters.
 
 This document defines a safe resume pattern for governed actions that receive
 `require_human_review` from the Runtime Gateway. The Agent Governance Control
@@ -60,6 +61,7 @@ execute the tool.
 The current API supports:
 
 - `POST /human-approvals`
+- `GET /human-approvals`
 - `GET /human-approvals/{approval_id}`
 - `GET /agents/{agent_id}/human-approvals`
 - `POST /human-approvals/{approval_id}/approve`
@@ -139,7 +141,7 @@ to the original request.
 
 ### Explicit Resume Endpoint
 
-AGCP exposes a future endpoint such as:
+AGCP exposes an explicit resume endpoint:
 
 ```http
 POST /runtime/tool-calls/resume
@@ -281,12 +283,13 @@ HumanApproval(approved or rejected)
   -> AuditLog(human_approval_approved or human_approval_rejected)
 ```
 
-An approved resume attempt should later add:
+An approved resume attempt adds runtime evidence without executing the tool:
 
 ```text
 TraceEventRecord(resume attempt)
-  -> PolicyDecision(allow or deny for resume)
-  -> optional AuditLog(runtime resume recorded)
+  -> original PolicyDecision reference
+  -> HumanApproval reference
+  -> AuditLog(runtime_tool_call_resume_checked)
 ```
 
 If the wrapper executes the tool after an approved resume decision, future
@@ -304,7 +307,8 @@ large nested objects:
 - `human_approval_id`;
 - review audit log IDs;
 - resume `trace_event_id`;
-- resume `policy_decision_id`;
+- original `policy_decision_id` used for resume validation;
+- resume audit log IDs;
 - safe summaries and metadata only.
 
 The bundle should not expose raw prompts, credentials, raw tool payloads,
@@ -401,23 +405,16 @@ later compare runtime evidence against expected action coverage.
 
 1. Add `GET /human-approvals/{approval_id}` examples focused on polling for
    pending, approved, rejected, cancelled, and expired states.
-2. Design and implement `POST /runtime/tool-calls/resume` with explicit
-   `resume_id`, `original_request_id`, `policy_decision_id`, and
-   `human_approval_id`.
-3. Add resume idempotency tests proving duplicate resume attempts do not create
-   duplicate TraceEventRecord, PolicyDecision, HumanApproval, AuditLog, or tool
-   execution permission records.
-4. Add approval expiration enforcement before resume.
-5. Add context matching for resume attempts using safe summaries and later a
-   context hash.
-6. Add Evidence Bundle links for original request, review decision, and resume
-   attempt.
-7. Add authentication and real Actor identity for reviewers and integrations.
-8. Add optional webhook notification design for approval status changes.
-9. Add wrapper guidance showing how to store local blocked-action references
+2. Add approval expiration enforcement before resume if not already covered by
+   current status checks.
+3. Add stronger context matching for resume attempts using structured context
+   hashes.
+4. Add authentication and real Actor identity for reviewers and integrations.
+5. Add optional webhook notification design for approval status changes.
+6. Add wrapper guidance showing how to store local blocked-action references
    without storing raw prompts or raw tool payloads in AGCP.
-10. Add policy versioning or decision version references before broad
-    enforcement rollout.
+7. Add policy versioning or decision version references before broad
+   enforcement rollout.
 
 ## Open Questions
 

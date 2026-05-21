@@ -28,19 +28,21 @@ telemetry endpoints, including endpoint/action scopes and
 actor rules now cover Agent ID, environment, runtime mode, and tool-name
 restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. This is not
 production-grade auth: scopes are still config/env-based, there is no DB-backed
-key registry, no API key rotation, no owner-based restrictions, no
+key registry, no API key rotation, no owner-based service actor restrictions, no
 OIDC/SAML/JWT, and no team membership resolver. Minimal HumanApproval review
-RBAC and Evidence Bundle export RBAC exist, but they are local role checks, not
-full enterprise authorization. The frontend has a minimal dashboard shell, a
-read-only Agent list page backed by `GET /agents`, a read-only Agent detail
-page backed by `GET /agents/{agent_id}` and
-`GET /agents/{agent_id}/human-approvals`, a read-only Runtime Gateway overview
-page, a read-only Human Approvals page backed by `GET /human-approvals`, and a
-read-only Evidence Bundle page backed by
+RBAC and Evidence Bundle export RBAC exist, including direct user owner Evidence
+Bundle export, but they are local role checks, not full enterprise
+authorization. Evidence Bundle successful exports and denied attempts against
+known Agents are audited with safe metadata. The frontend has a minimal
+dashboard shell, a read-only Agent list page backed by `GET /agents`, a
+read-only Agent detail page backed by `GET /agents/{agent_id}`,
+`GET /agents/{agent_id}/activity`, and
+`GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
+and Runtime activity pages, a Human Approvals page with pending review actions,
+and a read-only Evidence Bundle page backed by
 `GET /agents/{agent_id}/evidence-bundle`, but no login/auth UI, no role-aware
-frontend behavior, no Agent edit form, no dedicated Agent runtime/policy
-timeline endpoint, no approval transition UI, and no Evidence Bundle
-PDF/download/signature actions.
+frontend behavior, no Agent edit form, no broad activity filtering or
+pagination, and no Evidence Bundle PDF/download/signature actions.
 
 References:
 
@@ -59,27 +61,27 @@ References:
 
 Recommended order:
 
-1. Add Agent activity/timeline backend endpoint.
-2. Add Agent activity/timeline frontend section.
-3. Add HumanApproval review actions UI later.
-4. Add Runtime decisions/activity page.
-5. Add Policy CRUD UI after backend Policy CRUD exists.
-6. Add frontend auth and role-aware UI later.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Add owner-based access checks.
-10. Add API key rotation design.
-11. Add owner-based service actor scopes design.
-12. Add safe denied-scope audit events.
-13. Add DB-backed service actor registry design.
-14. Add audit event for Evidence Bundle export.
-15. Add Tool domain model.
-16. Add Data Source domain model.
-17. Add Model domain model.
-18. Add Permission domain model.
-19. Add Policy CRUD API.
-20. Add PolicyRule CRUD API.
-21. Add audit records for Policy and PolicyRule mutations.
+1. Add Policy CRUD API.
+2. Add PolicyRule CRUD API.
+3. Add audit records for Policy and PolicyRule mutations.
+4. Add Tool domain model.
+5. Add Data Source domain model.
+6. Add Model domain model.
+7. Add Permission domain model.
+8. Add Policy CRUD UI after backend Policy CRUD exists.
+9. Add frontend auth and role-aware UI later.
+10. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+11. Add OpenAPI examples for `GET /human-approvals` if missing.
+12. Design team and organization-unit ownership resolution for Evidence Bundle
+    export.
+13. Add API key rotation design.
+14. Add owner-based service actor scopes design.
+15. Add safe denied-scope audit events.
+16. Add DB-backed service actor registry design.
+17. Add tests for overriding the Actor dependency with a non-development actor.
+18. Add deeper separation-of-duties checks for HumanApproval review.
+19. Add broad filtering and pagination for Runtime and Agent activity only
+    after the backend read models need it.
 
 ## Backlog
 
@@ -87,21 +89,18 @@ Recommended order:
 - [ ] Add safe denied-scope audit events.
 - [ ] Add API key rotation design.
 - [ ] Add DB-backed service actor registry design.
-- [ ] Add audit event for Evidence Bundle export.
 - [ ] Add tests for overriding the Actor dependency with a non-development
       actor.
-- [ ] Add owner-based access checks for Evidence Bundle export.
+- [ ] Design team and organization-unit ownership resolution for Evidence
+      Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [ ] Add Agent activity/timeline backend endpoint.
-- [ ] Add Agent activity/timeline frontend section.
-- [ ] Add Runtime decisions/activity page.
-- [ ] Add human approval review view.
-- [ ] Add HumanApproval review actions UI later.
 - [ ] Add Policy CRUD UI after backend Policy CRUD exists.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
 - [ ] Add frontend auth and role-aware UI.
+- [ ] Add broad filtering and pagination for Runtime and Agent activity only
+      after the backend read models need it.
 - [ ] Implement Tool domain model.
 - [ ] Implement Data Source domain model.
 - [ ] Implement Model domain model.
@@ -212,6 +211,15 @@ Empty.
 - [x] Add read-only frontend Runtime Gateway page.
 - [x] Add read-only frontend Human Approvals page.
 - [x] Add read-only frontend Evidence Bundle page.
+- [x] Add Agent activity/timeline backend endpoint.
+- [x] Add Agent activity/timeline frontend section.
+- [x] Add HumanApproval review actions UI for pending approvals.
+- [x] Validate HumanApproval review actions frontend behavior.
+- [x] Add successful Evidence Bundle export audit event.
+- [x] Add denied Evidence Bundle export audit event for known Agents.
+- [x] Add direct user owner access for Evidence Bundle export.
+- [x] Add Runtime activity backend endpoint.
+- [x] Add Runtime activity frontend page.
 
 ## Blocked
 

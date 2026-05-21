@@ -301,8 +301,12 @@ Examples:
 - policy_created;
 - policy_updated;
 - policy_decision_recorded;
-- human_approval_granted;
-- human_approval_rejected.
+- human_approval_requested;
+- human_approval_approved;
+- human_approval_rejected;
+- evidence_bundle_exported;
+- evidence_bundle_export_denied;
+- runtime_tool_call_resume_checked.
 
 Audit metadata must contain only safe, non-sensitive context. Do not store raw prompts, credentials, tokens, secrets, private customer data, or raw sensitive payloads in audit metadata.
 
@@ -341,6 +345,12 @@ An exportable package of records supporting review or audit.
 Initial format:
 
 - JSON.
+
+Current export access is intentionally narrow: `auditor`, `platform_admin`, and
+direct user owners can export. Direct owner access means a user actor whose
+`actor_id` matches an Agent with `owner_type = "user"` and the same `owner_id`.
+Team, service, and organization-unit ownership require a future resolver and
+are not implemented yet.
 
 Later:
 

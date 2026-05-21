@@ -2,9 +2,10 @@
 
 ## Status
 
-Design proposal only. The backend does not currently implement
-`POST /runtime/tool-calls/resume`. This document defines the intended V1
-contract for resuming a governed tool call after HumanApproval.
+Design plus minimal V1 implementation. The backend implements
+`POST /runtime/tool-calls/resume` for checking whether a previously blocked
+runtime tool call may proceed after HumanApproval. This document describes the
+implemented contract and remaining hardening work.
 
 The Agent Governance Control Plane remains a governance and evidence layer. It
 does not execute tools, schedule workflows, own queues, or replace the
@@ -41,13 +42,13 @@ It should not:
 - create a scheduler or queue worker;
 - turn AGCP into an orchestrator.
 
-## Proposed Endpoint
+## Implemented Endpoint
 
 ```http
 POST /runtime/tool-calls/resume
 ```
 
-The endpoint is intended for wrappers that previously received
+The endpoint is used by wrappers that previously received
 `decision = "require_human_review"` from
 `POST /runtime/tool-calls/decision`.
 
@@ -305,9 +306,13 @@ may add an optional resume PolicyDecision to distinguish:
 - original decision: `require_human_review`;
 - resume decision: `allow`, `deny`, or `require_human_review`.
 
-### Optional AuditLog
+### Resume AuditLog
 
-An AuditLog for resume checks may be useful when:
+The current implementation appends a safe `runtime_tool_call_resume_checked`
+AuditLog event for persisted resume checks. Resume audit metadata should remain
+safe and reference identifiers rather than raw action payloads.
+
+Additional audit distinctions may be useful later when:
 
 - a resume attempt returns `proceed = true`;
 - a resume attempt is rejected due to stale context;
@@ -320,7 +325,12 @@ store.
 
 ### Evidence Bundle
 
-Evidence Bundle export should eventually include:
+Evidence Bundle export includes persisted TraceEventRecord and AuditLog rows for
+resume attempts through the existing evidence sections. The current resume
+implementation references the original PolicyDecision rather than creating a
+separate resume PolicyDecision.
+
+Evidence review should be able to navigate:
 
 - original TraceEventRecord ID;
 - original PolicyDecision ID;
@@ -382,26 +392,16 @@ rejected before persistence.
 
 ## Recommended Follow-up Issues
 
-1. Add Pydantic schemas for `RuntimeToolCallResumeRequest` and
-   `RuntimeToolCallResumeResponse`.
-2. Add `POST /runtime/tool-calls/resume` behind tests, without executing tools.
-3. Add idempotency for `agent_id`, `run_id`, and `resume_id`.
-4. Add chain validation for `original_request_id`, `policy_decision_id`, and
-   `human_approval_id`.
-5. Add context matching using `tool_name`, `action_ref`, Agent environment, and
-   risk level.
-6. Add approval expiration enforcement for resume.
-7. Add resume TraceEventRecord persistence.
-8. Decide whether V1 needs a resume PolicyDecision or should reference the
-   original PolicyDecision only.
-9. Add optional AuditLog records for successful resume, stale context, and
-   replay detection.
-10. Add Evidence Bundle links for original request, approval review, and resume
-    attempt.
-11. Add wrapper example updates showing resume polling and resume request
-    handling without raw payloads.
-12. Add auth/RBAC design for reviewers and runtime integrations before
-    production enforcement.
+1. Add approval expiration enforcement for resume if not already covered by
+   current status checks.
+2. Add structured context hashes for stronger stale/replay protection.
+3. Add Policy and PolicyRule version references before broad enforcement.
+4. Decide whether a future version needs a separate resume PolicyDecision or
+   should keep referencing the original PolicyDecision only.
+5. Add more specific audit event types for stale context and replay detection
+   if operational review needs that detail.
+6. Add auth/RBAC hardening for reviewers and runtime integrations before
+   production enforcement.
 
 ## Open Questions
 
