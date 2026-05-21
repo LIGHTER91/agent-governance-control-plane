@@ -64,6 +64,10 @@ const requiredText = [
   "Agent activity requires reviewer, auditor, or platform_admin role",
   "severity",
   "related_ids",
+  "activity-severity",
+  "severity-${severity}",
+  "activityRelatedIds",
+  "activityMetadataEntries",
   "Related IDs",
   "Filtered metadata",
   "trace_event_id",
@@ -144,4 +148,181 @@ for (const text of forbiddenText) {
   }
 }
 
+runActivityTimelineFixtureSmoke();
+
 console.log("Dashboard shell smoke check passed.");
+
+function runActivityTimelineFixtureSmoke() {
+  const traceEventId = "11111111-1111-4111-8111-111111111111";
+  const policyDecisionId = "22222222-2222-4222-8222-222222222222";
+  const humanApprovalId = "33333333-3333-4333-8333-333333333333";
+  const auditLogId = "44444444-4444-4444-8444-444444444444";
+  const runId = "55555555-5555-4555-8555-555555555555";
+
+  const fixture = [
+    {
+      id: traceEventId,
+      type: "trace_event",
+      timestamp: "2026-01-15T12:05:00Z",
+      title: "Trace event: Tool Call Requested",
+      summary: "Agent requested a governed tool.",
+      severity: "info",
+      related_ids: {
+        trace_event_id: traceEventId,
+        run_id: runId
+      },
+      metadata: {
+        tool_name: "send_email",
+        source: "runtime_gateway"
+      }
+    },
+    {
+      id: policyDecisionId,
+      type: "policy_decision",
+      timestamp: "2026-01-15T12:05:01Z",
+      title: "Policy decision: Require Human Review",
+      summary: "Policy required review.",
+      severity: "warning",
+      related_ids: {
+        trace_event_id: traceEventId,
+        policy_decision_id: policyDecisionId
+      }
+    },
+    {
+      id: humanApprovalId,
+      type: "human_approval",
+      timestamp: "2026-01-15T12:05:02Z",
+      title: "Human approval: Pending",
+      summary: "Human oversight was requested.",
+      severity: "info",
+      related_ids: {
+        human_approval_id: humanApprovalId,
+        policy_decision_id: policyDecisionId
+      },
+      metadata: {}
+    },
+    {
+      id: auditLogId,
+      type: "audit_log",
+      timestamp: "2026-01-15T12:05:03Z",
+      title: "Audit log: Runtime Gateway Failure",
+      summary: "Runtime Gateway recorded a controlled error.",
+      severity: "error",
+      related_ids: {
+        audit_log_id: auditLogId,
+        trace_event_id: traceEventId,
+        policy_decision_id: policyDecisionId,
+        human_approval_id: humanApprovalId,
+        run_id: runId
+      },
+      metadata: {
+        failure_type: "policy_evaluation_error"
+      }
+    }
+  ];
+
+  const renderedTimeline = renderActivityTimelineFixture(fixture);
+  const emptyTimeline = renderActivityTimelineFixture([]);
+
+  for (const expectedText of [
+    "Trace Event",
+    "Policy Decision",
+    "Human Approval",
+    "Audit Log",
+    "Info",
+    "Warning",
+    "Error",
+    "Related IDs",
+    "trace_event_id",
+    "policy_decision_id",
+    "human_approval_id",
+    "audit_log_id",
+    "run_id",
+    traceEventId,
+    policyDecisionId,
+    humanApprovalId,
+    auditLogId,
+    runId,
+    "Filtered metadata",
+    "tool_name",
+    "send_email",
+    "source",
+    "runtime_gateway",
+    "failure_type",
+    "policy_evaluation_error"
+  ]) {
+    if (!renderedTimeline.includes(expectedText)) {
+      throw new Error(`Activity timeline fixture missing: ${expectedText}`);
+    }
+  }
+
+  const policyDecisionSection = renderActivityTimelineFixture([fixture[1]]);
+  if (policyDecisionSection.includes("Filtered metadata")) {
+    throw new Error("Activity timeline rendered metadata for an item without metadata.");
+  }
+
+  if (!emptyTimeline.includes("No activity records for this Agent")) {
+    throw new Error("Activity timeline fixture did not cover the empty state.");
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "raw_prompt",
+    "raw_payload",
+    "compliance score"
+  ]) {
+    if (renderedTimeline.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderActivityTimelineFixture(items) {
+  if (items.length === 0) {
+    return "No activity records for this Agent";
+  }
+
+  return items.map(renderActivityFixtureItem).join("\n");
+}
+
+function renderActivityFixtureItem(item) {
+  const parts = [
+    formatActivityValue(item.type),
+    formatActivityValue(item.severity),
+    item.title,
+    item.summary || "No summary provided."
+  ];
+
+  const relatedIds = Object.entries(item.related_ids || {});
+  if (relatedIds.length > 0) {
+    parts.push("Related IDs");
+    for (const [key, value] of relatedIds) {
+      parts.push(key, value);
+    }
+  }
+
+  const metadataEntries = Object.entries(item.metadata || {});
+  if (metadataEntries.length > 0) {
+    parts.push("Filtered metadata");
+    for (const [key, value] of metadataEntries) {
+      parts.push(key, String(value));
+    }
+  }
+
+  return parts.join("\n");
+}
+
+function formatActivityValue(value) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
