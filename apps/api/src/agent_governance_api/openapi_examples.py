@@ -324,6 +324,30 @@ TELEMETRY_EVENT_REQUEST = {
     "metadata": {"tool_name": "send_email"},
 }
 
+POLICY_CREATE_REQUEST = {
+    "name": "V0 email tool review policy",
+    "description": "Require human review before governed email tool use.",
+    "status": "draft",
+}
+
+POLICY_RESPONSE = {
+    **POLICY_CREATE_REQUEST,
+    "id": POLICY_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+POLICY_UPDATE_REQUEST = {
+    "status": "active",
+    "description": "Active policy for governed email tool use.",
+}
+
+POLICY_UPDATED_RESPONSE = {
+    **POLICY_RESPONSE,
+    **POLICY_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
 POLICY_REFERENCE = {
     "id": POLICY_ID,
     "name": "V0 email tool review policy",
@@ -880,6 +904,34 @@ ACCESS_GRANT_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated access grant.",
     response_value=ACCESS_GRANT_UPDATED_RESPONSE,
+)
+
+POLICY_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create a policy lifecycle record.",
+    request_value=POLICY_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created policy.",
+    response_value=POLICY_RESPONSE,
+)
+
+POLICY_LIST_OPENAPI = _response_example(
+    200,
+    "List policies including the V0 email tool review policy.",
+    [POLICY_RESPONSE],
+)
+
+POLICY_GET_OPENAPI = _response_example(
+    200,
+    "Read the V0 email tool review policy.",
+    POLICY_RESPONSE,
+)
+
+POLICY_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Activate a policy lifecycle record.",
+    request_value=POLICY_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated policy.",
+    response_value=POLICY_UPDATED_RESPONSE,
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(

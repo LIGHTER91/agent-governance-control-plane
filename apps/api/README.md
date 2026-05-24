@@ -126,6 +126,19 @@ Access Grant Inventory:
   access yet and do not replace PolicyDecision, Runtime Gateway, or Human
   Approval records.
 
+Policy Management:
+
+- `POST /policies` creates a Policy lifecycle record and appends
+  `policy_created`.
+- `GET /policies` lists Policy records.
+- `GET /policies/{policy_id}` returns one Policy.
+- `PATCH /policies/{policy_id}` updates a Policy and appends `policy_updated`
+  or `policy_status_changed`.
+- Policy statuses are `draft`, `active`, `disabled`, and `archived`; there is
+  no hard-delete endpoint.
+- This endpoint manages Policy records only. PolicyRule CRUD, versioning, and
+  generic policy-language work remain out of scope.
+
 Human Approvals:
 
 - `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.

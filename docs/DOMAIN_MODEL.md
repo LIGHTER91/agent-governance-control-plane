@@ -364,6 +364,15 @@ Allowed statuses initially:
 - disabled;
 - archived.
 
+`POST /policies`, `GET /policies`, `GET /policies/{policy_id}`, and
+`PATCH /policies/{policy_id}` manage Policy lifecycle records. The API uses the
+status lifecycle instead of hard delete. Mutations append `policy_created`,
+`policy_updated`, or `policy_status_changed` audit records.
+
+Policy management does not create or edit PolicyRule records. Until PolicyRule
+CRUD exists, callers can manage Policy lifecycle state but cannot manage the
+rule conditions that the deterministic evaluator consumes through this API.
+
 Examples:
 
 - "Production agents must have an owner."
@@ -563,6 +572,7 @@ Examples:
 - access_grant_status_changed;
 - policy_created;
 - policy_updated;
+- policy_status_changed;
 - policy_decision_recorded;
 - human_approval_requested;
 - human_approval_approved;

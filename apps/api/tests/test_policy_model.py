@@ -26,6 +26,7 @@ from agent_governance_api.schemas import (
     PolicyDecisionCreate,
     PolicyDecisionRead,
     PolicyRead,
+    PolicyUpdate,
 )
 
 
@@ -63,6 +64,13 @@ def test_policy_schemas_accept_valid_enum_values() -> None:
     assert decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
 
 
+def test_policy_update_schema_accepts_partial_updates() -> None:
+    update = PolicyUpdate(description=None, status="archived")
+
+    assert update.description is None
+    assert update.status is PolicyStatus.ARCHIVED
+
+
 @pytest.mark.parametrize(
     ("schema_class", "payload"),
     [
@@ -90,6 +98,25 @@ def test_policy_schemas_accept_valid_enum_values() -> None:
 )
 def test_policy_schemas_reject_invalid_enum_values(
     schema_class: type[PolicyCreate] | type[PolicyDecisionCreate],
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        schema_class(**payload)
+
+
+@pytest.mark.parametrize(
+    ("schema_class", "payload"),
+    [
+        (PolicyCreate, {"name": "", "description": None, "status": "draft"}),
+        (PolicyCreate, {"name": "   ", "description": None, "status": "draft"}),
+        (PolicyUpdate, {"name": ""}),
+        (PolicyUpdate, {"name": "   "}),
+        (PolicyUpdate, {"name": None}),
+        (PolicyUpdate, {"status": None}),
+    ],
+)
+def test_policy_schemas_reject_blank_or_null_required_fields(
+    schema_class: type[PolicyCreate] | type[PolicyUpdate],
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(ValidationError):

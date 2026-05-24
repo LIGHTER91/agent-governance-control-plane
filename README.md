@@ -77,6 +77,8 @@ integrations are intentionally not implemented yet.
   allowed to use.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
+- Policy management API with auditable create, update, and status lifecycle
+  changes.
 - Simple policy evaluator supporting explicit matching fields:
   `agent_id`, `tool_name`, `environment`, and `risk_level`.
 - Adapter from persisted active PolicyRule records into evaluator rules.
@@ -229,6 +231,17 @@ inventory targets; separate AgentCapability, AgentSource, or AgentModel join
 tables would duplicate that meaning. They do not enforce runtime access yet and
 are not a full IAM system.
 
+Policy Management:
+
+- `POST /policies`
+- `GET /policies`
+- `GET /policies/{policy_id}`
+- `PATCH /policies/{policy_id}`
+
+Policy management records the lifecycle of policies with `draft`, `active`,
+`disabled`, and `archived` statuses. It does not add PolicyRule CRUD, a generic
+policy language, or any change to runtime evaluation behavior.
+
 Human Approvals:
 
 - `POST /human-approvals`
@@ -318,7 +331,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 ## Intentionally Not Implemented Yet
 
-- Policy CRUD API.
+- PolicyRule CRUD API.
 - Agent Governance Profile UI surfacing Capability, Source, Model, and Access
   Grant records.
 - Runtime enforcement from Access Grants.
@@ -353,14 +366,14 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Policy and PolicyRule CRUD APIs with audit logging.
+1. Add PolicyRule CRUD API with audit logging.
 2. Surface Agent-scoped Access Grants in the Agent Governance Profile and
    Evidence Bundle.
 3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 4. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add Policy CRUD UI after backend Policy CRUD exists.
+5. Add Policy management UI after PolicyRule CRUD exists.
 6. Add frontend auth and role-aware UI.
 7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
 8. Add OpenAPI examples for `GET /human-approvals` if missing.

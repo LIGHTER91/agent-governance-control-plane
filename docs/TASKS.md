@@ -47,7 +47,8 @@ Access Grants through `GET /agents/{agent_id}/access-grants`. AccessGrant is the
 association layer for Agent-to-Capability, Agent-to-Source, and
 Agent-to-ModelAsset declarations for now. Access Grants are not enforced by
 runtime policy evaluation yet and are not surfaced in the Agent profile or
-Evidence Bundle yet. The
+Evidence Bundle yet. A Policy management API exists for auditable Policy
+lifecycle records, but PolicyRule CRUD is not implemented yet. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
 `GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
@@ -77,29 +78,27 @@ References:
 
 Recommended order:
 
-1. Add Policy CRUD API.
-2. Add PolicyRule CRUD API.
-3. Add audit records for Policy and PolicyRule mutations.
-4. Surface Agent-scoped Access Grants in the Agent Governance Profile and
+1. Add PolicyRule CRUD API with audit logging.
+2. Surface Agent-scoped Access Grants in the Agent Governance Profile and
    Evidence Bundle.
-5. Use Access Grants as optional policy context without replacing
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-6. Add Permission domain model only if AccessGrant target semantics prove
+4. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-7. Add Policy CRUD UI after backend Policy CRUD exists.
-8. Add frontend auth and role-aware UI later.
-9. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-10. Add OpenAPI examples for `GET /human-approvals` if missing.
-11. Design team and organization-unit ownership resolution for Evidence Bundle
+5. Add Policy management UI after PolicyRule CRUD exists.
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-12. Add owner-based service actor scopes design.
-13. Add safe denied-scope audit events.
-14. Add admin management for persisted service actor scope and rule records.
-15. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe denied-scope audit events.
+12. Add admin management for persisted service actor scope and rule records.
+13. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-16. Add tests for overriding the Actor dependency with a non-development actor.
-17. Add deeper separation-of-duties checks for HumanApproval review.
-18. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add tests for overriding the Actor dependency with a non-development actor.
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -114,7 +113,7 @@ Recommended order:
 - [ ] Design team and organization-unit ownership resolution for Evidence
       Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [ ] Add Policy CRUD UI after backend Policy CRUD exists.
+- [ ] Add Policy management UI after PolicyRule CRUD exists.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
@@ -127,9 +126,7 @@ Recommended order:
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
       prove insufficient.
-- [ ] Add Policy CRUD API.
-- [ ] Add PolicyRule CRUD API.
-- [ ] Add audit records for Policy and PolicyRule mutations.
+- [ ] Add PolicyRule CRUD API with audit logging.
 - [ ] Extend Evidence Bundle for Capability, Data Source, Model, and Permission
       records.
 - [ ] Add policy versioning design.
@@ -196,6 +193,8 @@ credentials.
 - [x] Implement Agent Registry API.
 - [x] Add audit records for Agent mutations.
 - [x] Implement Policy, PolicyRule, and PolicyDecision domain models.
+- [x] Add Policy management API with audit records for create, update, and
+      status changes.
 - [x] Implement simple deterministic Policy evaluator.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
