@@ -44,17 +44,18 @@ See [V0_GOVERNANCE_FLOW.md](docs/V0_GOVERNANCE_FLOW.md) for the executable demo
 scenario.
 
 This is still a V0 backend milestone, not a production-ready enterprise control
-plane. Runtime Gateway foundations and minimal config-based service actor API
-key authentication now exist, including endpoint scopes, config-based
-fine-grained scope rules, and an explicit service-auth-required mode for runtime
-and telemetry endpoints. AGCP does not execute tools; runtime enforcement
-depends on wrappers or adapters calling AGCP and honoring `proceed`. Minimal
-RBAC exists for HumanApproval review actions and Evidence Bundle export. The
-frontend now exposes the core read-only governance views plus pending
-HumanApproval review actions and Runtime activity.
+plane. Runtime Gateway foundations and service actor API key authentication now
+exist, with config-based auth as the default and optional DB-backed registry
+auth behind an explicit feature flag. Both paths support endpoint scopes and
+fine-grained Agent/environment/runtime/tool restrictions, and runtime and
+telemetry endpoints can require service authentication. AGCP does not execute
+tools; runtime enforcement depends on wrappers or adapters calling AGCP and
+honoring `proceed`. Minimal RBAC exists for HumanApproval review actions and
+Evidence Bundle export. The frontend now exposes the core read-only governance
+views plus pending HumanApproval review actions and Runtime activity.
 Full user authentication, OIDC/SAML, team membership resolution, enterprise
-auth-backed frontend workflows, notifications, production deployment, persisted
-service actor registry, API key rotation implementation, and enterprise
+auth-backed frontend workflows, notifications, production deployment, service
+actor admin workflows, API key rotation implementation, and enterprise
 integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
@@ -116,10 +117,10 @@ integrations are intentionally not implemented yet.
 - DB-backed service actor and API key registry lookup behind
   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default; when enabled, active
   service actors can authenticate with active or retiring non-expired registry
-  keys while scopes remain config-based.
+  keys.
 - DB-backed service actor endpoint/action scope and fine-grained rule
-  persistence foundation. Auth still uses config-based scopes and rules until
-  explicitly wired.
+  persistence. Registry-backed actors use these persisted scopes and rules when
+  the registry feature flag is enabled; config auth remains the default path.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
@@ -281,8 +282,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
 - DB-backed service actor registry auth is available behind a disabled feature
-  flag, with a manual hashed-config seeding helper. Admin workflows and public
-  registry APIs are not complete.
+  flag, with internal hashed-key and scope/rule config seeding helpers. Admin
+  workflows and public registry APIs are not complete.
 - API key rotation implementation and persistent API key management.
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
@@ -317,10 +318,11 @@ Near-term recommended work:
    export.
 8. Add owner-based service actor scopes design.
 9. Add safe audit events for denied service actor scope checks.
-10. Implement service actor API key rotation and admin workflows after registry
+10. Implement service actor registry admin management workflow.
+11. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-11. Add deeper separation-of-duties checks for HumanApproval review.
-12. Add broad filtering and pagination for Runtime and Agent activity only
+12. Add deeper separation-of-duties checks for HumanApproval review.
+13. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

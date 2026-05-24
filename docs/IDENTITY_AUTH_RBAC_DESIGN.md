@@ -9,11 +9,10 @@ config-based service actor rules, minimal HumanApproval review RBAC, and
 minimal Evidence Bundle export RBAC. Service actor API key rotation is
 documented as design-only, and the DB-backed service actor registry has a
 disabled-by-default authentication path for runtime and telemetry service
-actors and persistence tables for service actor scopes and fine-grained rules.
+actors using persisted service actor scopes and fine-grained rules.
 The current backend does not implement full user authentication, identity
-provider integration, auth lookup from persisted scope/rule tables, persisted
-API key rotation, team membership resolution, organization-unit ownership
-resolution, or persistent RBAC tables.
+provider integration, persisted API key rotation, team membership resolution,
+organization-unit ownership resolution, or persistent RBAC tables.
 
 V0 uses the structured development placeholder:
 
@@ -419,14 +418,15 @@ The current implementation is intentionally narrow:
 - invalid keys are rejected before endpoint records are created.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing keys on runtime and telemetry
   integration endpoints.
-- endpoint/action scopes are configured through `AGCP_SERVICE_ACTOR_SCOPES`.
+- endpoint/action scopes are configured through `AGCP_SERVICE_ACTOR_SCOPES` for
+  config-auth actors and persisted scope rows for registry-auth actors.
 
 Allowed Agent IDs, environments, runtime modes, and tool names are now supported
-through config-based fine-grained service actor rules. API key rotation has a
-design only, and the DB-backed service actor registry is disabled by default;
-persisted service actor scope/rule tables exist but are not wired into auth yet.
-Owner-based service actor restrictions remain future work. Raw API keys must
-never be stored or logged in plaintext.
+through config-based fine-grained service actor rules and, for registry-auth
+actors, persisted fine-grained rule rows. API key rotation has a design only,
+and the DB-backed service actor registry is disabled by default. Owner-based
+service actor restrictions remain future work. Raw API keys must never be
+stored or logged in plaintext.
 
 ### OIDC/SAML Later For Enterprise Users
 

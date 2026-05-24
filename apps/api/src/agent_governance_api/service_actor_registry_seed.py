@@ -37,8 +37,8 @@ def seed_service_actor_registry_from_settings(
     """Seed service actors and hashed API key records from safe config values.
 
     This imports only `AGCP_SERVICE_ACTOR_API_KEYS` entries that already contain
-    `sha256:<digest>` values. Endpoint scopes and fine-grained rules remain
-    config-based until persisted scope tables exist.
+    `sha256:<digest>` values. Use the scope seed helper to import endpoint
+    scopes and fine-grained rules separately.
     """
 
     results: list[SeedResult] = []
@@ -109,7 +109,7 @@ def format_seed_results(results: list[SeedResult], *, dry_run: bool) -> str:
     mode = "DRY RUN" if dry_run else "APPLIED"
     lines = [
         f"{mode}: service actor registry seed results",
-        "Scopes and fine-grained rules remain config-based in this release.",
+        "Use seed_service_actor_registry_scopes.py to seed scopes and rules.",
     ]
     for result in results:
         lines.append(

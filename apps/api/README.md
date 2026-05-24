@@ -111,11 +111,12 @@ Service actor API keys:
 - `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default. With the flag disabled,
   runtime and telemetry auth remain config-based. With the flag enabled, service
   actor API keys are resolved from the DB-backed registry and only active
-  service actors with active or retiring non-expired keys can authenticate.
-  Endpoint/action scopes and fine-grained rules still come from config.
+  service actors with active or retiring non-expired keys can authenticate. For
+  registry-backed actors, endpoint/action scopes and fine-grained rules are read
+  from `service_actor_scopes` and `service_actor_scope_rules`.
 - DB-backed `service_actor_scopes` and `service_actor_scope_rules` tables exist
-  as a persistence foundation, but runtime and telemetry auth does not read
-  them yet.
+  for registry auth. Config-auth actors still use `AGCP_SERVICE_ACTOR_SCOPES`
+  and `AGCP_SERVICE_ACTOR_SCOPE_RULES`.
 - This is not production-ready authentication. There are no public registry CRUD
   APIs, key rotation endpoints, OIDC/SAML/JWT, or human RBAC yet.
 
@@ -127,22 +128,30 @@ uv run python scripts/seed_service_actor_registry.py
 
 # Apply. Creates missing service_actors and service_actor_api_keys records.
 uv run python scripts/seed_service_actor_registry.py --apply
+
+# Dry run. Reads AGCP_SERVICE_ACTOR_SCOPES and AGCP_SERVICE_ACTOR_SCOPE_RULES.
+uv run python scripts/seed_service_actor_registry_scopes.py
+
+# Apply. Creates missing service_actor_scopes and service_actor_scope_rules rows.
+uv run python scripts/seed_service_actor_registry_scopes.py --apply
 ```
 
-The seeding helper imports only `service:<stable-id>=sha256:<digest>` entries
-from `AGCP_SERVICE_ACTOR_API_KEYS`. Raw API keys must never be committed, logged,
-or passed to the helper. Existing `AGCP_SERVICE_ACTOR_SCOPES` and
-`AGCP_SERVICE_ACTOR_SCOPE_RULES` values must remain configured because
-endpoint/action scopes and fine-grained rules are not wired into auth from the
-registry tables yet.
+The key seeding helper imports only `service:<stable-id>=sha256:<digest>`
+entries from `AGCP_SERVICE_ACTOR_API_KEYS`. Raw API keys must never be
+committed, logged, or passed to either helper. The scope seeding helper imports
+`AGCP_SERVICE_ACTOR_SCOPES` and `AGCP_SERVICE_ACTOR_SCOPE_RULES` only for
+existing `service_actors`, avoids duplicate scope rows, appends non-duplicate
+fine-grained rules, preserves existing records, and reports missing service
+actors. Unsupported fine-grained rule fields are rejected by config validation.
 
 Suggested rollout:
 
 1. Keep `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
 2. Run migrations and seed the registry from hashed config.
-3. Dry-run, then apply the seed helper in a controlled environment.
-4. Test one service actor with the registry flag enabled.
-5. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
+3. Dry-run, then apply the key seed helper in a controlled environment.
+4. Dry-run, then apply the scope/rule seed helper and review missing actors.
+5. Test one service actor with the registry flag enabled.
+6. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
 
 ## Database migrations
 

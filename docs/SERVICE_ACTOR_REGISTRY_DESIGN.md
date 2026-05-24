@@ -108,9 +108,10 @@ Status rules:
 
 The persistence foundation implements `service_actors`,
 `service_actor_api_keys`, `service_actor_scopes`, and
-`service_actor_scope_rules`. Runtime and telemetry auth still read
-endpoint/action scopes and fine-grained rules from config until the persisted
-scope path is explicitly wired.
+`service_actor_scope_rules`. Runtime and telemetry registry-auth actors read
+endpoint/action scopes and fine-grained rules from these persisted rows when
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`; config-auth actors continue to use
+environment settings.
 
 ### `service_actors`
 
@@ -252,9 +253,9 @@ telemetry or Runtime Gateway requests when
 4. Reject unknown, revoked, expired, disabled, or retired identities.
 5. Compare the submitted secret hash to `key_hash` with timing-safe comparison.
 6. Resolve `ActorContext(actor_type="service", actor_id=service_actor.actor_id)`.
-7. Check endpoint/action scope from config.
-8. Check config-based fine-grained Agent, environment, runtime mode, and
-   tool-name rules.
+7. Check endpoint/action scope from persisted `ServiceActorScope` records.
+8. Check persisted `ServiceActorScopeRule` Agent, environment, runtime mode,
+   and tool-name rules.
 9. Only then continue into telemetry ingestion, runtime decision, or runtime
    resume behavior.
 
@@ -358,22 +359,25 @@ Suggested migration path:
    existing safe config entries into service actor records and hashed key rows.
    Implemented as the internal `scripts/seed_service_actor_registry.py` helper
    for hashed API key config only.
-5. Validate parity in staging by comparing accepted/rejected service actor
+5. Provide a one-way import tool for existing config scopes and fine-grained
+   rules. Implemented as the internal
+   `scripts/seed_service_actor_registry_scopes.py` helper.
+6. Validate parity in staging by comparing accepted/rejected service actor
    behavior.
-6. Enable registry-backed auth in production-like environments.
-7. Wire auth to read persisted scopes and fine-grained rules after parity tests
-   and rollout behavior are defined.
+7. Enable registry-backed auth in production-like environments.
 
 The import process must not require raw keys from existing deployments. The
 current helper reads only `AGCP_SERVICE_ACTOR_API_KEYS` entries that already use
 `sha256:<digest>`, creates missing `service_actors` and
 `service_actor_api_keys` rows, and never prints or persists raw API keys.
 
-Because persisted scope and rule tables are not wired into auth yet,
-`AGCP_SERVICE_ACTOR_SCOPES` and `AGCP_SERVICE_ACTOR_SCOPE_RULES` must remain
-configured after registry seeding. Registry-backed auth validates the service
-actor and key lifecycle; the existing config continues to define endpoint/action
-scopes and fine-grained rules.
+The scope helper reads `AGCP_SERVICE_ACTOR_SCOPES` and
+`AGCP_SERVICE_ACTOR_SCOPE_RULES`, creates missing `service_actor_scopes` rows,
+and appends non-duplicate `service_actor_scope_rules` rows for existing service
+actors. It is dry-run by default, writes only with `--apply`, preserves existing
+persisted records, reports missing service actors, and does not read, print, or
+persist raw API keys. Config values remain the source of truth while the
+registry flag is disabled or when the config-auth path is used.
 
 Manual seeding workflow:
 
@@ -384,9 +388,13 @@ Manual seeding workflow:
    to preview created actor/key IDs.
 5. Run `uv run python scripts/seed_service_actor_registry.py --apply` from
    `apps/api` to create missing registry records.
-6. Validate one test service actor in a controlled environment with
+6. Run `uv run python scripts/seed_service_actor_registry_scopes.py` from
+   `apps/api` to preview scope/rule rows and missing actors.
+7. Run `uv run python scripts/seed_service_actor_registry_scopes.py --apply`
+   from `apps/api` to create missing scope/rule rows.
+8. Validate one test service actor in a controlled environment with
    `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
-7. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
+9. Roll back by setting `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false`.
 
 ## Rollout Strategy
 
@@ -400,10 +408,11 @@ Recommended phases:
 4. Add authentication lookup using the registry behind a feature flag.
    Completed for runtime and telemetry integration endpoints.
 5. Wire persisted endpoint/action scopes and fine-grained rules into auth behind
-   the registry flag.
+   the registry flag. Completed for runtime and telemetry integration endpoints.
 6. Add audit events for actor, scope, rule, and key lifecycle changes.
 7. Add migration/import tooling for existing config-based service actors.
-   Completed for local/manual seeding of hashed API key config.
+   Completed for local/manual seeding of hashed API key config and config-based
+   scope/rule records.
 8. Add admin endpoints only after real user auth and admin RBAC exist.
 9. Consider frontend UI only after admin endpoints and user auth exist.
 

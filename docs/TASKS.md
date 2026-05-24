@@ -30,10 +30,10 @@ restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES`. The DB-backed service
 actor registry can authenticate active service actors with active or retiring
 non-expired keys behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, and DB
 persistence exists for endpoint/action scopes and fine-grained rules. This is
-not production-grade auth: config auth remains the default, scope/rule auth is
-still config/env-based, there is no persisted API key rotation implementation,
-no owner-based service actor restrictions, no OIDC/SAML/JWT, and no team
-membership resolver.
+not production-grade auth: config auth remains the default, registry-backed
+scope/rule auth must be explicitly enabled, there is no persisted API key
+rotation implementation, no owner-based service actor restrictions, no
+OIDC/SAML/JWT, and no team membership resolver.
 Minimal HumanApproval review RBAC and Evidence Bundle export RBAC exist,
 including direct user owner Evidence Bundle export, but they are local role
 checks, not full enterprise authorization. Evidence Bundle successful exports
@@ -82,8 +82,7 @@ Recommended order:
     export.
 13. Add owner-based service actor scopes design.
 14. Add safe denied-scope audit events.
-15. Wire persisted service actor scopes and fine-grained rules into auth behind
-    the registry flag.
+15. Add admin management for persisted service actor scope and rule records.
 16. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
 17. Add tests for overriding the Actor dependency with a non-development actor.
@@ -95,8 +94,7 @@ Recommended order:
 
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add safe denied-scope audit events.
-- [ ] Wire persisted service actor scopes and fine-grained rules into auth
-      behind the registry flag.
+- [ ] Add admin management for persisted service actor scope and rule records.
 - [ ] Implement service actor API key rotation and admin workflows after
       registry management behavior is designed.
 - [ ] Add tests for overriding the Actor dependency with a non-development
@@ -142,6 +140,15 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Add DB-backed service actor scope and fine-grained rule persistence.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Wire persisted service actor scopes and fine-grained rules into auth
+      behind the registry flag.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Import service actor scopes and fine-grained rules into registry.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

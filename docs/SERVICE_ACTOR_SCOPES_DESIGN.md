@@ -4,8 +4,9 @@
 
 Design proposal with a minimal endpoint-scope implementation now in place.
 Service actor API key authentication exists as a configuration-based foundation
-for runtime and telemetry integration endpoints, with DB-backed scope
-persistence available but not wired into auth yet. It identifies a caller as:
+for runtime and telemetry integration endpoints. DB-backed scope persistence is
+wired into registry-backed service actor auth behind
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`. It identifies a caller as:
 
 ```text
 actor_type = "service"
@@ -13,12 +14,14 @@ actor_id = "service:<stable-id>"
 ```
 
 The current implementation supports endpoint/action scopes through
-`AGCP_SERVICE_ACTOR_SCOPES`, minimal fine-grained restrictions through
-`AGCP_SERVICE_ACTOR_SCOPE_RULES`, and can require service authentication for
-runtime and telemetry endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does
-not yet implement auth lookup from persisted scope/rule tables, owner-based
-restrictions, Evidence Bundle service scopes, HumanApproval review scopes, or
-AuditLog read scopes.
+`AGCP_SERVICE_ACTOR_SCOPES` for config-auth actors and persisted
+`ServiceActorScope` rows for registry-auth actors. It supports minimal
+fine-grained restrictions through `AGCP_SERVICE_ACTOR_SCOPE_RULES` for
+config-auth actors and persisted `ServiceActorScopeRule` rows for registry-auth
+actors. It can require service authentication for runtime and telemetry
+endpoints with `AGCP_REQUIRE_SERVICE_AUTH=true`. It does not yet implement
+owner-based restrictions, Evidence Bundle service scopes, HumanApproval review
+scopes, or AuditLog read scopes.
 
 AGCP remains an Agent Governance Control Plane. Service actor scopes should
 govern integrations that call AGCP; they should not turn AGCP into an
@@ -315,10 +318,11 @@ Evidence Bundles should continue to show service actor identity through
 AuditLog, HumanApproval, TraceEventRecord, and PolicyDecision links. They should
 not expose raw API keys or sensitive request payloads.
 
-## Minimal Config-Based V1 Implementation Path
+## Minimal Config And Registry Implementation Path
 
-V1 should stay configuration-based and avoid database tables until key
-management and ownership workflows are clearer.
+V1 started configuration-based and now has DB-backed registry records behind a
+disabled feature flag. Config auth remains the default until operators seed and
+validate registry records.
 
 Suggested path:
 
@@ -344,6 +348,9 @@ Suggested path:
    leak secrets or create audit noise.
 11. Add tests for missing scope, wrong Agent, wrong environment, wrong runtime
     mode, invalid key, no-key local fallback, and no raw key leakage.
+12. Add DB-backed service actor, key, scope, and rule persistence. Implemented.
+13. Wire persisted scopes and rules into registry-backed auth. Implemented.
+14. Add internal seed helpers for hashed keys, scopes, and rules. Implemented.
 
 Implemented JSON-shaped configuration for per-resource restrictions:
 
@@ -368,8 +375,7 @@ separate from raw API key material.
 4. Add safe audit events for denied service actor scope checks.
 5. Add tests proving raw API keys never appear in logs, AuditLog metadata,
     telemetry metadata, or Evidence Bundles.
-6. Design persistent service actor and API key storage only after the
-    config-based model is proven.
+6. Add admin management for persisted service actor records, scopes, and rules.
 7. Align service actor scopes with future user RBAC for HumanApproval review
     and Evidence Bundle export.
 

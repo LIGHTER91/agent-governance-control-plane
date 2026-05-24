@@ -308,9 +308,9 @@ Allowed service actor statuses:
 The registry is disabled by default. With
 `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, runtime and telemetry service actor
 authentication can resolve active service actors with active or retiring
-non-expired API keys from the registry. Endpoint/action scopes and fine-grained
-rules remain configuration-based even though persisted scope and rule tables now
-exist.
+non-expired API keys from the registry. Registry-backed actors use persisted
+endpoint/action scopes and fine-grained rule records. Config auth remains the
+default behavior when the registry flag is disabled.
 
 ## Audit Log
 

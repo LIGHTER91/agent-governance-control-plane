@@ -2,16 +2,15 @@
 
 ## Status
 
-Design proposal with a minimal config-based implementation now in place for
-Agent ID, environment, runtime mode, and tool-name restrictions on telemetry and
-Runtime Gateway integration endpoints. The backend still does not implement
+Design proposal with a minimal implementation now in place for Agent ID,
+environment, runtime mode, and tool-name restrictions on telemetry and Runtime
+Gateway integration endpoints. Config auth remains the default path through
+`AGCP_SERVICE_ACTOR_SCOPE_RULES`. When
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, registry-backed service actors use
+persisted `ServiceActorScopeRule` records. The backend still does not implement
 owner-based restrictions, Evidence Bundle service scopes, HumanApproval review
-scopes, auth lookup from persisted fine-grained scope tables, or persisted API
-key rotation. The DB-backed service actor registry is documented in
-`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; it can authenticate active service
-actors with active or retiring non-expired keys behind a disabled-by-default
-feature flag, while auth still uses config-based scopes and rules. Persistence
-for endpoint/action scopes and fine-grained rules exists as a foundation.
+scopes, or persisted API key rotation. The DB-backed service actor registry is
+documented in `docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`.
 
 AGCP remains an Agent Governance Control Plane. Fine-grained service actor
 scopes should govern which integrations may call AGCP for which Agents and
@@ -166,20 +165,23 @@ Rules:
 
 The existing endpoint/action scopes are the canonical names for endpoint access.
 The minimal fine-grained implementation does not include a separate `actions`
-field. This keeps endpoint/action access in `AGCP_SERVICE_ACTOR_SCOPES` and
-uses `AGCP_SERVICE_ACTOR_SCOPE_RULES` only for Agent, environment, runtime mode,
-and tool-name restrictions.
+field. Config-auth actors keep endpoint/action access in
+`AGCP_SERVICE_ACTOR_SCOPES` and use `AGCP_SERVICE_ACTOR_SCOPE_RULES` only for
+Agent, environment, runtime mode, and tool-name restrictions. Registry-backed
+actors read the equivalent persisted `ServiceActorScope` and
+`ServiceActorScopeRule` rows.
 
 Recommended V1 rule:
 
-1. check `AGCP_SERVICE_ACTOR_SCOPES`;
-2. load matching fine-grained rules for the actor;
+1. check endpoint/action scopes from config or persisted scope rows;
+2. load matching fine-grained rules for the actor from config or persisted rule
+   rows;
 3. confirm Agent, environment, runtime mode, and tool restrictions.
 
 ## Minimal Config-Based V1 Format
 
-Keep V1 config-based and avoid database tables. The existing API key and
-endpoint/action scope settings remain:
+The default config-auth path remains environment-based. The existing API key and
+endpoint/action scope settings are:
 
 ```text
 AGCP_SERVICE_ACTOR_API_KEYS="service:demo-runtime=sha256:<digest>"
@@ -216,7 +218,8 @@ actor registry.
 
 Implementation note: the minimal backend implementation intentionally does not
 support `actions`, `owner_refs`, or `owner_types` yet. Endpoint/action access is
-still controlled by `AGCP_SERVICE_ACTOR_SCOPES`.
+controlled by `AGCP_SERVICE_ACTOR_SCOPES` for config-auth actors and persisted
+`ServiceActorScope` rows for registry-auth actors.
 
 ## Interaction With Current Scopes
 
@@ -429,9 +432,9 @@ authorization config.
 3. Add HumanApproval read/review service scope design if a real integration
    needs it.
 4. Add safe denied-scope audit event design before enabling denial auditing.
-5. Wire persisted scope and fine-grained rule lookup into auth behind the
-   registry flag.
-6. Implement API key rotation after config-based restrictions are proven.
+5. Add admin management for persisted service actor scope and rule records.
+6. Implement API key rotation after config-based and registry-backed
+   restrictions are proven.
 
 ## Open Questions
 

@@ -22,6 +22,8 @@ config-based service actor API key authentication now exists for runtime and
 telemetry endpoints, including endpoint/action scopes and an explicit
 service-auth-required mode. Config-based fine-grained service actor scope rules
 also exist for Agent ID, environment, runtime mode, and tool-name restrictions.
+DB-backed service actor registry auth can also use persisted endpoint/action
+scopes and fine-grained rules when explicitly enabled.
 Minimal RBAC checks now exist for HumanApproval review actions and Evidence
 Bundle export, including direct user owner export. Successful Evidence Bundle
 exports and denied attempts against known Agents are audited with safe metadata.
@@ -161,9 +163,11 @@ Important limitations:
   implemented for runtime and telemetry endpoints.
 - Config-based fine-grained service actor scope rules are implemented for Agent
   ID, environment, runtime mode, and tool-name restrictions.
+- DB-backed service actor records, scopes, and rules are implemented behind a
+  disabled feature flag, but public management APIs and rotation endpoints are
+  not implemented.
 - Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
-  key rotation, DB-backed service actor records, and broad user RBAC are not
-  implemented.
+  key rotation, and broad user RBAC are not implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
 - Production deployment, monitoring, and operational runbooks are not
@@ -200,7 +204,8 @@ Completed foundation:
   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default; when enabled, active
   service actors can authenticate with active or retiring non-expired keys.
 - DB-backed service actor endpoint/action scope and fine-grained rule
-  persistence foundation. Auth still reads scopes and rules from config.
+  persistence wired into registry-backed auth behind the feature flag. Config
+  auth still reads scopes and rules from environment settings.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
@@ -235,8 +240,7 @@ Recommended next work:
   export.
 - Add owner-based service actor scopes design.
 - Add safe denied-scope audit events.
-- Wire persisted service actor scopes and fine-grained rules into auth behind
-  the registry flag.
+- Add admin management for persisted service actor scope and rule records.
 - Implement service actor API key rotation and admin workflows after registry
   management behavior is designed.
 - Add tests for overriding the Actor dependency with a non-development actor.
@@ -245,8 +249,8 @@ Recommended next work:
 Important limitations:
 
 - Auth is still minimal. Config-based auth remains the default behavior.
-- Fine-grained service actor auth is still config/env-based even though
-  persisted scope and rule tables exist.
+- Registry-backed service actor auth uses persisted scopes and rules only when
+  explicitly enabled; there are no public management APIs for those records.
 - Registry-backed service actor auth is disabled by default and does not yet
   include public management APIs or rotation endpoints.
 - API key rotation has a design only; persisted rotation is not implemented.

@@ -14,11 +14,10 @@ scopes, enforce config-based Agent, environment, runtime mode, and tool-name
 restrictions, and reject missing keys when `AGCP_REQUIRE_SERVICE_AUTH=true`.
 The DB-backed service actor registry can authenticate active service actors with
 active or retiring non-expired keys when
-`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, but it is disabled by default and
-still uses config-based scopes and rules. Persisted scope and rule tables exist
-as a foundation but are not wired into auth. Owner-based service actor
-restrictions, full RBAC, user login, and persisted API key rotation are not
-implemented.
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, and registry-backed actors use
+persisted endpoint/action scopes and fine-grained rules. The registry path is
+disabled by default. Owner-based service actor restrictions, full RBAC, user
+login, and persisted API key rotation are not implemented.
 
 This document describes the implemented runtime governance foundation and the
 remaining V1 path for the Agent Governance Control Plane. It keeps the product

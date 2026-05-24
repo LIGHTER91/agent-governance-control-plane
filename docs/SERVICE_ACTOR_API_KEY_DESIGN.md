@@ -20,12 +20,13 @@ mode, and tool-name restrictions. `AGCP_REQUIRE_SERVICE_AUTH` can reject missing
 service keys on runtime and telemetry integration endpoints. API key rotation is
 documented in `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`, but not
 implemented. The DB-backed service actor registry is documented in
-`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; it includes a manual hashed-config
-seeding helper and exists behind `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by
-default. When enabled, runtime and telemetry auth can resolve active service
-actors with active or retiring non-expired registry keys; endpoint scopes and
-fine-grained rules still come from config even though DB persistence for those
-records now exists. The backend does not implement persisted key rotation, RBAC,
+`docs/SERVICE_ACTOR_REGISTRY_DESIGN.md`; it includes internal hashed-key and
+scope/rule config seeding helpers and exists behind
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=false` by default. When enabled, runtime
+and telemetry auth can resolve active service
+actors with active or retiring non-expired registry keys and persisted
+endpoint/action scopes and fine-grained rule records. Config auth remains the
+default behavior. The backend does not implement persisted key rotation, RBAC,
 OIDC, SAML, JWTs, or a production identity system.
 
 AGCP remains an Agent Governance Control Plane. It should integrate with agent
@@ -373,14 +374,18 @@ Mitigations:
     disabled feature flag. Implemented.
 11. Wire registry-backed auth behind the existing disabled-by-default feature
     flag. Implemented for runtime and telemetry integration endpoints.
+12. Wire persisted service actor scopes and fine-grained rules into
+    registry-backed auth behind the feature flag. Implemented for runtime and
+    telemetry integration endpoints.
+13. Add internal scope/rule seeding from config into registry records.
+    Implemented as `scripts/seed_service_actor_registry_scopes.py`.
 
 This path keeps the first implementation small while still moving runtime
 integrations away from the shared development placeholder.
 
 ## Recommended Follow-up Issues
 
-1. Wire persisted service actor scopes and fine-grained rules into auth behind
-   the registry flag.
+1. Add admin management for persisted service actor scope and rule records.
 2. Implement API key rotation lifecycle states, grace periods, and safe audit
    events from `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`.
 3. Add audit visibility for service actor usage.
