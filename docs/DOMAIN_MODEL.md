@@ -123,9 +123,9 @@ Capability metadata must contain only safe, non-sensitive context. Do not store
 raw prompts, credentials, tokens, secrets, authorization headers, or raw
 sensitive payloads in capability metadata.
 
-Capabilities are not linked to Agents yet. Agent-to-Capability mappings, data
-source access, model access, and permission/access-grant records remain future
-work.
+Capabilities can be referenced by Access Grants. Agent profile surfacing,
+runtime enforcement, data source access, model access, and Evidence Bundle
+coverage for these declared grants remain future work.
 
 ## Tool
 
@@ -194,9 +194,9 @@ source contents, credentials, tokens, secrets, authorization headers, raw
 prompts, private customer data, or raw sensitive payloads in Source inventory
 metadata.
 
-Sources are not linked to Agents yet. Agent-to-Source access declarations,
-permission/access-grant records, and Evidence Bundle coverage for source access
-remain future work.
+Sources can be referenced by Access Grants. Agent profile surfacing, runtime
+enforcement, permission semantics, and Evidence Bundle coverage for source
+access remain future work.
 
 ## Model
 
@@ -258,9 +258,84 @@ credentials, tokens, secrets, authorization headers, raw prompts, private
 customer data, or raw sensitive payloads in Model inventory metadata.
 
 Model inventory records do not call model provider APIs and do not store
-credentials. Models are not linked to Agents yet. Agent-to-Model access
-declarations, permission/access-grant records, and Evidence Bundle coverage for
+credentials. Models can be referenced by Access Grants. Agent profile surfacing,
+runtime enforcement, permission semantics, and Evidence Bundle coverage for
 model access remain future work.
+
+## Access Grant
+
+A governed inventory record declaring that an Agent is allowed to use a
+Capability, Source, ModelAsset, external target, or other governed target.
+
+Access Grants help answer:
+
+- what an Agent is allowed to use;
+- who granted that access;
+- when the grant was recorded;
+- whether the grant is pending review, active, suspended, revoked, or expired;
+- what safe evidence or context supports the grant.
+
+Suggested fields:
+
+- id;
+- name;
+- description;
+- grant_type;
+- subject_type;
+- subject_id;
+- target_type;
+- target_id;
+- external_ref;
+- status;
+- granted_by_actor_type;
+- granted_by_actor_id;
+- reason;
+- expires_at;
+- risk_level;
+- metadata;
+- created_at;
+- updated_at.
+
+Allowed grant types initially:
+
+- capability;
+- source;
+- model;
+- permission;
+- other.
+
+Allowed subject types initially:
+
+- agent.
+
+Allowed target types initially:
+
+- capability;
+- source;
+- model_asset;
+- external;
+- other.
+
+Allowed statuses initially:
+
+- pending_review;
+- active;
+- suspended;
+- revoked;
+- expired.
+
+The API sets `granted_by_actor_type` and `granted_by_actor_id` from the current
+ActorContext when the grant is created. Callers should not supply or override
+grantor fields.
+
+Access Grants are declarations, not enforcement decisions. They must not become
+a full IAM system, and they must not replace PolicyDecision, Runtime Gateway, or
+HumanApproval records. Later work may use grants as policy context, include them
+in Evidence Bundles, and surface them in the Agent Governance Profile UI.
+
+Access Grant metadata must contain only safe, non-sensitive context. Do not
+store credentials, tokens, secrets, authorization headers, raw prompts, private
+customer data, or raw sensitive payloads in Access Grant metadata.
 
 ## Policy
 
@@ -476,6 +551,9 @@ Examples:
 - model_asset_created;
 - model_asset_updated;
 - model_asset_status_changed;
+- access_grant_created;
+- access_grant_updated;
+- access_grant_status_changed;
 - policy_created;
 - policy_updated;
 - policy_decision_recorded;

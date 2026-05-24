@@ -71,6 +71,8 @@ integrations are intentionally not implemented yet.
   stores, APIs, buckets, filesystems, and other data or knowledge sources.
 - Model inventory API for governed hosted LLMs, embedding models, rerankers,
   classifiers, vision models, audio models, and other model assets.
+- Access grant inventory API for declared Agent access to governed
+  Capabilities, Sources, ModelAssets, external targets, and other targets.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Simple policy evaluator supporting explicit matching fields:
@@ -207,10 +209,16 @@ Inventory:
 - `GET /models`
 - `GET /models/{model_id}`
 - `PATCH /models/{model_id}`
+- `POST /access-grants`
+- `GET /access-grants`
+- `GET /access-grants/{access_grant_id}`
+- `PATCH /access-grants/{access_grant_id}`
 
 Capability, Source, and Model inventory records are governance inventory only.
-They are not linked to Agents yet, do not ingest source contents, do not call
-model provider APIs, and do not change policy evaluation.
+They can be referenced by Access Grants, but do not ingest source contents, do
+not call model provider APIs, and do not change policy evaluation.
+Access Grants are declared governance records for what an Agent is allowed to
+use. They do not enforce runtime access yet and are not a full IAM system.
 
 Human Approvals:
 
@@ -302,9 +310,9 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 ## Intentionally Not Implemented Yet
 
 - Policy CRUD API.
-- Agent-to-Capability links.
-- Agent-to-Source links.
-- Agent-to-Model links.
+- Agent Governance Profile UI surfacing Capability, Source, Model, and Access
+  Grant records.
+- Runtime enforcement from Access Grants.
 - Dedicated Permission domain model.
 - Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
@@ -337,23 +345,24 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 Near-term recommended work:
 
 1. Add Policy and PolicyRule CRUD APIs with audit logging.
-2. Link Agents to Capability inventory records.
-3. Link Agents to Source inventory records.
-4. Link Agents to Model inventory records.
-5. Implement Permission domain model.
-6. Add Policy CRUD UI after backend Policy CRUD exists.
-7. Add frontend auth and role-aware UI.
-8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-9. Add OpenAPI examples for `GET /human-approvals` if missing.
-10. Design team and organization-unit ownership resolution for Evidence Bundle
+2. Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+3. Use Access Grants as optional policy context without replacing
+   PolicyDecision records.
+4. Implement Permission domain model only if AccessGrant target semantics prove
+   insufficient.
+5. Add Policy CRUD UI after backend Policy CRUD exists.
+6. Add frontend auth and role-aware UI.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-11. Add owner-based service actor scopes design.
-12. Add safe audit events for denied service actor scope checks.
-13. Implement service actor registry admin management workflow.
-14. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe audit events for denied service actor scope checks.
+12. Implement service actor registry admin management workflow.
+13. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-15. Add deeper separation-of-duties checks for HumanApproval review.
-16. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add deeper separation-of-duties checks for HumanApproval review.
+15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

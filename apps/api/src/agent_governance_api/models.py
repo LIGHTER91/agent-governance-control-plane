@@ -114,6 +114,34 @@ class ModelAssetStatus(StrEnum):
     RETIRED = "retired"
 
 
+class AccessGrantType(StrEnum):
+    CAPABILITY = "capability"
+    SOURCE = "source"
+    MODEL = "model"
+    PERMISSION = "permission"
+    OTHER = "other"
+
+
+class AccessGrantSubjectType(StrEnum):
+    AGENT = "agent"
+
+
+class AccessGrantTargetType(StrEnum):
+    CAPABILITY = "capability"
+    SOURCE = "source"
+    MODEL_ASSET = "model_asset"
+    EXTERNAL = "external"
+    OTHER = "other"
+
+
+class AccessGrantStatus(StrEnum):
+    PENDING_REVIEW = "pending_review"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
 class OwnerType(StrEnum):
     USER = "user"
     TEAM = "team"
@@ -523,6 +551,113 @@ class ModelAsset(Base):
             create_constraint=True,
             validate_strings=True,
             name="model_asset_risk_level",
+        ),
+        nullable=False,
+    )
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class AccessGrant(Base):
+    __tablename__ = "access_grants"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    grant_type: Mapped[AccessGrantType] = mapped_column(
+        Enum(
+            AccessGrantType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_type",
+        ),
+        nullable=False,
+    )
+    subject_type: Mapped[AccessGrantSubjectType] = mapped_column(
+        Enum(
+            AccessGrantSubjectType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_subject_type",
+        ),
+        nullable=False,
+    )
+    subject_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    target_type: Mapped[AccessGrantTargetType] = mapped_column(
+        Enum(
+            AccessGrantTargetType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_target_type",
+        ),
+        nullable=False,
+    )
+    target_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    external_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[AccessGrantStatus] = mapped_column(
+        Enum(
+            AccessGrantStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_status",
+        ),
+        nullable=False,
+    )
+    granted_by_actor_type: Mapped[ActorType] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_granted_by_actor_type",
+        ),
+        nullable=False,
+    )
+    granted_by_actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(
+            RiskLevel,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="access_grant_risk_level",
         ),
         nullable=False,
     )

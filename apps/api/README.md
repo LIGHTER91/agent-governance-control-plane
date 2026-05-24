@@ -68,7 +68,8 @@ Capability Inventory:
   other governed operations.
 - Capability metadata rejects unsafe key names such as `api_key`, `token`,
   `password`, `secret`, and `authorization`.
-- Capabilities are not linked to Agents yet.
+- Capabilities can be referenced by Access Grants, but are not enforced by
+  runtime policy evaluation yet.
 
 Source Inventory:
 
@@ -83,7 +84,7 @@ Source Inventory:
 - Source metadata rejects unsafe key names such as `api_key`, `token`,
   `password`, `secret`, and `authorization`.
 - Source inventory records do not ingest or store source contents, and Sources
-  are not linked to Agents yet.
+  can be referenced by Access Grants but are not enforced yet.
 
 Model Inventory:
 
@@ -97,8 +98,28 @@ Model Inventory:
   classifiers, vision models, audio models, or other governed model assets.
 - Model asset metadata rejects unsafe key names such as `api_key`, `token`,
   `password`, `secret`, and `authorization`.
-- Model inventory records do not store credentials, call provider APIs, or link
-  model assets to Agents yet.
+- Model inventory records do not store credentials or call provider APIs. Model
+  assets can be referenced by Access Grants but are not enforced yet.
+
+Access Grant Inventory:
+
+- `POST /access-grants` creates a governed access grant inventory record and
+  appends `access_grant_created`.
+- `GET /access-grants` lists access grant records.
+- `GET /access-grants/{access_grant_id}` returns one access grant.
+- `PATCH /access-grants/{access_grant_id}` updates an access grant and appends
+  `access_grant_updated` or `access_grant_status_changed`.
+- Access grants declare what an Agent is allowed to use, who granted that
+  access, why, and whether it is pending review, active, suspended, revoked, or
+  expired.
+- `granted_by_actor_type` and `granted_by_actor_id` are derived from the
+  current `ActorContext` on create; callers cannot spoof grantor fields in the
+  request body.
+- Access grant metadata rejects unsafe key names such as `api_key`, `token`,
+  `password`, `secret`, and `authorization`.
+- Access grants are governance inventory only. They do not enforce runtime
+  access yet and do not replace PolicyDecision, Runtime Gateway, or Human
+  Approval records.
 
 Human Approvals:
 

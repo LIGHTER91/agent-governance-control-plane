@@ -41,8 +41,10 @@ and denied attempts against known Agents are audited with safe metadata. A
 minimal Capability inventory API exists for governed tools, APIs, integrations,
 workflow actions, and other operations, and a minimal Source inventory API
 exists for governed data and knowledge sources. A minimal Model inventory API
-exists for governed model assets. Capabilities, Sources, and Models are not
-linked to Agents yet. The
+exists for governed model assets. A minimal Access Grant inventory API exists
+for declared Agent access to governed targets. Access Grants are not enforced by
+runtime policy evaluation yet and are not surfaced in the Agent profile or
+Evidence Bundle yet. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
 `GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
@@ -75,24 +77,25 @@ Recommended order:
 1. Add Policy CRUD API.
 2. Add PolicyRule CRUD API.
 3. Add audit records for Policy and PolicyRule mutations.
-4. Link Agents to Capability inventory records.
-5. Link Agents to Source inventory records.
-6. Link Agents to Model inventory records.
-7. Add Permission domain model.
-8. Add Policy CRUD UI after backend Policy CRUD exists.
-9. Add frontend auth and role-aware UI later.
-10. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-11. Add OpenAPI examples for `GET /human-approvals` if missing.
-12. Design team and organization-unit ownership resolution for Evidence Bundle
+4. Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+5. Use Access Grants as optional policy context without replacing
+   PolicyDecision records.
+6. Add Permission domain model only if AccessGrant target semantics prove
+   insufficient.
+7. Add Policy CRUD UI after backend Policy CRUD exists.
+8. Add frontend auth and role-aware UI later.
+9. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+10. Add OpenAPI examples for `GET /human-approvals` if missing.
+11. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-13. Add owner-based service actor scopes design.
-14. Add safe denied-scope audit events.
-15. Add admin management for persisted service actor scope and rule records.
-16. Implement service actor API key rotation and admin workflows after registry
+12. Add owner-based service actor scopes design.
+13. Add safe denied-scope audit events.
+14. Add admin management for persisted service actor scope and rule records.
+15. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-17. Add tests for overriding the Actor dependency with a non-development actor.
-18. Add deeper separation-of-duties checks for HumanApproval review.
-19. Add broad filtering and pagination for Runtime and Agent activity only
+16. Add tests for overriding the Actor dependency with a non-development actor.
+17. Add deeper separation-of-duties checks for HumanApproval review.
+18. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -114,10 +117,12 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
-- [ ] Link Agents to Capability inventory records.
-- [ ] Link Agents to Source inventory records.
-- [ ] Link Agents to Model inventory records.
-- [ ] Implement Permission domain model.
+- [ ] Surface Access Grants in the Agent Governance Profile and Evidence
+      Bundle.
+- [ ] Use Access Grants as optional policy context without replacing
+      PolicyDecision records.
+- [ ] Implement Permission domain model only if AccessGrant target semantics
+      prove insufficient.
 - [ ] Add Policy CRUD API.
 - [ ] Add PolicyRule CRUD API.
 - [ ] Add audit records for Policy and PolicyRule mutations.
@@ -166,6 +171,10 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Add model inventory model.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Add access grant inventory model.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

@@ -75,6 +75,8 @@ Completed capabilities:
   sources.
 - Model inventory model and API for governed hosted LLMs, embedding models,
   rerankers, classifiers, vision models, audio models, and other model assets.
+- Access grant inventory model and API for declared Agent access to governed
+  Capabilities, Sources, ModelAssets, external targets, and other targets.
 - Agent ownership model using `owner_type`, `owner_id`, `owner_name`, and
   optional contact email.
 - Immutable application-level AuditLog foundation.
@@ -238,10 +240,11 @@ Completed foundation:
 Recommended next work:
 
 - Add Policy and PolicyRule CRUD APIs with audit logging.
-- Link Agents to Capability inventory records.
-- Link Agents to Source inventory records.
-- Link Agents to Model inventory records.
-- Implement Permission domain model.
+- Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+- Use Access Grants as optional policy context without replacing
+  PolicyDecision records.
+- Implement Permission domain model only if AccessGrant target semantics prove
+  insufficient.
 - Add Policy CRUD UI after backend Policy CRUD exists.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
@@ -331,8 +334,8 @@ Planned capabilities:
 - Policy and PolicyRule versioning.
 - Risk review dashboard.
 - SIEM/GRC integrations.
-- Agent-to-Capability, Agent-to-Source, and Agent-to-Model links, plus
-  Permission domain coverage.
+- Agent Governance Profile coverage for Capability, Source, Model, and Access
+  Grant records, plus Permission domain coverage if still needed.
 - Policy and PolicyRule CRUD APIs with audit logging.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.

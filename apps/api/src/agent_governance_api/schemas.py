@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,6 +9,10 @@ from agent_governance_api.metadata_safety import (
     reject_unsafe_metadata_keys,
 )
 from agent_governance_api.models import (
+    AccessGrantStatus,
+    AccessGrantSubjectType,
+    AccessGrantTargetType,
+    AccessGrantType,
     ActorType,
     AgentStatus,
     CapabilityStatus,
@@ -307,9 +311,116 @@ class ModelAssetRead(ModelAssetBase):
     updated_at: datetime
 
 
+class AccessGrantBase(BaseModel):
+    name: str
+    description: str | None = None
+    grant_type: AccessGrantType
+    subject_type: AccessGrantSubjectType
+    subject_id: UUID
+    target_type: AccessGrantTargetType
+    target_id: UUID | None = None
+    external_ref: str | None = None
+    status: AccessGrantStatus
+    reason: str | None = None
+    expires_at: datetime | None = None
+    risk_level: RiskLevel
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class AccessGrantCreate(AccessGrantBase):
+    @model_validator(mode="after")
+    def validate_target_reference(self) -> Self:
+        return _validate_access_grant_target_reference(self)
+
+
+class AccessGrantUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    grant_type: AccessGrantType | None = None
+    subject_type: AccessGrantSubjectType | None = None
+    subject_id: UUID | None = None
+    target_type: AccessGrantTargetType | None = None
+    target_id: UUID | None = None
+    external_ref: str | None = None
+    status: AccessGrantStatus | None = None
+    reason: str | None = None
+    expires_at: datetime | None = None
+    risk_level: RiskLevel | None = None
+    metadata: SafeMetadata | None = None
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata | None) -> SafeMetadata | None:
+        if value is None:
+            return None
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {
+            "description",
+            "target_id",
+            "external_ref",
+            "reason",
+            "expires_at",
+        }
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+
+class AccessGrantRead(AccessGrantBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    granted_by_actor_type: ActorType
+    granted_by_actor_id: str
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+    updated_at: datetime
+
+
 EvidenceMetadataValue = str | int | float | bool | None
 EvidenceMetadata = dict[str, EvidenceMetadataValue]
 AgentActivitySeverity = Literal["info", "warning", "error"]
+
+
+def _validate_access_grant_target_reference(
+    access_grant: AccessGrantCreate,
+) -> AccessGrantCreate:
+    inventory_target_types = {
+        AccessGrantTargetType.CAPABILITY,
+        AccessGrantTargetType.SOURCE,
+        AccessGrantTargetType.MODEL_ASSET,
+    }
+    if (
+        access_grant.target_type in inventory_target_types
+        and access_grant.target_id is None
+    ):
+        raise ValueError("target_id is required for inventory access grant targets.")
+    if access_grant.target_type is AccessGrantTargetType.EXTERNAL and not (
+        access_grant.external_ref and access_grant.external_ref.strip()
+    ):
+        raise ValueError("external_ref is required for external access grant targets.")
+    return access_grant
 
 
 class EvidenceAuditLogRead(BaseModel):

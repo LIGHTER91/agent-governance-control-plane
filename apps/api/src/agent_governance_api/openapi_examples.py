@@ -2,6 +2,7 @@ AGENT_ID = "11111111-1111-4111-8111-111111111111"
 CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 SOURCE_ID = "13131313-1313-4131-8131-131313131313"
 MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
+ACCESS_GRANT_ID = "15151515-1515-4151-8151-151515151515"
 RUN_ID = "22222222-2222-4222-8222-222222222222"
 TRACE_EVENT_ID = "33333333-3333-4333-8333-333333333333"
 POLICY_ID = "44444444-4444-4444-8444-444444444444"
@@ -166,6 +167,49 @@ MODEL_ASSET_UPDATE_REQUEST = {
 MODEL_ASSET_UPDATED_RESPONSE = {
     **MODEL_ASSET_RESPONSE,
     **MODEL_ASSET_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
+ACCESS_GRANT_CREATE_REQUEST = {
+    "name": "Support email capability access",
+    "description": "Allow the V0 Support Assistant to use the support email tool.",
+    "grant_type": "capability",
+    "subject_type": "agent",
+    "subject_id": AGENT_ID,
+    "target_type": "capability",
+    "target_id": CAPABILITY_ID,
+    "external_ref": None,
+    "status": "active",
+    "reason": "Support follow-up workflow reviewed for the V0 demo.",
+    "expires_at": "2026-12-31T23:59:59Z",
+    "risk_level": "medium",
+    "metadata": {
+        "approval_ticket": "GOV-123",
+        "review_status": "approved",
+    },
+}
+
+ACCESS_GRANT_RESPONSE = {
+    **ACCESS_GRANT_CREATE_REQUEST,
+    "id": ACCESS_GRANT_ID,
+    "granted_by_actor_type": "development",
+    "granted_by_actor_id": "dev-placeholder",
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+ACCESS_GRANT_UPDATE_REQUEST = {
+    "status": "suspended",
+    "reason": "Access paused during governance review.",
+    "metadata": {
+        "approval_ticket": "GOV-123",
+        "review_status": "paused",
+    },
+}
+
+ACCESS_GRANT_UPDATED_RESPONSE = {
+    **ACCESS_GRANT_RESPONSE,
+    **ACCESS_GRANT_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
@@ -762,6 +806,34 @@ MODEL_ASSET_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated model asset.",
     response_value=MODEL_ASSET_UPDATED_RESPONSE,
+)
+
+ACCESS_GRANT_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create an inventory record for a governed access grant.",
+    request_value=ACCESS_GRANT_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created access grant.",
+    response_value=ACCESS_GRANT_RESPONSE,
+)
+
+ACCESS_GRANT_LIST_OPENAPI = _response_example(
+    200,
+    "List access grants including the support email capability grant.",
+    [ACCESS_GRANT_RESPONSE],
+)
+
+ACCESS_GRANT_GET_OPENAPI = _response_example(
+    200,
+    "Read the support email capability access grant.",
+    ACCESS_GRANT_RESPONSE,
+)
+
+ACCESS_GRANT_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Suspend a governed access grant.",
+    request_value=ACCESS_GRANT_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated access grant.",
+    response_value=ACCESS_GRANT_UPDATED_RESPONSE,
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(
