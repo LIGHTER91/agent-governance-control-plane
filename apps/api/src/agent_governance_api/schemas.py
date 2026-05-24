@@ -17,6 +17,9 @@ from agent_governance_api.models import (
     DataSourceType,
     Environment,
     HumanApprovalStatus,
+    ModelAssetStatus,
+    ModelAssetType,
+    ModelProvider,
     OwnerType,
     PolicyDecisionValue,
     PolicyStatus,
@@ -214,6 +217,88 @@ class DataSourceUpdate(BaseModel):
 
 
 class DataSourceRead(DataSourceBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModelAssetBase(BaseModel):
+    name: str
+    description: str | None = None
+    model_type: ModelAssetType
+    provider: ModelProvider
+    model_ref: str | None = None
+    version: str | None = None
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    owner_contact_email: str | None = None
+    status: ModelAssetStatus
+    risk_level: RiskLevel
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class ModelAssetCreate(ModelAssetBase):
+    pass
+
+
+class ModelAssetUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    model_type: ModelAssetType | None = None
+    provider: ModelProvider | None = None
+    model_ref: str | None = None
+    version: str | None = None
+    owner_type: OwnerType | None = None
+    owner_id: str | None = None
+    owner_name: str | None = None
+    owner_contact_email: str | None = None
+    status: ModelAssetStatus | None = None
+    risk_level: RiskLevel | None = None
+    metadata: SafeMetadata | None = None
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata | None) -> SafeMetadata | None:
+        if value is None:
+            return None
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {
+            "description",
+            "model_ref",
+            "version",
+            "owner_contact_email",
+        }
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+
+class ModelAssetRead(ModelAssetBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

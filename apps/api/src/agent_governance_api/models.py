@@ -87,6 +87,33 @@ class DataSourceStatus(StrEnum):
     RETIRED = "retired"
 
 
+class ModelAssetType(StrEnum):
+    LLM = "llm"
+    EMBEDDING = "embedding"
+    RERANKER = "reranker"
+    CLASSIFIER = "classifier"
+    VISION = "vision"
+    AUDIO = "audio"
+    OTHER = "other"
+
+
+class ModelProvider(StrEnum):
+    OPENAI = "openai"
+    MISTRAL = "mistral"
+    ANTHROPIC = "anthropic"
+    LOCAL = "local"
+    AZURE = "azure"
+    AWS = "aws"
+    GCP = "gcp"
+    OTHER = "other"
+
+
+class ModelAssetStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    RETIRED = "retired"
+
+
 class OwnerType(StrEnum):
     USER = "user"
     TEAM = "team"
@@ -404,6 +431,98 @@ class DataSource(Base):
             create_constraint=True,
             validate_strings=True,
             name="source_risk_level",
+        ),
+        nullable=False,
+    )
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class ModelAsset(Base):
+    __tablename__ = "model_assets"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_type: Mapped[ModelAssetType] = mapped_column(
+        Enum(
+            ModelAssetType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="model_asset_type",
+        ),
+        nullable=False,
+    )
+    provider: Mapped[ModelProvider] = mapped_column(
+        Enum(
+            ModelProvider,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="model_asset_provider",
+        ),
+        nullable=False,
+    )
+    model_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    owner_type: Mapped[OwnerType] = mapped_column(
+        Enum(
+            OwnerType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="model_asset_owner_type",
+        ),
+        nullable=False,
+    )
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    status: Mapped[ModelAssetStatus] = mapped_column(
+        Enum(
+            ModelAssetStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="model_asset_status",
+        ),
+        nullable=False,
+    )
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(
+            RiskLevel,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="model_asset_risk_level",
         ),
         nullable=False,
     )

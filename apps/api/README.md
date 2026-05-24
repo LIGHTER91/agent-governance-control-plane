@@ -85,6 +85,21 @@ Source Inventory:
 - Source inventory records do not ingest or store source contents, and Sources
   are not linked to Agents yet.
 
+Model Inventory:
+
+- `POST /models` creates a governed model inventory record and appends
+  `model_asset_created`.
+- `GET /models` lists model asset records.
+- `GET /models/{model_id}` returns one model asset.
+- `PATCH /models/{model_id}` updates a model asset and appends
+  `model_asset_updated` or `model_asset_status_changed`.
+- Model assets can represent hosted LLMs, embedding models, rerankers,
+  classifiers, vision models, audio models, or other governed model assets.
+- Model asset metadata rejects unsafe key names such as `api_key`, `token`,
+  `password`, `secret`, and `authorization`.
+- Model inventory records do not store credentials, call provider APIs, or link
+  model assets to Agents yet.
+
 Human Approvals:
 
 - `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.

@@ -6,6 +6,7 @@ from agent_governance_api.capabilities import router as capabilities_router
 from agent_governance_api.config import get_settings
 from agent_governance_api.human_approvals import router as human_approvals_router
 from agent_governance_api.logging_config import configure_logging
+from agent_governance_api.model_assets import router as model_assets_router
 from agent_governance_api.runtime_gateway_api import router as runtime_gateway_router
 from agent_governance_api.sources import router as sources_router
 from agent_governance_api.telemetry_api import router as telemetry_router
@@ -17,6 +18,7 @@ app = FastAPI(title=settings.app_name, version=settings.app_version)
 app.include_router(agents_router)
 app.include_router(capabilities_router)
 app.include_router(human_approvals_router)
+app.include_router(model_assets_router)
 app.include_router(runtime_gateway_router)
 app.include_router(sources_router)
 app.include_router(telemetry_router)

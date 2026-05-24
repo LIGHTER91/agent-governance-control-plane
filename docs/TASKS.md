@@ -40,8 +40,9 @@ checks, not full enterprise authorization. Evidence Bundle successful exports
 and denied attempts against known Agents are audited with safe metadata. A
 minimal Capability inventory API exists for governed tools, APIs, integrations,
 workflow actions, and other operations, and a minimal Source inventory API
-exists for governed data and knowledge sources, but Capabilities and Sources
-are not linked to Agents yet. The
+exists for governed data and knowledge sources. A minimal Model inventory API
+exists for governed model assets. Capabilities, Sources, and Models are not
+linked to Agents yet. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
 `GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
@@ -76,7 +77,7 @@ Recommended order:
 3. Add audit records for Policy and PolicyRule mutations.
 4. Link Agents to Capability inventory records.
 5. Link Agents to Source inventory records.
-6. Add Model domain model.
+6. Link Agents to Model inventory records.
 7. Add Permission domain model.
 8. Add Policy CRUD UI after backend Policy CRUD exists.
 9. Add frontend auth and role-aware UI later.
@@ -115,7 +116,7 @@ Recommended order:
       after the backend read models need it.
 - [ ] Link Agents to Capability inventory records.
 - [ ] Link Agents to Source inventory records.
-- [ ] Implement Model domain model.
+- [ ] Link Agents to Model inventory records.
 - [ ] Implement Permission domain model.
 - [ ] Add Policy CRUD API.
 - [ ] Add PolicyRule CRUD API.
@@ -161,6 +162,10 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Add source inventory model.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Add model inventory model.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

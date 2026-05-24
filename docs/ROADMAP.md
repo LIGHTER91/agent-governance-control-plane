@@ -73,6 +73,8 @@ Completed capabilities:
 - Source inventory model and API for governed knowledge bases, databases,
   document stores, APIs, buckets, filesystems, and other data or knowledge
   sources.
+- Model inventory model and API for governed hosted LLMs, embedding models,
+  rerankers, classifiers, vision models, audio models, and other model assets.
 - Agent ownership model using `owner_type`, `owner_id`, `owner_name`, and
   optional contact email.
 - Immutable application-level AuditLog foundation.
@@ -238,7 +240,8 @@ Recommended next work:
 - Add Policy and PolicyRule CRUD APIs with audit logging.
 - Link Agents to Capability inventory records.
 - Link Agents to Source inventory records.
-- Implement Model and Permission domain models.
+- Link Agents to Model inventory records.
+- Implement Permission domain model.
 - Add Policy CRUD UI after backend Policy CRUD exists.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
@@ -328,8 +331,8 @@ Planned capabilities:
 - Policy and PolicyRule versioning.
 - Risk review dashboard.
 - SIEM/GRC integrations.
-- Agent-to-Capability and Agent-to-Source links, plus Model and Permission
-  domain coverage.
+- Agent-to-Capability, Agent-to-Source, and Agent-to-Model links, plus
+  Permission domain coverage.
 - Policy and PolicyRule CRUD APIs with audit logging.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.

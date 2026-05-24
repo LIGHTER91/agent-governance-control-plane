@@ -69,6 +69,8 @@ integrations are intentionally not implemented yet.
   actions, and other operations.
 - Source inventory API for governed knowledge bases, databases, document
   stores, APIs, buckets, filesystems, and other data or knowledge sources.
+- Model inventory API for governed hosted LLMs, embedding models, rerankers,
+  classifiers, vision models, audio models, and other model assets.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Simple policy evaluator supporting explicit matching fields:
@@ -201,10 +203,14 @@ Inventory:
 - `GET /sources`
 - `GET /sources/{source_id}`
 - `PATCH /sources/{source_id}`
+- `POST /models`
+- `GET /models`
+- `GET /models/{model_id}`
+- `PATCH /models/{model_id}`
 
-Capability and Source inventory records are governance inventory only. They are
-not linked to Agents yet, do not ingest source contents, and do not change
-policy evaluation.
+Capability, Source, and Model inventory records are governance inventory only.
+They are not linked to Agents yet, do not ingest source contents, do not call
+model provider APIs, and do not change policy evaluation.
 
 Human Approvals:
 
@@ -298,7 +304,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Policy CRUD API.
 - Agent-to-Capability links.
 - Agent-to-Source links.
-- Dedicated Model and Permission domain models.
+- Agent-to-Model links.
+- Dedicated Permission domain model.
 - Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
@@ -332,20 +339,21 @@ Near-term recommended work:
 1. Add Policy and PolicyRule CRUD APIs with audit logging.
 2. Link Agents to Capability inventory records.
 3. Link Agents to Source inventory records.
-4. Implement Model and Permission domain models.
-5. Add Policy CRUD UI after backend Policy CRUD exists.
-6. Add frontend auth and role-aware UI.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+4. Link Agents to Model inventory records.
+5. Implement Permission domain model.
+6. Add Policy CRUD UI after backend Policy CRUD exists.
+7. Add frontend auth and role-aware UI.
+8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+9. Add OpenAPI examples for `GET /human-approvals` if missing.
+10. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-10. Add owner-based service actor scopes design.
-11. Add safe audit events for denied service actor scope checks.
-12. Implement service actor registry admin management workflow.
-13. Implement service actor API key rotation and admin workflows after registry
+11. Add owner-based service actor scopes design.
+12. Add safe audit events for denied service actor scope checks.
+13. Implement service actor registry admin management workflow.
+14. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

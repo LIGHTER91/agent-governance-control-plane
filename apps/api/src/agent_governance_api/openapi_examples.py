@@ -1,6 +1,7 @@
 AGENT_ID = "11111111-1111-4111-8111-111111111111"
 CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 SOURCE_ID = "13131313-1313-4131-8131-131313131313"
+MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
 RUN_ID = "22222222-2222-4222-8222-222222222222"
 TRACE_EVENT_ID = "33333333-3333-4333-8333-333333333333"
 POLICY_ID = "44444444-4444-4444-8444-444444444444"
@@ -124,6 +125,47 @@ SOURCE_UPDATE_REQUEST = {
 SOURCE_UPDATED_RESPONSE = {
     **SOURCE_RESPONSE,
     **SOURCE_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
+MODEL_ASSET_CREATE_REQUEST = {
+    "name": "Support assistant chat model",
+    "description": "Governed hosted language model used for support assistance.",
+    "model_type": "llm",
+    "provider": "openai",
+    "model_ref": "support-chat-deployment",
+    "version": "2026-01",
+    "owner_type": "team",
+    "owner_id": "team:ai-platform",
+    "owner_name": "AI Platform",
+    "owner_contact_email": "ai-platform@example.invalid",
+    "status": "active",
+    "risk_level": "medium",
+    "metadata": {
+        "domain": "support",
+        "usage": "assistant_response",
+    },
+}
+
+MODEL_ASSET_RESPONSE = {
+    **MODEL_ASSET_CREATE_REQUEST,
+    "id": MODEL_ASSET_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+MODEL_ASSET_UPDATE_REQUEST = {
+    "status": "disabled",
+    "metadata": {
+        "domain": "support",
+        "usage": "assistant_response",
+        "review_status": "paused",
+    },
+}
+
+MODEL_ASSET_UPDATED_RESPONSE = {
+    **MODEL_ASSET_RESPONSE,
+    **MODEL_ASSET_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
@@ -692,6 +734,34 @@ SOURCE_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated source.",
     response_value=SOURCE_UPDATED_RESPONSE,
+)
+
+MODEL_ASSET_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create an inventory record for a governed model asset.",
+    request_value=MODEL_ASSET_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created model asset.",
+    response_value=MODEL_ASSET_RESPONSE,
+)
+
+MODEL_ASSET_LIST_OPENAPI = _response_example(
+    200,
+    "List model assets including the support assistant chat model.",
+    [MODEL_ASSET_RESPONSE],
+)
+
+MODEL_ASSET_GET_OPENAPI = _response_example(
+    200,
+    "Read the support assistant chat model asset.",
+    MODEL_ASSET_RESPONSE,
+)
+
+MODEL_ASSET_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Disable a governed model asset.",
+    request_value=MODEL_ASSET_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated model asset.",
+    response_value=MODEL_ASSET_UPDATED_RESPONSE,
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(

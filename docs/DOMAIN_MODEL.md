@@ -200,16 +200,67 @@ remain future work.
 
 ## Model
 
-A model or model endpoint used by an agent.
+A governed inventory record describing an AI/ML model or model endpoint an
+Agent may use, such as a hosted LLM, embedding model, reranker, classifier,
+vision model, audio model, local model, or other model asset.
 
-Fields may include:
+The backend implementation uses `ModelAsset` as the Python domain class name to
+avoid collisions with SQLAlchemy terminology.
 
+Suggested fields:
+
+- id;
+- name;
+- description;
+- model_type;
 - provider;
-- model_name;
-- endpoint_alias;
-- deployment_environment.
+- model_ref;
+- version;
+- owner_type;
+- owner_id;
+- owner_name;
+- owner_contact_email;
+- status;
+- risk_level;
+- metadata;
+- created_at;
+- updated_at.
 
-Do not store secrets.
+Allowed model types initially:
+
+- llm;
+- embedding;
+- reranker;
+- classifier;
+- vision;
+- audio;
+- other.
+
+Allowed providers initially:
+
+- openai;
+- mistral;
+- anthropic;
+- local;
+- azure;
+- aws;
+- gcp;
+- other.
+
+Allowed model statuses initially:
+
+- active;
+- disabled;
+- retired.
+
+Model metadata must contain only safe, non-sensitive context. Do not store
+credentials, tokens, secrets, authorization headers, raw prompts, private
+customer data, or raw sensitive payloads in Model inventory metadata.
+
+Model inventory records do not call model provider APIs and do not store
+credentials. Models are not linked to Agents yet. Agent-to-Model access
+declarations, permission/access-grant records, and Evidence Bundle coverage for
+model access remain future work.
 
 ## Policy
 
@@ -422,6 +473,9 @@ Examples:
 - source_created;
 - source_updated;
 - source_status_changed;
+- model_asset_created;
+- model_asset_updated;
+- model_asset_status_changed;
 - policy_created;
 - policy_updated;
 - policy_decision_recorded;
