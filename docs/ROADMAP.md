@@ -236,11 +236,14 @@ Completed foundation:
   and cancel actions shown only for pending approvals.
 - Read-only Evidence Bundle page backed by
   `GET /agents/{agent_id}/evidence-bundle`.
+- Agent-scoped Access Grant reads through `GET /agents/{agent_id}/access-grants`,
+  sorted newest first with `status` and `target_type` filters.
 
 Recommended next work:
 
 - Add Policy and PolicyRule CRUD APIs with audit logging.
-- Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+- Surface Agent-scoped Access Grants in the Agent Governance Profile and
+  Evidence Bundle.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Implement Permission domain model only if AccessGrant target semantics prove

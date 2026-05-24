@@ -330,8 +330,15 @@ grantor fields.
 
 Access Grants are declarations, not enforcement decisions. They must not become
 a full IAM system, and they must not replace PolicyDecision, Runtime Gateway, or
-HumanApproval records. Later work may use grants as policy context, include them
-in Evidence Bundles, and surface them in the Agent Governance Profile UI.
+HumanApproval records. For now, Access Grants are the association layer between
+Agents and governed inventory targets. Separate AgentCapability, AgentSource, or
+AgentModel join tables should not be added unless AccessGrant semantics prove
+insufficient for a concrete governance question.
+
+`GET /agents/{agent_id}/access-grants` reads an Agent's declared grants newest
+first, with minimal filters for `status` and `target_type`. Later work may use
+grants as policy context, include them in Evidence Bundles, and surface them in
+the Agent Governance Profile UI.
 
 Access Grant metadata must contain only safe, non-sensitive context. Do not
 store credentials, tokens, secrets, authorization headers, raw prompts, private

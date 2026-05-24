@@ -3,6 +3,8 @@ CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 SOURCE_ID = "13131313-1313-4131-8131-131313131313"
 MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
 ACCESS_GRANT_ID = "15151515-1515-4151-8151-151515151515"
+SOURCE_ACCESS_GRANT_ID = "16161616-1616-4161-8161-161616161616"
+MODEL_ASSET_ACCESS_GRANT_ID = "17171717-1717-4171-8171-171717171717"
 RUN_ID = "22222222-2222-4222-8222-222222222222"
 TRACE_EVENT_ID = "33333333-3333-4333-8333-333333333333"
 POLICY_ID = "44444444-4444-4444-8444-444444444444"
@@ -212,6 +214,44 @@ ACCESS_GRANT_UPDATED_RESPONSE = {
     **ACCESS_GRANT_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
+
+AGENT_ACCESS_GRANT_RESPONSE = [
+    {
+        **ACCESS_GRANT_RESPONSE,
+        "id": MODEL_ASSET_ACCESS_GRANT_ID,
+        "name": "Support model access",
+        "description": "Allow the V0 Support Assistant to use the support chat model.",
+        "grant_type": "model",
+        "target_type": "model_asset",
+        "target_id": MODEL_ASSET_ID,
+        "reason": "Support response workflow reviewed for the V0 demo.",
+        "metadata": {
+            "approval_ticket": "GOV-125",
+            "review_status": "approved",
+        },
+        "created_at": "2026-01-15T12:10:00Z",
+        "updated_at": "2026-01-15T12:10:00Z",
+    },
+    {
+        **ACCESS_GRANT_RESPONSE,
+        "id": SOURCE_ACCESS_GRANT_ID,
+        "name": "Support knowledge source access",
+        "description": (
+            "Allow the V0 Support Assistant to reference support runbooks."
+        ),
+        "grant_type": "source",
+        "target_type": "source",
+        "target_id": SOURCE_ID,
+        "reason": "Support knowledge workflow reviewed for the V0 demo.",
+        "metadata": {
+            "approval_ticket": "GOV-124",
+            "review_status": "approved",
+        },
+        "created_at": "2026-01-15T12:05:00Z",
+        "updated_at": "2026-01-15T12:05:00Z",
+    },
+    ACCESS_GRANT_RESPONSE,
+]
 
 AGENT_ACTIVITY_RESPONSE = [
     {
@@ -708,6 +748,12 @@ AGENT_GET_OPENAPI = _response_example(
     200,
     "Read the V0 demo agent.",
     AGENT_RESPONSE,
+)
+
+AGENT_ACCESS_GRANTS_OPENAPI = _response_example(
+    200,
+    "Read Access Grants for the V0 demo agent, newest first.",
+    AGENT_ACCESS_GRANT_RESPONSE,
 )
 
 AGENT_ACTIVITY_OPENAPI = _response_example(

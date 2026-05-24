@@ -46,6 +46,8 @@ Agent Registry:
 - `POST /agents` creates an agent and appends an internal `agent_created` audit event.
 - `GET /agents` lists agents.
 - `GET /agents/{agent_id}` returns one agent.
+- `GET /agents/{agent_id}/access-grants` returns the Agent's declared access
+  grants, sorted newest first. Optional filters: `status` and `target_type`.
 - `GET /agents/{agent_id}/activity` returns a read-only activity timeline sorted newest first for product navigation.
 - `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle for one agent, including related audit logs, runs, trace events, policy decisions, and human approvals.
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
@@ -112,6 +114,9 @@ Access Grant Inventory:
 - Access grants declare what an Agent is allowed to use, who granted that
   access, why, and whether it is pending review, active, suspended, revoked, or
   expired.
+- Access grants are the current association layer between Agents and governed
+  inventory targets. They can point to Capability, Source, ModelAsset,
+  external, or other targets without adding separate join tables.
 - `granted_by_actor_type` and `granted_by_actor_id` are derived from the
   current `ActorContext` on create; callers cannot spoof grantor fields in the
   request body.

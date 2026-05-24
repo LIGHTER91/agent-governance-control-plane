@@ -42,7 +42,10 @@ minimal Capability inventory API exists for governed tools, APIs, integrations,
 workflow actions, and other operations, and a minimal Source inventory API
 exists for governed data and knowledge sources. A minimal Model inventory API
 exists for governed model assets. A minimal Access Grant inventory API exists
-for declared Agent access to governed targets. Access Grants are not enforced by
+for declared Agent access to governed targets, and Agents can read their own
+Access Grants through `GET /agents/{agent_id}/access-grants`. AccessGrant is the
+association layer for Agent-to-Capability, Agent-to-Source, and
+Agent-to-ModelAsset declarations for now. Access Grants are not enforced by
 runtime policy evaluation yet and are not surfaced in the Agent profile or
 Evidence Bundle yet. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
@@ -77,7 +80,8 @@ Recommended order:
 1. Add Policy CRUD API.
 2. Add PolicyRule CRUD API.
 3. Add audit records for Policy and PolicyRule mutations.
-4. Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+4. Surface Agent-scoped Access Grants in the Agent Governance Profile and
+   Evidence Bundle.
 5. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 6. Add Permission domain model only if AccessGrant target semantics prove
@@ -117,8 +121,8 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
-- [ ] Surface Access Grants in the Agent Governance Profile and Evidence
-      Bundle.
+- [ ] Surface Agent-scoped Access Grants in the Agent Governance Profile and
+      Evidence Bundle.
 - [ ] Use Access Grants as optional policy context without replacing
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics

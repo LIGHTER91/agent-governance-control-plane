@@ -18,8 +18,17 @@ from agent_governance_api.auth import (
 )
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
-from agent_governance_api.models import ActorType, Agent, OwnerType
+from agent_governance_api.models import (
+    AccessGrant,
+    AccessGrantStatus,
+    AccessGrantSubjectType,
+    AccessGrantTargetType,
+    ActorType,
+    Agent,
+    OwnerType,
+)
 from agent_governance_api.openapi_examples import (
+    AGENT_ACCESS_GRANTS_OPENAPI,
     AGENT_ACTIVITY_OPENAPI,
     AGENT_CREATE_OPENAPI,
     AGENT_GET_OPENAPI,
@@ -28,6 +37,7 @@ from agent_governance_api.openapi_examples import (
     EVIDENCE_BUNDLE_OPENAPI,
 )
 from agent_governance_api.schemas import (
+    AccessGrantRead,
     AgentActivityItemRead,
     AgentCreate,
     AgentRead,
@@ -86,6 +96,32 @@ def get_agent(
     session: Session = Depends(get_db_session),
 ) -> Agent:
     return _get_agent_or_404(session, agent_id)
+
+
+@router.get(
+    "/{agent_id}/access-grants",
+    response_model=list[AccessGrantRead],
+    openapi_extra=AGENT_ACCESS_GRANTS_OPENAPI,
+)
+def list_agent_access_grants(
+    agent_id: UUID,
+    status: AccessGrantStatus | None = None,
+    target_type: AccessGrantTargetType | None = None,
+    session: Session = Depends(get_db_session),
+) -> list[AccessGrant]:
+    _get_agent_or_404(session, agent_id)
+
+    statement = select(AccessGrant).where(
+        AccessGrant.subject_type == AccessGrantSubjectType.AGENT,
+        AccessGrant.subject_id == agent_id,
+    )
+    if status is not None:
+        statement = statement.where(AccessGrant.status == status)
+    if target_type is not None:
+        statement = statement.where(AccessGrant.target_type == target_type)
+
+    statement = statement.order_by(AccessGrant.created_at.desc(), AccessGrant.id.desc())
+    return list(session.scalars(statement).all())
 
 
 @router.get(

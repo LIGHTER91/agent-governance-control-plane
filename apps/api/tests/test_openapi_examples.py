@@ -21,6 +21,7 @@ def api_client() -> Iterator[TestClient]:
         ("/agents", "post", "201", True),
         ("/agents", "get", "200", False),
         ("/agents/{agent_id}", "get", "200", False),
+        ("/agents/{agent_id}/access-grants", "get", "200", False),
         ("/agents/{agent_id}/activity", "get", "200", False),
         ("/agents/{agent_id}", "patch", "200", True),
         ("/capabilities", "post", "201", True),
@@ -249,6 +250,27 @@ def test_runtime_gateway_activity_openapi_example_is_newest_first(
     assert resume_item["request_id"] == "runtime-request-001:resume:001"
     assert resume_item.get("mode") is None
     assert resume_item["related_ids"]["original_request_id"] == "runtime-request-001"
+
+
+def test_agent_access_grants_openapi_example_is_newest_first(
+    api_client: TestClient,
+) -> None:
+    operation = api_client.get("/openapi.json").json()["paths"][
+        "/agents/{agent_id}/access-grants"
+    ]["get"]
+
+    access_grants = _response_example_value(operation, "200")
+
+    assert [grant["target_type"] for grant in access_grants] == [
+        "model_asset",
+        "source",
+        "capability",
+    ]
+    assert [grant["created_at"] for grant in access_grants] == sorted(
+        [grant["created_at"] for grant in access_grants],
+        reverse=True,
+    )
+    assert {grant["subject_type"] for grant in access_grants} == {"agent"}
 
 
 def test_openapi_examples_do_not_include_sensitive_payloads(

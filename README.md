@@ -73,6 +73,8 @@ integrations are intentionally not implemented yet.
   classifiers, vision models, audio models, and other model assets.
 - Access grant inventory API for declared Agent access to governed
   Capabilities, Sources, ModelAssets, external targets, and other targets.
+- Agent-scoped Access Grant read API for asking what a specific Agent is
+  allowed to use.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Simple policy evaluator supporting explicit matching fields:
@@ -170,6 +172,7 @@ Agent Registry:
 - `POST /agents`
 - `GET /agents`
 - `GET /agents/{agent_id}`
+- `GET /agents/{agent_id}/access-grants`
 - `GET /agents/{agent_id}/activity`
 - `PATCH /agents/{agent_id}`
 - `GET /agents/{agent_id}/evidence-bundle`
@@ -177,6 +180,9 @@ Agent Registry:
 Agent activity returns a read-only timeline sorted newest first. It is intended
 for product navigation; Evidence Bundle JSON export remains the canonical review
 export.
+Agent-scoped access grants return declared Capability, Source, ModelAsset,
+external, or other target grants newest first and can be filtered by `status`
+and `target_type`.
 
 Telemetry:
 
@@ -218,7 +224,10 @@ Capability, Source, and Model inventory records are governance inventory only.
 They can be referenced by Access Grants, but do not ingest source contents, do
 not call model provider APIs, and do not change policy evaluation.
 Access Grants are declared governance records for what an Agent is allowed to
-use. They do not enforce runtime access yet and are not a full IAM system.
+use. For now they are the association layer between Agents and governed
+inventory targets; separate AgentCapability, AgentSource, or AgentModel join
+tables would duplicate that meaning. They do not enforce runtime access yet and
+are not a full IAM system.
 
 Human Approvals:
 
@@ -345,7 +354,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 Near-term recommended work:
 
 1. Add Policy and PolicyRule CRUD APIs with audit logging.
-2. Surface Access Grants in the Agent Governance Profile and Evidence Bundle.
+2. Surface Agent-scoped Access Grants in the Agent Governance Profile and
+   Evidence Bundle.
 3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 4. Implement Permission domain model only if AccessGrant target semantics prove
