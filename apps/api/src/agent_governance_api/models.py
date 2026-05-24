@@ -71,6 +71,22 @@ class CapabilityStatus(StrEnum):
     RETIRED = "retired"
 
 
+class DataSourceType(StrEnum):
+    KNOWLEDGE_BASE = "knowledge_base"
+    DATABASE = "database"
+    DOCUMENT_STORE = "document_store"
+    API = "api"
+    BUCKET = "bucket"
+    FILESYSTEM = "filesystem"
+    OTHER = "other"
+
+
+class DataSourceStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    RETIRED = "retired"
+
+
 class OwnerType(StrEnum):
     USER = "user"
     TEAM = "team"
@@ -308,6 +324,86 @@ class Capability(Base):
             create_constraint=True,
             validate_strings=True,
             name="capability_risk_level",
+        ),
+        nullable=False,
+    )
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class DataSource(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[DataSourceType] = mapped_column(
+        Enum(
+            DataSourceType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="source_type",
+        ),
+        nullable=False,
+    )
+    external_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    owner_type: Mapped[OwnerType] = mapped_column(
+        Enum(
+            OwnerType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="source_owner_type",
+        ),
+        nullable=False,
+    )
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    status: Mapped[DataSourceStatus] = mapped_column(
+        Enum(
+            DataSourceStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="source_status",
+        ),
+        nullable=False,
+    )
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(
+            RiskLevel,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="source_risk_level",
         ),
         nullable=False,
     )

@@ -142,7 +142,42 @@ Examples:
 
 ## Data Source
 
-A source of information the agent can access.
+A governed inventory record describing a source of information an Agent may
+access, such as a knowledge base, database, document store, API, bucket,
+filesystem, or other data or knowledge source.
+
+Suggested fields:
+
+- id;
+- name;
+- description;
+- source_type;
+- external_ref;
+- owner_type;
+- owner_id;
+- owner_name;
+- owner_contact_email;
+- status;
+- risk_level;
+- metadata;
+- created_at;
+- updated_at.
+
+Allowed source types initially:
+
+- knowledge_base;
+- database;
+- document_store;
+- api;
+- bucket;
+- filesystem;
+- other.
+
+Allowed source statuses initially:
+
+- active;
+- disabled;
+- retired.
 
 Examples:
 
@@ -153,6 +188,15 @@ Examples:
 - vector_database;
 - SharePoint;
 - Dataiku dataset.
+
+Source metadata must contain only safe, non-sensitive context. Do not store raw
+source contents, credentials, tokens, secrets, authorization headers, raw
+prompts, private customer data, or raw sensitive payloads in Source inventory
+metadata.
+
+Sources are not linked to Agents yet. Agent-to-Source access declarations,
+permission/access-grant records, and Evidence Bundle coverage for source access
+remain future work.
 
 ## Model
 
@@ -375,6 +419,9 @@ Examples:
 - capability_created;
 - capability_updated;
 - capability_status_changed;
+- source_created;
+- source_updated;
+- source_status_changed;
 - policy_created;
 - policy_updated;
 - policy_decision_recorded;

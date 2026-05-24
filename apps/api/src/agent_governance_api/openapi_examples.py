@@ -1,5 +1,6 @@
 AGENT_ID = "11111111-1111-4111-8111-111111111111"
 CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
+SOURCE_ID = "13131313-1313-4131-8131-131313131313"
 RUN_ID = "22222222-2222-4222-8222-222222222222"
 TRACE_EVENT_ID = "33333333-3333-4333-8333-333333333333"
 POLICY_ID = "44444444-4444-4444-8444-444444444444"
@@ -84,6 +85,45 @@ CAPABILITY_UPDATE_REQUEST = {
 CAPABILITY_UPDATED_RESPONSE = {
     **CAPABILITY_RESPONSE,
     **CAPABILITY_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
+SOURCE_CREATE_REQUEST = {
+    "name": "Support knowledge base",
+    "description": "Governed source for support runbooks and troubleshooting notes.",
+    "source_type": "knowledge_base",
+    "external_ref": "kb:support-runbooks",
+    "owner_type": "team",
+    "owner_id": "team:support-ops",
+    "owner_name": "Support Operations",
+    "owner_contact_email": "support-ops@example.invalid",
+    "status": "active",
+    "risk_level": "medium",
+    "metadata": {
+        "domain": "support",
+        "system": "runbook_index",
+    },
+}
+
+SOURCE_RESPONSE = {
+    **SOURCE_CREATE_REQUEST,
+    "id": SOURCE_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+SOURCE_UPDATE_REQUEST = {
+    "status": "disabled",
+    "metadata": {
+        "domain": "support",
+        "system": "runbook_index",
+        "review_status": "paused",
+    },
+}
+
+SOURCE_UPDATED_RESPONSE = {
+    **SOURCE_RESPONSE,
+    **SOURCE_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
@@ -624,6 +664,34 @@ CAPABILITY_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated capability.",
     response_value=CAPABILITY_UPDATED_RESPONSE,
+)
+
+SOURCE_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create an inventory record for a governed source.",
+    request_value=SOURCE_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created source.",
+    response_value=SOURCE_RESPONSE,
+)
+
+SOURCE_LIST_OPENAPI = _response_example(
+    200,
+    "List sources including the support knowledge base.",
+    [SOURCE_RESPONSE],
+)
+
+SOURCE_GET_OPENAPI = _response_example(
+    200,
+    "Read the support knowledge base source.",
+    SOURCE_RESPONSE,
+)
+
+SOURCE_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Disable a governed source.",
+    request_value=SOURCE_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated source.",
+    response_value=SOURCE_UPDATED_RESPONSE,
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(

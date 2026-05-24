@@ -70,6 +70,21 @@ Capability Inventory:
   `password`, `secret`, and `authorization`.
 - Capabilities are not linked to Agents yet.
 
+Source Inventory:
+
+- `POST /sources` creates a governed source inventory record and appends
+  `source_created`.
+- `GET /sources` lists source records.
+- `GET /sources/{source_id}` returns one source.
+- `PATCH /sources/{source_id}` updates a source and appends `source_updated`
+  or `source_status_changed`.
+- Sources can represent knowledge bases, databases, document stores, APIs,
+  buckets, filesystems, or other governed data or knowledge sources.
+- Source metadata rejects unsafe key names such as `api_key`, `token`,
+  `password`, `secret`, and `authorization`.
+- Source inventory records do not ingest or store source contents, and Sources
+  are not linked to Agents yet.
+
 Human Approvals:
 
 - `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.
