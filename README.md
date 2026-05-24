@@ -65,6 +65,8 @@ integrations are intentionally not implemented yet.
 - Agent Registry API.
 - Agent ownership model using `owner_type`, `owner_id`, `owner_name`, and
   optional contact email.
+- Capability inventory API for governed tools, APIs, integrations, workflow
+  actions, and other operations.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Simple policy evaluator supporting explicit matching fields:
@@ -277,7 +279,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 ## Intentionally Not Implemented Yet
 
 - Policy CRUD API.
-- Tool, Data Source, Model, and Permission domain models.
+- Agent-to-Capability links.
+- Dedicated Data Source, Model, and Permission domain models.
 - Full authentication and broad RBAC beyond the implemented local checks.
 - User login, OIDC, SAML, or JWT auth.
 - Team membership or organization-unit ownership resolution.
@@ -309,20 +312,21 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 Near-term recommended work:
 
 1. Add Policy and PolicyRule CRUD APIs with audit logging.
-2. Implement Tool, Data Source, Model, and Permission domain models.
-3. Add Policy CRUD UI after backend Policy CRUD exists.
-4. Add frontend auth and role-aware UI.
-5. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-6. Add OpenAPI examples for `GET /human-approvals` if missing.
-7. Design team and organization-unit ownership resolution for Evidence Bundle
+2. Link Agents to Capability inventory records.
+3. Implement Data Source, Model, and Permission domain models.
+4. Add Policy CRUD UI after backend Policy CRUD exists.
+5. Add frontend auth and role-aware UI.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-8. Add owner-based service actor scopes design.
-9. Add safe audit events for denied service actor scope checks.
-10. Implement service actor registry admin management workflow.
-11. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Implement service actor registry admin management workflow.
+12. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-12. Add deeper separation-of-duties checks for HumanApproval review.
-13. Add broad filtering and pagination for Runtime and Agent activity only
+13. Add deeper separation-of-duties checks for HumanApproval review.
+14. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

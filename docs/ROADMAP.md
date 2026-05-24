@@ -68,6 +68,8 @@ Completed capabilities:
 - FastAPI backend skeleton.
 - PostgreSQL-targeted SQLAlchemy 2.x and Alembic baseline.
 - Agent domain model and Agent Registry API.
+- Capability inventory model and API for governed tools, APIs, integrations,
+  workflow actions, and other operations.
 - Agent ownership model using `owner_type`, `owner_id`, `owner_name`, and
   optional contact email.
 - Immutable application-level AuditLog foundation.
@@ -231,7 +233,8 @@ Completed foundation:
 Recommended next work:
 
 - Add Policy and PolicyRule CRUD APIs with audit logging.
-- Implement Tool, Data Source, Model, and Permission domain models.
+- Link Agents to Capability inventory records.
+- Implement Data Source, Model, and Permission domain models.
 - Add Policy CRUD UI after backend Policy CRUD exists.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
@@ -321,7 +324,8 @@ Planned capabilities:
 - Policy and PolicyRule versioning.
 - Risk review dashboard.
 - SIEM/GRC integrations.
-- Tool, Data Source, Model, and Permission domain coverage.
+- Agent-to-Capability links and Data Source, Model, and Permission domain
+  coverage.
 - Policy and PolicyRule CRUD APIs with audit logging.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.

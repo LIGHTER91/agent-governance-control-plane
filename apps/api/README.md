@@ -56,6 +56,20 @@ Agent mutations use the development actor placeholder until authentication exist
 - `actor_type = "development"`
 - `actor_id = "dev-placeholder"`
 
+Capability Inventory:
+
+- `POST /capabilities` creates a governed capability inventory record and
+  appends `capability_created`.
+- `GET /capabilities` lists capability records.
+- `GET /capabilities/{capability_id}` returns one capability.
+- `PATCH /capabilities/{capability_id}` updates a capability and appends
+  `capability_updated` or `capability_status_changed`.
+- Capabilities can represent tools, APIs, integrations, workflow actions, or
+  other governed operations.
+- Capability metadata rejects unsafe key names such as `api_key`, `token`,
+  `password`, `secret`, and `authorization`.
+- Capabilities are not linked to Agents yet.
+
 Human Approvals:
 
 - `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.

@@ -57,6 +57,20 @@ class RiskLevel(StrEnum):
     CRITICAL = "critical"
 
 
+class CapabilityType(StrEnum):
+    TOOL = "tool"
+    API = "api"
+    INTEGRATION = "integration"
+    WORKFLOW_ACTION = "workflow_action"
+    OTHER = "other"
+
+
+class CapabilityStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    RETIRED = "retired"
+
+
 class OwnerType(StrEnum):
     USER = "user"
     TEAM = "team"
@@ -255,6 +269,72 @@ class Agent(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class Capability(Base):
+    __tablename__ = "capabilities"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    capability_type: Mapped[CapabilityType] = mapped_column(
+        Enum(
+            CapabilityType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="capability_type",
+        ),
+        nullable=False,
+    )
+    external_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[CapabilityStatus] = mapped_column(
+        Enum(
+            CapabilityStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="capability_status",
+        ),
+        nullable=False,
+    )
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(
+            RiskLevel,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="capability_risk_level",
+        ),
+        nullable=False,
+    )
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
 
 
 class AuditLog(Base):

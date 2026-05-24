@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from agent_governance_api.agents import router as agents_router
+from agent_governance_api.capabilities import router as capabilities_router
 from agent_governance_api.config import get_settings
 from agent_governance_api.human_approvals import router as human_approvals_router
 from agent_governance_api.logging_config import configure_logging
@@ -13,6 +14,7 @@ configure_logging(settings.log_level)
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 app.include_router(agents_router)
+app.include_router(capabilities_router)
 app.include_router(human_approvals_router)
 app.include_router(runtime_gateway_router)
 app.include_router(telemetry_router)

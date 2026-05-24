@@ -37,7 +37,10 @@ OIDC/SAML/JWT, and no team membership resolver.
 Minimal HumanApproval review RBAC and Evidence Bundle export RBAC exist,
 including direct user owner Evidence Bundle export, but they are local role
 checks, not full enterprise authorization. Evidence Bundle successful exports
-and denied attempts against known Agents are audited with safe metadata. The
+and denied attempts against known Agents are audited with safe metadata. A
+minimal Capability inventory API exists for governed tools, APIs, integrations,
+workflow actions, and other operations, but Capabilities are not linked to
+Agents yet. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
 `GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
@@ -70,7 +73,7 @@ Recommended order:
 1. Add Policy CRUD API.
 2. Add PolicyRule CRUD API.
 3. Add audit records for Policy and PolicyRule mutations.
-4. Add Tool domain model.
+4. Link Agents to Capability inventory records.
 5. Add Data Source domain model.
 6. Add Model domain model.
 7. Add Permission domain model.
@@ -109,14 +112,14 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
-- [ ] Implement Tool domain model.
+- [ ] Link Agents to Capability inventory records.
 - [ ] Implement Data Source domain model.
 - [ ] Implement Model domain model.
 - [ ] Implement Permission domain model.
 - [ ] Add Policy CRUD API.
 - [ ] Add PolicyRule CRUD API.
 - [ ] Add audit records for Policy and PolicyRule mutations.
-- [ ] Extend Evidence Bundle for Tool, Data Source, Model, and Permission
+- [ ] Extend Evidence Bundle for Capability, Data Source, Model, and Permission
       records.
 - [ ] Add policy versioning design.
 - [ ] Add approval notification design.
@@ -149,6 +152,10 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Import service actor scopes and fine-grained rules into registry.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Add capability inventory model.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

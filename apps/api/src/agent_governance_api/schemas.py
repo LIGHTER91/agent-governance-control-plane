@@ -2,11 +2,17 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from agent_governance_api.metadata_safety import (
+    SafeMetadata,
+    reject_unsafe_metadata_keys,
+)
 from agent_governance_api.models import (
     ActorType,
     AgentStatus,
+    CapabilityStatus,
+    CapabilityType,
     Environment,
     HumanApprovalStatus,
     OwnerType,
@@ -72,6 +78,71 @@ class AgentRead(AgentBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class CapabilityBase(BaseModel):
+    name: str
+    description: str | None = None
+    capability_type: CapabilityType
+    external_ref: str | None = None
+    status: CapabilityStatus
+    risk_level: RiskLevel
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class CapabilityCreate(CapabilityBase):
+    pass
+
+
+class CapabilityUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    capability_type: CapabilityType | None = None
+    external_ref: str | None = None
+    status: CapabilityStatus | None = None
+    risk_level: RiskLevel | None = None
+    metadata: SafeMetadata | None = None
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata | None) -> SafeMetadata | None:
+        if value is None:
+            return None
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {"description", "external_ref"}
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+
+class CapabilityRead(CapabilityBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
     created_at: datetime
     updated_at: datetime
 

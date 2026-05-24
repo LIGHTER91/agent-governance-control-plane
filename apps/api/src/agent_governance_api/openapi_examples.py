@@ -1,4 +1,5 @@
 AGENT_ID = "11111111-1111-4111-8111-111111111111"
+CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 RUN_ID = "22222222-2222-4222-8222-222222222222"
 TRACE_EVENT_ID = "33333333-3333-4333-8333-333333333333"
 POLICY_ID = "44444444-4444-4444-8444-444444444444"
@@ -48,6 +49,41 @@ AGENT_UPDATED_RESPONSE = {
     **AGENT_RESPONSE,
     "status": "under_review",
     "risk_level": "high",
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
+CAPABILITY_CREATE_REQUEST = {
+    "name": "Send support email",
+    "description": "Send a governed support follow-up email.",
+    "capability_type": "tool",
+    "external_ref": "tool:send_email",
+    "status": "active",
+    "risk_level": "medium",
+    "metadata": {
+        "domain": "support",
+        "operation": "send_email",
+    },
+}
+
+CAPABILITY_RESPONSE = {
+    **CAPABILITY_CREATE_REQUEST,
+    "id": CAPABILITY_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+CAPABILITY_UPDATE_REQUEST = {
+    "status": "disabled",
+    "metadata": {
+        "domain": "support",
+        "operation": "send_email",
+        "review_status": "paused",
+    },
+}
+
+CAPABILITY_UPDATED_RESPONSE = {
+    **CAPABILITY_RESPONSE,
+    **CAPABILITY_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
@@ -560,6 +596,34 @@ AGENT_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated agent.",
     response_value=AGENT_UPDATED_RESPONSE,
+)
+
+CAPABILITY_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create an inventory record for a governed capability.",
+    request_value=CAPABILITY_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created capability.",
+    response_value=CAPABILITY_RESPONSE,
+)
+
+CAPABILITY_LIST_OPENAPI = _response_example(
+    200,
+    "List capabilities including the support email tool.",
+    [CAPABILITY_RESPONSE],
+)
+
+CAPABILITY_GET_OPENAPI = _response_example(
+    200,
+    "Read the support email capability.",
+    CAPABILITY_RESPONSE,
+)
+
+CAPABILITY_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Disable a governed capability.",
+    request_value=CAPABILITY_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated capability.",
+    response_value=CAPABILITY_UPDATED_RESPONSE,
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(

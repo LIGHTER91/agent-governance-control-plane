@@ -87,6 +87,46 @@ Allowed values initially:
 
 Do not create numerical risk scores yet.
 
+## Capability
+
+An inventory record describing a governed operation an Agent may use, such as a
+tool, API, integration, workflow action, or other capability.
+
+Suggested fields:
+
+- id;
+- name;
+- description;
+- capability_type;
+- external_ref;
+- status;
+- risk_level;
+- metadata;
+- created_at;
+- updated_at.
+
+Allowed capability types initially:
+
+- tool;
+- api;
+- integration;
+- workflow_action;
+- other.
+
+Allowed capability statuses initially:
+
+- active;
+- disabled;
+- retired.
+
+Capability metadata must contain only safe, non-sensitive context. Do not store
+raw prompts, credentials, tokens, secrets, authorization headers, or raw
+sensitive payloads in capability metadata.
+
+Capabilities are not linked to Agents yet. Agent-to-Capability mappings, data
+source access, model access, and permission/access-grant records remain future
+work.
+
 ## Tool
 
 An external capability the agent can call.
@@ -332,6 +372,9 @@ Examples:
 
 - agent_created;
 - agent_updated;
+- capability_created;
+- capability_updated;
+- capability_status_changed;
 - policy_created;
 - policy_updated;
 - policy_decision_recorded;
