@@ -79,6 +79,7 @@ integrations are intentionally not implemented yet.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Policy management API with auditable create, update, and status lifecycle
   changes.
+- PolicyRule management API for deterministic rule conditions.
 - Simple policy evaluator supporting explicit matching fields:
   `agent_id`, `tool_name`, `environment`, and `risk_level`.
 - Adapter from persisted active PolicyRule records into evaluator rules.
@@ -236,11 +237,17 @@ Policy Management:
 - `POST /policies`
 - `GET /policies`
 - `GET /policies/{policy_id}`
+- `GET /policies/{policy_id}/rules`
 - `PATCH /policies/{policy_id}`
+- `POST /policy-rules`
+- `GET /policy-rules`
+- `GET /policy-rules/{rule_id}`
+- `PATCH /policy-rules/{rule_id}`
 
 Policy management records the lifecycle of policies with `draft`, `active`,
-`disabled`, and `archived` statuses. It does not add PolicyRule CRUD, a generic
-policy language, or any change to runtime evaluation behavior.
+`disabled`, and `archived` statuses. PolicyRule management accepts only the
+deterministic JSON condition shape already consumed by the evaluator. It does
+not add a generic policy language or change runtime evaluation behavior.
 
 Human Approvals:
 
@@ -331,7 +338,6 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 ## Intentionally Not Implemented Yet
 
-- PolicyRule CRUD API.
 - Agent Governance Profile UI surfacing Capability, Source, Model, and Access
   Grant records.
 - Runtime enforcement from Access Grants.
@@ -366,26 +372,25 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add PolicyRule CRUD API with audit logging.
-2. Surface Agent-scoped Access Grants in the Agent Governance Profile and
+1. Surface Agent-scoped Access Grants in the Agent Governance Profile and
    Evidence Bundle.
-3. Use Access Grants as optional policy context without replacing
+2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Implement Permission domain model only if AccessGrant target semantics prove
+3. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add Policy management UI after PolicyRule CRUD exists.
-6. Add frontend auth and role-aware UI.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+4. Add Policy management UI.
+5. Add frontend auth and role-aware UI.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-10. Add owner-based service actor scopes design.
-11. Add safe audit events for denied service actor scope checks.
-12. Implement service actor registry admin management workflow.
-13. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Implement service actor registry admin management workflow.
+12. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+13. Add deeper separation-of-duties checks for HumanApproval review.
+14. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

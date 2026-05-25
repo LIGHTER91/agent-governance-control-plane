@@ -48,8 +48,7 @@ def convert_policy_rule_to_evaluation_rule(
     policy: Policy,
     rule: PolicyRule,
 ) -> PolicyEvaluationRule:
-    condition = _parse_condition(rule.condition)
-    _reject_unsupported_fields(condition)
+    condition = _validated_condition(rule.condition)
 
     return PolicyEvaluationRule(
         policy_id=policy.id,
@@ -61,6 +60,23 @@ def convert_policy_rule_to_evaluation_rule(
         environment=_environment(condition),
         risk_level=_risk_level(condition),
     )
+
+
+def validate_policy_rule_condition(condition: str) -> str:
+    _validated_condition(condition)
+    return condition
+
+
+def _validated_condition(condition: str) -> dict[str, Any]:
+    parsed = _parse_condition(condition)
+    _reject_unsupported_fields(parsed)
+    _decision(parsed)
+    _required_text(parsed, "reason")
+    _optional_text(parsed, "agent_id")
+    _optional_text(parsed, "tool_name")
+    _environment(parsed)
+    _risk_level(parsed)
+    return parsed
 
 
 def _parse_condition(condition: str) -> dict[str, Any]:

@@ -132,12 +132,22 @@ Policy Management:
   `policy_created`.
 - `GET /policies` lists Policy records.
 - `GET /policies/{policy_id}` returns one Policy.
+- `GET /policies/{policy_id}/rules` lists PolicyRule records for one Policy.
 - `PATCH /policies/{policy_id}` updates a Policy and appends `policy_updated`
   or `policy_status_changed`.
+- `POST /policy-rules` creates a deterministic PolicyRule and appends
+  `policy_rule_created`.
+- `GET /policy-rules` lists PolicyRule records.
+- `GET /policy-rules/{rule_id}` returns one PolicyRule.
+- `PATCH /policy-rules/{rule_id}` updates a PolicyRule and appends
+  `policy_rule_updated`.
 - Policy statuses are `draft`, `active`, `disabled`, and `archived`; there is
   no hard-delete endpoint.
-- This endpoint manages Policy records only. PolicyRule CRUD, versioning, and
-  generic policy-language work remain out of scope.
+- PolicyRule conditions must be JSON objects using the deterministic condition
+  shape already consumed by the evaluator: required `decision` and `reason`,
+  optional `agent_id`, `tool_name`, `environment`, and `risk_level`.
+- Versioning, generic policy-language work, and runtime behavior changes remain
+  out of scope.
 
 Human Approvals:
 

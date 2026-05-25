@@ -8,14 +8,20 @@ from sqlalchemy.orm import Session
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import get_db_session
-from agent_governance_api.models import Policy
+from agent_governance_api.models import Policy, PolicyRule
 from agent_governance_api.openapi_examples import (
     POLICY_CREATE_OPENAPI,
     POLICY_GET_OPENAPI,
     POLICY_LIST_OPENAPI,
+    POLICY_RULES_FOR_POLICY_OPENAPI,
     POLICY_UPDATE_OPENAPI,
 )
-from agent_governance_api.schemas import PolicyCreate, PolicyRead, PolicyUpdate
+from agent_governance_api.schemas import (
+    PolicyCreate,
+    PolicyRead,
+    PolicyRuleRead,
+    PolicyUpdate,
+)
 
 router = APIRouter(prefix="/policies", tags=["policies"])
 
@@ -74,6 +80,24 @@ def get_policy(
     session: Session = Depends(get_db_session),
 ) -> Policy:
     return _get_policy_or_404(session, policy_id)
+
+
+@router.get(
+    "/{policy_id}/rules",
+    response_model=list[PolicyRuleRead],
+    openapi_extra=POLICY_RULES_FOR_POLICY_OPENAPI,
+)
+def list_policy_rules_for_policy(
+    policy_id: UUID,
+    session: Session = Depends(get_db_session),
+) -> list[PolicyRule]:
+    _get_policy_or_404(session, policy_id)
+    statement = (
+        select(PolicyRule)
+        .where(PolicyRule.policy_id == policy_id)
+        .order_by(PolicyRule.created_at, PolicyRule.id)
+    )
+    return list(session.scalars(statement).all())
 
 
 @router.patch(

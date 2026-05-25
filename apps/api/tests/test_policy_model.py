@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -26,6 +27,8 @@ from agent_governance_api.schemas import (
     PolicyDecisionCreate,
     PolicyDecisionRead,
     PolicyRead,
+    PolicyRuleCreate,
+    PolicyRuleUpdate,
     PolicyUpdate,
 )
 
@@ -69,6 +72,27 @@ def test_policy_update_schema_accepts_partial_updates() -> None:
 
     assert update.description is None
     assert update.status is PolicyStatus.ARCHIVED
+
+
+def test_policy_rule_schemas_accept_deterministic_conditions() -> None:
+    condition = json.dumps(
+        {
+            "decision": "deny",
+            "reason": "Production email is denied.",
+            "tool_name": "send_email",
+            "environment": "production",
+        }
+    )
+    create = PolicyRuleCreate(
+        policy_id=uuid4(),
+        name="Deny production email",
+        description=None,
+        condition=condition,
+    )
+    update = PolicyRuleUpdate(condition=condition)
+
+    assert create.condition == condition
+    assert update.condition == condition
 
 
 @pytest.mark.parametrize(
@@ -117,6 +141,51 @@ def test_policy_schemas_reject_invalid_enum_values(
 )
 def test_policy_schemas_reject_blank_or_null_required_fields(
     schema_class: type[PolicyCreate] | type[PolicyUpdate],
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        schema_class(**payload)
+
+
+@pytest.mark.parametrize(
+    ("schema_class", "payload"),
+    [
+        (
+            PolicyRuleCreate,
+            {
+                "policy_id": uuid4(),
+                "name": "",
+                "description": None,
+                "condition": '{"decision":"deny","reason":"Denied."}',
+            },
+        ),
+        (
+            PolicyRuleCreate,
+            {
+                "policy_id": uuid4(),
+                "name": "Deny email",
+                "description": None,
+                "condition": "",
+            },
+        ),
+        (
+            PolicyRuleCreate,
+            {
+                "policy_id": uuid4(),
+                "name": "Deny email",
+                "description": None,
+                "condition": '{"decision":"deny","reason":"Denied.","model":"gpt"}',
+            },
+        ),
+        (PolicyRuleUpdate, {"name": ""}),
+        (PolicyRuleUpdate, {"condition": ""}),
+        (PolicyRuleUpdate, {"policy_id": None}),
+        (PolicyRuleUpdate, {"name": None}),
+        (PolicyRuleUpdate, {"condition": None}),
+    ],
+)
+def test_policy_rule_schemas_reject_invalid_rule_fields(
+    schema_class: type[PolicyRuleCreate] | type[PolicyRuleUpdate],
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(ValidationError):

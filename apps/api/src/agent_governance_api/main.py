@@ -9,6 +9,7 @@ from agent_governance_api.human_approvals import router as human_approvals_route
 from agent_governance_api.logging_config import configure_logging
 from agent_governance_api.model_assets import router as model_assets_router
 from agent_governance_api.policies import router as policies_router
+from agent_governance_api.policy_rules import router as policy_rules_router
 from agent_governance_api.runtime_gateway_api import router as runtime_gateway_router
 from agent_governance_api.sources import router as sources_router
 from agent_governance_api.telemetry_api import router as telemetry_router
@@ -23,6 +24,7 @@ app.include_router(capabilities_router)
 app.include_router(human_approvals_router)
 app.include_router(model_assets_router)
 app.include_router(policies_router)
+app.include_router(policy_rules_router)
 app.include_router(runtime_gateway_router)
 app.include_router(sources_router)
 app.include_router(telemetry_router)

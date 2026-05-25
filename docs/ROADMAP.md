@@ -239,17 +239,17 @@ Completed foundation:
 - Agent-scoped Access Grant reads through `GET /agents/{agent_id}/access-grants`,
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
+- PolicyRule management API for deterministic rule conditions.
 
 Recommended next work:
 
-- Add PolicyRule CRUD API with audit logging.
 - Surface Agent-scoped Access Grants in the Agent Governance Profile and
   Evidence Bundle.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Implement Permission domain model only if AccessGrant target semantics prove
   insufficient.
-- Add Policy management UI after PolicyRule CRUD exists.
+- Add Policy management UI.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - Add OpenAPI examples for `GET /human-approvals` if missing.
@@ -318,7 +318,7 @@ Planned capabilities:
 - Runtime decisions/activity page. Completed as read-only.
 - Human Approvals page. Completed with pending review actions.
 - Evidence Bundle page. Completed as read-only.
-- Policy management UI after PolicyRule CRUD exists.
+- Policy management UI.
 - Evidence Bundle download, PDF, and signing actions.
 - Frontend auth and role-aware UI later.
 
@@ -340,7 +340,7 @@ Planned capabilities:
 - SIEM/GRC integrations.
 - Agent Governance Profile coverage for Capability, Source, Model, and Access
   Grant records, plus Permission domain coverage if still needed.
-- PolicyRule CRUD API with audit logging.
+- Policy versioning and rule change review workflows.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.
 - Compliance framework mapping support for evidence workflows, without claiming

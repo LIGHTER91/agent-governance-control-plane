@@ -369,9 +369,9 @@ Allowed statuses initially:
 status lifecycle instead of hard delete. Mutations append `policy_created`,
 `policy_updated`, or `policy_status_changed` audit records.
 
-Policy management does not create or edit PolicyRule records. Until PolicyRule
-CRUD exists, callers can manage Policy lifecycle state but cannot manage the
-rule conditions that the deterministic evaluator consumes through this API.
+Policy management and PolicyRule management are separate API surfaces. Policy
+lifecycle changes happen through `/policies`; rule condition changes happen
+through `/policy-rules`.
 
 Examples:
 
@@ -424,6 +424,20 @@ Suggested fields:
 - condition;
 - created_at;
 - updated_at.
+
+`POST /policy-rules`, `GET /policy-rules`, `GET /policy-rules/{rule_id}`, and
+`PATCH /policy-rules/{rule_id}` manage PolicyRule records. `GET
+/policies/{policy_id}/rules` reads rules scoped to one Policy. The API does not
+support hard delete.
+
+PolicyRule conditions are still stored as strings in the existing model, but API
+writes validate that the string is a JSON object using the deterministic shape
+above. This keeps rule management aligned with the existing evaluator without
+turning AGCP into a generic policy-language platform.
+
+PolicyRule mutations append `policy_rule_created` or `policy_rule_updated`.
+Audit metadata must not include full rule conditions; conditions can contain
+operational details such as tool names and reasons.
 
 ## Policy Decision
 
@@ -573,6 +587,8 @@ Examples:
 - policy_created;
 - policy_updated;
 - policy_status_changed;
+- policy_rule_created;
+- policy_rule_updated;
 - policy_decision_recorded;
 - human_approval_requested;
 - human_approval_approved;

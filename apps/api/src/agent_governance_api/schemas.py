@@ -31,6 +31,7 @@ from agent_governance_api.models import (
     ServiceActorApiKeyStatus,
     ServiceActorStatus,
 )
+from agent_governance_api.policy_rule_adapter import validate_policy_rule_condition
 
 
 class AgentBase(BaseModel):
@@ -593,9 +594,66 @@ class PolicyRuleBase(BaseModel):
     description: str | None = None
     condition: str
 
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyRule name must be non-empty.")
+        return value
+
+    @field_validator("condition")
+    @classmethod
+    def reject_invalid_condition(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyRule condition must be non-empty.")
+        return validate_policy_rule_condition(value)
+
 
 class PolicyRuleCreate(PolicyRuleBase):
     pass
+
+
+class PolicyRuleUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: UUID | None = None
+    name: str | None = None
+    description: str | None = None
+    condition: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyRule name must be non-empty.")
+        return value
+
+    @field_validator("condition")
+    @classmethod
+    def reject_invalid_condition(cls, value: str | None) -> str | None:
+        if value is not None:
+            if not value.strip():
+                raise ValueError("PolicyRule condition must be non-empty.")
+            return validate_policy_rule_condition(value)
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {"description"}
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
 
 
 class PolicyRuleRead(PolicyRuleBase):

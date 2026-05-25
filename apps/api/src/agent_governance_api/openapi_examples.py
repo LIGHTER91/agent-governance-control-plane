@@ -348,6 +348,40 @@ POLICY_UPDATED_RESPONSE = {
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
+POLICY_RULE_CREATE_REQUEST = {
+    "policy_id": POLICY_ID,
+    "name": "Require review for send_email",
+    "description": "Require human review for governed support email.",
+    "condition": (
+        '{"decision":"require_human_review",'
+        '"reason":"Email tool use requires human review.",'
+        '"tool_name":"send_email"}'
+    ),
+}
+
+POLICY_RULE_RESPONSE = {
+    **POLICY_RULE_CREATE_REQUEST,
+    "id": RULE_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+POLICY_RULE_UPDATE_REQUEST = {
+    "description": "Require review for support email in production.",
+    "condition": (
+        '{"decision":"require_human_review",'
+        '"reason":"Production email tool use requires human review.",'
+        '"tool_name":"send_email",'
+        '"environment":"production"}'
+    ),
+}
+
+POLICY_RULE_UPDATED_RESPONSE = {
+    **POLICY_RULE_RESPONSE,
+    **POLICY_RULE_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
 POLICY_REFERENCE = {
     "id": POLICY_ID,
     "name": "V0 email tool review policy",
@@ -932,6 +966,40 @@ POLICY_UPDATE_OPENAPI = _request_response_example(
     response_status_code=200,
     response_summary="Updated policy.",
     response_value=POLICY_UPDATED_RESPONSE,
+)
+
+POLICY_RULE_CREATE_OPENAPI = _request_response_example(
+    request_summary="Create a deterministic PolicyRule.",
+    request_value=POLICY_RULE_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created PolicyRule.",
+    response_value=POLICY_RULE_RESPONSE,
+)
+
+POLICY_RULE_LIST_OPENAPI = _response_example(
+    200,
+    "List PolicyRules including the send_email review rule.",
+    [POLICY_RULE_RESPONSE],
+)
+
+POLICY_RULE_GET_OPENAPI = _response_example(
+    200,
+    "Read the send_email review PolicyRule.",
+    POLICY_RULE_RESPONSE,
+)
+
+POLICY_RULE_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Update a deterministic PolicyRule.",
+    request_value=POLICY_RULE_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated PolicyRule.",
+    response_value=POLICY_RULE_UPDATED_RESPONSE,
+)
+
+POLICY_RULES_FOR_POLICY_OPENAPI = _response_example(
+    200,
+    "List PolicyRules for the V0 email tool review policy.",
+    [POLICY_RULE_RESPONSE],
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(
