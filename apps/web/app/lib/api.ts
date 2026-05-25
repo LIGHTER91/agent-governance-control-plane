@@ -38,11 +38,31 @@ export async function fetchApiArray<T>(
 
 export class ApiRequestError extends Error {
   status: number;
+  detail: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, detail?: unknown) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function errorDetail(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return await response.json();
+    } catch {
+      return undefined;
+    }
+  }
+
+  try {
+    return await response.text();
+  } catch {
+    return undefined;
   }
 }
 
@@ -61,9 +81,11 @@ export async function fetchApiJson<T>(
   });
 
   if (!response.ok) {
+    const detail = await errorDetail(response);
     throw new ApiRequestError(
       `${options.errorLabel} failed with status ${response.status}`,
-      response.status
+      response.status,
+      detail
     );
   }
 
@@ -96,9 +118,41 @@ export async function postApiJson<T>(
   });
 
   if (!response.ok) {
+    const detail = await errorDetail(response);
     throw new ApiRequestError(
       `${options.errorLabel} failed with status ${response.status}`,
-      response.status
+      response.status,
+      detail
+    );
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function patchApiJson<T>(
+  path: string,
+  options: {
+    body: object;
+    errorLabel: string;
+    signal?: AbortSignal;
+  }
+): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    body: JSON.stringify(options.body),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    method: "PATCH",
+    signal: options.signal
+  });
+
+  if (!response.ok) {
+    const detail = await errorDetail(response);
+    throw new ApiRequestError(
+      `${options.errorLabel} failed with status ${response.status}`,
+      response.status,
+      detail
     );
   }
 

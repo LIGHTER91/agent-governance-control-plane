@@ -1,16 +1,19 @@
-import { PlaceholderPage } from "../placeholder-content";
+import { PoliciesManager } from "./policies-manager";
 
 export default function PoliciesPage() {
   return (
-    <PlaceholderPage
-      eyebrow="Policy Governance"
-      title="Policies"
-      summary="A future workspace for policies, rules, and deterministic decisions without adding a policy editor yet."
-      plannedItems={[
-        { label: "Policy list", status: "planned" },
-        { label: "Rule conditions", status: "backend model exists" },
-        { label: "Policy decision history", status: "planned" }
-      ]}
-    />
+    <>
+      <section className="page-header">
+        <p className="eyebrow">Policy Governance</p>
+        <h2>Policies</h2>
+        <p>
+          Manage Policy lifecycle records from the backend API. PolicyRules
+          define executable conditions; this view keeps rule editing,
+          simulation, and versioning out of scope.
+        </p>
+      </section>
+
+      <PoliciesManager />
+    </>
   );
 }
