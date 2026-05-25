@@ -61,8 +61,13 @@ enforcement behavior remain unchanged. Source Data Usage Profile has a
 design for Source-side governance metadata such as classification, personal or
 sensitive data signals, purpose and processing constraints, review status, and
 safe DPIA references. That design is not implemented yet; Source APIs and
-database fields remain unchanged. The frontend has a minimal dashboard shell,
-a read-only Agent list
+database fields remain unchanged. Policy Pre-Checks and Control Tools have a
+design for safe, auditable checks that can inform future contextual
+PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
+Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state. That
+design is not implemented yet; check persistence, scanner adapters, PolicyRule
+schema changes, and runtime behavior remain unchanged. The frontend has a
+minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
@@ -88,6 +93,7 @@ References:
 
 - `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
+- `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -108,30 +114,34 @@ Recommended order:
 1. Add Data Usage Profile persistence and API support for Source records.
 2. Add safe Data Usage Profile summaries to Evidence Bundle export where
    relevant to Agent grants or runtime decisions.
-3. Add optional contextual runtime request fields from the contextual runtime
+3. Add metadata-only Policy Pre-Checks for Data Usage Profile, AccessGrant,
+   ModelAsset, Capability, and Source status.
+4. Add safe CheckResult summaries to Evidence Bundle export when they support a
+   PolicyDecision.
+5. Add optional contextual runtime request fields from the contextual runtime
    governance design without breaking existing Runtime Gateway clients.
-4. Extend the deterministic evaluator with a small explicit contextual rule
+6. Extend the deterministic evaluator with a small explicit contextual rule
    surface when the request schema exists.
-5. Add Policy management UI for the existing Policy and PolicyRule APIs.
-6. Use Access Grants as optional policy context without replacing
+7. Add Policy management UI for the existing Policy and PolicyRule APIs.
+8. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-7. Add focused AccessGrant and inventory review workflows only where they
+9. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-8. Add Permission domain model only if AccessGrant target semantics prove
+10. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-9. Add frontend auth and role-aware UI later.
-10. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-11. Add OpenAPI examples for `GET /human-approvals` if missing.
-12. Design team and organization-unit ownership resolution for Evidence Bundle
+11. Add frontend auth and role-aware UI later.
+12. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+13. Add OpenAPI examples for `GET /human-approvals` if missing.
+14. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-13. Add owner-based service actor scopes design.
-14. Add safe denied-scope audit events.
-15. Add admin management for persisted service actor scope and rule records.
-16. Implement service actor API key rotation and admin workflows after registry
+15. Add owner-based service actor scopes design.
+16. Add safe denied-scope audit events.
+17. Add admin management for persisted service actor scope and rule records.
+18. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-17. Add tests for overriding the Actor dependency with a non-development actor.
-18. Add deeper separation-of-duties checks for HumanApproval review.
-19. Add broad filtering and pagination for Runtime and Agent activity only
+19. Add tests for overriding the Actor dependency with a non-development actor.
+20. Add deeper separation-of-duties checks for HumanApproval review.
+21. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -139,6 +149,8 @@ Recommended order:
 - [ ] Add owner-based service actor scopes design.
 - [ ] Add Data Usage Profile persistence and API support for Source records.
 - [ ] Add safe Data Usage Profile summaries to Evidence Bundle export.
+- [ ] Add metadata-only Policy Pre-Checks for inventory and governance context.
+- [ ] Add safe CheckResult summaries to Evidence Bundle export.
 - [ ] Add optional contextual runtime request fields from the contextual runtime
       governance design.
 - [ ] Extend deterministic PolicyRule matching with explicit contextual fields.
@@ -312,6 +324,7 @@ credentials.
       ModelAsset references.
 - [x] Add contextual runtime governance context design.
 - [x] Add Data Usage Profile design for Source governance metadata.
+- [x] Add Policy Pre-Checks and Control Tools design.
 
 ## Blocked
 

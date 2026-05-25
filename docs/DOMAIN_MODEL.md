@@ -551,6 +551,42 @@ PolicyRule mutations append `policy_rule_created` or `policy_rule_updated`.
 Audit metadata must not include full rule conditions; conditions can contain
 operational details such as tool names and reasons.
 
+## Policy Pre-Check
+
+A future governed control check that can produce safe, auditable inputs for a
+PolicyDecision.
+
+The design is documented in `docs/POLICY_PRE_CHECKS_DESIGN.md`. It is
+design-only for now; no Runtime Gateway behavior, PolicyRule schema, persistence
+model, scanner integration, or external integration has changed yet.
+
+Suggested future concepts:
+
+- CheckTool;
+- PolicyCheckStep;
+- CheckResult;
+- CheckRun or ControlRun;
+- outcome;
+- confidence;
+- evidence_reference.
+
+Policy Pre-Checks should differ from policy evaluation itself. A check gathers
+or verifies a bounded fact, such as AccessGrant status, Data Usage Profile
+review state, Source classification, ModelAsset provider status, or safe DLP
+classification. Policy evaluation uses those facts to produce a deterministic
+decision.
+
+Policy Pre-Checks must not become workflow orchestration or arbitrary tool
+execution. V1 should start with metadata-only checks over AGCP records and safe
+imported metadata. Expensive scans, external network calls, and human judgment
+should be async, precomputed, or routed to HumanApproval rather than blocking
+the runtime path.
+
+CheckResult metadata must contain only safe, non-sensitive context. It must not
+include raw source content, retrieved chunks, full prompts, credentials, tokens,
+detected secret values, full scanner payloads, private customer data, or raw
+tool/model provider payloads.
+
 ## Policy Decision
 
 A recorded result of evaluating a policy.
@@ -704,6 +740,9 @@ Examples:
 - policy_status_changed;
 - policy_rule_created;
 - policy_rule_updated;
+- check_tool_registered;
+- policy_check_result_recorded;
+- policy_check_run_recorded;
 - policy_decision_recorded;
 - human_approval_requested;
 - human_approval_approved;

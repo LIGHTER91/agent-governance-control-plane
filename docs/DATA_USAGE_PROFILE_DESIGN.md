@@ -369,6 +369,13 @@ their Data Usage Profiles before policy evaluation. Unknown, missing, or expired
 profiles should be represented explicitly and handled by deterministic policy
 rules. AGCP should not infer legal usability when a profile is absent.
 
+Policy Pre-Checks are a related future design in
+`docs/POLICY_PRE_CHECKS_DESIGN.md`. Data Usage Profile should provide
+metadata-only inputs for checks such as `legal_usage_profile_checker`,
+`dlp_classifier`, and `pii_detector` summaries. Those checks should record safe
+CheckResults and evidence references, not raw source content or full scanner
+payloads.
+
 ## Non-goals
 
 - Do not add code in this issue.

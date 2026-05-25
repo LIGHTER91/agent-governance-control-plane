@@ -197,6 +197,7 @@ The future contextual decision flow should be:
 Runtime request
 -> validate request and safe metadata
 -> resolve inventory context
+-> run required metadata-only policy pre-checks when configured
 -> check AccessGrants for Agent and targets
 -> evaluate contextual policies
 -> create PolicyDecision
@@ -211,6 +212,13 @@ the governance decision and evidence chain; it does not execute the action.
 AccessGrant checks should inform policy evaluation and evidence, but they
 should not replace PolicyDecision records. A missing or expired grant is a
 governance fact that a PolicyRule can use to allow, deny, or require review.
+
+Policy Pre-Checks are a related future design in
+`docs/POLICY_PRE_CHECKS_DESIGN.md`. They should provide safe CheckResults for
+facts such as Data Usage Profile review status, AccessGrant status, ModelAsset
+provider approval, Source classification, or DLP labels. Pre-checks should start
+as metadata-only lookups and should not execute arbitrary tools or long-running
+scans in the runtime path.
 
 ## PolicyRule Connection
 
@@ -302,16 +310,18 @@ Recommended staged implementation:
 
 1. Design the contextual runtime schema and document accepted values.
 2. Add Data Usage Profile persistence for Source governance context.
-3. Add optional contextual fields to the runtime request schema.
-4. Persist only safe context metadata and references on runtime records.
-5. Update Runtime activity and Evidence Bundle export with safe contextual
+3. Add Policy Pre-Checks for metadata-only control checks that can produce safe
+   CheckResults.
+4. Add optional contextual fields to the runtime request schema.
+5. Persist only safe context metadata and references on runtime records.
+6. Update Runtime activity and Evidence Bundle export with safe contextual
    references.
-6. Extend the deterministic policy evaluator with a small, explicit set of
+7. Extend the deterministic policy evaluator with a small, explicit set of
    contextual fields.
-7. Add policy templates for common governance cases such as external
+8. Add policy templates for common governance cases such as external
    vectorization, restricted-source retrieval, and unapproved model provider
    usage.
-8. Later add a Policy Studio or guided UI for contextual policies only after
+9. Later add a Policy Studio or guided UI for contextual policies only after
    versioning, review, and simulation semantics are designed.
 
 Each stage should keep existing clients working and should avoid treating

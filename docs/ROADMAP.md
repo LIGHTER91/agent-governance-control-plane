@@ -73,6 +73,13 @@ personal or sensitive data signals, allowed and prohibited purposes, processing
 constraints, review status, and safe DPIA references. This is also design-only;
 Source APIs and database fields have not changed.
 
+Policy Pre-Checks and Control Tools now have a design path for safe,
+auditable checks that can inform future contextual PolicyDecisions. The design
+starts with metadata-only checks over inventory, Data Usage Profile,
+AccessGrant, ModelAsset, Capability, and HumanApproval state. It is
+design-only; no check persistence, scanner integration, PolicyRule schema
+change, or runtime behavior has been implemented.
+
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
 policy workflows that help users answer what an Agent is allowed to use, why it
@@ -226,6 +233,9 @@ Important limitations:
 - Data Usage Profile has a design only. Source profile persistence, Source
   profile APIs, Evidence Bundle profile summaries, and profile-aware policy
   context are not implemented yet.
+- Policy Pre-Checks have a design only. CheckTool registry, CheckResult
+  persistence, PolicyCheckStep authoring, scanner adapters, and pre-check-aware
+  runtime decisions are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 
@@ -295,6 +305,8 @@ Recommended next work:
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
 - Add Data Usage Profile persistence and API support for Source records before
   relying on Source classification in runtime policy context.
+- Add metadata-only Policy Pre-Checks for Data Usage Profile, AccessGrant,
+  ModelAsset, Capability, and Source status after the profile model exists.
 - Add optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
   Runtime Gateway clients.
@@ -347,6 +359,7 @@ References:
 
 - `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
+- `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
