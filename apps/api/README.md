@@ -62,9 +62,9 @@ Agent mutations use the development actor placeholder until authentication exist
 - `actor_type = "development"`
 - `actor_id = "dev-placeholder"`
 
-The Agent Governance Profile is a read model for product navigation and future
-profile UI work. It does not include full Evidence Bundle contents and should
-not be treated as an audit export.
+The Agent Governance Profile is a read model for product navigation and the
+frontend Agent Governance Profile UI. It does not include full Evidence Bundle
+contents and should not be treated as an audit export.
 
 Capability Inventory:
 

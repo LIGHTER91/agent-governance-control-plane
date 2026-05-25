@@ -39,12 +39,31 @@ role-aware views, Agent edit forms, broad activity filtering or pagination,
 Evidence Bundle PDF/download/signature actions, or enterprise-auth-backed review
 workflows.
 
-The backend now also exposes `GET /agents/{agent_id}/governance-profile`, a
-compact read model for future Agent Governance Profile UI work. It summarizes
-Agent metadata, owner, recent governance activity, HumanApproval state, Access
-Grants with safe Capability/Source/ModelAsset references, policy/rule ID
-references, and Evidence Bundle export availability without embedding full
-Evidence Bundle contents.
+AGCP is now closer to a true governance control plane than a runtime decision
+logger: the backend can register Agents, inventory governed Capabilities,
+Sources, and ModelAssets, declare Agent Access Grants, manage Policies and
+PolicyRules, record runtime decisions and HumanApprovals, export Evidence
+Bundles, and return a consolidated Agent Governance Profile. The frontend now
+has a minimal Agent Governance Profile UI that consumes
+`GET /agents/{agent_id}/governance-profile` and surfaces owner, status,
+environment, risk level, Access Grants, recent activity, HumanApproval summary,
+inventory references, policy/rule technical references, and an Evidence Bundle
+availability hint.
+
+Several important surfaces remain backend-only: Capability, Source, ModelAsset,
+AccessGrant, Policy, and PolicyRule management have APIs but no dedicated
+frontend management workflows. Access Grants are inventory declarations only;
+they are not enforced by runtime policy evaluation yet. Evidence Bundle export
+does not yet include full AccessGrant and inventory reference coverage. Full
+user authentication, OIDC/SAML/JWT, team or organization-unit resolution,
+production service actor administration, API key rotation endpoints,
+notifications, deployment hardening, and operational runbooks are still
+missing.
+
+The next phase should deepen workflows instead of simply adding more models.
+The main product risk is model sprawl without review, approval, evidence, and
+policy workflows that help users answer what an Agent is allowed to use, why it
+was granted, and how that permission is governed over time.
 
 ## Phase 0 - Project Foundation
 
@@ -250,13 +269,15 @@ Completed foundation:
 
 Recommended next work:
 
-- Surface Agent-scoped Access Grants in the Agent Governance Profile and
-  Evidence Bundle.
+- Extend Evidence Bundle export with safe AccessGrant and Capability, Source,
+  and ModelAsset references.
+- Add Policy management UI for the existing Policy and PolicyRule APIs.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
+- Add focused AccessGrant and inventory review workflows where they support
+  approvals, evidence, or policy decisions.
 - Implement Permission domain model only if AccessGrant target semantics prove
   insufficient.
-- Add Policy management UI.
 - Add frontend auth and role-aware UI later.
 - Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - Add OpenAPI examples for `GET /human-approvals` if missing.
@@ -317,7 +338,8 @@ Planned capabilities:
 
 - Dashboard shell. Completed.
 - Agent list page. Completed as read-only.
-- Agent detail page. Completed as read-only.
+- Agent detail page. Completed as read-only with the Agent Governance Profile
+  UI.
 - Agent activity/timeline backend endpoint. Completed as read-only.
 - Agent activity/timeline frontend section. Completed as read-only.
 - Runtime Gateway overview page. Completed as read-only.
@@ -325,6 +347,8 @@ Planned capabilities:
 - Runtime decisions/activity page. Completed as read-only.
 - Human Approvals page. Completed with pending review actions.
 - Evidence Bundle page. Completed as read-only.
+- Agent Governance Profile backend endpoint. Completed.
+- Agent Governance Profile frontend UI. Completed.
 - Policy management UI.
 - Evidence Bundle download, PDF, and signing actions.
 - Frontend auth and role-aware UI later.
@@ -345,8 +369,8 @@ Planned capabilities:
 - Policy and PolicyRule versioning.
 - Risk review dashboard.
 - SIEM/GRC integrations.
-- Agent Governance Profile coverage for Capability, Source, Model, and Access
-  Grant records, plus Permission domain coverage if still needed.
+- Deeper Agent Governance Profile workflows for reviewing Access Grants,
+  policy references, Evidence Bundle links, and inventory changes.
 - Policy versioning and rule change review workflows.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.
@@ -355,9 +379,13 @@ Planned capabilities:
 
 ## Readiness Notes
 
-The current backend is strong enough for local demos, deterministic backend
-tests, and governance-flow validation. It is not ready for production
-enforcement because config-based auth remains the default, fine-grained scopes
-are still config-based, HumanApproval and Evidence Bundle RBAC are minimal, user
-authentication does not exist, API key rotation is design-only, and deployment,
-observability, and operational controls are still missing.
+The current platform is strong enough for local demos, deterministic backend
+tests, and governance-flow validation across registry, runtime decisions,
+inventory, access grants, policy lifecycle, human oversight, evidence export,
+and the Agent Governance Profile. It is not ready for production enforcement:
+config-based auth remains the default, registry-backed service actor auth is
+feature-flagged, HumanApproval and Evidence Bundle RBAC are minimal, user
+authentication does not exist, Access Grants are not enforced in runtime policy
+evaluation, API key rotation is design-only, several management surfaces are
+backend-only, and deployment, observability, and operational controls are still
+missing.

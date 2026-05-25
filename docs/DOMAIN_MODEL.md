@@ -123,9 +123,10 @@ Capability metadata must contain only safe, non-sensitive context. Do not store
 raw prompts, credentials, tokens, secrets, authorization headers, or raw
 sensitive payloads in capability metadata.
 
-Capabilities can be referenced by Access Grants. Agent profile surfacing,
-runtime enforcement, data source access, model access, and Evidence Bundle
-coverage for these declared grants remain future work.
+Capabilities can be referenced by Access Grants and surfaced through the Agent
+Governance Profile read model and UI when granted to an Agent. Runtime
+enforcement, broader workflow review, and Evidence Bundle coverage for these
+declared grants remain future work.
 
 ## Tool
 
@@ -194,7 +195,8 @@ source contents, credentials, tokens, secrets, authorization headers, raw
 prompts, private customer data, or raw sensitive payloads in Source inventory
 metadata.
 
-Sources can be referenced by Access Grants. Agent profile surfacing, runtime
+Sources can be referenced by Access Grants and surfaced through the Agent
+Governance Profile read model and UI when granted to an Agent. Runtime
 enforcement, permission semantics, and Evidence Bundle coverage for source
 access remain future work.
 
@@ -258,9 +260,10 @@ credentials, tokens, secrets, authorization headers, raw prompts, private
 customer data, or raw sensitive payloads in Model inventory metadata.
 
 Model inventory records do not call model provider APIs and do not store
-credentials. Models can be referenced by Access Grants. Agent profile surfacing,
-runtime enforcement, permission semantics, and Evidence Bundle coverage for
-model access remain future work.
+credentials. Models can be referenced by Access Grants and surfaced through the
+Agent Governance Profile read model and UI when granted to an Agent. Runtime
+enforcement, permission semantics, and Evidence Bundle coverage for model
+access remain future work.
 
 ## Access Grant
 
@@ -336,9 +339,10 @@ AgentModel join tables should not be added unless AccessGrant semantics prove
 insufficient for a concrete governance question.
 
 `GET /agents/{agent_id}/access-grants` reads an Agent's declared grants newest
-first, with minimal filters for `status` and `target_type`. Later work may use
-grants as policy context, include them in Evidence Bundles, and surface them in
-the Agent Governance Profile UI.
+first, with minimal filters for `status` and `target_type`. The Agent
+Governance Profile UI surfaces these grants as compact inventory and access
+details. Later work may use grants as policy context and include them in
+Evidence Bundles.
 
 Access Grant metadata must contain only safe, non-sensitive context. Do not
 store credentials, tokens, secrets, authorization headers, raw prompts, private
@@ -354,11 +358,11 @@ HumanApproval summary, Agent-scoped Access Grants, safe references to granted
 Capability, Source, and ModelAsset targets, policy/rule ID references derived
 from PolicyDecision records, and an Evidence Bundle export hint.
 
-The profile is intended to support product navigation and the future Agent
-Governance Profile UI. It is not an Evidence Bundle export, does not include
-full audit logs, run history, trace event history, or full policy decision
-history, and must not be treated as a compliance certification. Evidence Bundle
-JSON export remains the canonical audit/review export.
+The profile supports product navigation and the frontend Agent Governance
+Profile UI. It is not an Evidence Bundle export, does not include full audit
+logs, run history, trace event history, or full policy decision history, and
+must not be treated as a compliance certification. Evidence Bundle JSON export
+remains the canonical audit/review export.
 
 The profile should stay bounded and read-optimized. Broad filtering,
 pagination, full history joins, policy simulation, policy evaluation changes,

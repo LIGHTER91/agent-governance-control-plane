@@ -44,15 +44,18 @@ See [V0_GOVERNANCE_FLOW.md](docs/V0_GOVERNANCE_FLOW.md) for the executable demo
 scenario.
 
 This is still a V0 backend milestone, not a production-ready enterprise control
-plane. Runtime Gateway foundations and service actor API key authentication now
-exist, with config-based auth as the default and optional DB-backed registry
-auth behind an explicit feature flag. Both paths support endpoint scopes and
-fine-grained Agent/environment/runtime/tool restrictions, and runtime and
-telemetry endpoints can require service authentication. AGCP does not execute
-tools; runtime enforcement depends on wrappers or adapters calling AGCP and
-honoring `proceed`. Minimal RBAC exists for HumanApproval review actions and
-Evidence Bundle export. The frontend now exposes the core read-only governance
-views plus pending HumanApproval review actions and Runtime activity.
+plane. Runtime Gateway foundations, inventory APIs, Access Grants, auditable
+Policy and PolicyRule management, Agent-scoped access reads, and an Agent
+Governance Profile read model now exist. Service actor API key authentication
+also exists, with config-based auth as the default and optional DB-backed
+registry auth behind an explicit feature flag. Both paths support endpoint
+scopes and fine-grained Agent/environment/runtime/tool restrictions, and
+runtime and telemetry endpoints can require service authentication. AGCP does
+not execute tools; runtime enforcement depends on wrappers or adapters calling
+AGCP and honoring `proceed`. Minimal RBAC exists for HumanApproval review
+actions and Evidence Bundle export. The frontend now exposes the core read-only
+governance views, Runtime activity, pending HumanApproval review actions, and
+an Agent Governance Profile UI.
 Full user authentication, OIDC/SAML, team membership resolution, enterprise
 auth-backed frontend workflows, notifications, production deployment, service
 actor admin workflows, API key rotation implementation, and enterprise
@@ -140,10 +143,15 @@ integrations are intentionally not implemented yet.
   the registry feature flag is enabled; config auth remains the default path.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
-- Read-only frontend Agent detail page backed by `GET /agents/{agent_id}`,
+- Read-only frontend Agent detail page backed by
+  `GET /agents/{agent_id}/governance-profile`,
   `GET /agents/{agent_id}/activity`,
-  `GET /agents/{agent_id}/human-approvals`, and optional Evidence Bundle
-  access.
+  `GET /agents/{agent_id}/human-approvals`, and optional manual Evidence
+  Bundle access.
+- Agent Governance Profile UI showing Agent identity, owner, status,
+  environment, risk level, Access Grant summary, recent activity,
+  HumanApproval summary, Evidence Bundle availability, inventory/access
+  details, and compact technical policy/rule references.
 - Read-only frontend Runtime Gateway overview and activity pages.
 - Frontend Human Approvals page backed by `GET /human-approvals`, with review
   actions shown only for pending approvals.
@@ -348,8 +356,6 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 ## Intentionally Not Implemented Yet
 
-- Agent Governance Profile UI surfacing Capability, Source, Model, and Access
-  Grant records.
 - Runtime enforcement from Access Grants.
 - Dedicated Permission domain model.
 - Full authentication and broad RBAC beyond the implemented local checks.
@@ -368,6 +374,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Agent edit forms.
 - Broad filtering, search, or pagination for Agent and Runtime activity views.
 - Evidence Bundle PDF/download/signature actions in the UI.
+- Full AccessGrant and inventory reference coverage inside Evidence Bundle
+  export.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
@@ -382,25 +390,27 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Surface Agent-scoped Access Grants in the Agent Governance Profile and
-   Evidence Bundle.
-2. Use Access Grants as optional policy context without replacing
+1. Extend Evidence Bundle export with safe AccessGrant and Capability, Source,
+   and ModelAsset references.
+2. Add Policy management UI for the existing Policy and PolicyRule APIs.
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Implement Permission domain model only if AccessGrant target semantics prove
+4. Add focused AccessGrant and inventory workflows only where they support
+   review, approval, or evidence collection.
+5. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-4. Add Policy management UI.
-5. Add frontend auth and role-aware UI.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+6. Add frontend auth and role-aware UI.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-9. Add owner-based service actor scopes design.
-10. Add safe audit events for denied service actor scope checks.
-11. Implement service actor registry admin management workflow.
-12. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe audit events for denied service actor scope checks.
+12. Implement service actor registry admin management workflow.
+13. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-13. Add deeper separation-of-duties checks for HumanApproval review.
-14. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add deeper separation-of-duties checks for HumanApproval review.
+15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

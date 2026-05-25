@@ -52,16 +52,27 @@ recent activity, HumanApproval summary, Access Grants with safe inventory
 target references, policy/rule ID references, and an Evidence Bundle export
 hint without embedding Evidence Bundle contents. Policy and PolicyRule
 management APIs exist for auditable lifecycle records and deterministic rule
-conditions. The
-frontend has a minimal dashboard shell, a read-only Agent list page backed by
-`GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
+conditions. The frontend has a minimal dashboard shell, a read-only Agent list
+page backed by `GET /agents`, a read-only Agent detail and Agent Governance
+Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
 `GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
 and Runtime activity pages, a Human Approvals page with pending review actions,
 and a read-only Evidence Bundle page backed by
 `GET /agents/{agent_id}/evidence-bundle`, but no login/auth UI, no role-aware
-frontend behavior, no Agent edit form, no broad activity filtering or
-pagination, and no Evidence Bundle PDF/download/signature actions.
+frontend behavior, no Agent edit form, no dedicated inventory or policy
+management UI, no broad activity filtering or pagination, and no Evidence
+Bundle PDF/download/signature actions.
+
+Product assessment: AGCP is now an early governance control plane rather than
+only a runtime decision logger. It can describe Agents, declared access,
+inventory targets, policies, runtime decisions, approvals, audits, evidence,
+and a consolidated profile view. The highest product risk is continuing to add
+inventory models without deeper workflows that let users review, approve,
+enforce, and export evidence for those records.
+
+Validation caveat: migration-backed tasks should still be validated with online
+`uv run alembic upgrade head` when a reachable PostgreSQL instance is available.
 
 References:
 
@@ -84,24 +95,26 @@ Recommended order:
 
 1. Extend Evidence Bundle for Access Grants and safe Capability, Source, and
    ModelAsset references.
-2. Use Access Grants as optional policy context without replacing
+2. Add Policy management UI for the existing Policy and PolicyRule APIs.
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add Permission domain model only if AccessGrant target semantics prove
+4. Add focused AccessGrant and inventory review workflows only where they
+   support approval, evidence, or policy decisions.
+5. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-4. Add Policy management UI.
-5. Add frontend auth and role-aware UI later.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-9. Add owner-based service actor scopes design.
-10. Add safe denied-scope audit events.
-11. Add admin management for persisted service actor scope and rule records.
-12. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe denied-scope audit events.
+12. Add admin management for persisted service actor scope and rule records.
+13. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-13. Add tests for overriding the Actor dependency with a non-development actor.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add tests for overriding the Actor dependency with a non-development actor.
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -117,6 +130,8 @@ Recommended order:
       Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [ ] Add Policy management UI.
+- [ ] Add focused AccessGrant and inventory review workflows only where they
+      support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
@@ -129,8 +144,6 @@ Recommended order:
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
       prove insufficient.
-- [ ] Extend Evidence Bundle for Capability, Data Source, Model, and Permission
-      records.
 - [ ] Add policy versioning design.
 - [ ] Add approval notification design.
 - [ ] Add retention policy design.
@@ -162,22 +175,6 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Import service actor scopes and fine-grained rules into registry.
-      Implementation complete; validation pending only for online
-      `uv run alembic upgrade head` against a reachable local PostgreSQL
-      instance.
-- [ ] Add capability inventory model.
-      Implementation complete; validation pending only for online
-      `uv run alembic upgrade head` against a reachable local PostgreSQL
-      instance.
-- [ ] Add source inventory model.
-      Implementation complete; validation pending only for online
-      `uv run alembic upgrade head` against a reachable local PostgreSQL
-      instance.
-- [ ] Add model inventory model.
-      Implementation complete; validation pending only for online
-      `uv run alembic upgrade head` against a reachable local PostgreSQL
-      instance.
-- [ ] Add access grant inventory model.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
@@ -284,7 +281,13 @@ credentials.
 - [x] Add direct user owner access for Evidence Bundle export.
 - [x] Add Runtime activity backend endpoint.
 - [x] Add Runtime activity frontend page.
+- [x] Add Capability inventory API.
+- [x] Add Source inventory API.
+- [x] Add ModelAsset inventory API.
+- [x] Add AccessGrant inventory API.
+- [x] Add Agent-scoped AccessGrant endpoint.
 - [x] Add read-only Agent Governance Profile backend endpoint.
+- [x] Add Agent Governance Profile frontend UI.
 
 ## Blocked
 
