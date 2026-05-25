@@ -92,11 +92,17 @@ def test_openapi_examples_represent_v0_governance_chain(
     [trace_event] = evidence_bundle["trace_events"]
     [policy_decision] = evidence_bundle["policy_decisions"]
     [human_approval] = evidence_bundle["human_approvals"]
+    [capability_reference] = evidence_bundle["capability_references"]
+    [source_reference] = evidence_bundle["source_references"]
+    [model_asset_reference] = evidence_bundle["model_asset_references"]
     human_approval_audit_log = next(
         audit_log
         for audit_log in evidence_bundle["audit_logs"]
         if audit_log["event_type"] == "human_approval_requested"
     )
+    evidence_grants_by_type = {
+        grant["target_type"]: grant for grant in evidence_bundle["access_grants"]
+    }
 
     assert telemetry_response["event_type"] == "tool_call_requested"
     assert telemetry_response["policy_decision"]["decision"] == "require_human_review"
@@ -109,6 +115,14 @@ def test_openapi_examples_represent_v0_governance_chain(
     assert (
         human_approval_audit_log["metadata"]["policy_decision_id"]
         == policy_decision["id"]
+    )
+    assert (
+        evidence_grants_by_type["capability"]["target_id"] == capability_reference["id"]
+    )
+    assert evidence_grants_by_type["source"]["target_id"] == source_reference["id"]
+    assert (
+        evidence_grants_by_type["model_asset"]["target_id"]
+        == model_asset_reference["id"]
     )
 
 

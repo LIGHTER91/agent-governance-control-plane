@@ -53,7 +53,10 @@ Agent Registry:
   Agent Governance Profile with Agent metadata, owner, recent activity,
   HumanApproval summary, Access Grants with safe target references,
   policy/rule references, and an Evidence Bundle export hint.
-- `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle for one agent, including related audit logs, runs, trace events, policy decisions, and human approvals.
+- `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle
+  for one agent, including related audit logs, runs, trace events, policy
+  decisions, human approvals, Agent-scoped Access Grants, and safe Capability,
+  Source, and ModelAsset references.
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
 
@@ -133,6 +136,10 @@ Access Grant Inventory:
 - Access grants are governance inventory only. They do not enforce runtime
   access yet and do not replace PolicyDecision, Runtime Gateway, or Human
   Approval records.
+- Evidence Bundle export includes Agent-scoped Access Grants and safe
+  Capability, Source, and ModelAsset references when those grants target
+  inventory records. It does not export source contents, credentials, or raw
+  payloads.
 
 Policy Management:
 

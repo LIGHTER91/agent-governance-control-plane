@@ -46,7 +46,8 @@ for declared Agent access to governed targets, and Agents can read their own
 Access Grants through `GET /agents/{agent_id}/access-grants`. AccessGrant is the
 association layer for Agent-to-Capability, Agent-to-Source, and
 Agent-to-ModelAsset declarations for now. Access Grants are not enforced by
-runtime policy evaluation yet and are not included in Evidence Bundle yet. A
+runtime policy evaluation yet. Evidence Bundle export includes Agent-scoped
+Access Grants and safe Capability, Source, and ModelAsset references. A
 compact read-only Agent Governance Profile endpoint now surfaces Agent metadata,
 recent activity, HumanApproval summary, Access Grants with safe inventory
 target references, policy/rule ID references, and an Evidence Bundle export
@@ -93,28 +94,26 @@ References:
 
 Recommended order:
 
-1. Extend Evidence Bundle for Access Grants and safe Capability, Source, and
-   ModelAsset references.
-2. Add Policy management UI for the existing Policy and PolicyRule APIs.
-3. Use Access Grants as optional policy context without replacing
+1. Add Policy management UI for the existing Policy and PolicyRule APIs.
+2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Add focused AccessGrant and inventory review workflows only where they
+3. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-5. Add Permission domain model only if AccessGrant target semantics prove
+4. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-6. Add frontend auth and role-aware UI later.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+5. Add frontend auth and role-aware UI later.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-10. Add owner-based service actor scopes design.
-11. Add safe denied-scope audit events.
-12. Add admin management for persisted service actor scope and rule records.
-13. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe denied-scope audit events.
+11. Add admin management for persisted service actor scope and rule records.
+12. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-14. Add tests for overriding the Actor dependency with a non-development actor.
-15. Add deeper separation-of-duties checks for HumanApproval review.
-16. Add broad filtering and pagination for Runtime and Agent activity only
+13. Add tests for overriding the Actor dependency with a non-development actor.
+14. Add deeper separation-of-duties checks for HumanApproval review.
+15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -138,8 +137,6 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
-- [ ] Extend Evidence Bundle for Access Grants and safe Capability, Source, and
-      ModelAsset references.
 - [ ] Use Access Grants as optional policy context without replacing
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
@@ -288,6 +285,8 @@ credentials.
 - [x] Add Agent-scoped AccessGrant endpoint.
 - [x] Add read-only Agent Governance Profile backend endpoint.
 - [x] Add Agent Governance Profile frontend UI.
+- [x] Extend Evidence Bundle for Access Grants and safe Capability, Source, and
+      ModelAsset references.
 
 ## Blocked
 

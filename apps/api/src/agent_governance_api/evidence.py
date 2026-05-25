@@ -5,10 +5,16 @@ from sqlalchemy.orm import Session
 
 from agent_governance_api.metadata_safety import filter_safe_metadata
 from agent_governance_api.models import (
+    AccessGrant,
+    AccessGrantSubjectType,
+    AccessGrantTargetType,
     Agent,
     AgentRunRecord,
     AuditLog,
+    Capability,
+    DataSource,
     HumanApproval,
+    ModelAsset,
     Policy,
     PolicyDecision,
     PolicyRule,
@@ -16,13 +22,17 @@ from agent_governance_api.models import (
 )
 from agent_governance_api.schemas import (
     AgentRead,
+    EvidenceAccessGrantRead,
     EvidenceAgentRunRead,
     EvidenceAuditLogRead,
     EvidenceBundleRead,
+    EvidenceCapabilityReferenceRead,
     EvidenceHumanApprovalRead,
+    EvidenceModelAssetReferenceRead,
     EvidencePolicyDecisionRead,
     EvidencePolicyReferenceRead,
     EvidencePolicyRuleReferenceRead,
+    EvidenceSourceReferenceRead,
     EvidenceTraceEventRead,
 )
 
@@ -36,6 +46,7 @@ def build_agent_evidence_bundle(
     trace_events = _load_trace_events(session, agent.id)
     policy_decisions = _load_policy_decisions(session, agent.id)
     human_approvals = _load_human_approvals(session, agent.id)
+    access_grants = _load_access_grants(session, agent.id)
     audit_logs = _load_agent_audit_logs(
         session,
         agent.id,
@@ -43,6 +54,9 @@ def build_agent_evidence_bundle(
     )
     policy_references = _load_policy_references(session, policy_decisions)
     rule_references = _load_rule_references(session, policy_decisions)
+    capability_references = _load_capability_references(session, access_grants)
+    source_references = _load_source_references(session, access_grants)
+    model_asset_references = _load_model_asset_references(session, access_grants)
 
     return EvidenceBundleRead(
         agent=AgentRead.model_validate(agent),
@@ -62,6 +76,20 @@ def build_agent_evidence_bundle(
         human_approvals=[
             _human_approval_response(human_approval)
             for human_approval in human_approvals
+        ],
+        access_grants=[
+            _access_grant_response(access_grant) for access_grant in access_grants
+        ],
+        capability_references=[
+            _capability_reference_response(capability)
+            for capability in capability_references
+        ],
+        source_references=[
+            _source_reference_response(source) for source in source_references
+        ],
+        model_asset_references=[
+            _model_asset_reference_response(model_asset)
+            for model_asset in model_asset_references
         ],
     )
 
@@ -131,6 +159,78 @@ def _load_human_approvals(session: Session, agent_id: UUID) -> list[HumanApprova
         .order_by(HumanApproval.created_at, HumanApproval.id)
     )
     return list(session.scalars(statement).all())
+
+
+def _load_access_grants(session: Session, agent_id: UUID) -> list[AccessGrant]:
+    statement = (
+        select(AccessGrant)
+        .where(
+            AccessGrant.subject_type == AccessGrantSubjectType.AGENT,
+            AccessGrant.subject_id == agent_id,
+        )
+        .order_by(AccessGrant.created_at, AccessGrant.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _load_capability_references(
+    session: Session,
+    access_grants: list[AccessGrant],
+) -> list[Capability]:
+    capability_ids = _target_ids(access_grants, AccessGrantTargetType.CAPABILITY)
+    if not capability_ids:
+        return []
+
+    statement = (
+        select(Capability)
+        .where(Capability.id.in_(capability_ids))
+        .order_by(Capability.created_at, Capability.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _load_source_references(
+    session: Session,
+    access_grants: list[AccessGrant],
+) -> list[DataSource]:
+    source_ids = _target_ids(access_grants, AccessGrantTargetType.SOURCE)
+    if not source_ids:
+        return []
+
+    statement = (
+        select(DataSource)
+        .where(DataSource.id.in_(source_ids))
+        .order_by(DataSource.created_at, DataSource.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _load_model_asset_references(
+    session: Session,
+    access_grants: list[AccessGrant],
+) -> list[ModelAsset]:
+    model_asset_ids = _target_ids(access_grants, AccessGrantTargetType.MODEL_ASSET)
+    if not model_asset_ids:
+        return []
+
+    statement = (
+        select(ModelAsset)
+        .where(ModelAsset.id.in_(model_asset_ids))
+        .order_by(ModelAsset.created_at, ModelAsset.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _target_ids(
+    access_grants: list[AccessGrant],
+    target_type: AccessGrantTargetType,
+) -> set[UUID]:
+    return {
+        access_grant.target_id
+        for access_grant in access_grants
+        if access_grant.target_type is target_type
+        and access_grant.target_id is not None
+    }
 
 
 def _load_policy_references(
@@ -273,4 +373,86 @@ def _human_approval_response(
         created_at=human_approval.created_at,
         reviewed_at=human_approval.reviewed_at,
         expires_at=human_approval.expires_at,
+    )
+
+
+def _access_grant_response(access_grant: AccessGrant) -> EvidenceAccessGrantRead:
+    return EvidenceAccessGrantRead(
+        id=access_grant.id,
+        name=access_grant.name,
+        description=access_grant.description,
+        grant_type=access_grant.grant_type,
+        subject_type=access_grant.subject_type,
+        subject_id=access_grant.subject_id,
+        target_type=access_grant.target_type,
+        target_id=access_grant.target_id,
+        external_ref=access_grant.external_ref,
+        status=access_grant.status,
+        granted_by_actor_type=access_grant.granted_by_actor_type,
+        granted_by_actor_id=access_grant.granted_by_actor_id,
+        reason=access_grant.reason,
+        expires_at=access_grant.expires_at,
+        risk_level=access_grant.risk_level,
+        metadata=filter_safe_metadata(access_grant.metadata_),
+        created_at=access_grant.created_at,
+        updated_at=access_grant.updated_at,
+    )
+
+
+def _capability_reference_response(
+    capability: Capability,
+) -> EvidenceCapabilityReferenceRead:
+    return EvidenceCapabilityReferenceRead(
+        id=capability.id,
+        name=capability.name,
+        description=capability.description,
+        capability_type=capability.capability_type,
+        external_ref=capability.external_ref,
+        status=capability.status,
+        risk_level=capability.risk_level,
+        metadata=filter_safe_metadata(capability.metadata_),
+        created_at=capability.created_at,
+        updated_at=capability.updated_at,
+    )
+
+
+def _source_reference_response(source: DataSource) -> EvidenceSourceReferenceRead:
+    return EvidenceSourceReferenceRead(
+        id=source.id,
+        name=source.name,
+        description=source.description,
+        source_type=source.source_type,
+        external_ref=source.external_ref,
+        owner_type=source.owner_type,
+        owner_id=source.owner_id,
+        owner_name=source.owner_name,
+        owner_contact_email=source.owner_contact_email,
+        status=source.status,
+        risk_level=source.risk_level,
+        metadata=filter_safe_metadata(source.metadata_),
+        created_at=source.created_at,
+        updated_at=source.updated_at,
+    )
+
+
+def _model_asset_reference_response(
+    model_asset: ModelAsset,
+) -> EvidenceModelAssetReferenceRead:
+    return EvidenceModelAssetReferenceRead(
+        id=model_asset.id,
+        name=model_asset.name,
+        description=model_asset.description,
+        model_type=model_asset.model_type,
+        provider=model_asset.provider,
+        model_ref=model_asset.model_ref,
+        version=model_asset.version,
+        owner_type=model_asset.owner_type,
+        owner_id=model_asset.owner_id,
+        owner_name=model_asset.owner_name,
+        owner_contact_email=model_asset.owner_contact_email,
+        status=model_asset.status,
+        risk_level=model_asset.risk_level,
+        metadata=filter_safe_metadata(model_asset.metadata_),
+        created_at=model_asset.created_at,
+        updated_at=model_asset.updated_at,
     )

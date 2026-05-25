@@ -584,6 +584,76 @@ class EvidenceHumanApprovalRead(BaseModel):
     expires_at: datetime | None = None
 
 
+class EvidenceAccessGrantRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    grant_type: AccessGrantType
+    subject_type: AccessGrantSubjectType
+    subject_id: UUID
+    target_type: AccessGrantTargetType
+    target_id: UUID | None = None
+    external_ref: str | None = None
+    status: AccessGrantStatus
+    granted_by_actor_type: ActorType
+    granted_by_actor_id: str
+    reason: str | None = None
+    expires_at: datetime | None = None
+    risk_level: RiskLevel
+    metadata: EvidenceMetadata
+    created_at: datetime
+    updated_at: datetime
+
+
+class EvidenceCapabilityReferenceRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    capability_type: CapabilityType
+    external_ref: str | None = None
+    status: CapabilityStatus
+    risk_level: RiskLevel
+    metadata: EvidenceMetadata
+    created_at: datetime
+    updated_at: datetime
+
+
+class EvidenceSourceReferenceRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    source_type: DataSourceType
+    external_ref: str | None = None
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    owner_contact_email: str | None = None
+    status: DataSourceStatus
+    risk_level: RiskLevel
+    metadata: EvidenceMetadata
+    created_at: datetime
+    updated_at: datetime
+
+
+class EvidenceModelAssetReferenceRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    model_type: ModelAssetType
+    provider: ModelProvider
+    model_ref: str | None = None
+    version: str | None = None
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    owner_contact_email: str | None = None
+    status: ModelAssetStatus
+    risk_level: RiskLevel
+    metadata: EvidenceMetadata
+    created_at: datetime
+    updated_at: datetime
+
+
 class EvidenceBundleRead(BaseModel):
     agent: AgentRead
     audit_logs: list[EvidenceAuditLogRead]
@@ -591,6 +661,14 @@ class EvidenceBundleRead(BaseModel):
     trace_events: list[EvidenceTraceEventRead]
     policy_decisions: list[EvidencePolicyDecisionRead]
     human_approvals: list[EvidenceHumanApprovalRead]
+    access_grants: list[EvidenceAccessGrantRead] = Field(default_factory=list)
+    capability_references: list[EvidenceCapabilityReferenceRead] = Field(
+        default_factory=list
+    )
+    source_references: list[EvidenceSourceReferenceRead] = Field(default_factory=list)
+    model_asset_references: list[EvidenceModelAssetReferenceRead] = Field(
+        default_factory=list
+    )
 
 
 class AgentActivityItemRead(BaseModel):

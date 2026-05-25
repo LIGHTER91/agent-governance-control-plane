@@ -112,6 +112,8 @@ integrations are intentionally not implemented yet.
   attempts against known Agents.
 - Evidence chain coverage across TraceEventRecord, PolicyDecision,
   HumanApproval, and related AuditLog.
+- Evidence Bundle coverage for Agent-scoped Access Grants and safe Capability,
+  Source, and ModelAsset references.
 - Read-only Agent activity endpoint sorted newest first.
 - Central metadata safety filtering for telemetry, audit, and evidence export.
 - OpenAPI examples for core backend endpoints.
@@ -374,8 +376,6 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Agent edit forms.
 - Broad filtering, search, or pagination for Agent and Runtime activity views.
 - Evidence Bundle PDF/download/signature actions in the UI.
-- Full AccessGrant and inventory reference coverage inside Evidence Bundle
-  export.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
@@ -390,27 +390,25 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Extend Evidence Bundle export with safe AccessGrant and Capability, Source,
-   and ModelAsset references.
-2. Add Policy management UI for the existing Policy and PolicyRule APIs.
-3. Use Access Grants as optional policy context without replacing
+1. Add Policy management UI for the existing Policy and PolicyRule APIs.
+2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Add focused AccessGrant and inventory workflows only where they support
+3. Add focused AccessGrant and inventory workflows only where they support
    review, approval, or evidence collection.
-5. Implement Permission domain model only if AccessGrant target semantics prove
+4. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-6. Add frontend auth and role-aware UI.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+5. Add frontend auth and role-aware UI.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-10. Add owner-based service actor scopes design.
-11. Add safe audit events for denied service actor scope checks.
-12. Implement service actor registry admin management workflow.
-13. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Implement service actor registry admin management workflow.
+12. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+13. Add deeper separation-of-duties checks for HumanApproval review.
+14. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

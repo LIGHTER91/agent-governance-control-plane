@@ -216,6 +216,10 @@ def export_agent_evidence_bundle(
             "trace_event_count": len(evidence_bundle.trace_events),
             "policy_decision_count": len(evidence_bundle.policy_decisions),
             "human_approval_count": len(evidence_bundle.human_approvals),
+            "access_grant_count": len(evidence_bundle.access_grants),
+            "capability_reference_count": len(evidence_bundle.capability_references),
+            "source_reference_count": len(evidence_bundle.source_references),
+            "model_asset_reference_count": len(evidence_bundle.model_asset_references),
         },
     )
     session.commit()

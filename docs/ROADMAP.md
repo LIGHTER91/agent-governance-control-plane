@@ -54,11 +54,12 @@ Several important surfaces remain backend-only: Capability, Source, ModelAsset,
 AccessGrant, Policy, and PolicyRule management have APIs but no dedicated
 frontend management workflows. Access Grants are inventory declarations only;
 they are not enforced by runtime policy evaluation yet. Evidence Bundle export
-does not yet include full AccessGrant and inventory reference coverage. Full
-user authentication, OIDC/SAML/JWT, team or organization-unit resolution,
-production service actor administration, API key rotation endpoints,
-notifications, deployment hardening, and operational runbooks are still
-missing.
+includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
+references, but it remains a bounded JSON review export rather than a full data
+catalog or UI-oriented profile. Full user authentication, OIDC/SAML/JWT, team
+or organization-unit resolution, production service actor administration, API
+key rotation endpoints, notifications, deployment hardening, and operational
+runbooks are still missing.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -124,6 +125,8 @@ Completed capabilities:
 - Evidence Bundle JSON export for one agent.
 - Evidence Bundle coverage for TraceEventRecord, PolicyDecision,
   HumanApproval, and related AuditLog.
+- Evidence Bundle coverage for Agent-scoped Access Grants and safe Capability,
+  Source, and ModelAsset references.
 - Metadata safety filtering for telemetry, audit, and evidence export.
 - OpenAPI examples for core backend endpoints.
 - Executable V0 governance flow demo.
@@ -266,11 +269,11 @@ Completed foundation:
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
 - PolicyRule management API for deterministic rule conditions.
+- Evidence Bundle export includes Agent-scoped Access Grants and safe
+  Capability, Source, and ModelAsset references.
 
 Recommended next work:
 
-- Extend Evidence Bundle export with safe AccessGrant and Capability, Source,
-  and ModelAsset references.
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.

@@ -819,6 +819,10 @@ EVIDENCE_BUNDLE_RESPONSE = {
     ],
     "policy_decisions": [POLICY_DECISION_RESPONSE],
     "human_approvals": [HUMAN_APPROVAL_PENDING_RESPONSE],
+    "access_grants": AGENT_ACCESS_GRANT_RESPONSE,
+    "capability_references": [CAPABILITY_RESPONSE],
+    "source_references": [SOURCE_RESPONSE],
+    "model_asset_references": [MODEL_ASSET_RESPONSE],
 }
 
 

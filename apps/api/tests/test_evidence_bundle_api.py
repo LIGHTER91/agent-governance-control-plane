@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,17 +13,34 @@ from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
+    AccessGrant,
+    AccessGrantStatus,
+    AccessGrantSubjectType,
+    AccessGrantTargetType,
+    AccessGrantType,
     ActorType,
     AgentRunRecord,
     AuditLog,
+    Capability,
+    CapabilityStatus,
+    CapabilityType,
+    DataSource,
+    DataSourceStatus,
+    DataSourceType,
     Environment,
     HumanApproval,
     HumanApprovalStatus,
+    ModelAsset,
+    ModelAssetStatus,
+    ModelAssetType,
+    ModelProvider,
+    OwnerType,
     Policy,
     PolicyDecision,
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    RiskLevel,
     TraceEventRecord,
     TraceEventType,
 )
@@ -88,7 +105,15 @@ def test_successful_evidence_bundle_export(
         "trace_events",
         "policy_decisions",
         "human_approvals",
+        "access_grants",
+        "capability_references",
+        "source_references",
+        "model_asset_references",
     }
+    assert body["access_grants"] == []
+    assert body["capability_references"] == []
+    assert body["source_references"] == []
+    assert body["model_asset_references"] == []
 
 
 def test_successful_evidence_bundle_export_creates_safe_audit_log(
@@ -116,12 +141,157 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
         "trace_event_count": 1,
         "policy_decision_count": 1,
         "human_approval_count": 1,
+        "access_grant_count": 0,
+        "capability_reference_count": 0,
+        "source_reference_count": 0,
+        "model_asset_reference_count": 0,
     }
     assert "agent_runs" not in audit_log.metadata_
     assert "trace_events" not in audit_log.metadata_
     assert "policy_decisions" not in audit_log.metadata_
     assert "human_approvals" not in audit_log.metadata_
+    assert "access_grants" not in audit_log.metadata_
+    assert "capability_references" not in audit_log.metadata_
+    assert "source_references" not in audit_log.metadata_
+    assert "model_asset_references" not in audit_log.metadata_
     assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
+
+
+def test_evidence_bundle_includes_agent_access_grants_and_inventory_references(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    body = response.json()
+    access_grants = body["access_grants"]
+    assert {grant["name"] for grant in access_grants} == {
+        "Capability access",
+        "Source access",
+        "Model access",
+    }
+    assert "Other agent access" not in {grant["name"] for grant in access_grants}
+    assert {grant["subject_id"] for grant in access_grants} == {str(agent_id)}
+    target_ids_by_type = {
+        grant["target_type"]: grant["target_id"] for grant in access_grants
+    }
+    assert target_ids_by_type == {
+        "capability": str(seeded.capability_id),
+        "source": str(seeded.source_id),
+        "model_asset": str(seeded.model_asset_id),
+    }
+
+    [capability] = body["capability_references"]
+    assert capability["id"] == str(seeded.capability_id)
+    assert capability["name"] == "Send support email"
+    assert capability["capability_type"] == "tool"
+    assert capability["external_ref"] == "tool:send_email"
+    assert capability["status"] == "active"
+    assert capability["risk_level"] == "medium"
+    assert capability["metadata"] == {"domain": "support"}
+
+    [source] = body["source_references"]
+    assert source["id"] == str(seeded.source_id)
+    assert source["name"] == "Support knowledge base"
+    assert source["source_type"] == "knowledge_base"
+    assert source["external_ref"] == "kb:support"
+    assert source["owner_type"] == "team"
+    assert source["owner_id"] == "team:support-ops"
+    assert source["status"] == "active"
+    assert source["risk_level"] == "medium"
+    assert source["metadata"] == {"system": "runbook_index"}
+
+    [model_asset] = body["model_asset_references"]
+    assert model_asset["id"] == str(seeded.model_asset_id)
+    assert model_asset["name"] == "Support chat model"
+    assert model_asset["model_type"] == "llm"
+    assert model_asset["provider"] == "openai"
+    assert model_asset["model_ref"] == "gpt-4.1-mini"
+    assert model_asset["version"] == "2026-01"
+    assert model_asset["owner_type"] == "team"
+    assert model_asset["owner_id"] == "team:ai-platform"
+    assert model_asset["status"] == "active"
+    assert model_asset["risk_level"] == "medium"
+    assert model_asset["metadata"] == {"usage": "assistant_response"}
+
+
+def test_evidence_bundle_filters_access_inventory_metadata(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+    inject_unsafe_access_inventory_metadata(session_factory, seeded)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    body = response.json()
+    [grant] = [
+        grant for grant in body["access_grants"] if grant["target_type"] == "capability"
+    ]
+    [capability] = body["capability_references"]
+    [source] = body["source_references"]
+    [model_asset] = body["model_asset_references"]
+    assert grant["metadata"] == {"review_status": "approved"}
+    assert capability["metadata"] == {"domain": "support"}
+    assert source["metadata"] == {"system": "runbook_index"}
+    assert model_asset["metadata"] == {"usage": "assistant_response"}
+    assert "do-not-export" not in response.text
+    assert "api_key" not in response.text
+    assert "authorization" not in response.text
+    assert "raw_payload" not in response.text
+    assert "secret" not in response.text
+
+
+def test_successful_evidence_bundle_export_audit_counts_access_inventory(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seed_evidence_records(session_factory, agent_id)
+    seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [audit_log] = fetch_evidence_bundle_export_audit_logs(session_factory)
+    assert audit_log.metadata_["access_grant_count"] == 3
+    assert audit_log.metadata_["capability_reference_count"] == 1
+    assert audit_log.metadata_["source_reference_count"] == 1
+    assert audit_log.metadata_["model_asset_reference_count"] == 1
+    assert "access_grants" not in audit_log.metadata_
+    assert "capability_references" not in audit_log.metadata_
+    assert "source_references" not in audit_log.metadata_
+    assert "model_asset_references" not in audit_log.metadata_
 
 
 def test_denied_evidence_bundle_export_creates_safe_audit_log(
@@ -610,6 +780,27 @@ class SeededEvidence:
         self.human_approval_id = human_approval_id
 
 
+class SeededAccessInventory:
+    def __init__(
+        self,
+        *,
+        capability_id: UUID,
+        source_id: UUID,
+        model_asset_id: UUID,
+        capability_grant_id: UUID,
+        source_grant_id: UUID,
+        model_grant_id: UUID,
+        other_agent_grant_id: UUID,
+    ) -> None:
+        self.capability_id = capability_id
+        self.source_id = source_id
+        self.model_asset_id = model_asset_id
+        self.capability_grant_id = capability_grant_id
+        self.source_grant_id = source_grant_id
+        self.model_grant_id = model_grant_id
+        self.other_agent_grant_id = other_agent_grant_id
+
+
 def create_agent(
     client: TestClient,
     payload: dict[str, object] | None = None,
@@ -640,6 +831,10 @@ def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> No
         "trace_events",
         "policy_decisions",
         "human_approvals",
+        "access_grants",
+        "capability_references",
+        "source_references",
+        "model_asset_references",
     } & set(body)
 
 
@@ -773,6 +968,156 @@ def seed_evidence_records(
         )
 
 
+def seed_access_inventory_records(
+    session_factory: SessionFactory,
+    *,
+    agent_id: UUID,
+    other_agent_id: UUID,
+) -> SeededAccessInventory:
+    with session_factory() as session:
+        created_at = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+        capability = Capability(
+            name="Send support email",
+            description="Send approved support email responses.",
+            capability_type=CapabilityType.TOOL,
+            external_ref="tool:send_email",
+            status=CapabilityStatus.ACTIVE,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"domain": "support"},
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        source = DataSource(
+            name="Support knowledge base",
+            description="Curated support runbook articles.",
+            source_type=DataSourceType.KNOWLEDGE_BASE,
+            external_ref="kb:support",
+            owner_type=OwnerType.TEAM,
+            owner_id="team:support-ops",
+            owner_name="Support Operations",
+            owner_contact_email="support-ops@example.com",
+            status=DataSourceStatus.ACTIVE,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"system": "runbook_index"},
+            created_at=created_at + timedelta(seconds=1),
+            updated_at=created_at + timedelta(seconds=1),
+        )
+        model_asset = ModelAsset(
+            name="Support chat model",
+            description="Hosted LLM for support response drafting.",
+            model_type=ModelAssetType.LLM,
+            provider=ModelProvider.OPENAI,
+            model_ref="gpt-4.1-mini",
+            version="2026-01",
+            owner_type=OwnerType.TEAM,
+            owner_id="team:ai-platform",
+            owner_name="AI Platform",
+            owner_contact_email="ai-platform@example.com",
+            status=ModelAssetStatus.ACTIVE,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"usage": "assistant_response"},
+            created_at=created_at + timedelta(seconds=2),
+            updated_at=created_at + timedelta(seconds=2),
+        )
+        session.add_all([capability, source, model_asset])
+        session.flush()
+
+        capability_grant = AccessGrant(
+            name="Capability access",
+            description="Allows use of the support email capability.",
+            grant_type=AccessGrantType.CAPABILITY,
+            subject_type=AccessGrantSubjectType.AGENT,
+            subject_id=agent_id,
+            target_type=AccessGrantTargetType.CAPABILITY,
+            target_id=capability.id,
+            external_ref=None,
+            status=AccessGrantStatus.ACTIVE,
+            granted_by_actor_type=ActorType.DEVELOPMENT,
+            granted_by_actor_id="dev-placeholder",
+            reason="Governance review completed.",
+            expires_at=None,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"review_status": "approved"},
+            created_at=created_at + timedelta(seconds=3),
+            updated_at=created_at + timedelta(seconds=3),
+        )
+        source_grant = AccessGrant(
+            name="Source access",
+            description="Allows access to support knowledge articles.",
+            grant_type=AccessGrantType.SOURCE,
+            subject_type=AccessGrantSubjectType.AGENT,
+            subject_id=agent_id,
+            target_type=AccessGrantTargetType.SOURCE,
+            target_id=source.id,
+            external_ref=None,
+            status=AccessGrantStatus.ACTIVE,
+            granted_by_actor_type=ActorType.DEVELOPMENT,
+            granted_by_actor_id="dev-placeholder",
+            reason="Governance review completed.",
+            expires_at=None,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"review_status": "approved"},
+            created_at=created_at + timedelta(seconds=4),
+            updated_at=created_at + timedelta(seconds=4),
+        )
+        model_grant = AccessGrant(
+            name="Model access",
+            description="Allows use of the support chat model.",
+            grant_type=AccessGrantType.MODEL,
+            subject_type=AccessGrantSubjectType.AGENT,
+            subject_id=agent_id,
+            target_type=AccessGrantTargetType.MODEL_ASSET,
+            target_id=model_asset.id,
+            external_ref=None,
+            status=AccessGrantStatus.ACTIVE,
+            granted_by_actor_type=ActorType.DEVELOPMENT,
+            granted_by_actor_id="dev-placeholder",
+            reason="Governance review completed.",
+            expires_at=None,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"review_status": "approved"},
+            created_at=created_at + timedelta(seconds=5),
+            updated_at=created_at + timedelta(seconds=5),
+        )
+        other_agent_grant = AccessGrant(
+            name="Other agent access",
+            description="Belongs to a different Agent.",
+            grant_type=AccessGrantType.CAPABILITY,
+            subject_type=AccessGrantSubjectType.AGENT,
+            subject_id=other_agent_id,
+            target_type=AccessGrantTargetType.CAPABILITY,
+            target_id=capability.id,
+            external_ref=None,
+            status=AccessGrantStatus.ACTIVE,
+            granted_by_actor_type=ActorType.DEVELOPMENT,
+            granted_by_actor_id="dev-placeholder",
+            reason="Governance review completed.",
+            expires_at=None,
+            risk_level=RiskLevel.MEDIUM,
+            metadata_={"review_status": "approved"},
+            created_at=created_at + timedelta(seconds=6),
+            updated_at=created_at + timedelta(seconds=6),
+        )
+        session.add_all(
+            [
+                capability_grant,
+                source_grant,
+                model_grant,
+                other_agent_grant,
+            ]
+        )
+        session.commit()
+        return SeededAccessInventory(
+            capability_id=capability.id,
+            source_id=source.id,
+            model_asset_id=model_asset.id,
+            capability_grant_id=capability_grant.id,
+            source_grant_id=source_grant.id,
+            model_grant_id=model_grant.id,
+            other_agent_grant_id=other_agent_grant.id,
+        )
+
+
 def create_review_policy_rule(session_factory: SessionFactory) -> tuple[UUID, UUID]:
     with session_factory() as session:
         created_at = datetime.now(UTC)
@@ -847,6 +1192,62 @@ def inject_unsafe_metadata(
                         "token": "do-not-export",
                         "authorization": "Bearer do-not-export",
                         "nested": {"secret": "do-not-export"},
+                    }
+                }
+            )
+        )
+        session.commit()
+
+
+def inject_unsafe_access_inventory_metadata(
+    session_factory: SessionFactory,
+    seeded: SeededAccessInventory,
+) -> None:
+    with session_factory() as session:
+        session.execute(
+            AccessGrant.__table__.update()
+            .where(AccessGrant.id == seeded.capability_grant_id)
+            .values(
+                {
+                    "metadata": {
+                        "review_status": "approved",
+                        "api_key": "do-not-export",
+                    }
+                }
+            )
+        )
+        session.execute(
+            Capability.__table__.update()
+            .where(Capability.id == seeded.capability_id)
+            .values(
+                {
+                    "metadata": {
+                        "domain": "support",
+                        "authorization": "Bearer do-not-export",
+                    }
+                }
+            )
+        )
+        session.execute(
+            DataSource.__table__.update()
+            .where(DataSource.id == seeded.source_id)
+            .values(
+                {
+                    "metadata": {
+                        "system": "runbook_index",
+                        "raw_payload": "do-not-export",
+                    }
+                }
+            )
+        )
+        session.execute(
+            ModelAsset.__table__.update()
+            .where(ModelAsset.id == seeded.model_asset_id)
+            .values(
+                {
+                    "metadata": {
+                        "usage": "assistant_response",
+                        "secret": "do-not-export",
                     }
                 }
             )
