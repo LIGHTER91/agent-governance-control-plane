@@ -200,6 +200,54 @@ Governance Profile read model and UI, and included as safe Evidence Bundle
 references when granted to an Agent. Runtime enforcement and permission
 semantics for source access remain future work.
 
+## Data Usage Profile
+
+A future governance profile linked to a Source that describes safe, declared
+usage context for contextual runtime governance.
+
+The design is documented in `docs/DATA_USAGE_PROFILE_DESIGN.md`. It is
+design-only for now; no Source API, database model, runtime schema, or policy
+evaluator behavior has changed yet.
+
+Recommendation: keep Data Usage Profile as a separate object linked to Source,
+rather than adding all usage and review fields directly to Source. Source should
+remain the stable inventory identity and lifecycle record. Data Usage Profile
+should hold classification, purpose constraints, processing constraints, review
+status, DPIA references, and safe metadata that can evolve on a different
+cadence.
+
+Suggested future fields:
+
+- source_id;
+- data_classification;
+- contains_personal_data;
+- contains_sensitive_data;
+- data_categories;
+- legal_basis;
+- allowed_purposes;
+- prohibited_purposes;
+- allowed_processing;
+- prohibited_processing;
+- residency;
+- retention_policy;
+- data_owner;
+- dpo_review_status;
+- dpia_required;
+- dpia_reference;
+- last_reviewed_at;
+- reviewed_by;
+- review_expires_at;
+- metadata.
+
+Data Usage Profile metadata must contain only safe, non-sensitive context. It
+must not include raw source content, retrieved chunks, full documents, prompts,
+credentials, tokens, secrets, private customer data, or raw scanner payloads.
+
+Scanner, catalog, DLP, and caller-provided signals can support review workflows,
+but they are not legal truth. AGCP should use Data Usage Profile as decision
+support, policy context, and evidence, not as legal compliance certification or
+automatic lawful-use determination.
+
 ## Model
 
 A governed inventory record describing an AI/ML model or model endpoint an
@@ -382,10 +430,10 @@ chunks, full documents, prompts that may contain sensitive data, API keys,
 credentials, authorization headers, full model provider payloads, or raw tool
 payloads.
 
-Later work may resolve contextual references to Source, ModelAsset, Capability,
-and AccessGrant records before deterministic PolicyRule evaluation. This should
-extend PolicyDecision evidence rather than replace PolicyDecision,
-HumanApproval, AuditLog, or Evidence Bundle records.
+Later work may resolve contextual references to Source, Data Usage Profile,
+ModelAsset, Capability, and AccessGrant records before deterministic PolicyRule
+evaluation. This should extend PolicyDecision evidence rather than replace
+PolicyDecision, HumanApproval, AuditLog, or Evidence Bundle records.
 
 ## Agent Governance Profile
 
@@ -642,6 +690,9 @@ Examples:
 - source_created;
 - source_updated;
 - source_status_changed;
+- data_usage_profile_created;
+- data_usage_profile_updated;
+- data_usage_profile_review_status_changed;
 - model_asset_created;
 - model_asset_updated;
 - model_asset_status_changed;

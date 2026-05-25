@@ -131,7 +131,7 @@ clients continue to work.
 | `purpose` | Declared purpose of the action | Examples: `semantic_search_indexing`, `customer_support_answering`, `incident_triage`. |
 | `environment` | Runtime environment | Should keep using the existing Environment vocabulary. |
 | `risk_level` | Caller or Agent risk context | Should keep using the existing Risk Level vocabulary. |
-| `data_classification` | Data sensitivity classification | Initial values should be conservative and documented before enforcement. |
+| `data_classification` | Data sensitivity classification | May be caller-supplied, resolved from Data Usage Profile, or both; behavior must be explicit before enforcement. |
 | `contains_personal_data` | Safe boolean signal | Does not include the data itself. |
 | `contains_sensitive_data` | Safe boolean signal | Does not include the data itself. |
 | `metadata` | Additional safe context | Must use the existing safe metadata filtering rules. |
@@ -163,6 +163,7 @@ Later runtime processing can resolve contextual references before policy
 evaluation:
 
 - `source_ids` -> Source inventory records;
+- Source inventory records -> Data Usage Profile records when available;
 - `model_id` -> ModelAsset inventory record;
 - `capability_id` -> Capability inventory record;
 - `(agent_id, target_type, target_id)` -> active AccessGrant records;
@@ -170,8 +171,17 @@ evaluation:
 
 Resolution should produce a compact internal decision context. That context can
 include safe inventory fields such as IDs, type, status, provider, risk level,
-classification, and ownership references. It must not include source contents,
-credentials, raw prompts, or raw payloads.
+classification, usage purpose constraints, review status, and ownership
+references. It must not include source contents, credentials, raw prompts, or
+raw payloads.
+
+The Source side of contextual governance needs the Data Usage Profile design in
+`docs/DATA_USAGE_PROFILE_DESIGN.md`. Source inventory identifies the data
+source; Data Usage Profile describes safe governance metadata such as
+classification, personal or sensitive data signals, allowed and prohibited
+purposes, allowed and prohibited processing, review status, DPIA references, and
+review expiry. These fields are decision support and evidence context, not legal
+certification.
 
 Unknown inventory references require an explicit future policy. Conservative
 options include fail-closed in enforcement mode, require human review in
@@ -213,6 +223,12 @@ Early contextual rule matching could add explicit fields such as:
 - `action_type`;
 - `capability_id` or `capability_ref`;
 - `source_id` or `source_ids`;
+- `source_data_classification`;
+- `source_allowed_purposes`;
+- `source_prohibited_purposes`;
+- `source_allowed_processing`;
+- `source_prohibited_processing`;
+- `source_review_status`;
 - `model_id`;
 - `model_provider`;
 - `purpose`;
@@ -235,6 +251,8 @@ Evidence should remain compact and safe:
 - include referenced IDs and safe inventory references;
 - include the PolicyDecision and HumanApproval chain;
 - include AccessGrant references used by the decision when safely available;
+- include Data Usage Profile summary fields such as data classification, review
+  status, and purpose constraints when safe;
 - include data classification and purpose when safe;
 - exclude raw content and raw provider/tool payloads.
 
@@ -283,16 +301,17 @@ reviewed in the source system.
 Recommended staged implementation:
 
 1. Design the contextual runtime schema and document accepted values.
-2. Add optional contextual fields to the runtime request schema.
-3. Persist only safe context metadata and references on runtime records.
-4. Update Runtime activity and Evidence Bundle export with safe contextual
+2. Add Data Usage Profile persistence for Source governance context.
+3. Add optional contextual fields to the runtime request schema.
+4. Persist only safe context metadata and references on runtime records.
+5. Update Runtime activity and Evidence Bundle export with safe contextual
    references.
-5. Extend the deterministic policy evaluator with a small, explicit set of
+6. Extend the deterministic policy evaluator with a small, explicit set of
    contextual fields.
-6. Add policy templates for common governance cases such as external
+7. Add policy templates for common governance cases such as external
    vectorization, restricted-source retrieval, and unapproved model provider
    usage.
-7. Later add a Policy Studio or guided UI for contextual policies only after
+8. Later add a Policy Studio or guided UI for contextual policies only after
    versioning, review, and simulation semantics are designed.
 
 Each stage should keep existing clients working and should avoid treating
@@ -301,8 +320,8 @@ use them.
 
 ## Open Questions
 
-- Should `data_classification` be sent by the caller, resolved from Source
-  inventory, or both?
+- Should `data_classification` be sent by the caller, resolved from Source Data
+  Usage Profile, or both?
 - How should multiple sources with different classifications be represented?
 - Should `purpose` be required for production enforcement requests?
 - How should future confidence or uncertainty from checks be represented

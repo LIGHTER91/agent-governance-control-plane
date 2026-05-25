@@ -67,6 +67,12 @@ Capability, purpose, environment, AccessGrant, and Approval context. This is
 design-only; runtime request schemas, policy evaluation, and enforcement
 behavior still use the current implemented contract.
 
+Source Data Usage Profile now has a design path for the Source-side governance
+metadata needed by contextual runtime decisions, including classification,
+personal or sensitive data signals, allowed and prohibited purposes, processing
+constraints, review status, and safe DPIA references. This is also design-only;
+Source APIs and database fields have not changed.
+
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
 policy workflows that help users answer what an Agent is allowed to use, why it
@@ -217,6 +223,9 @@ Important limitations:
 - Contextual runtime governance has a design only. Optional contextual request
   fields, inventory resolution during runtime decisions, AccessGrant-aware
   evaluation, and contextual policy rules are not implemented yet.
+- Data Usage Profile has a design only. Source profile persistence, Source
+  profile APIs, Evidence Bundle profile summaries, and profile-aware policy
+  context are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 
@@ -284,6 +293,8 @@ Completed foundation:
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
+- Add Data Usage Profile persistence and API support for Source records before
+  relying on Source classification in runtime policy context.
 - Add optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
   Runtime Gateway clients.
@@ -334,6 +345,8 @@ Important limitations:
 
 References:
 
+- `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
+- `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
