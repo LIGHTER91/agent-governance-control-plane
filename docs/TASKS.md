@@ -46,9 +46,13 @@ for declared Agent access to governed targets, and Agents can read their own
 Access Grants through `GET /agents/{agent_id}/access-grants`. AccessGrant is the
 association layer for Agent-to-Capability, Agent-to-Source, and
 Agent-to-ModelAsset declarations for now. Access Grants are not enforced by
-runtime policy evaluation yet and are not surfaced in the Agent profile or
-Evidence Bundle yet. Policy and PolicyRule management APIs exist for auditable
-lifecycle records and deterministic rule conditions. The
+runtime policy evaluation yet and are not included in Evidence Bundle yet. A
+compact read-only Agent Governance Profile endpoint now surfaces Agent metadata,
+recent activity, HumanApproval summary, Access Grants with safe inventory
+target references, policy/rule ID references, and an Evidence Bundle export
+hint without embedding Evidence Bundle contents. Policy and PolicyRule
+management APIs exist for auditable lifecycle records and deterministic rule
+conditions. The
 frontend has a minimal dashboard shell, a read-only Agent list page backed by
 `GET /agents`, a read-only Agent detail page backed by `GET /agents/{agent_id}`,
 `GET /agents/{agent_id}/activity`, and
@@ -78,8 +82,8 @@ References:
 
 Recommended order:
 
-1. Surface Agent-scoped Access Grants in the Agent Governance Profile and
-   Evidence Bundle.
+1. Extend Evidence Bundle for Access Grants and safe Capability, Source, and
+   ModelAsset references.
 2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 3. Add Permission domain model only if AccessGrant target semantics prove
@@ -119,8 +123,8 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
-- [ ] Surface Agent-scoped Access Grants in the Agent Governance Profile and
-      Evidence Bundle.
+- [ ] Extend Evidence Bundle for Access Grants and safe Capability, Source, and
+      ModelAsset references.
 - [ ] Use Access Grants as optional policy context without replacing
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
@@ -280,6 +284,7 @@ credentials.
 - [x] Add direct user owner access for Evidence Bundle export.
 - [x] Add Runtime activity backend endpoint.
 - [x] Add Runtime activity frontend page.
+- [x] Add read-only Agent Governance Profile backend endpoint.
 
 ## Blocked
 

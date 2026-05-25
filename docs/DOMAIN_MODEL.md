@@ -344,6 +344,27 @@ Access Grant metadata must contain only safe, non-sensitive context. Do not
 store credentials, tokens, secrets, authorization headers, raw prompts, private
 customer data, or raw sensitive payloads in Access Grant metadata.
 
+## Agent Governance Profile
+
+A compact read model for one Agent's current governance posture.
+
+`GET /agents/{agent_id}/governance-profile` returns Agent metadata, owner,
+environment, status, risk level, recent governance activity, recent
+HumanApproval summary, Agent-scoped Access Grants, safe references to granted
+Capability, Source, and ModelAsset targets, policy/rule ID references derived
+from PolicyDecision records, and an Evidence Bundle export hint.
+
+The profile is intended to support product navigation and the future Agent
+Governance Profile UI. It is not an Evidence Bundle export, does not include
+full audit logs, run history, trace event history, or full policy decision
+history, and must not be treated as a compliance certification. Evidence Bundle
+JSON export remains the canonical audit/review export.
+
+The profile should stay bounded and read-optimized. Broad filtering,
+pagination, full history joins, policy simulation, policy evaluation changes,
+charts, compliance scores, and frontend-specific presentation state remain out
+of scope for this backend read model.
+
 ## Policy
 
 A governance rule or set of rules applied to agents.

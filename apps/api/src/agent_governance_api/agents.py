@@ -18,6 +18,7 @@ from agent_governance_api.auth import (
 )
 from agent_governance_api.database import get_db_session
 from agent_governance_api.evidence import build_agent_evidence_bundle
+from agent_governance_api.governance_profile import build_agent_governance_profile
 from agent_governance_api.models import (
     AccessGrant,
     AccessGrantStatus,
@@ -32,6 +33,7 @@ from agent_governance_api.openapi_examples import (
     AGENT_ACTIVITY_OPENAPI,
     AGENT_CREATE_OPENAPI,
     AGENT_GET_OPENAPI,
+    AGENT_GOVERNANCE_PROFILE_OPENAPI,
     AGENT_LIST_OPENAPI,
     AGENT_UPDATE_OPENAPI,
     EVIDENCE_BUNDLE_OPENAPI,
@@ -40,6 +42,7 @@ from agent_governance_api.schemas import (
     AccessGrantRead,
     AgentActivityItemRead,
     AgentCreate,
+    AgentGovernanceProfileRead,
     AgentRead,
     AgentUpdate,
     EvidenceBundleRead,
@@ -96,6 +99,24 @@ def get_agent(
     session: Session = Depends(get_db_session),
 ) -> Agent:
     return _get_agent_or_404(session, agent_id)
+
+
+@router.get(
+    "/{agent_id}/governance-profile",
+    response_model=AgentGovernanceProfileRead,
+    openapi_extra=AGENT_GOVERNANCE_PROFILE_OPENAPI,
+)
+def get_agent_governance_profile(
+    agent_id: UUID,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> AgentGovernanceProfileRead:
+    agent = _get_agent_or_404(session, agent_id)
+    return build_agent_governance_profile(
+        session,
+        agent=agent,
+        evidence_bundle_access=_evidence_bundle_access(actor, agent),
+    )
 
 
 @router.get(
@@ -288,6 +309,14 @@ def _is_direct_user_owner(actor: ActorContext, agent: Agent) -> bool:
         and agent.owner_type is OwnerType.USER
         and actor.actor_id == agent.owner_id
     )
+
+
+def _evidence_bundle_access(actor: ActorContext, agent: Agent) -> str:
+    try:
+        _require_evidence_bundle_exporter(actor, agent)
+    except HTTPException:
+        return "restricted"
+    return "allowed"
 
 
 def _require_agent_activity_reader(actor: ActorContext) -> None:

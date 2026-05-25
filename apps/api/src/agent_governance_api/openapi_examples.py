@@ -312,6 +312,100 @@ AGENT_ACTIVITY_RESPONSE = [
     },
 ]
 
+AGENT_GOVERNANCE_PROFILE_RESPONSE = {
+    "agent": AGENT_RESPONSE,
+    "owner": {
+        "owner_type": AGENT_RESPONSE["owner_type"],
+        "owner_id": AGENT_RESPONSE["owner_id"],
+        "owner_name": AGENT_RESPONSE["owner_name"],
+        "owner_contact_email": AGENT_RESPONSE["owner_contact_email"],
+    },
+    "environment": AGENT_RESPONSE["environment"],
+    "status": AGENT_RESPONSE["status"],
+    "risk_level": AGENT_RESPONSE["risk_level"],
+    "recent_activity": {
+        "limit": 5,
+        "items": AGENT_ACTIVITY_RESPONSE,
+    },
+    "human_approvals": {
+        "total_count": 1,
+        "by_status": {"pending": 1},
+        "recent": [
+            {
+                "id": HUMAN_APPROVAL_ID,
+                "agent_id": AGENT_ID,
+                "policy_decision_id": POLICY_DECISION_ID,
+                "status": "pending",
+                "requested_by_actor_type": "development",
+                "requested_by_actor_id": "dev-placeholder",
+                "reviewed_by_actor_type": None,
+                "reviewed_by_actor_id": None,
+                "reason": "Email tool use requires human review.",
+                "decision_note": None,
+                "reviewed_at": None,
+                "expires_at": None,
+                "created_at": HUMAN_APPROVAL_CREATED_AT,
+            }
+        ],
+    },
+    "access_grants": [
+        {
+            **AGENT_ACCESS_GRANT_RESPONSE[0],
+            "target": {
+                "target_type": "model_asset",
+                "id": MODEL_ASSET_ID,
+                "name": MODEL_ASSET_RESPONSE["name"],
+                "status": MODEL_ASSET_RESPONSE["status"],
+                "risk_level": MODEL_ASSET_RESPONSE["risk_level"],
+                "external_ref": MODEL_ASSET_RESPONSE["model_ref"],
+                "inventory_type": MODEL_ASSET_RESPONSE["model_type"],
+                "provider": MODEL_ASSET_RESPONSE["provider"],
+                "version": MODEL_ASSET_RESPONSE["version"],
+            },
+        },
+        {
+            **AGENT_ACCESS_GRANT_RESPONSE[1],
+            "target": {
+                "target_type": "source",
+                "id": SOURCE_ID,
+                "name": SOURCE_RESPONSE["name"],
+                "status": SOURCE_RESPONSE["status"],
+                "risk_level": SOURCE_RESPONSE["risk_level"],
+                "external_ref": SOURCE_RESPONSE["external_ref"],
+                "inventory_type": SOURCE_RESPONSE["source_type"],
+                "provider": None,
+                "version": None,
+            },
+        },
+        {
+            **AGENT_ACCESS_GRANT_RESPONSE[2],
+            "target": {
+                "target_type": "capability",
+                "id": CAPABILITY_ID,
+                "name": CAPABILITY_RESPONSE["name"],
+                "status": CAPABILITY_RESPONSE["status"],
+                "risk_level": CAPABILITY_RESPONSE["risk_level"],
+                "external_ref": CAPABILITY_RESPONSE["external_ref"],
+                "inventory_type": CAPABILITY_RESPONSE["capability_type"],
+                "provider": None,
+                "version": None,
+            },
+        },
+    ],
+    "policy_summary": {
+        "policy_decision_count": 1,
+        "referenced_policy_ids": [POLICY_ID],
+        "referenced_rule_ids": [RULE_ID],
+    },
+    "evidence_bundle": {
+        "available": True,
+        "export_path": f"/agents/{AGENT_ID}/evidence-bundle",
+        "export_format": "json",
+        "access": "allowed",
+        "contains_full_evidence": False,
+    },
+}
+
 TELEMETRY_EVENT_REQUEST = {
     "id": TRACE_EVENT_ID,
     "agent_id": AGENT_ID,
@@ -818,6 +912,12 @@ AGENT_ACTIVITY_OPENAPI = _response_example(
     200,
     "Read the V0 demo agent activity timeline, newest first.",
     AGENT_ACTIVITY_RESPONSE,
+)
+
+AGENT_GOVERNANCE_PROFILE_OPENAPI = _response_example(
+    200,
+    "Read a compact Agent Governance Profile for the V0 demo agent.",
+    AGENT_GOVERNANCE_PROFILE_RESPONSE,
 )
 
 AGENT_UPDATE_OPENAPI = _request_response_example(

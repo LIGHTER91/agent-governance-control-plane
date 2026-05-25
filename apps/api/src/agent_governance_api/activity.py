@@ -55,18 +55,113 @@ def build_agent_activity(
     )
 
 
-def _load_trace_events(session: Session, agent_id: UUID) -> list[TraceEventRecord]:
+def build_recent_agent_activity(
+    session: Session,
+    *,
+    agent: Agent,
+    limit: int,
+) -> list[AgentActivityItemRead]:
+    if limit <= 0:
+        return []
+
+    human_approvals = _load_human_approvals(
+        session,
+        agent.id,
+        limit=limit,
+        newest_first=True,
+    )
+    items = [
+        *[
+            _trace_event_activity_item(trace_event)
+            for trace_event in _load_trace_events(
+                session,
+                agent.id,
+                limit=limit,
+                newest_first=True,
+            )
+        ],
+        *[
+            _policy_decision_activity_item(policy_decision)
+            for policy_decision in _load_policy_decisions(
+                session,
+                agent.id,
+                limit=limit,
+                newest_first=True,
+            )
+        ],
+        *[
+            _human_approval_activity_item(human_approval)
+            for human_approval in human_approvals
+        ],
+        *[
+            _audit_log_activity_item(audit_log)
+            for audit_log in _load_agent_audit_logs(
+                session,
+                agent.id,
+                human_approvals=human_approvals,
+                limit=limit,
+                newest_first=True,
+            )
+        ],
+    ]
+    return sorted(
+        items,
+        key=lambda item: (item.timestamp, str(item.id)),
+        reverse=True,
+    )[:limit]
+
+
+def _load_trace_events(
+    session: Session,
+    agent_id: UUID,
+    *,
+    limit: int | None = None,
+    newest_first: bool = False,
+) -> list[TraceEventRecord]:
     statement = select(TraceEventRecord).where(TraceEventRecord.agent_id == agent_id)
+    if newest_first:
+        statement = statement.order_by(
+            TraceEventRecord.timestamp.desc(),
+            TraceEventRecord.id.desc(),
+        )
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(session.scalars(statement).all())
 
 
-def _load_policy_decisions(session: Session, agent_id: UUID) -> list[PolicyDecision]:
+def _load_policy_decisions(
+    session: Session,
+    agent_id: UUID,
+    *,
+    limit: int | None = None,
+    newest_first: bool = False,
+) -> list[PolicyDecision]:
     statement = select(PolicyDecision).where(PolicyDecision.agent_id == agent_id)
+    if newest_first:
+        statement = statement.order_by(
+            PolicyDecision.created_at.desc(),
+            PolicyDecision.id.desc(),
+        )
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(session.scalars(statement).all())
 
 
-def _load_human_approvals(session: Session, agent_id: UUID) -> list[HumanApproval]:
+def _load_human_approvals(
+    session: Session,
+    agent_id: UUID,
+    *,
+    limit: int | None = None,
+    newest_first: bool = False,
+) -> list[HumanApproval]:
     statement = select(HumanApproval).where(HumanApproval.agent_id == agent_id)
+    if newest_first:
+        statement = statement.order_by(
+            HumanApproval.created_at.desc(),
+            HumanApproval.id.desc(),
+        )
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(session.scalars(statement).all())
 
 
@@ -75,6 +170,8 @@ def _load_agent_audit_logs(
     agent_id: UUID,
     *,
     human_approvals: list[HumanApproval],
+    limit: int | None = None,
+    newest_first: bool = False,
 ) -> list[AuditLog]:
     related_conditions = [
         and_(
@@ -94,6 +191,10 @@ def _load_agent_audit_logs(
         )
 
     statement = select(AuditLog).where(or_(*related_conditions))
+    if newest_first:
+        statement = statement.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(session.scalars(statement).all())
 
 

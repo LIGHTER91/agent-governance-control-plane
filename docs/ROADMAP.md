@@ -39,6 +39,13 @@ role-aware views, Agent edit forms, broad activity filtering or pagination,
 Evidence Bundle PDF/download/signature actions, or enterprise-auth-backed review
 workflows.
 
+The backend now also exposes `GET /agents/{agent_id}/governance-profile`, a
+compact read model for future Agent Governance Profile UI work. It summarizes
+Agent metadata, owner, recent governance activity, HumanApproval state, Access
+Grants with safe Capability/Source/ModelAsset references, policy/rule ID
+references, and Evidence Bundle export availability without embedding full
+Evidence Bundle contents.
+
 ## Phase 0 - Project Foundation
 
 Status: Completed.

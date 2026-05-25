@@ -399,6 +399,85 @@ class AccessGrantRead(AccessGrantBase):
     updated_at: datetime
 
 
+class AgentGovernanceProfileOwnerRead(BaseModel):
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    owner_contact_email: str | None = None
+
+
+class AgentGovernanceProfileTargetReferenceRead(BaseModel):
+    target_type: AccessGrantTargetType
+    id: UUID
+    name: str
+    status: str
+    risk_level: RiskLevel
+    external_ref: str | None = None
+    inventory_type: str | None = None
+    provider: str | None = None
+    version: str | None = None
+
+
+class AgentGovernanceProfileAccessGrantRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    grant_type: AccessGrantType
+    subject_type: AccessGrantSubjectType
+    subject_id: UUID
+    target_type: AccessGrantTargetType
+    target_id: UUID | None = None
+    external_ref: str | None = None
+    status: AccessGrantStatus
+    granted_by_actor_type: ActorType
+    granted_by_actor_id: str
+    reason: str | None = None
+    expires_at: datetime | None = None
+    risk_level: RiskLevel
+    metadata: SafeMetadata = Field(default_factory=dict)
+    target: AgentGovernanceProfileTargetReferenceRead | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentGovernanceProfileRecentActivityRead(BaseModel):
+    limit: int
+    items: list["AgentActivityItemRead"]
+
+
+class AgentGovernanceProfileHumanApprovalSummaryRead(BaseModel):
+    total_count: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    recent: list["EvidenceHumanApprovalRead"]
+
+
+class AgentGovernanceProfilePolicySummaryRead(BaseModel):
+    policy_decision_count: int
+    referenced_policy_ids: list[UUID] = Field(default_factory=list)
+    referenced_rule_ids: list[UUID] = Field(default_factory=list)
+
+
+class AgentGovernanceProfileEvidenceBundleHintRead(BaseModel):
+    available: bool
+    export_path: str
+    export_format: Literal["json"] = "json"
+    access: Literal["allowed", "restricted"]
+    contains_full_evidence: bool = False
+
+
+class AgentGovernanceProfileRead(BaseModel):
+    agent: AgentRead
+    owner: AgentGovernanceProfileOwnerRead
+    environment: Environment
+    status: AgentStatus
+    risk_level: RiskLevel
+    recent_activity: AgentGovernanceProfileRecentActivityRead
+    human_approvals: AgentGovernanceProfileHumanApprovalSummaryRead
+    access_grants: list[AgentGovernanceProfileAccessGrantRead]
+    policy_summary: AgentGovernanceProfilePolicySummaryRead
+    evidence_bundle: AgentGovernanceProfileEvidenceBundleHintRead
+
+
 EvidenceMetadataValue = str | int | float | bool | None
 EvidenceMetadata = dict[str, EvidenceMetadataValue]
 AgentActivitySeverity = Literal["info", "warning", "error"]

@@ -75,6 +75,10 @@ integrations are intentionally not implemented yet.
   Capabilities, Sources, ModelAssets, external targets, and other targets.
 - Agent-scoped Access Grant read API for asking what a specific Agent is
   allowed to use.
+- Read-only Agent Governance Profile endpoint that consolidates Agent metadata,
+  recent governance activity, HumanApproval summary, Access Grants, inventory
+  target references, policy/rule references, and an Evidence Bundle export hint
+  without embedding full Evidence Bundle contents.
 - Immutable application-level AuditLog foundation.
 - Deterministic Policy, PolicyRule, and PolicyDecision domain models.
 - Policy management API with auditable create, update, and status lifecycle
@@ -177,6 +181,7 @@ Agent Registry:
 - `GET /agents/{agent_id}`
 - `GET /agents/{agent_id}/access-grants`
 - `GET /agents/{agent_id}/activity`
+- `GET /agents/{agent_id}/governance-profile`
 - `PATCH /agents/{agent_id}`
 - `GET /agents/{agent_id}/evidence-bundle`
 
@@ -186,6 +191,11 @@ export.
 Agent-scoped access grants return declared Capability, Source, ModelAsset,
 external, or other target grants newest first and can be filtered by `status`
 and `target_type`.
+Agent Governance Profile returns a compact read model for one Agent, including
+recent activity, HumanApproval counts, Access Grants with safe inventory target
+references, policy/rule ID references, and whether the Evidence Bundle JSON
+export is available to the current actor. It does not replace or embed the full
+Evidence Bundle.
 
 Telemetry:
 

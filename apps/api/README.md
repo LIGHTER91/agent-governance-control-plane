@@ -49,6 +49,10 @@ Agent Registry:
 - `GET /agents/{agent_id}/access-grants` returns the Agent's declared access
   grants, sorted newest first. Optional filters: `status` and `target_type`.
 - `GET /agents/{agent_id}/activity` returns a read-only activity timeline sorted newest first for product navigation.
+- `GET /agents/{agent_id}/governance-profile` returns a compact read-only
+  Agent Governance Profile with Agent metadata, owner, recent activity,
+  HumanApproval summary, Access Grants with safe target references,
+  policy/rule references, and an Evidence Bundle export hint.
 - `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle for one agent, including related audit logs, runs, trace events, policy decisions, and human approvals.
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
@@ -57,6 +61,10 @@ Agent mutations use the development actor placeholder until authentication exist
 
 - `actor_type = "development"`
 - `actor_id = "dev-placeholder"`
+
+The Agent Governance Profile is a read model for product navigation and future
+profile UI work. It does not include full Evidence Bundle contents and should
+not be treated as an audit export.
 
 Capability Inventory:
 

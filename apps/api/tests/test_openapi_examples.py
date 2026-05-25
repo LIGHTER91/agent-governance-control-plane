@@ -23,6 +23,7 @@ def api_client() -> Iterator[TestClient]:
         ("/agents/{agent_id}", "get", "200", False),
         ("/agents/{agent_id}/access-grants", "get", "200", False),
         ("/agents/{agent_id}/activity", "get", "200", False),
+        ("/agents/{agent_id}/governance-profile", "get", "200", False),
         ("/agents/{agent_id}", "patch", "200", True),
         ("/capabilities", "post", "201", True),
         ("/capabilities", "get", "200", False),
