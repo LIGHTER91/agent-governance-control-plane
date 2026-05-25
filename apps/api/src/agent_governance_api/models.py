@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Enum,
     ForeignKey,
@@ -85,6 +86,21 @@ class DataSourceStatus(StrEnum):
     ACTIVE = "active"
     DISABLED = "disabled"
     RETIRED = "retired"
+
+
+class DataUsageClassification(StrEnum):
+    PUBLIC = "public"
+    INTERNAL = "internal"
+    CONFIDENTIAL = "confidential"
+    RESTRICTED = "restricted"
+
+
+class DataUsageReviewStatus(StrEnum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+    NEEDS_REVIEW = "needs_review"
 
 
 class ModelAssetType(StrEnum):
@@ -271,6 +287,25 @@ def validate_service_actor_scope_rule_values(
             )
 
         normalized_values.append(value)
+
+    return list(dict.fromkeys(normalized_values))
+
+
+def validate_data_usage_string_list(
+    values: object,
+    *,
+    field_name: str,
+) -> list[str]:
+    if values is None:
+        return []
+    if not isinstance(values, list | tuple):
+        raise ValueError(f"{field_name} must be a list of strings.")
+
+    normalized_values: list[str] = []
+    for raw_value in values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(f"{field_name} values must be non-empty strings.")
+        normalized_values.append(raw_value.strip())
 
     return list(dict.fromkeys(normalized_values))
 
@@ -482,6 +517,157 @@ class DataSource(Base):
         onupdate=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+    usage_profile: Mapped["DataUsageProfile | None"] = relationship(
+        back_populates="source",
+        uselist=False,
+    )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class DataUsageProfile(Base):
+    __tablename__ = "data_usage_profiles"
+    __table_args__ = (
+        UniqueConstraint("source_id", name="uq_data_usage_profiles_source_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("sources.id"),
+        nullable=False,
+    )
+    data_classification: Mapped[DataUsageClassification] = mapped_column(
+        Enum(
+            DataUsageClassification,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="data_usage_classification",
+        ),
+        nullable=False,
+    )
+    contains_personal_data: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    contains_sensitive_data: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    data_categories: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    legal_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allowed_purposes: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    prohibited_purposes: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    allowed_processing: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    prohibited_processing: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    residency: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    retention_policy: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    review_status: Mapped[DataUsageReviewStatus] = mapped_column(
+        Enum(
+            DataUsageReviewStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="data_usage_review_status",
+        ),
+        nullable=False,
+    )
+    reviewed_by_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="data_usage_profile_reviewed_actor_type",
+        ),
+        nullable=True,
+    )
+    reviewed_by_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    review_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    dpia_required: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    dpia_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    source: Mapped[DataSource] = relationship(back_populates="usage_profile")
+
+    @validates(
+        "data_categories",
+        "allowed_purposes",
+        "prohibited_purposes",
+        "allowed_processing",
+        "prohibited_processing",
+    )
+    def validate_string_list(self, key: str, value: object) -> list[str]:
+        return validate_data_usage_string_list(value, field_name=key)
 
     @validates("metadata_")
     def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:

@@ -67,11 +67,13 @@ Capability, purpose, environment, AccessGrant, and Approval context. This is
 design-only; runtime request schemas, policy evaluation, and enforcement
 behavior still use the current implemented contract.
 
-Source Data Usage Profile now has a design path for the Source-side governance
-metadata needed by contextual runtime decisions, including classification,
-personal or sensitive data signals, allowed and prohibited purposes, processing
-constraints, review status, and safe DPIA references. This is also design-only;
-Source APIs and database fields have not changed.
+Source Data Usage Profile now has a first backend foundation for Source-side
+governance metadata needed by contextual runtime decisions, including
+classification, personal or sensitive data signals, allowed and prohibited
+purposes, processing constraints, review status, and safe DPIA references. It
+is exposed through nested Source endpoints and audited with safe metadata.
+Runtime Gateway, policy evaluation, Policy Pre-Checks, and Evidence Bundle
+export do not use Data Usage Profiles yet.
 
 Policy Pre-Checks and Control Tools now have a design path for safe,
 auditable checks that can inform future contextual PolicyDecisions. The design
@@ -230,9 +232,9 @@ Important limitations:
 - Contextual runtime governance has a design only. Optional contextual request
   fields, inventory resolution during runtime decisions, AccessGrant-aware
   evaluation, and contextual policy rules are not implemented yet.
-- Data Usage Profile has a design only. Source profile persistence, Source
-  profile APIs, Evidence Bundle profile summaries, and profile-aware policy
-  context are not implemented yet.
+- Data Usage Profile persistence and nested Source APIs are implemented.
+  Evidence Bundle profile summaries, profile-aware Policy Pre-Checks, and
+  runtime policy context are not implemented yet.
 - Policy Pre-Checks have a design only. CheckTool registry, CheckResult
   persistence, PolicyCheckStep authoring, scanner adapters, and pre-check-aware
   runtime decisions are not implemented yet.
@@ -303,8 +305,6 @@ Completed foundation:
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
-- Add Data Usage Profile persistence and API support for Source records before
-  relying on Source classification in runtime policy context.
 - Add metadata-only Policy Pre-Checks for Data Usage Profile, AccessGrant,
   ModelAsset, Capability, and Source status after the profile model exists.
 - Add optional contextual runtime request fields from

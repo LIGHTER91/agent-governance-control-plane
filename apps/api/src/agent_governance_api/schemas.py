@@ -19,6 +19,8 @@ from agent_governance_api.models import (
     CapabilityType,
     DataSourceStatus,
     DataSourceType,
+    DataUsageClassification,
+    DataUsageReviewStatus,
     Environment,
     HumanApprovalStatus,
     ModelAssetStatus,
@@ -225,6 +227,132 @@ class DataSourceRead(DataSourceBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+    updated_at: datetime
+
+
+class DataUsageProfileBase(BaseModel):
+    data_classification: DataUsageClassification
+    contains_personal_data: bool = False
+    contains_sensitive_data: bool = False
+    data_categories: list[str] = Field(default_factory=list)
+    legal_basis: str | None = None
+    allowed_purposes: list[str] = Field(default_factory=list)
+    prohibited_purposes: list[str] = Field(default_factory=list)
+    allowed_processing: list[str] = Field(default_factory=list)
+    prohibited_processing: list[str] = Field(default_factory=list)
+    residency: str | None = None
+    retention_policy: str | None = None
+    data_owner: str | None = None
+    review_status: DataUsageReviewStatus
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    reviewed_at: datetime | None = None
+    review_expires_at: datetime | None = None
+    dpia_required: bool = False
+    dpia_reference: str | None = None
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator(
+        "data_categories",
+        "allowed_purposes",
+        "prohibited_purposes",
+        "allowed_processing",
+        "prohibited_processing",
+    )
+    @classmethod
+    def validate_string_list(cls, value: list[str]) -> list[str]:
+        return _normalize_string_list(value)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class DataUsageProfileCreate(DataUsageProfileBase):
+    pass
+
+
+class DataUsageProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data_classification: DataUsageClassification | None = None
+    contains_personal_data: bool | None = None
+    contains_sensitive_data: bool | None = None
+    data_categories: list[str] | None = None
+    legal_basis: str | None = None
+    allowed_purposes: list[str] | None = None
+    prohibited_purposes: list[str] | None = None
+    allowed_processing: list[str] | None = None
+    prohibited_processing: list[str] | None = None
+    residency: str | None = None
+    retention_policy: str | None = None
+    data_owner: str | None = None
+    review_status: DataUsageReviewStatus | None = None
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    reviewed_at: datetime | None = None
+    review_expires_at: datetime | None = None
+    dpia_required: bool | None = None
+    dpia_reference: str | None = None
+    metadata: SafeMetadata | None = None
+
+    @field_validator(
+        "data_categories",
+        "allowed_purposes",
+        "prohibited_purposes",
+        "allowed_processing",
+        "prohibited_processing",
+    )
+    @classmethod
+    def validate_string_list(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        return _normalize_string_list(value)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata | None) -> SafeMetadata | None:
+        if value is None:
+            return None
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {
+            "legal_basis",
+            "residency",
+            "retention_policy",
+            "data_owner",
+            "reviewed_by_actor_type",
+            "reviewed_by_actor_id",
+            "reviewed_at",
+            "review_expires_at",
+            "dpia_reference",
+        }
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+
+class DataUsageProfileRead(DataUsageProfileBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source_id: UUID
     metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
     created_at: datetime
     updated_at: datetime
@@ -501,6 +629,16 @@ def _validate_access_grant_target_reference(
     ):
         raise ValueError("external_ref is required for external access grant targets.")
     return access_grant
+
+
+def _normalize_string_list(values: list[str]) -> list[str]:
+    normalized_values: list[str] = []
+    for raw_value in values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError("List values must be non-empty strings.")
+        normalized_values.append(raw_value.strip())
+
+    return list(dict.fromkeys(normalized_values))
 
 
 class EvidenceAuditLogRead(BaseModel):

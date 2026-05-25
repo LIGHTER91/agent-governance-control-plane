@@ -2,9 +2,11 @@
 
 ## Status
 
-Design only. This document does not add database fields, SQLAlchemy models,
-migrations, API schemas, runtime request fields, policy evaluator behavior,
-frontend UI, scanners, or legal compliance claims.
+Design plus first backend foundation. A separate `DataUsageProfile` persistence
+model, migration, Pydantic schemas, and nested Source API endpoints are
+implemented. Runtime request fields, policy evaluator behavior, frontend UI,
+scanners, external data catalog integrations, Evidence Bundle profile
+summaries, and legal compliance claims remain out of scope.
 
 AGCP remains a governance and evidence control plane. It can support decision
 support, enforcement points, and evidence trails, but it is not a DPO, legal
@@ -102,11 +104,12 @@ Suggested `DataUsageProfile` fields:
 | `residency` | Safe residency or region constraint reference. |
 | `retention_policy` | Safe reference or short label for retention expectations. |
 | `data_owner` | Safe owner reference, ideally aligned with existing owner conventions. |
-| `dpo_review_status` | Review state such as `not_reviewed`, `pending`, `approved`, `rejected`, or `expired`. |
+| `review_status` | Review state such as `draft`, `approved`, `rejected`, `expired`, or `needs_review`. |
 | `dpia_required` | Boolean signal that a DPIA may be required. |
 | `dpia_reference` | Safe reference to an external DPIA record, not the DPIA contents. |
-| `last_reviewed_at` | Timestamp of the last profile review. |
-| `reviewed_by` | Safe actor or reviewer reference. |
+| `reviewed_at` | Timestamp of the last profile review. |
+| `reviewed_by_actor_type` | Safe reviewer actor type reference. |
+| `reviewed_by_actor_id` | Safe reviewer actor ID reference. |
 | `review_expires_at` | Timestamp after which review should be considered stale. |
 | `metadata` | Additional safe metadata after existing safety filtering. |
 | `created_at` | Creation timestamp. |
@@ -148,13 +151,13 @@ Initial processing values:
 - `export`;
 - `other`.
 
-Initial `dpo_review_status` values:
+Implemented `review_status` values:
 
-- `not_reviewed`;
-- `pending`;
+- `draft`;
 - `approved`;
 - `rejected`;
-- `expired`.
+- `expired`;
+- `needs_review`.
 
 These are governance labels, not legal findings.
 
@@ -249,7 +252,7 @@ Future policy result: deny.
 Runtime context:
 
 - Source profile `review_expires_at` is in the past or
-  `dpo_review_status = expired`.
+  `review_status = expired`.
 
 Future policy result: require HumanApproval or deny for production use until
 the review is refreshed.
@@ -378,13 +381,10 @@ payloads.
 
 ## Non-goals
 
-- Do not add code in this issue.
-- Do not add migrations, SQLAlchemy models, or Pydantic schemas in this issue.
-- Do not change Source API behavior in this issue.
-- Do not change Runtime Gateway behavior in this issue.
-- Do not change policy evaluation in this issue.
-- Do not add frontend UI in this issue.
-- Do not add scanners in this issue.
+- Do not add scanners in this design.
+- Do not change Runtime Gateway behavior in this slice.
+- Do not change policy evaluation in this slice.
+- Do not add frontend UI in this slice.
 - Do not scan or store full source contents in this design.
 - Do not store raw prompts, credentials, source chunks, or private customer
   data.
@@ -397,11 +397,14 @@ payloads.
 
 Recommended staged implementation:
 
-1. Finalize the Data Usage Profile model and controlled values.
+1. Finalize the Data Usage Profile model and controlled values. Implemented.
 2. Add a DB model or equivalent persistence linked one-to-one with Source.
+   Implemented.
 3. Add profile create/read/update API endpoints or embed profile management
-   into Source management if that proves simpler.
+   into Source management if that proves simpler. Implemented as nested Source
+   endpoints.
 4. Add audit events for profile creation, update, and review status changes.
+   Implemented.
 5. Include safe profile summaries in Evidence Bundle export.
 6. Use profile fields as optional contextual policy inputs.
 7. Connect profile resolution to Runtime Gateway contextual requests.

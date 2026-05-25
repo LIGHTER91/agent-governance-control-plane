@@ -92,12 +92,29 @@ Source Inventory:
 - `GET /sources/{source_id}` returns one source.
 - `PATCH /sources/{source_id}` updates a source and appends `source_updated`
   or `source_status_changed`.
+- `POST /sources/{source_id}/usage-profile` creates a Data Usage Profile for
+  one Source and appends `data_usage_profile_created`.
+- `GET /sources/{source_id}/usage-profile` returns the Source's Data Usage
+  Profile.
+- `PATCH /sources/{source_id}/usage-profile` updates the Source's Data Usage
+  Profile and appends `data_usage_profile_updated` or
+  `data_usage_profile_review_status_changed`.
 - Sources can represent knowledge bases, databases, document stores, APIs,
   buckets, filesystems, or other governed data or knowledge sources.
 - Source metadata rejects unsafe key names such as `api_key`, `token`,
   `password`, `secret`, and `authorization`.
 - Source inventory records do not ingest or store source contents, and Sources
   can be referenced by Access Grants but are not enforced yet.
+- Data Usage Profiles are declared or validated governance metadata. They can
+  describe classification, personal or sensitive data signals, allowed and
+  prohibited purposes, allowed and prohibited processing, review status, and
+  safe DPIA references. They do not store source contents, document chunks,
+  prompts, scanner raw payloads, credentials, or legal compliance
+  certifications.
+- Data Usage Profile metadata rejects unsafe key names such as `api_key`,
+  `token`, `password`, `secret`, and `authorization`.
+- Data Usage Profiles are not enforced by Runtime Gateway or policy evaluation
+  yet.
 
 Model Inventory:
 

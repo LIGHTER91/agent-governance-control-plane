@@ -202,21 +202,20 @@ semantics for source access remain future work.
 
 ## Data Usage Profile
 
-A future governance profile linked to a Source that describes safe, declared
-usage context for contextual runtime governance.
+A governance profile linked to a Source that describes safe, declared usage
+context for contextual runtime governance.
 
-The design is documented in `docs/DATA_USAGE_PROFILE_DESIGN.md`. It is
-design-only for now; no Source API, database model, runtime schema, or policy
-evaluator behavior has changed yet.
+The design is documented in `docs/DATA_USAGE_PROFILE_DESIGN.md`. The first
+backend foundation is implemented as a separate object linked one-to-one with
+Source, exposed through `/sources/{source_id}/usage-profile`. Runtime Gateway
+context, policy evaluation, Evidence Bundle summaries, and Policy Pre-Checks do
+not use it yet.
 
-Recommendation: keep Data Usage Profile as a separate object linked to Source,
-rather than adding all usage and review fields directly to Source. Source should
-remain the stable inventory identity and lifecycle record. Data Usage Profile
-should hold classification, purpose constraints, processing constraints, review
-status, DPIA references, and safe metadata that can evolve on a different
-cadence.
+Data Usage Profile holds classification, purpose constraints, processing
+constraints, review status, DPIA references, and safe metadata that can evolve
+on a different cadence than Source identity and lifecycle.
 
-Suggested future fields:
+Implemented fields:
 
 - source_id;
 - data_classification;
@@ -231,11 +230,12 @@ Suggested future fields:
 - residency;
 - retention_policy;
 - data_owner;
-- dpo_review_status;
+- review_status;
 - dpia_required;
 - dpia_reference;
-- last_reviewed_at;
-- reviewed_by;
+- reviewed_by_actor_type;
+- reviewed_by_actor_id;
+- reviewed_at;
 - review_expires_at;
 - metadata.
 
@@ -247,6 +247,11 @@ Scanner, catalog, DLP, and caller-provided signals can support review workflows,
 but they are not legal truth. AGCP should use Data Usage Profile as decision
 support, policy context, and evidence, not as legal compliance certification or
 automatic lawful-use determination.
+
+Mutations append `data_usage_profile_created`,
+`data_usage_profile_updated`, or
+`data_usage_profile_review_status_changed` audit records with safe metadata
+summaries.
 
 ## Model
 
