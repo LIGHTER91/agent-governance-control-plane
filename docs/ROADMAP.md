@@ -61,6 +61,12 @@ or organization-unit resolution, production service actor administration, API
 key rotation endpoints, notifications, deployment hardening, and operational
 runbooks are still missing.
 
+Contextual runtime governance now has a design path for future decisions that
+need Agent, Action, Source, data classification, ModelAsset, provider,
+Capability, purpose, environment, AccessGrant, and Approval context. This is
+design-only; runtime request schemas, policy evaluation, and enforcement
+behavior still use the current implemented contract.
+
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
 policy workflows that help users answer what an Agent is allowed to use, why it
@@ -208,6 +214,9 @@ Important limitations:
   key rotation, and broad user RBAC are not implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
+- Contextual runtime governance has a design only. Optional contextual request
+  fields, inventory resolution during runtime decisions, AccessGrant-aware
+  evaluation, and contextual policy rules are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 
@@ -275,6 +284,9 @@ Completed foundation:
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
+- Add optional contextual runtime request fields from
+  `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
+  Runtime Gateway clients.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Add focused AccessGrant and inventory review workflows where they support

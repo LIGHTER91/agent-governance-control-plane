@@ -349,6 +349,44 @@ Access Grant metadata must contain only safe, non-sensitive context. Do not
 store credentials, tokens, secrets, authorization headers, raw prompts, private
 customer data, or raw sensitive payloads in Access Grant metadata.
 
+## Runtime Governance Context
+
+A future runtime decision context that combines safe references and
+classifications needed for contextual governance decisions.
+
+The design is documented in
+`docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`. It is design-only for now; no
+runtime schema, persistence model, or evaluator behavior has changed yet.
+
+Suggested future fields:
+
+- agent_id;
+- run_id;
+- request_id;
+- action_type;
+- capability_id;
+- capability_ref or tool_name for backward compatibility;
+- source_ids;
+- model_id;
+- purpose;
+- environment;
+- risk_level;
+- data_classification;
+- contains_personal_data;
+- contains_sensitive_data;
+- metadata.
+
+Runtime Governance Context should use references, classifications, booleans,
+and short safe summaries. It must not include raw source content, retrieved
+chunks, full documents, prompts that may contain sensitive data, API keys,
+credentials, authorization headers, full model provider payloads, or raw tool
+payloads.
+
+Later work may resolve contextual references to Source, ModelAsset, Capability,
+and AccessGrant records before deterministic PolicyRule evaluation. This should
+extend PolicyDecision evidence rather than replace PolicyDecision,
+HumanApproval, AuditLog, or Evidence Bundle records.
+
 ## Agent Governance Profile
 
 A compact read model for one Agent's current governance posture.

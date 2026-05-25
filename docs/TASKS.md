@@ -53,7 +53,12 @@ recent activity, HumanApproval summary, Access Grants with safe inventory
 target references, policy/rule ID references, and an Evidence Bundle export
 hint without embedding Evidence Bundle contents. Policy and PolicyRule
 management APIs exist for auditable lifecycle records and deterministic rule
-conditions. The frontend has a minimal dashboard shell, a read-only Agent list
+conditions. Contextual runtime governance has a design for future decisions
+that need Agent, Action, Source, data classification, ModelAsset, provider,
+Capability, purpose, environment, AccessGrant, and Approval context. That
+design is not implemented yet; runtime schemas, policy evaluation, and
+enforcement behavior remain unchanged. The frontend has a minimal dashboard
+shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
@@ -77,6 +82,7 @@ Validation caveat: migration-backed tasks should still be validated with online
 
 References:
 
+- `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -94,31 +100,38 @@ References:
 
 Recommended order:
 
-1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Use Access Grants as optional policy context without replacing
+1. Add optional contextual runtime request fields from the contextual runtime
+   governance design without breaking existing Runtime Gateway clients.
+2. Extend the deterministic evaluator with a small explicit contextual rule
+   surface when the request schema exists.
+3. Add Policy management UI for the existing Policy and PolicyRule APIs.
+4. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add focused AccessGrant and inventory review workflows only where they
+5. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-4. Add Permission domain model only if AccessGrant target semantics prove
+6. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add frontend auth and role-aware UI later.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+7. Add frontend auth and role-aware UI later.
+8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+9. Add OpenAPI examples for `GET /human-approvals` if missing.
+10. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-9. Add owner-based service actor scopes design.
-10. Add safe denied-scope audit events.
-11. Add admin management for persisted service actor scope and rule records.
-12. Implement service actor API key rotation and admin workflows after registry
+11. Add owner-based service actor scopes design.
+12. Add safe denied-scope audit events.
+13. Add admin management for persisted service actor scope and rule records.
+14. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-13. Add tests for overriding the Actor dependency with a non-development actor.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+15. Add tests for overriding the Actor dependency with a non-development actor.
+16. Add deeper separation-of-duties checks for HumanApproval review.
+17. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
+- [ ] Add optional contextual runtime request fields from the contextual runtime
+      governance design.
+- [ ] Extend deterministic PolicyRule matching with explicit contextual fields.
 - [ ] Add safe denied-scope audit events.
 - [ ] Add admin management for persisted service actor scope and rule records.
 - [ ] Implement service actor API key rotation and admin workflows after
@@ -287,6 +300,7 @@ credentials.
 - [x] Add Agent Governance Profile frontend UI.
 - [x] Extend Evidence Bundle for Access Grants and safe Capability, Source, and
       ModelAsset references.
+- [x] Add contextual runtime governance context design.
 
 ## Blocked
 

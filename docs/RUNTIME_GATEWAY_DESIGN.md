@@ -167,6 +167,27 @@ Fields that are not persisted on older or shared records are returned as
 `null`. The endpoint must not infer fake runtime details or expose unsafe
 metadata.
 
+## Contextual Runtime Governance Path
+
+The next runtime design direction is richer contextual governance for actions
+such as RAG retrieval, vectorization, model use, external API calls, and other
+agentic operations where `tool_name`, `environment`, and Agent `risk_level` are
+not enough.
+
+The design is documented in
+`docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`. It proposes optional future
+context fields such as `action_type`, `capability_id`, `source_ids`,
+`model_id`, `purpose`, `data_classification`,
+`contains_personal_data`, and `contains_sensitive_data`, plus safe metadata.
+The design is not implemented yet and does not change the current runtime
+request schema or enforcement behavior.
+
+Contextual runtime governance must continue to use references,
+classifications, booleans, and short safe summaries instead of raw source
+content, prompts, credentials, or provider/tool payloads. AGCP remains the
+decision and evidence layer; wrappers and adapters still decide whether local
+tool execution proceeds based on `proceed`.
+
 ## Minimal Python Wrapper Example
 
 A dependency-free Python example is available at
@@ -367,9 +388,11 @@ Mitigations:
    Implemented.
 7. Add a read-only runtime activity endpoint built from persisted records.
    Implemented.
-8. Add telemetry mode to the Runtime Gateway decision endpoint only if it proves
+8. Add optional contextual runtime governance fields only after the design is
+   translated into a small backward-compatible schema change.
+9. Add telemetry mode to the Runtime Gateway decision endpoint only if it proves
    useful beyond the existing `/telemetry/events` behavior.
-9. Add a small local integration example only after the endpoint behavior is
+10. Add a small local integration example only after the endpoint behavior is
    stable. Implemented as documentation/example code.
 
 V1 should stay inside the existing FastAPI modular monolith. It should not add
@@ -378,12 +401,16 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-2. Add Policy and PolicyRule versioning design.
-3. Add HumanApproval notification design.
-4. Add production SDK or framework adapter only if explicitly requested after
+1. Add optional contextual runtime request fields from the contextual runtime
+   governance design without changing existing clients.
+2. Extend the deterministic evaluator with a small explicit contextual rule
+   surface.
+3. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+4. Add Policy and PolicyRule versioning design.
+5. Add HumanApproval notification design.
+6. Add production SDK or framework adapter only if explicitly requested after
    the examples and spike are proven.
-5. Add broader filtering or pagination to Runtime activity only after real
+7. Add broader filtering or pagination to Runtime activity only after real
    usage requires it.
 
 ## Open Questions
@@ -396,3 +423,5 @@ service boundary.
 - What latency budget is acceptable for the first real integration?
 - How should gateway coverage be reported when some actions are still submitted
   only through telemetry ingestion mode?
+- How should contextual runtime requests handle unknown Source, ModelAsset, or
+  Capability references in simulation and enforcement mode?
