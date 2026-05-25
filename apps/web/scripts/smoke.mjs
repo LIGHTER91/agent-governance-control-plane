@@ -13,9 +13,11 @@ const files = [
   "app/agents/[agentId]/agent-detail.tsx",
   "app/lib/api.ts",
   "app/lib/agents.ts",
+  "app/lib/runtime.ts",
   "app/lib/human-approvals.ts",
   "app/policies/page.tsx",
   "app/runtime-gateway/page.tsx",
+  "app/runtime-gateway/runtime-activity-list.tsx",
   "app/human-approvals/page.tsx",
   "app/human-approvals/human-approval-actions.tsx",
   "app/human-approvals/human-approvals-list.tsx",
@@ -55,7 +57,23 @@ const requiredText = [
   "risk_level",
   "framework",
   "Agent overview",
+  "Agent Governance Profile",
+  "GET /agents/{agent_id}/governance-profile",
+  "fetchAgentGovernanceProfile",
+  "AgentGovernanceProfile",
   "Governance summary",
+  "Access Grants",
+  "Recent Activity",
+  "Pending Human Approvals",
+  "Evidence Bundle availability hint",
+  "Inventory access",
+  "Capabilities",
+  "Sources",
+  "Model assets",
+  "External grants",
+  "Policy and rule references",
+  "Policy/rule technical references",
+  "Agent technical reference",
   "Human approvals",
   "Activity / Timeline",
   "GET /agents/{agent_id}/activity",
@@ -128,22 +146,21 @@ const requiredText = [
   "simulation",
   "enforcement",
   "resume",
-  "POST /runtime/tool-calls/decision",
-  "POST /runtime/tool-calls/resume",
-  "AGCP_RUNTIME_ENFORCEMENT_ENABLED",
-  "AGCP_RUNTIME_FAILURE_DEFAULT",
-  "AGCP_REQUIRE_SERVICE_AUTH",
-  "AGCP_SERVICE_ACTOR_API_KEYS",
-  "AGCP_SERVICE_ACTOR_SCOPES",
-  "AGCP_SERVICE_ACTOR_SCOPE_RULES",
-  "AGCP decides and records evidence",
-  "Wrappers/adapters execute or block",
-  "AGCP does not execute tools itself",
-  "No production-grade auth yet",
-  "No API key rotation",
-  "No DB-backed service actor registry",
-  "No LangGraph production adapter yet",
-  "RBAC Foundations"
+  "Decision requests",
+  "Resume checks",
+  "GET /runtime/tool-calls/activity",
+  "Loading Runtime activity",
+  "Unable to load Runtime activity",
+  "No Runtime activity records",
+  "Runtime activity requires reviewer, auditor, or platform_admin role",
+  "Runtime decisions activity",
+  "tool_call_decision",
+  "tool_call_resume",
+  "tool_name",
+  "mode",
+  "decision",
+  "proceed",
+  "request_id"
 ];
 
 const forbiddenText = [
@@ -169,6 +186,8 @@ for (const text of forbiddenText) {
 }
 
 runActivityTimelineFixtureSmoke();
+runRuntimeActivityFixtureSmoke();
+runAgentGovernanceProfileFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
@@ -345,4 +364,305 @@ function formatActivityValue(value) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function runRuntimeActivityFixtureSmoke() {
+  const traceEventId = "11111111-1111-4111-8111-111111111111";
+  const policyDecisionId = "22222222-2222-4222-8222-222222222222";
+  const humanApprovalId = "33333333-3333-4333-8333-333333333333";
+  const runId = "44444444-4444-4444-8444-444444444444";
+
+  const fixture = [
+    {
+      id: traceEventId,
+      type: "tool_call_decision",
+      agent_id: "55555555-5555-4555-8555-555555555555",
+      run_id: runId,
+      request_id: "runtime-request-001",
+      timestamp: "2026-01-15T12:05:00Z",
+      tool_name: "send_email",
+      mode: "simulation",
+      decision: "require_human_review",
+      proceed: false,
+      reason: "Email tool use requires human review.",
+      trace_event_id: traceEventId,
+      policy_decision_id: policyDecisionId,
+      human_approval_id: humanApprovalId,
+      related_ids: {
+        trace_event_id: traceEventId,
+        policy_decision_id: policyDecisionId,
+        human_approval_id: humanApprovalId,
+        run_id: runId
+      }
+    },
+    {
+      id: "66666666-6666-4666-8666-666666666666",
+      type: "tool_call_resume",
+      agent_id: "55555555-5555-4555-8555-555555555555",
+      run_id: runId,
+      request_id: "runtime-request-001:resume:001",
+      timestamp: "2026-01-15T12:10:00Z",
+      tool_name: "send_email",
+      mode: null,
+      decision: "allow",
+      proceed: true,
+      reason: "Human approval is approved and the resume context matches.",
+      trace_event_id: "66666666-6666-4666-8666-666666666666",
+      policy_decision_id: policyDecisionId,
+      human_approval_id: humanApprovalId,
+      related_ids: {
+        original_request_id: "runtime-request-001"
+      }
+    }
+  ];
+
+  const renderedActivity = renderRuntimeActivityFixture(fixture);
+  const emptyActivity = renderRuntimeActivityFixture([]);
+
+  for (const expectedText of [
+    "Tool Call Decision",
+    "Tool Call Resume",
+    "send_email",
+    "simulation",
+    "Not persisted",
+    "require_human_review",
+    "allow",
+    "proceed=false",
+    "proceed=true",
+    "Email tool use requires human review.",
+    "Human approval is approved and the resume context matches.",
+    "trace_event_id",
+    "policy_decision_id",
+    "human_approval_id",
+    "original_request_id",
+    traceEventId,
+    policyDecisionId,
+    humanApprovalId,
+    runId
+  ]) {
+    if (!renderedActivity.includes(expectedText)) {
+      throw new Error(`Runtime activity fixture missing: ${expectedText}`);
+    }
+  }
+
+  if (!emptyActivity.includes("No Runtime activity records")) {
+    throw new Error("Runtime activity fixture did not cover the empty state.");
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "raw_prompt",
+    "raw_payload",
+    "compliance score"
+  ]) {
+    if (renderedActivity.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe runtime fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderRuntimeActivityFixture(items) {
+  if (items.length === 0) {
+    return "No Runtime activity records";
+  }
+
+  return items.map(renderRuntimeActivityFixtureItem).join("\n");
+}
+
+function renderRuntimeActivityFixtureItem(item) {
+  const parts = [
+    formatActivityValue(item.type),
+    item.tool_name || "Not persisted",
+    item.mode || "Not persisted",
+    item.decision || "Not persisted",
+    `proceed=${item.proceed === null ? "Not persisted" : String(item.proceed)}`,
+    item.reason || "No reason was persisted for this activity record."
+  ];
+
+  for (const field of ["agent_id", "run_id", "request_id"]) {
+    parts.push(field, item[field] || "Not persisted");
+  }
+
+  const relatedIds = Object.entries(item.related_ids || {});
+  if (relatedIds.length > 0) {
+    parts.push("Related IDs");
+    for (const [key, value] of relatedIds) {
+      parts.push(key, value);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+function runAgentGovernanceProfileFixtureSmoke() {
+  const fixture = {
+    agent: {
+      id: "agent-001",
+      name: "Claims Assistant",
+      environment: "production",
+      status: "active",
+      risk_level: "high"
+    },
+    owner: {
+      owner_name: "Claims Ops",
+      owner_type: "user",
+      owner_id: "owner-001"
+    },
+    recent_activity: {
+      limit: 5,
+      items: [
+        {
+          type: "policy_decision",
+          title: "Policy decision: Require Human Review"
+        }
+      ]
+    },
+    human_approvals: {
+      total_count: 2,
+      by_status: {
+        pending: 1,
+        approved: 1
+      }
+    },
+    access_grants: [
+      {
+        target_type: "capability",
+        target: {
+          name: "Send email",
+          inventory_type: "tool"
+        },
+        status: "active"
+      },
+      {
+        target_type: "source",
+        target: {
+          name: "Claims knowledge base",
+          inventory_type: "knowledge_base"
+        },
+        status: "active"
+      },
+      {
+        target_type: "model_asset",
+        target: {
+          name: "Triage model",
+          inventory_type: "llm"
+        },
+        status: "active"
+      },
+      {
+        target_type: "external",
+        external_ref: "ticketing:claims",
+        status: "active"
+      }
+    ],
+    policy_summary: {
+      policy_decision_count: 1,
+      referenced_policy_ids: ["policy-001"],
+      referenced_rule_ids: ["rule-001"]
+    },
+    evidence_bundle: {
+      available: true,
+      export_format: "json",
+      export_path: "/agents/agent-001/evidence-bundle",
+      access: "allowed"
+    }
+  };
+
+  const renderedProfile = renderAgentGovernanceProfileFixture(fixture);
+
+  for (const expectedText of [
+    "Claims Assistant",
+    "Claims Ops",
+    "Active",
+    "Production",
+    "High",
+    "Access Grants",
+    "Capabilities",
+    "Sources",
+    "Model assets",
+    "External grants",
+    "Send email",
+    "Claims knowledge base",
+    "Triage model",
+    "ticketing:claims",
+    "Recent Activity",
+    "Pending Human Approvals",
+    "Evidence Bundle",
+    "available",
+    "Policy/rule technical references",
+    "policy-001",
+    "rule-001"
+  ]) {
+    if (!renderedProfile.includes(expectedText)) {
+      throw new Error(`Agent profile fixture missing: ${expectedText}`);
+    }
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "raw_prompt",
+    "raw_payload",
+    "compliance score"
+  ]) {
+    if (renderedProfile.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe Agent profile fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderAgentGovernanceProfileFixture(profile) {
+  const parts = [
+    "Agent Governance Profile",
+    profile.agent.name,
+    profile.owner.owner_name,
+    formatActivityValue(profile.agent.status),
+    formatActivityValue(profile.agent.environment),
+    formatActivityValue(profile.agent.risk_level),
+    "Access Grants",
+    String(profile.access_grants.length),
+    "Recent Activity",
+    String(profile.recent_activity.items.length),
+    "Pending Human Approvals",
+    String(profile.human_approvals.by_status.pending || 0),
+    "Evidence Bundle",
+    profile.evidence_bundle.available ? "available" : "not_available",
+    "Policy/rule technical references",
+    ...profile.policy_summary.referenced_policy_ids,
+    ...profile.policy_summary.referenced_rule_ids
+  ];
+
+  for (const group of ["capability", "source", "model_asset", "external"]) {
+    parts.push(agentProfileGroupLabel(group));
+    for (const grant of profile.access_grants.filter(
+      (item) => item.target_type === group
+    )) {
+      parts.push(grant.target?.name || grant.external_ref || "Unresolved target");
+    }
+  }
+
+  return parts.join("\n");
+}
+
+function agentProfileGroupLabel(targetType) {
+  if (targetType === "capability") {
+    return "Capabilities";
+  }
+
+  if (targetType === "source") {
+    return "Sources";
+  }
+
+  if (targetType === "model_asset") {
+    return "Model assets";
+  }
+
+  return "External grants";
 }

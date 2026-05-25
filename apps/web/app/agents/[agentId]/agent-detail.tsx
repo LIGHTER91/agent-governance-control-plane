@@ -5,17 +5,21 @@ import { ApiRequestError, getApiBaseUrl } from "../../lib/api";
 import type {
   AgentActivityItem,
   AgentActivityMetadataValue,
+  AgentGovernanceProfile,
+  AgentGovernanceProfileAccessGrant,
+  AgentGovernanceProfileHumanApproval,
   AgentRecord
 } from "../../lib/agents";
-import { fetchAgent, fetchAgentActivity } from "../../lib/agents";
+import {
+  fetchAgentActivity,
+  fetchAgentGovernanceProfile
+} from "../../lib/agents";
 import { EvidenceBundle, fetchEvidenceBundle } from "../../lib/evidence";
 import {
   HumanApprovalActions,
   actionPastTense
 } from "../../human-approvals/human-approval-actions";
-import {
-  fetchAgentHumanApprovals
-} from "../../lib/human-approvals";
+import { fetchAgentHumanApprovals } from "../../lib/human-approvals";
 import type {
   HumanApprovalAction,
   HumanApprovalRecord
@@ -26,7 +30,7 @@ type AgentDetailState =
   | { status: "error"; message: string }
   | {
       status: "ready";
-      agent: AgentRecord;
+      profile: AgentGovernanceProfile;
       humanApprovals: HumanApprovalRecord[];
     };
 
@@ -55,6 +59,12 @@ function formatValue(value: string | null | undefined) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function plainValue(value: string | number | boolean | null | undefined) {
+  return value === null || value === undefined || value === ""
+    ? "Not set"
+    : String(value);
 }
 
 function formatTimestamp(value: string | null | undefined) {
@@ -137,11 +147,11 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     setReviewActionMessage(null);
 
     Promise.all([
-      fetchAgent(agentId, controller.signal),
+      fetchAgentGovernanceProfile(agentId, controller.signal),
       fetchAgentHumanApprovals(agentId, controller.signal)
     ])
-      .then(([agent, humanApprovals]) => {
-        setState({ status: "ready", agent, humanApprovals });
+      .then(([profile, humanApprovals]) => {
+        setState({ status: "ready", profile, humanApprovals });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
@@ -203,14 +213,15 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     });
 
     try {
-      const [humanApprovals, activityItems] = await Promise.all([
+      const [profile, humanApprovals, activityItems] = await Promise.all([
+        fetchAgentGovernanceProfile(agentId),
         fetchAgentHumanApprovals(agentId),
         fetchAgentActivity(agentId)
       ]);
 
       setState((currentState) =>
         currentState.status === "ready"
-          ? { ...currentState, humanApprovals }
+          ? { ...currentState, profile, humanApprovals }
           : currentState
       );
       setActivityState({ status: "ready", items: activityItems });
@@ -231,8 +242,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         <div className="state-message">
           <strong>Loading Agent detail</strong>
           <p>
-            Requesting `GET /agents/{"{agent_id}"}` and related HumanApproval
-            records from {getApiBaseUrl()}.
+            Requesting `GET /agents/{"{agent_id}"}/governance-profile` and
+            related HumanApproval records from {getApiBaseUrl()}.
           </p>
         </div>
       </section>
@@ -256,12 +267,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
 
   return (
     <>
-      <AgentHeader agent={state.agent} />
-      <AgentOverview agent={state.agent} />
-      <GovernanceSummary
-        agent={state.agent}
-        humanApprovals={state.humanApprovals}
-      />
+      <AgentHeader agent={state.profile.agent} />
+      <AgentGovernanceProfileSection profile={state.profile} />
       <ActivityTimelineSection activityState={activityState} />
       <HumanApprovalsSection
         actionMessage={reviewActionMessage}
@@ -269,6 +276,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         onActionCompleted={handleApprovalActionCompleted}
       />
       <EvidenceAccessSection
+        evidenceHint={state.profile.evidence_bundle}
         evidenceState={evidenceState}
         onLoadEvidence={handleLoadEvidence}
       />
@@ -450,76 +458,108 @@ function AgentHeader({ agent }: { agent: AgentRecord }) {
   );
 }
 
-function AgentOverview({ agent }: { agent: AgentRecord }) {
-  const fields = [
-    ["name", agent.name],
-    ["description", agent.description],
-    ["owner_type", agent.owner_type],
+function AgentGovernanceProfileSection({
+  profile
+}: {
+  profile: AgentGovernanceProfile;
+}) {
+  const agent = profile.agent;
+  const pendingCount = profile.human_approvals.by_status.pending || 0;
+  const accessCounts = accessGrantCounts(profile.access_grants);
+  const summaryItems = [
+    {
+      label: "Owner",
+      value: ownerDisplay(agent),
+      detail: `${formatValue(profile.owner.owner_type)} owner reference.`
+    },
+    {
+      label: "Lifecycle",
+      value: formatValue(profile.status),
+      detail: "Current Agent Registry status."
+    },
+    {
+      label: "Environment",
+      value: formatValue(profile.environment),
+      detail: "Deployment environment used for governance context."
+    },
+    {
+      label: "Risk",
+      value: formatValue(profile.risk_level),
+      detail: "Risk classification stored on the Agent record."
+    },
+    {
+      label: "Access Grants",
+      value: String(profile.access_grants.length),
+      detail: accessGrantSummary(accessCounts)
+    },
+    {
+      label: "Recent Activity",
+      value: String(profile.recent_activity.items.length),
+      detail: `Newest ${profile.recent_activity.limit} profile activity records.`
+    },
+    {
+      label: "Pending Human Approvals",
+      value: String(pendingCount),
+      detail: `${profile.human_approvals.total_count} total linked review records.`
+    },
+    {
+      label: "Evidence Bundle",
+      value:
+        profile.evidence_bundle.access === "allowed" ? "Available" : "Restricted",
+      detail: "Profile hint only; export is loaded on request."
+    }
+  ];
+
+  const overviewFields = [
     ["owner", ownerDisplay(agent)],
-    ["environment", agent.environment],
-    ["status", agent.status],
-    ["risk_level", agent.risk_level],
-    ["framework", agent.framework],
+    ["owner_type", profile.owner.owner_type],
+    ["owner_contact_email", profile.owner.owner_contact_email],
+    ["description", agent.description],
+    ["framework", agent.framework]
+  ];
+
+  const technicalFields = [
+    ["agent_id", agent.id],
+    ["description", agent.description],
+    ["owner_id", profile.owner.owner_id],
+    ["owner_name", profile.owner.owner_name],
     ["created_at", formatTimestamp(agent.created_at)],
     ["updated_at", formatTimestamp(agent.updated_at)]
   ];
 
   return (
-    <section className="evidence-section">
-      <header className="evidence-section-header">
-        <h3>Agent overview</h3>
-        <span>read-only</span>
-      </header>
-      <dl className="evidence-fields agent-detail-fields">
-        {fields.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{formatValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function GovernanceSummary({
-  agent,
-  humanApprovals
-}: {
-  agent: AgentRecord;
-  humanApprovals: HumanApprovalRecord[];
-}) {
-  const pendingCount = humanApprovals.filter(
-    (approval) => approval.status === "pending"
-  ).length;
-
-  const summaryItems = [
-    {
-      label: "Lifecycle",
-      value: formatValue(agent.status),
-      detail: "Current Agent Registry status."
-    },
-    {
-      label: "Risk",
-      value: formatValue(agent.risk_level),
-      detail: "Risk classification stored on the Agent record."
-    },
-    {
-      label: "Environment",
-      value: formatValue(agent.environment),
-      detail: "Deployment environment used for governance context."
-    },
-    {
-      label: "Pending Human Approvals",
-      value: String(pendingCount),
-      detail: "Open review items linked to this Agent."
-    }
-  ];
-
-  return (
     <>
-      <h3 className="section-title">Governance summary</h3>
-      <section className="detail-summary-grid" aria-label="Governance summary">
+      <h3 className="section-title">Agent Governance Profile</h3>
+      <section className="evidence-section">
+        <header className="evidence-section-header">
+          <h3>Agent overview</h3>
+          <span>GET /agents/{"{agent_id}"}/governance-profile</span>
+        </header>
+        <dl className="evidence-fields agent-detail-fields">
+          {overviewFields.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{plainValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+        <details className="profile-technical-details">
+          <summary>Agent technical reference</summary>
+          <dl className="activity-related">
+            {technicalFields.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{plainValue(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </section>
+
+      <section
+        className="detail-summary-grid profile-summary-grid"
+        aria-label="Governance summary"
+      >
         {summaryItems.map((item) => (
           <article className="work-item" key={item.label}>
             <span className="status-label foundation">{item.label}</span>
@@ -528,7 +568,235 @@ function GovernanceSummary({
           </article>
         ))}
       </section>
+
+      <ProfileHumanApprovalSummary profile={profile} />
+      <ProfileRecentActivitySummary profile={profile} />
+      <InventoryAccessSection accessGrants={profile.access_grants} />
+      <PolicyTechnicalReferences profile={profile} />
     </>
+  );
+}
+
+function ProfileHumanApprovalSummary({
+  profile
+}: {
+  profile: AgentGovernanceProfile;
+}) {
+  const statusCounts = Object.entries(profile.human_approvals.by_status);
+
+  return (
+    <section className="detail-card profile-section">
+      <div className="detail-card-header">
+        <div>
+          <strong>HumanApproval summary</strong>
+          <p>
+            Pending and recent review state from the governance profile. Review
+            actions remain in the full Human approvals table below.
+          </p>
+        </div>
+      </div>
+
+      {statusCounts.length === 0 ? (
+        <div className="state-message compact">
+          <strong>No HumanApproval summary records</strong>
+          <p>The profile did not return any HumanApproval records.</p>
+        </div>
+      ) : (
+        <div
+          className="detail-count-grid profile-approval-counts"
+          aria-label="HumanApproval status counts"
+        >
+          {statusCounts.map(([status, count]) => (
+            <div key={status}>
+              <span>{formatValue(status)}</span>
+              <strong>{count}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {profile.human_approvals.recent.length > 0 ? (
+        <ul className="profile-compact-list">
+          {profile.human_approvals.recent.map((approval) => (
+            <li key={approval.id}>
+              <div>
+                <strong>{formatValue(approval.status)}</strong>
+                <p>{approval.reason || "No reason was persisted."}</p>
+              </div>
+              <details>
+                <summary>Technical reference</summary>
+                <dl className="activity-related">
+                  {humanApprovalTechnicalRows(approval).map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function ProfileRecentActivitySummary({
+  profile
+}: {
+  profile: AgentGovernanceProfile;
+}) {
+  return (
+    <>
+      <h3 className="section-title">Recent activity summary</h3>
+      <section className="detail-card" aria-label="Recent profile activity">
+        <div className="detail-card-header">
+          <div>
+            <strong>Profile activity</strong>
+            <p>
+              Compact newest-first activity from the profile endpoint. The full
+              Activity / Timeline section remains below.
+            </p>
+          </div>
+        </div>
+        {profile.recent_activity.items.length === 0 ? (
+          <div className="state-message compact">
+            <strong>No recent governance activity in profile</strong>
+            <p>
+              Trace events, policy decisions, HumanApprovals, and audit entries
+              will appear after governance workflows run.
+            </p>
+          </div>
+        ) : (
+          <ol className="activity-list profile-activity-list">
+            {profile.recent_activity.items.map((item) => (
+              <ActivityTimelineItem item={item} key={`${item.type}-${item.id}`} />
+            ))}
+          </ol>
+        )}
+      </section>
+    </>
+  );
+}
+
+function InventoryAccessSection({
+  accessGrants
+}: {
+  accessGrants: AgentGovernanceProfileAccessGrant[];
+}) {
+  const groups = [
+    ["Capabilities", grantsByTargetType(accessGrants, "capability")],
+    ["Sources", grantsByTargetType(accessGrants, "source")],
+    ["Model assets", grantsByTargetType(accessGrants, "model_asset")],
+    ["External grants", grantsByTargetType(accessGrants, "external")]
+  ] as const;
+
+  return (
+    <>
+      <h3 className="section-title">Inventory access</h3>
+      <section className="profile-access-grid" aria-label="Inventory access grants">
+        {groups.map(([title, grants]) => (
+          <section className="detail-card" key={title}>
+            <div className="detail-card-header">
+              <div>
+                <strong>{title}</strong>
+                <p>{grants.length} grants declared for this Agent.</p>
+              </div>
+            </div>
+            {grants.length === 0 ? (
+              <div className="state-message compact">
+                <strong>No {title.toLowerCase()}</strong>
+                <p>The governance profile did not return this target type.</p>
+              </div>
+            ) : (
+              <ul className="profile-grant-list">
+                {grants.map((grant) => (
+                  <li key={grant.id}>
+                    <div className="activity-badges">
+                      <span className="table-pill">
+                        {formatValue(grant.status)}
+                      </span>
+                      <span className={`table-pill risk-${grant.risk_level}`}>
+                        {formatValue(grant.risk_level)}
+                      </span>
+                    </div>
+                    <strong>{grant.target?.name || grant.name}</strong>
+                    <p>{grant.reason || grant.description || "No grant reason."}</p>
+                    <dl className="runtime-activity-fields profile-grant-fields">
+                      <RuntimeField
+                        label="target"
+                        value={grant.target?.name || grant.external_ref}
+                      />
+                      <RuntimeField
+                        label="inventory_type"
+                        value={grant.target?.inventory_type}
+                      />
+                      <RuntimeField label="provider" value={grant.target?.provider} />
+                      <RuntimeField
+                        label="expires_at"
+                        value={formatTimestamp(grant.expires_at)}
+                      />
+                    </dl>
+                    <details>
+                      <summary>Technical references</summary>
+                      <dl className="activity-related">
+                        {accessGrantTechnicalRows(grant).map(([label, value]) => (
+                          <div key={label}>
+                            <dt>{label}</dt>
+                            <dd>{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </section>
+    </>
+  );
+}
+
+function PolicyTechnicalReferences({
+  profile
+}: {
+  profile: AgentGovernanceProfile;
+}) {
+  const policyRows = [
+    ["policy_decision_count", String(profile.policy_summary.policy_decision_count)],
+    [
+      "referenced_policy_ids",
+      technicalList(profile.policy_summary.referenced_policy_ids)
+    ],
+    ["referenced_rule_ids", technicalList(profile.policy_summary.referenced_rule_ids)]
+  ];
+
+  return (
+    <section className="detail-card profile-section">
+      <div className="detail-card-header">
+        <div>
+          <strong>Policy and rule references</strong>
+          <p>
+            Technical references derived from persisted PolicyDecision records.
+            Policy editing and simulation remain separate future workflows.
+          </p>
+        </div>
+      </div>
+      <details className="profile-technical-details">
+        <summary>Policy/rule technical references</summary>
+        <dl className="activity-related">
+          {policyRows.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </section>
   );
 }
 
@@ -623,9 +891,11 @@ function HumanApprovalsSection({
 }
 
 function EvidenceAccessSection({
+  evidenceHint,
   evidenceState,
   onLoadEvidence
 }: {
+  evidenceHint: AgentGovernanceProfile["evidence_bundle"];
   evidenceState: EvidenceState;
   onLoadEvidence: () => void;
 }) {
@@ -670,6 +940,19 @@ function EvidenceAccessSection({
           </button>
         </div>
 
+        <dl
+          className="runtime-activity-fields evidence-hint-fields"
+          aria-label="Evidence Bundle availability hint"
+        >
+          <RuntimeField
+            label="availability"
+            value={evidenceHint.available ? "available" : "not_available"}
+          />
+          <RuntimeField label="access" value={evidenceHint.access} />
+          <RuntimeField label="export_format" value={evidenceHint.export_format} />
+          <RuntimeField label="export_path" value={evidenceHint.export_path} />
+        </dl>
+
         {evidenceState.status === "idle" ? (
           <div className="state-message compact">
             <strong>No Evidence Bundle loaded</strong>
@@ -700,6 +983,119 @@ function EvidenceAccessSection({
       </section>
     </>
   );
+}
+
+function RuntimeField({
+  label,
+  value
+}: {
+  label: string;
+  value: string | number | boolean | null | undefined;
+}) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className={label.endsWith("_id") ? "id-cell" : undefined}>
+        {plainValue(value)}
+      </dd>
+    </div>
+  );
+}
+
+function accessGrantCounts(
+  accessGrants: AgentGovernanceProfileAccessGrant[]
+): Record<"capability" | "source" | "model_asset" | "external" | "other", number> {
+  return accessGrants.reduce(
+    (counts, grant) => {
+      if (
+        grant.target_type === "capability" ||
+        grant.target_type === "source" ||
+        grant.target_type === "model_asset" ||
+        grant.target_type === "external"
+      ) {
+        counts[grant.target_type] += 1;
+      } else {
+        counts.other += 1;
+      }
+
+      return counts;
+    },
+    { capability: 0, source: 0, model_asset: 0, external: 0, other: 0 }
+  );
+}
+
+function accessGrantSummary(
+  counts: Record<"capability" | "source" | "model_asset" | "external" | "other", number>
+) {
+  const parts = ([
+    ["capability", counts.capability],
+    ["source", counts.source],
+    ["model asset", counts.model_asset],
+    ["external", counts.external],
+    ["other", counts.other]
+  ] as Array<[string, number]>)
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${count} ${label}`);
+
+  return parts.length > 0
+    ? `${parts.join(", ")} grants in profile.`
+    : "No access grants returned in profile.";
+}
+
+function grantsByTargetType(
+  accessGrants: AgentGovernanceProfileAccessGrant[],
+  targetType: string
+) {
+  return accessGrants.filter((grant) => grant.target_type === targetType);
+}
+
+function humanApprovalTechnicalRows(
+  approval: AgentGovernanceProfileHumanApproval
+): Array<[string, string]> {
+  return [
+    ["human_approval_id", approval.id],
+    ["agent_id", approval.agent_id],
+    ["policy_decision_id", approval.policy_decision_id],
+    [
+      "requested_by",
+      `${approval.requested_by_actor_type}:${approval.requested_by_actor_id}`
+    ],
+    [
+      "reviewed_by",
+      approval.reviewed_by_actor_type && approval.reviewed_by_actor_id
+        ? `${approval.reviewed_by_actor_type}:${approval.reviewed_by_actor_id}`
+        : null
+    ],
+    ["created_at", formatTimestamp(approval.created_at)],
+    ["reviewed_at", formatTimestamp(approval.reviewed_at)],
+    ["expires_at", formatTimestamp(approval.expires_at)]
+  ].filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+}
+
+function accessGrantTechnicalRows(
+  grant: AgentGovernanceProfileAccessGrant
+): Array<[string, string]> {
+  return [
+    ["access_grant_id", grant.id],
+    ["grant_type", grant.grant_type],
+    ["subject_type", grant.subject_type],
+    ["subject_id", grant.subject_id],
+    ["target_type", grant.target_type],
+    ["target_id", grant.target_id],
+    ["external_ref", grant.external_ref],
+    ["target_status", grant.target?.status],
+    ["target_external_ref", grant.target?.external_ref],
+    [
+      "granted_by",
+      `${grant.granted_by_actor_type}:${grant.granted_by_actor_id}`
+    ],
+    ["created_at", formatTimestamp(grant.created_at)],
+    ["updated_at", formatTimestamp(grant.updated_at)]
+  ].filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+}
+
+function technicalList(values: string[]) {
+  return values.length > 0 ? values.join(", ") : "None";
 }
 
 function RuntimePolicyPlaceholder() {
