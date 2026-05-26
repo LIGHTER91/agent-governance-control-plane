@@ -208,8 +208,9 @@ context for contextual runtime governance.
 The design is documented in `docs/DATA_USAGE_PROFILE_DESIGN.md`. The first
 backend foundation is implemented as a separate object linked one-to-one with
 Source, exposed through `/sources/{source_id}/usage-profile`. Runtime Gateway
-context, policy evaluation, Evidence Bundle summaries, and Policy Pre-Checks do
-not use it yet.
+context, policy evaluation, and Policy Pre-Checks do not use it yet. Evidence
+Bundle export includes safe Data Usage Profile summaries for Sources referenced
+by an Agent's Access Grants.
 
 Data Usage Profile holds classification, purpose constraints, processing
 constraints, review status, DPIA references, and safe metadata that can evolve
@@ -805,10 +806,11 @@ Initial format:
 
 The JSON export includes Agent metadata, related AuditLogs, AgentRunRecords,
 TraceEventRecords, PolicyDecisions, HumanApprovals, Agent-scoped Access Grants,
-and safe references to granted Capability, Source, and ModelAsset targets when
-available. Access Grant and inventory references are declarative evidence only;
-they do not imply that Runtime Gateway policy evaluation currently enforces the
-grant.
+safe references to granted Capability, Source, and ModelAsset targets, and safe
+Data Usage Profile summaries for granted Sources when available. Access Grant,
+inventory, and Data Usage Profile records are declarative evidence only; they
+do not imply that Runtime Gateway policy evaluation currently enforces the
+grant or certifies legal usability.
 
 Current export access is intentionally narrow: `auditor`, `platform_admin`, and
 direct user owners can export. Direct owner access means a user actor whose

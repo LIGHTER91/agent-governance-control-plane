@@ -56,7 +56,7 @@ Agent Registry:
 - `GET /agents/{agent_id}/evidence-bundle` exports a JSON evidence bundle
   for one agent, including related audit logs, runs, trace events, policy
   decisions, human approvals, Agent-scoped Access Grants, and safe Capability,
-  Source, and ModelAsset references.
+  Source, and ModelAsset references plus Data Usage Profile summaries.
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
 
@@ -114,7 +114,8 @@ Source Inventory:
 - Data Usage Profile metadata rejects unsafe key names such as `api_key`,
   `token`, `password`, `secret`, and `authorization`.
 - Data Usage Profiles are not enforced by Runtime Gateway or policy evaluation
-  yet.
+  yet. Evidence Bundle export includes safe Data Usage Profile summaries when
+  an Agent AccessGrant references the related Source.
 
 Model Inventory:
 
@@ -153,9 +154,9 @@ Access Grant Inventory:
 - Access grants are governance inventory only. They do not enforce runtime
   access yet and do not replace PolicyDecision, Runtime Gateway, or Human
   Approval records.
-- Evidence Bundle export includes Agent-scoped Access Grants and safe
-  Capability, Source, and ModelAsset references when those grants target
-  inventory records. It does not export source contents, credentials, or raw
+- Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
+  Source, and ModelAsset references, and safe Data Usage Profile summaries for
+  granted Sources. It does not export source contents, credentials, or raw
   payloads.
 
 Policy Management:

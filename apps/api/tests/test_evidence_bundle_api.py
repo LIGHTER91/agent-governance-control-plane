@@ -27,6 +27,9 @@ from agent_governance_api.models import (
     DataSource,
     DataSourceStatus,
     DataSourceType,
+    DataUsageClassification,
+    DataUsageProfile,
+    DataUsageReviewStatus,
     Environment,
     HumanApproval,
     HumanApprovalStatus,
@@ -108,11 +111,13 @@ def test_successful_evidence_bundle_export(
         "access_grants",
         "capability_references",
         "source_references",
+        "data_usage_profiles",
         "model_asset_references",
     }
     assert body["access_grants"] == []
     assert body["capability_references"] == []
     assert body["source_references"] == []
+    assert body["data_usage_profiles"] == []
     assert body["model_asset_references"] == []
 
 
@@ -144,6 +149,7 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
         "access_grant_count": 0,
         "capability_reference_count": 0,
         "source_reference_count": 0,
+        "data_usage_profile_count": 0,
         "model_asset_reference_count": 0,
     }
     assert "agent_runs" not in audit_log.metadata_
@@ -153,6 +159,7 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
     assert "access_grants" not in audit_log.metadata_
     assert "capability_references" not in audit_log.metadata_
     assert "source_references" not in audit_log.metadata_
+    assert "data_usage_profiles" not in audit_log.metadata_
     assert "model_asset_references" not in audit_log.metadata_
     assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
 
@@ -227,6 +234,86 @@ def test_evidence_bundle_includes_agent_access_grants_and_inventory_references(
     assert model_asset["metadata"] == {"usage": "assistant_response"}
 
 
+def test_evidence_bundle_includes_data_usage_profile_for_referenced_source(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+    profile_seed = seed_data_usage_profiles(
+        session_factory,
+        source_id=seeded.source_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    body = response.json()
+    [profile] = body["data_usage_profiles"]
+    assert profile["id"] == str(profile_seed.profile_id)
+    assert profile["source_id"] == str(seeded.source_id)
+    assert profile["data_classification"] == "confidential"
+    assert profile["contains_personal_data"] is True
+    assert profile["contains_sensitive_data"] is False
+    assert profile["data_categories"] == ["customer_data", "support_case"]
+    assert profile["legal_basis"] == "declared_contractual_basis"
+    assert profile["allowed_purposes"] == ["customer_support_answering"]
+    assert profile["prohibited_purposes"] == ["model_training"]
+    assert profile["allowed_processing"] == ["search", "rag"]
+    assert profile["prohibited_processing"] == ["training"]
+    assert profile["residency"] == "eu"
+    assert profile["retention_policy"] == "support-standard-retention"
+    assert profile["data_owner"] == "team:support-ops"
+    assert profile["review_status"] == "approved"
+    assert profile["reviewed_by_actor_type"] == "user"
+    assert profile["reviewed_by_actor_id"] == "user:dpo-1"
+    assert profile["reviewed_at"].startswith("2026-01-10T09:00:00")
+    assert profile["review_expires_at"].startswith("2027-01-10T09:00:00")
+    assert profile["dpia_required"] is True
+    assert profile["dpia_reference"] == "dpia:DPIA-123"
+    assert profile["metadata"] == {"catalog_ref": "catalog:source-123"}
+    assert str(profile_seed.other_source_id) not in {
+        item["source_id"] for item in body["data_usage_profiles"]
+    }
+
+
+def test_evidence_bundle_keeps_source_references_and_data_usage_profiles_distinct(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+    seed_data_usage_profiles(session_factory, source_id=seeded.source_id)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    body = response.json()
+    [source_reference] = body["source_references"]
+    [profile] = body["data_usage_profiles"]
+    assert source_reference["id"] == profile["source_id"]
+    assert "data_classification" not in source_reference
+    assert "allowed_purposes" not in source_reference
+    assert "source_type" not in profile
+    assert "name" not in profile
+
+
 def test_evidence_bundle_filters_access_inventory_metadata(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -264,6 +351,39 @@ def test_evidence_bundle_filters_access_inventory_metadata(
     assert "secret" not in response.text
 
 
+def test_evidence_bundle_filters_data_usage_profile_metadata(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+    profile_seed = seed_data_usage_profiles(
+        session_factory,
+        source_id=seeded.source_id,
+    )
+    inject_unsafe_data_usage_profile_metadata(
+        session_factory,
+        profile_id=profile_seed.profile_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [profile] = response.json()["data_usage_profiles"]
+    assert profile["metadata"] == {"catalog_ref": "catalog:source-123"}
+    assert "scanner_payload" not in response.text
+    assert "raw_payload" not in response.text
+    assert "api_key" not in response.text
+
+
 def test_successful_evidence_bundle_export_audit_counts_access_inventory(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -287,11 +407,39 @@ def test_successful_evidence_bundle_export_audit_counts_access_inventory(
     assert audit_log.metadata_["access_grant_count"] == 3
     assert audit_log.metadata_["capability_reference_count"] == 1
     assert audit_log.metadata_["source_reference_count"] == 1
+    assert audit_log.metadata_["data_usage_profile_count"] == 0
     assert audit_log.metadata_["model_asset_reference_count"] == 1
     assert "access_grants" not in audit_log.metadata_
     assert "capability_references" not in audit_log.metadata_
     assert "source_references" not in audit_log.metadata_
+    assert "data_usage_profiles" not in audit_log.metadata_
     assert "model_asset_references" not in audit_log.metadata_
+
+
+def test_successful_evidence_bundle_export_audit_counts_data_usage_profiles(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seed_evidence_records(session_factory, agent_id)
+    seeded = seed_access_inventory_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+    )
+    seed_data_usage_profiles(session_factory, source_id=seeded.source_id)
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [audit_log] = fetch_evidence_bundle_export_audit_logs(session_factory)
+    assert audit_log.metadata_["source_reference_count"] == 1
+    assert audit_log.metadata_["data_usage_profile_count"] == 1
+    assert "data_usage_profiles" not in audit_log.metadata_
 
 
 def test_denied_evidence_bundle_export_creates_safe_audit_log(
@@ -801,6 +949,19 @@ class SeededAccessInventory:
         self.other_agent_grant_id = other_agent_grant_id
 
 
+class SeededDataUsageProfiles:
+    def __init__(
+        self,
+        *,
+        profile_id: UUID,
+        other_source_id: UUID,
+        other_profile_id: UUID,
+    ) -> None:
+        self.profile_id = profile_id
+        self.other_source_id = other_source_id
+        self.other_profile_id = other_profile_id
+
+
 def create_agent(
     client: TestClient,
     payload: dict[str, object] | None = None,
@@ -834,6 +995,7 @@ def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> No
         "access_grants",
         "capability_references",
         "source_references",
+        "data_usage_profiles",
         "model_asset_references",
     } & set(body)
 
@@ -1118,6 +1280,81 @@ def seed_access_inventory_records(
         )
 
 
+def seed_data_usage_profiles(
+    session_factory: SessionFactory,
+    *,
+    source_id: UUID,
+) -> SeededDataUsageProfiles:
+    with session_factory() as session:
+        created_at = datetime(2026, 1, 10, 9, 0, tzinfo=UTC)
+        profile = DataUsageProfile(
+            source_id=source_id,
+            data_classification=DataUsageClassification.CONFIDENTIAL,
+            contains_personal_data=True,
+            contains_sensitive_data=False,
+            data_categories=["customer_data", "support_case"],
+            legal_basis="declared_contractual_basis",
+            allowed_purposes=["customer_support_answering"],
+            prohibited_purposes=["model_training"],
+            allowed_processing=["search", "rag"],
+            prohibited_processing=["training"],
+            residency="eu",
+            retention_policy="support-standard-retention",
+            data_owner="team:support-ops",
+            review_status=DataUsageReviewStatus.APPROVED,
+            reviewed_by_actor_type=ActorType.USER,
+            reviewed_by_actor_id="user:dpo-1",
+            reviewed_at=created_at,
+            review_expires_at=datetime(2027, 1, 10, 9, 0, tzinfo=UTC),
+            dpia_required=True,
+            dpia_reference="dpia:DPIA-123",
+            metadata_={"catalog_ref": "catalog:source-123"},
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        other_source = DataSource(
+            name="Unreferenced source",
+            description="Not granted to this Agent.",
+            source_type=DataSourceType.DATABASE,
+            external_ref="db:unreferenced",
+            owner_type=OwnerType.TEAM,
+            owner_id="team:data",
+            owner_name="Data Team",
+            owner_contact_email="data@example.com",
+            status=DataSourceStatus.ACTIVE,
+            risk_level=RiskLevel.HIGH,
+            metadata_={"system": "unreferenced"},
+            created_at=created_at + timedelta(seconds=1),
+            updated_at=created_at + timedelta(seconds=1),
+        )
+        session.add_all([profile, other_source])
+        session.flush()
+
+        other_profile = DataUsageProfile(
+            source_id=other_source.id,
+            data_classification=DataUsageClassification.RESTRICTED,
+            contains_personal_data=True,
+            contains_sensitive_data=True,
+            data_categories=["hr_data"],
+            allowed_purposes=["hr_case_triage"],
+            prohibited_purposes=["support_response"],
+            allowed_processing=["search"],
+            prohibited_processing=["rag"],
+            review_status=DataUsageReviewStatus.NEEDS_REVIEW,
+            dpia_required=True,
+            metadata_={"catalog_ref": "catalog:other-source"},
+            created_at=created_at + timedelta(seconds=2),
+            updated_at=created_at + timedelta(seconds=2),
+        )
+        session.add(other_profile)
+        session.commit()
+        return SeededDataUsageProfiles(
+            profile_id=profile.id,
+            other_source_id=other_source.id,
+            other_profile_id=other_profile.id,
+        )
+
+
 def create_review_policy_rule(session_factory: SessionFactory) -> tuple[UUID, UUID]:
     with session_factory() as session:
         created_at = datetime.now(UTC)
@@ -1248,6 +1485,29 @@ def inject_unsafe_access_inventory_metadata(
                     "metadata": {
                         "usage": "assistant_response",
                         "secret": "do-not-export",
+                    }
+                }
+            )
+        )
+        session.commit()
+
+
+def inject_unsafe_data_usage_profile_metadata(
+    session_factory: SessionFactory,
+    *,
+    profile_id: UUID,
+) -> None:
+    with session_factory() as session:
+        session.execute(
+            DataUsageProfile.__table__.update()
+            .where(DataUsageProfile.id == profile_id)
+            .values(
+                {
+                    "metadata": {
+                        "catalog_ref": "catalog:source-123",
+                        "scanner_payload": "do-not-export",
+                        "raw_payload": "do-not-export",
+                        "api_key": "do-not-export",
                     }
                 }
             )

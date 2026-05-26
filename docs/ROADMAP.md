@@ -55,10 +55,11 @@ AccessGrant, Policy, and PolicyRule management have APIs but no dedicated
 frontend management workflows. Access Grants are inventory declarations only;
 they are not enforced by runtime policy evaluation yet. Evidence Bundle export
 includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
-references, but it remains a bounded JSON review export rather than a full data
-catalog or UI-oriented profile. Full user authentication, OIDC/SAML/JWT, team
-or organization-unit resolution, production service actor administration, API
-key rotation endpoints, notifications, deployment hardening, and operational
+references plus safe Data Usage Profile summaries for granted Sources, but it
+remains a bounded JSON review export rather than a full data catalog or
+UI-oriented profile. Full user authentication, OIDC/SAML/JWT, team or
+organization-unit resolution, production service actor administration, API key
+rotation endpoints, notifications, deployment hardening, and operational
 runbooks are still missing.
 
 Contextual runtime governance now has a design path for future decisions that
@@ -72,8 +73,9 @@ governance metadata needed by contextual runtime decisions, including
 classification, personal or sensitive data signals, allowed and prohibited
 purposes, processing constraints, review status, and safe DPIA references. It
 is exposed through nested Source endpoints and audited with safe metadata.
-Runtime Gateway, policy evaluation, Policy Pre-Checks, and Evidence Bundle
-export do not use Data Usage Profiles yet.
+Evidence Bundle export includes safe profile summaries for Sources referenced
+by Agent AccessGrants. Runtime Gateway, policy evaluation, and Policy
+Pre-Checks do not use Data Usage Profiles yet.
 
 Policy Pre-Checks and Control Tools now have a design path for safe,
 auditable checks that can inform future contextual PolicyDecisions. The design
@@ -232,9 +234,9 @@ Important limitations:
 - Contextual runtime governance has a design only. Optional contextual request
   fields, inventory resolution during runtime decisions, AccessGrant-aware
   evaluation, and contextual policy rules are not implemented yet.
-- Data Usage Profile persistence and nested Source APIs are implemented.
-  Evidence Bundle profile summaries, profile-aware Policy Pre-Checks, and
-  runtime policy context are not implemented yet.
+- Data Usage Profile persistence, nested Source APIs, and safe Evidence Bundle
+  summaries for granted Sources are implemented. Profile-aware Policy
+  Pre-Checks and runtime policy context are not implemented yet.
 - Policy Pre-Checks have a design only. CheckTool registry, CheckResult
   persistence, PolicyCheckStep authoring, scanner adapters, and pre-check-aware
   runtime decisions are not implemented yet.
@@ -299,8 +301,9 @@ Completed foundation:
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
 - PolicyRule management API for deterministic rule conditions.
-- Evidence Bundle export includes Agent-scoped Access Grants and safe
-  Capability, Source, and ModelAsset references.
+- Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
+  Source, and ModelAsset references, and safe Data Usage Profile summaries for
+  granted Sources.
 
 Recommended next work:
 

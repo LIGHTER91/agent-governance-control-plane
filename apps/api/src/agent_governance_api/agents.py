@@ -219,6 +219,7 @@ def export_agent_evidence_bundle(
             "access_grant_count": len(evidence_bundle.access_grants),
             "capability_reference_count": len(evidence_bundle.capability_references),
             "source_reference_count": len(evidence_bundle.source_references),
+            "data_usage_profile_count": len(evidence_bundle.data_usage_profiles),
             "model_asset_reference_count": len(evidence_bundle.model_asset_references),
         },
     )

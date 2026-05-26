@@ -13,6 +13,7 @@ from agent_governance_api.models import (
     AuditLog,
     Capability,
     DataSource,
+    DataUsageProfile,
     HumanApproval,
     ModelAsset,
     Policy,
@@ -27,6 +28,7 @@ from agent_governance_api.schemas import (
     EvidenceAuditLogRead,
     EvidenceBundleRead,
     EvidenceCapabilityReferenceRead,
+    EvidenceDataUsageProfileRead,
     EvidenceHumanApprovalRead,
     EvidenceModelAssetReferenceRead,
     EvidencePolicyDecisionRead,
@@ -56,6 +58,7 @@ def build_agent_evidence_bundle(
     rule_references = _load_rule_references(session, policy_decisions)
     capability_references = _load_capability_references(session, access_grants)
     source_references = _load_source_references(session, access_grants)
+    data_usage_profiles = _load_data_usage_profiles(session, access_grants)
     model_asset_references = _load_model_asset_references(session, access_grants)
 
     return EvidenceBundleRead(
@@ -86,6 +89,9 @@ def build_agent_evidence_bundle(
         ],
         source_references=[
             _source_reference_response(source) for source in source_references
+        ],
+        data_usage_profiles=[
+            _data_usage_profile_response(profile) for profile in data_usage_profiles
         ],
         model_asset_references=[
             _model_asset_reference_response(model_asset)
@@ -217,6 +223,22 @@ def _load_model_asset_references(
         select(ModelAsset)
         .where(ModelAsset.id.in_(model_asset_ids))
         .order_by(ModelAsset.created_at, ModelAsset.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _load_data_usage_profiles(
+    session: Session,
+    access_grants: list[AccessGrant],
+) -> list[DataUsageProfile]:
+    source_ids = _target_ids(access_grants, AccessGrantTargetType.SOURCE)
+    if not source_ids:
+        return []
+
+    statement = (
+        select(DataUsageProfile)
+        .where(DataUsageProfile.source_id.in_(source_ids))
+        .order_by(DataUsageProfile.created_at, DataUsageProfile.id)
     )
     return list(session.scalars(statement).all())
 
@@ -432,6 +454,37 @@ def _source_reference_response(source: DataSource) -> EvidenceSourceReferenceRea
         metadata=filter_safe_metadata(source.metadata_),
         created_at=source.created_at,
         updated_at=source.updated_at,
+    )
+
+
+def _data_usage_profile_response(
+    profile: DataUsageProfile,
+) -> EvidenceDataUsageProfileRead:
+    return EvidenceDataUsageProfileRead(
+        id=profile.id,
+        source_id=profile.source_id,
+        data_classification=profile.data_classification,
+        contains_personal_data=profile.contains_personal_data,
+        contains_sensitive_data=profile.contains_sensitive_data,
+        data_categories=profile.data_categories,
+        legal_basis=profile.legal_basis,
+        allowed_purposes=profile.allowed_purposes,
+        prohibited_purposes=profile.prohibited_purposes,
+        allowed_processing=profile.allowed_processing,
+        prohibited_processing=profile.prohibited_processing,
+        residency=profile.residency,
+        retention_policy=profile.retention_policy,
+        data_owner=profile.data_owner,
+        review_status=profile.review_status,
+        reviewed_by_actor_type=profile.reviewed_by_actor_type,
+        reviewed_by_actor_id=profile.reviewed_by_actor_id,
+        reviewed_at=profile.reviewed_at,
+        review_expires_at=profile.review_expires_at,
+        dpia_required=profile.dpia_required,
+        dpia_reference=profile.dpia_reference,
+        metadata=filter_safe_metadata(profile.metadata_),
+        created_at=profile.created_at,
+        updated_at=profile.updated_at,
     )
 
 

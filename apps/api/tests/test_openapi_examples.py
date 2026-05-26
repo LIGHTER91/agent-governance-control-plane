@@ -94,6 +94,7 @@ def test_openapi_examples_represent_v0_governance_chain(
     [human_approval] = evidence_bundle["human_approvals"]
     [capability_reference] = evidence_bundle["capability_references"]
     [source_reference] = evidence_bundle["source_references"]
+    [data_usage_profile] = evidence_bundle["data_usage_profiles"]
     [model_asset_reference] = evidence_bundle["model_asset_references"]
     human_approval_audit_log = next(
         audit_log
@@ -120,6 +121,8 @@ def test_openapi_examples_represent_v0_governance_chain(
         evidence_grants_by_type["capability"]["target_id"] == capability_reference["id"]
     )
     assert evidence_grants_by_type["source"]["target_id"] == source_reference["id"]
+    assert data_usage_profile["source_id"] == source_reference["id"]
+    assert data_usage_profile["review_status"] == "approved"
     assert (
         evidence_grants_by_type["model_asset"]["target_id"]
         == model_asset_reference["id"]

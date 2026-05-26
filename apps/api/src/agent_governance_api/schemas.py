@@ -773,6 +773,33 @@ class EvidenceSourceReferenceRead(BaseModel):
     updated_at: datetime
 
 
+class EvidenceDataUsageProfileRead(BaseModel):
+    id: UUID
+    source_id: UUID
+    data_classification: DataUsageClassification
+    contains_personal_data: bool
+    contains_sensitive_data: bool
+    data_categories: list[str]
+    legal_basis: str | None = None
+    allowed_purposes: list[str]
+    prohibited_purposes: list[str]
+    allowed_processing: list[str]
+    prohibited_processing: list[str]
+    residency: str | None = None
+    retention_policy: str | None = None
+    data_owner: str | None = None
+    review_status: DataUsageReviewStatus
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    reviewed_at: datetime | None = None
+    review_expires_at: datetime | None = None
+    dpia_required: bool
+    dpia_reference: str | None = None
+    metadata: EvidenceMetadata
+    created_at: datetime
+    updated_at: datetime
+
+
 class EvidenceModelAssetReferenceRead(BaseModel):
     id: UUID
     name: str
@@ -804,6 +831,9 @@ class EvidenceBundleRead(BaseModel):
         default_factory=list
     )
     source_references: list[EvidenceSourceReferenceRead] = Field(default_factory=list)
+    data_usage_profiles: list[EvidenceDataUsageProfileRead] = Field(
+        default_factory=list
+    )
     model_asset_references: list[EvidenceModelAssetReferenceRead] = Field(
         default_factory=list
     )

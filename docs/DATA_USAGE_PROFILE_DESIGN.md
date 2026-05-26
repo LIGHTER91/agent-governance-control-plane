@@ -5,8 +5,9 @@
 Design plus first backend foundation. A separate `DataUsageProfile` persistence
 model, migration, Pydantic schemas, and nested Source API endpoints are
 implemented. Runtime request fields, policy evaluator behavior, frontend UI,
-scanners, external data catalog integrations, Evidence Bundle profile
-summaries, and legal compliance claims remain out of scope.
+scanners, external data catalog integrations, and legal compliance claims remain
+out of scope. Evidence Bundle export now includes safe Data Usage Profile
+summaries for Sources referenced by Agent AccessGrants.
 
 AGCP remains a governance and evidence control plane. It can support decision
 support, enforcement points, and evidence trails, but it is not a DPO, legal
@@ -309,8 +310,9 @@ policy code.
 
 ## Evidence And Audit
 
-Data Usage Profile should appear in Evidence Bundle export only as a safe
-summary when it is relevant to an Agent, AccessGrant, or PolicyDecision.
+Data Usage Profile appears in Evidence Bundle export only as a safe summary for
+Sources referenced by an Agent's AccessGrants. Future contextual runtime work
+may also include profile summaries when they support a PolicyDecision.
 
 Safe Evidence Bundle fields may include:
 
@@ -406,6 +408,7 @@ Recommended staged implementation:
 4. Add audit events for profile creation, update, and review status changes.
    Implemented.
 5. Include safe profile summaries in Evidence Bundle export.
+   Implemented for Sources referenced by Agent AccessGrants.
 6. Use profile fields as optional contextual policy inputs.
 7. Connect profile resolution to Runtime Gateway contextual requests.
 8. Add pre-check or import helpers for external catalogs, DLP, and PII scanner

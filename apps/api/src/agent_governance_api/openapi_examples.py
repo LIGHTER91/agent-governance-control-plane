@@ -2,6 +2,7 @@ AGENT_ID = "11111111-1111-4111-8111-111111111111"
 CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 SOURCE_ID = "13131313-1313-4131-8131-131313131313"
 MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
+DATA_USAGE_PROFILE_ID = "18181818-1818-4181-8181-181818181818"
 ACCESS_GRANT_ID = "15151515-1515-4151-8151-151515151515"
 SOURCE_ACCESS_GRANT_ID = "16161616-1616-4161-8161-161616161616"
 MODEL_ASSET_ACCESS_GRANT_ID = "17171717-1717-4171-8171-171717171717"
@@ -112,6 +113,33 @@ SOURCE_CREATE_REQUEST = {
 SOURCE_RESPONSE = {
     **SOURCE_CREATE_REQUEST,
     "id": SOURCE_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+DATA_USAGE_PROFILE_RESPONSE = {
+    "id": DATA_USAGE_PROFILE_ID,
+    "source_id": SOURCE_ID,
+    "data_classification": "confidential",
+    "contains_personal_data": True,
+    "contains_sensitive_data": False,
+    "data_categories": ["customer_data", "support_case"],
+    "legal_basis": "declared_contractual_basis",
+    "allowed_purposes": ["customer_support_answering"],
+    "prohibited_purposes": ["model_training"],
+    "allowed_processing": ["search", "rag"],
+    "prohibited_processing": ["training"],
+    "residency": "eu",
+    "retention_policy": "support-standard-retention",
+    "data_owner": "team:support-ops",
+    "review_status": "approved",
+    "reviewed_by_actor_type": "user",
+    "reviewed_by_actor_id": "user:dpo-1",
+    "reviewed_at": "2026-01-10T09:00:00Z",
+    "review_expires_at": "2027-01-10T09:00:00Z",
+    "dpia_required": True,
+    "dpia_reference": "dpia:DPIA-123",
+    "metadata": {"catalog_ref": "catalog:source-123"},
     "created_at": CREATED_AT,
     "updated_at": UPDATED_AT,
 }
@@ -822,6 +850,7 @@ EVIDENCE_BUNDLE_RESPONSE = {
     "access_grants": AGENT_ACCESS_GRANT_RESPONSE,
     "capability_references": [CAPABILITY_RESPONSE],
     "source_references": [SOURCE_RESPONSE],
+    "data_usage_profiles": [DATA_USAGE_PROFILE_RESPONSE],
     "model_asset_references": [MODEL_ASSET_RESPONSE],
 }
 
