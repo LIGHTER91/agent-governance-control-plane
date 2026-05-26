@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from agent_governance_api.metadata_safety import (
     SafeMetadata,
+    filter_safe_metadata,
     reject_unsafe_metadata_keys,
 )
 from agent_governance_api.models import (
@@ -17,6 +18,11 @@ from agent_governance_api.models import (
     AgentStatus,
     CapabilityStatus,
     CapabilityType,
+    CheckResultConfidence,
+    CheckResultOutcome,
+    CheckResultTargetType,
+    CheckToolStatus,
+    CheckToolType,
     DataSourceStatus,
     DataSourceType,
     DataUsageClassification,
@@ -525,6 +531,105 @@ class AccessGrantRead(AccessGrantBase):
     metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
     created_at: datetime
     updated_at: datetime
+
+
+class CheckToolCreate(BaseModel):
+    name: str
+    description: str | None = None
+    tool_type: CheckToolType
+    status: CheckToolStatus
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("CheckTool name must be non-empty.")
+        return value
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class CheckToolRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    tool_type: CheckToolType
+    status: CheckToolStatus
+    owner_type: OwnerType
+    owner_id: str
+    owner_name: str
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def filter_metadata(cls, value: object) -> SafeMetadata:
+        if isinstance(value, dict):
+            return filter_safe_metadata(value)
+        return {}
+
+
+class CheckResultCreate(BaseModel):
+    check_tool_id: UUID
+    agent_id: UUID | None = None
+    run_id: UUID | None = None
+    trace_event_id: UUID | None = None
+    policy_decision_id: UUID | None = None
+    target_type: CheckResultTargetType
+    target_id: UUID | None = None
+    outcome: CheckResultOutcome
+    confidence: CheckResultConfidence | None = None
+    summary: str
+    reason: str | None = None
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("summary")
+    @classmethod
+    def reject_blank_summary(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("CheckResult summary must be non-empty.")
+        return value
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class CheckResultRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    check_tool_id: UUID
+    agent_id: UUID | None = None
+    run_id: UUID | None = None
+    trace_event_id: UUID | None = None
+    policy_decision_id: UUID | None = None
+    target_type: CheckResultTargetType
+    target_id: UUID | None = None
+    outcome: CheckResultOutcome
+    confidence: CheckResultConfidence | None = None
+    summary: str
+    reason: str | None = None
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def filter_metadata(cls, value: object) -> SafeMetadata:
+        if isinstance(value, dict):
+            return filter_safe_metadata(value)
+        return {}
 
 
 class AgentGovernanceProfileOwnerRead(BaseModel):

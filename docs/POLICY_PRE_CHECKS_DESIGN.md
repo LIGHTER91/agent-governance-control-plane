@@ -2,9 +2,11 @@
 
 ## Status
 
-Design only. This document does not add migrations, SQLAlchemy models,
-Pydantic schemas, Runtime Gateway behavior, PolicyRule schema changes, scanner
-integrations, external integrations, or frontend UI.
+Design plus first backend foundation. `CheckTool` and `CheckResult`
+persistence, Pydantic create/read schemas, and a minimal internal helper for
+persisting CheckResults now exist. Runtime Gateway behavior, PolicyRule schema
+changes, scanner integrations, external integrations, public CRUD APIs, and
+frontend UI remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -89,9 +91,10 @@ Examples:
 - `anonymization_checker`;
 - `owner_approval_checker`.
 
-V1 should start with internal metadata-only CheckTools that read existing AGCP
-records. External CheckTools should be adapters with strict input/output
-contracts, not arbitrary executable code.
+V1 starts with internal metadata-only CheckTools that read existing AGCP
+records. The persistence foundation records the registry entry for such a
+tool; it does not execute arbitrary tools. External CheckTools should be
+adapters with strict input/output contracts, not arbitrary executable code.
 
 ### PolicyCheckStep
 
@@ -130,6 +133,11 @@ Suggested fields:
 
 CheckResult must not include raw source content, raw prompts, credentials,
 full scanner payloads, or raw tool/model payloads.
+
+The first backend foundation persists CheckResults with safe references,
+outcome, optional confidence label, summary, reason, and safe metadata. It does
+not yet link CheckResults into runtime decisions, HumanApprovals, or Evidence
+Bundle export.
 
 ### CheckRun Or ControlRun
 
@@ -391,13 +399,12 @@ arbitrary code, generic workflow graphs, or an unbounded expression language.
 
 ## Non-goals
 
-- Do not add code in this issue.
-- Do not add migrations, SQLAlchemy models, or Pydantic schemas in this issue.
-- Do not change Runtime Gateway behavior in this issue.
-- Do not change PolicyRule schemas in this issue.
-- Do not add scanners in this issue.
-- Do not add external integrations in this issue.
-- Do not add frontend UI in this issue.
+- Do not change Runtime Gateway behavior in this foundation.
+- Do not change PolicyRule schemas in this foundation.
+- Do not add public CRUD APIs in this foundation.
+- Do not add scanners in this foundation.
+- Do not add external integrations in this foundation.
+- Do not add frontend UI in this foundation.
 - Do not execute arbitrary tools.
 - Do not turn AGCP into an orchestrator or workflow engine.
 - Do not run expensive scans synchronously in runtime enforcement.
@@ -413,9 +420,11 @@ arbitrary code, generic workflow graphs, or an unbounded expression language.
 Recommended staged implementation:
 
 1. Finalize this design and align it with contextual runtime governance and
-   Data Usage Profile.
+   Data Usage Profile. Implemented.
 2. Add a CheckTool registry model for known internal metadata-only checks.
+   Implemented as backend persistence only.
 3. Add CheckResult persistence with safe metadata filtering.
+   Implemented as backend persistence and an internal helper.
 4. Support metadata-only checks first for Data Usage Profile, AccessGrant,
    ModelAsset, Capability, and Source status.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.

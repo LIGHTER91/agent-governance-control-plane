@@ -9,6 +9,8 @@ from agent_governance_api.models import (
     Agent,
     AgentRunRecord,
     AuditLog,
+    CheckResult,
+    CheckTool,
     DataUsageProfile,
     HumanApproval,
     Policy,
@@ -48,6 +50,8 @@ def test_declarative_base_includes_domain_tables() -> None:
     assert ServiceActorScope.__tablename__ in Base.metadata.tables
     assert ServiceActorScopeRule.__tablename__ in Base.metadata.tables
     assert DataUsageProfile.__tablename__ in Base.metadata.tables
+    assert CheckTool.__tablename__ in Base.metadata.tables
+    assert CheckResult.__tablename__ in Base.metadata.tables
 
 
 def test_db_session_dependency_yields_session_without_connecting() -> None:

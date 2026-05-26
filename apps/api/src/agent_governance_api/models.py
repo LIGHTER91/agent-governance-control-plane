@@ -158,6 +158,45 @@ class AccessGrantStatus(StrEnum):
     EXPIRED = "expired"
 
 
+class CheckToolType(StrEnum):
+    METADATA_LOOKUP = "metadata_lookup"
+    ACCESS_GRANT_CHECK = "access_grant_check"
+    DATA_USAGE_PROFILE_CHECK = "data_usage_profile_check"
+    SOURCE_STATUS_CHECK = "source_status_check"
+    MODEL_STATUS_CHECK = "model_status_check"
+    CAPABILITY_STATUS_CHECK = "capability_status_check"
+
+
+class CheckToolStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    RETIRED = "retired"
+
+
+class CheckResultTargetType(StrEnum):
+    SOURCE = "source"
+    CAPABILITY = "capability"
+    MODEL_ASSET = "model_asset"
+    ACCESS_GRANT = "access_grant"
+    DATA_USAGE_PROFILE = "data_usage_profile"
+    EXTERNAL = "external"
+
+
+class CheckResultOutcome(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    UNKNOWN = "unknown"
+    ERROR = "error"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class CheckResultConfidence(StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+
 class OwnerType(StrEnum):
     USER = "user"
     TEAM = "team"
@@ -867,6 +906,156 @@ class AccessGrant(Base):
         onupdate=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class CheckTool(Base):
+    __tablename__ = "check_tools"
+    __table_args__ = (UniqueConstraint("name", name="uq_check_tools_name"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tool_type: Mapped[CheckToolType] = mapped_column(
+        Enum(
+            CheckToolType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_tool_type",
+        ),
+        nullable=False,
+    )
+    status: Mapped[CheckToolStatus] = mapped_column(
+        Enum(
+            CheckToolStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_tool_status",
+        ),
+        nullable=False,
+    )
+    owner_type: Mapped[OwnerType] = mapped_column(
+        Enum(
+            OwnerType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_tool_owner_type",
+        ),
+        nullable=False,
+    )
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    results: Mapped[list["CheckResult"]] = relationship(back_populates="check_tool")
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+
+class CheckResult(Base):
+    __tablename__ = "check_results"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    check_tool_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("check_tools.id"),
+        nullable=False,
+    )
+    agent_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("agents.id"),
+        nullable=True,
+    )
+    run_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    trace_event_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("trace_events.id"),
+        nullable=True,
+    )
+    policy_decision_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_decisions.id"),
+        nullable=True,
+    )
+    target_type: Mapped[CheckResultTargetType] = mapped_column(
+        Enum(
+            CheckResultTargetType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_result_target_type",
+        ),
+        nullable=False,
+    )
+    target_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    outcome: Mapped[CheckResultOutcome] = mapped_column(
+        Enum(
+            CheckResultOutcome,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_result_outcome",
+        ),
+        nullable=False,
+    )
+    confidence: Mapped[CheckResultConfidence | None] = mapped_column(
+        Enum(
+            CheckResultConfidence,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="check_result_confidence",
+        ),
+        nullable=True,
+    )
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    check_tool: Mapped[CheckTool] = relationship(back_populates="results")
 
     @validates("metadata_")
     def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:

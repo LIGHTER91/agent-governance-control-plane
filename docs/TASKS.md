@@ -67,9 +67,11 @@ policy evaluation, and Policy Pre-Checks do not use it yet. Policy Pre-Checks
 and Control Tools have a
 design for safe, auditable checks that can inform future contextual
 PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
-Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state. That
-design is not implemented yet; check persistence, scanner adapters, PolicyRule
-schema changes, and runtime behavior remain unchanged. The frontend has a
+Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state.
+CheckTool and CheckResult persistence now exists as a backend foundation, but
+scanner adapters, public CRUD APIs, Evidence Bundle CheckResult summaries,
+PolicyRule schema changes, and runtime behavior remain unchanged. The frontend
+has a
 minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -114,8 +116,8 @@ References:
 
 Recommended order:
 
-1. Add metadata-only Policy Pre-Checks for Data Usage Profile, AccessGrant,
-   ModelAsset, Capability, and Source status.
+1. Add metadata-only pre-check execution helpers for Data Usage Profile,
+   AccessGrant, ModelAsset, Capability, and Source status.
 2. Add safe CheckResult summaries to Evidence Bundle export when they support a
    PolicyDecision.
 3. Add optional contextual runtime request fields from the contextual runtime
@@ -147,7 +149,8 @@ Recommended order:
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
-- [ ] Add metadata-only Policy Pre-Checks for inventory and governance context.
+- [ ] Add metadata-only pre-check execution helpers for inventory and
+      governance context.
 - [ ] Add safe CheckResult summaries to Evidence Bundle export.
 - [ ] Add optional contextual runtime request fields from the contextual runtime
       governance design.
@@ -325,6 +328,7 @@ credentials.
 - [x] Add Policy Pre-Checks and Control Tools design.
 - [x] Add Data Usage Profile persistence and API support for Source records.
 - [x] Add safe Data Usage Profile summaries to Evidence Bundle export.
+- [x] Add metadata-only Policy Pre-Check persistence foundation.
 
 ## Blocked
 
