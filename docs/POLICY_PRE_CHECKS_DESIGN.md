@@ -3,10 +3,13 @@
 ## Status
 
 Design plus first backend foundation. `CheckTool` and `CheckResult`
-persistence, Pydantic create/read schemas, and a minimal internal helper for
-persisting CheckResults now exist. Runtime Gateway behavior, PolicyRule schema
-changes, scanner integrations, external integrations, public CRUD APIs, and
-frontend UI remain out of scope.
+persistence, Pydantic create/read schemas, a minimal internal helper for
+persisting CheckResults, and internal metadata-only check helpers now exist.
+The implemented helpers can evaluate AccessGrant status, Data Usage Profile
+review status, and Source, Capability, and ModelAsset inventory status from
+persisted metadata only. Runtime Gateway behavior, PolicyRule schema changes,
+scanner integrations, external integrations, public CRUD APIs, and frontend UI
+remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -135,7 +138,9 @@ CheckResult must not include raw source content, raw prompts, credentials,
 full scanner payloads, or raw tool/model payloads.
 
 The first backend foundation persists CheckResults with safe references,
-outcome, optional confidence label, summary, reason, and safe metadata. It does
+outcome, optional confidence label, summary, reason, and safe metadata.
+Internal helpers can now produce CheckResults for metadata-only AccessGrant,
+Data Usage Profile, Source, Capability, and ModelAsset status checks. They do
 not yet link CheckResults into runtime decisions, HumanApprovals, or Evidence
 Bundle export.
 
@@ -426,7 +431,7 @@ Recommended staged implementation:
 3. Add CheckResult persistence with safe metadata filtering.
    Implemented as backend persistence and an internal helper.
 4. Support metadata-only checks first for Data Usage Profile, AccessGrant,
-   ModelAsset, Capability, and Source status.
+   ModelAsset, Capability, and Source status. Implemented as internal helpers.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.
 6. Add explicit PolicyCheckStep support for a small set of PolicyRule or policy
    template use cases.

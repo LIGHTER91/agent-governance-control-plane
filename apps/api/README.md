@@ -181,6 +181,14 @@ Policy Management:
   optional `agent_id`, `tool_name`, `environment`, and `risk_level`.
 - Versioning, generic policy-language work, and runtime behavior changes remain
   out of scope.
+- Metadata-only Policy Pre-Check persistence and internal helper functions
+  exist for `CheckTool` and `CheckResult` records. The helpers can check
+  AccessGrant status, Data Usage Profile review status, and Source,
+  Capability, and ModelAsset inventory status, but there are no public CRUD
+  APIs yet and Runtime Gateway/policy evaluation do not run pre-checks yet.
+  CheckResults store safe outcomes, confidence labels, summaries, reasons,
+  references, and safe metadata only; they must not store source contents,
+  prompts, scanner raw payloads, or credentials.
 
 Human Approvals:
 

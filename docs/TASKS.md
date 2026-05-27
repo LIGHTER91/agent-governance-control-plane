@@ -68,10 +68,10 @@ and Control Tools have a
 design for safe, auditable checks that can inform future contextual
 PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
 Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state.
-CheckTool and CheckResult persistence now exists as a backend foundation, but
-scanner adapters, public CRUD APIs, Evidence Bundle CheckResult summaries,
-PolicyRule schema changes, and runtime behavior remain unchanged. The frontend
-has a
+CheckTool and CheckResult persistence and internal execution helpers now exist
+as a backend foundation, but scanner adapters, public CRUD APIs, Evidence
+Bundle CheckResult summaries, PolicyRule schema changes, and runtime behavior
+remain unchanged. The frontend has a
 minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -116,41 +116,37 @@ References:
 
 Recommended order:
 
-1. Add metadata-only pre-check execution helpers for Data Usage Profile,
-   AccessGrant, ModelAsset, Capability, and Source status.
-2. Add safe CheckResult summaries to Evidence Bundle export when they support a
+1. Add safe CheckResult summaries to Evidence Bundle export when they support a
    PolicyDecision.
-3. Add optional contextual runtime request fields from the contextual runtime
+2. Add optional contextual runtime request fields from the contextual runtime
    governance design without breaking existing Runtime Gateway clients.
-4. Extend the deterministic evaluator with a small explicit contextual rule
+3. Extend the deterministic evaluator with a small explicit contextual rule
    surface when the request schema exists.
-5. Add Policy management UI for the existing Policy and PolicyRule APIs.
-6. Use Access Grants as optional policy context without replacing
+4. Add Policy management UI for the existing Policy and PolicyRule APIs.
+5. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-7. Add focused AccessGrant and inventory review workflows only where they
+6. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-8. Add Permission domain model only if AccessGrant target semantics prove
+7. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-9. Add frontend auth and role-aware UI later.
-10. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-11. Add OpenAPI examples for `GET /human-approvals` if missing.
-12. Design team and organization-unit ownership resolution for Evidence Bundle
+8. Add frontend auth and role-aware UI later.
+9. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+10. Add OpenAPI examples for `GET /human-approvals` if missing.
+11. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-13. Add owner-based service actor scopes design.
-14. Add safe denied-scope audit events.
-15. Add admin management for persisted service actor scope and rule records.
-16. Implement service actor API key rotation and admin workflows after registry
+12. Add owner-based service actor scopes design.
+13. Add safe denied-scope audit events.
+14. Add admin management for persisted service actor scope and rule records.
+15. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-17. Add tests for overriding the Actor dependency with a non-development actor.
-18. Add deeper separation-of-duties checks for HumanApproval review.
-19. Add broad filtering and pagination for Runtime and Agent activity only
+16. Add tests for overriding the Actor dependency with a non-development actor.
+17. Add deeper separation-of-duties checks for HumanApproval review.
+18. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
-- [ ] Add metadata-only pre-check execution helpers for inventory and
-      governance context.
 - [ ] Add safe CheckResult summaries to Evidence Bundle export.
 - [ ] Add optional contextual runtime request fields from the contextual runtime
       governance design.
@@ -329,6 +325,7 @@ credentials.
 - [x] Add Data Usage Profile persistence and API support for Source records.
 - [x] Add safe Data Usage Profile summaries to Evidence Bundle export.
 - [x] Add metadata-only Policy Pre-Check persistence foundation.
+- [x] Add metadata-only Policy Pre-Check execution helpers.
 
 ## Blocked
 

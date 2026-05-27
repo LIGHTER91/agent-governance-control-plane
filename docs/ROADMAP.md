@@ -81,9 +81,11 @@ Policy Pre-Checks and Control Tools now have a design path for safe,
 auditable checks that can inform future contextual PolicyDecisions. The design
 starts with metadata-only checks over inventory, Data Usage Profile,
 AccessGrant, ModelAsset, Capability, and HumanApproval state. A first backend
-persistence foundation now exists for CheckTool and CheckResult records, but no
-scanner integration, public CRUD API, PolicyRule schema change, or runtime
-behavior has been implemented.
+persistence and internal helper foundation now exists for CheckTool and
+CheckResult records. Internal helpers can evaluate AccessGrant status, Data
+Usage Profile review status, and Source, Capability, and ModelAsset inventory
+status from persisted metadata only, but no scanner integration, public CRUD
+API, PolicyRule schema change, or runtime behavior has been implemented.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -238,9 +240,10 @@ Important limitations:
 - Data Usage Profile persistence, nested Source APIs, and safe Evidence Bundle
   summaries for granted Sources are implemented. Profile-aware Policy
   Pre-Checks and runtime policy context are not implemented yet.
-- Policy Pre-Checks have CheckTool and CheckResult persistence only.
-  PolicyCheckStep authoring, scanner adapters, Evidence Bundle CheckResult
-  summaries, and pre-check-aware runtime decisions are not implemented yet.
+- Policy Pre-Checks have CheckTool and CheckResult persistence plus internal
+  metadata-only execution helpers only. PolicyCheckStep authoring, scanner
+  adapters, Evidence Bundle CheckResult summaries, and pre-check-aware runtime
+  decisions are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 
@@ -307,14 +310,14 @@ Completed foundation:
   granted Sources.
 - Metadata-only Policy Pre-Check persistence foundation for CheckTool and
   CheckResult records.
+- Metadata-only Policy Pre-Check execution helpers for AccessGrant, Data Usage
+  Profile, Source, Capability, and ModelAsset status.
 
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
 - Add safe CheckResult summaries to Evidence Bundle export when they support a
   PolicyDecision.
-- Add metadata-only pre-check execution helpers for Data Usage Profile,
-  AccessGrant, ModelAsset, Capability, and Source status.
 - Add optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
   Runtime Gateway clients.
