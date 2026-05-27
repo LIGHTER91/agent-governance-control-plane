@@ -1,6 +1,6 @@
 import json
 from collections.abc import Callable, Iterator
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -67,6 +67,54 @@ def test_create_policy_rule(api_client: tuple[TestClient, SessionFactory]) -> No
     }
     assert body["created_at"]
     assert body["updated_at"]
+
+
+def test_create_policy_rule_accepts_contextual_condition_fields(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+
+    response = client.post(
+        "/policy-rules",
+        json=policy_rule_payload(
+            policy_id=policy_id,
+            name="Contextual vectorization deny rule",
+            condition=json.dumps(
+                {
+                    "decision": "deny",
+                    "reason": "Declared confidential vectorization is denied.",
+                    "tool_name": "vectorize_source",
+                    "action_type": "vectorize",
+                    "capability_id": str(capability_id),
+                    "source_ids": [str(source_id)],
+                    "model_id": str(model_id),
+                    "purpose": "semantic_search_indexing",
+                    "data_classification": "confidential",
+                    "contains_personal_data": True,
+                    "contains_sensitive_data": False,
+                }
+            ),
+        ),
+    )
+
+    assert response.status_code == 201
+    assert json.loads(response.json()["condition"]) == {
+        "decision": "deny",
+        "reason": "Declared confidential vectorization is denied.",
+        "tool_name": "vectorize_source",
+        "action_type": "vectorize",
+        "capability_id": str(capability_id),
+        "source_ids": [str(source_id)],
+        "model_id": str(model_id),
+        "purpose": "semantic_search_indexing",
+        "data_classification": "confidential",
+        "contains_personal_data": True,
+        "contains_sensitive_data": False,
+    }
 
 
 def test_list_policy_rules(api_client: tuple[TestClient, SessionFactory]) -> None:

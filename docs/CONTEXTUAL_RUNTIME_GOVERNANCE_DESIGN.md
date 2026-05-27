@@ -223,31 +223,39 @@ scans in the runtime path.
 ## PolicyRule Connection
 
 The current PolicyRule condition format is intentionally small and
-deterministic. Contextual governance should extend that approach gradually
-instead of adding a broad expression language.
+deterministic. Contextual governance extends that approach through explicit
+field matching instead of a broad expression language.
 
-Early contextual rule matching could add explicit fields such as:
+Implemented contextual rule matching supports declared Runtime Gateway fields:
 
 - `action_type`;
-- `capability_id` or `capability_ref`;
+- `capability_id`;
 - `source_id` or `source_ids`;
+- `model_id`;
+- `purpose`;
+- `data_classification`;
+- `contains_personal_data`;
+- `contains_sensitive_data`.
+
+Matching remains deterministic. Missing or `null` optional condition fields are
+wildcards, and `source_ids` matches when any declared source ID overlaps the
+Runtime Gateway request `source_ids`.
+
+Future contextual rule matching may add inventory-resolved fields such as:
+
 - `source_data_classification`;
 - `source_allowed_purposes`;
 - `source_prohibited_purposes`;
 - `source_allowed_processing`;
 - `source_prohibited_processing`;
 - `source_review_status`;
-- `model_id`;
 - `model_provider`;
-- `purpose`;
-- `data_classification`;
-- `contains_personal_data`;
-- `contains_sensitive_data`;
 - `access_grant_status`.
 
 Unsupported fields should continue to be rejected rather than interpreted
-implicitly. Any richer matching semantics, such as list matching across
-multiple sources, should be designed and tested before use in enforcement mode.
+implicitly. Caller-supplied classifications and personal/sensitive-data flags
+are declared context only; they are not verified Source/Data Usage Profile
+truth until inventory resolution is explicitly implemented.
 
 ## Evidence Bundle And Activity Connection
 

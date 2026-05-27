@@ -491,12 +491,19 @@ POLICY_RULE_RESPONSE = {
 }
 
 POLICY_RULE_UPDATE_REQUEST = {
-    "description": "Require review for support email in production.",
+    "description": "Deny declared confidential source vectorization.",
     "condition": (
-        '{"decision":"require_human_review",'
-        '"reason":"Production email tool use requires human review.",'
-        '"tool_name":"send_email",'
-        '"environment":"production"}'
+        '{"decision":"deny",'
+        '"reason":"Declared confidential vectorization is denied.",'
+        '"tool_name":"vectorize_source",'
+        '"action_type":"vectorize",'
+        f'"capability_id":"{CAPABILITY_ID}",'
+        f'"source_ids":["{SOURCE_ID}"],'
+        f'"model_id":"{MODEL_ASSET_ID}",'
+        '"purpose":"semantic_search_indexing",'
+        '"data_classification":"confidential",'
+        '"contains_personal_data":true,'
+        '"contains_sensitive_data":false}'
     ),
 }
 
@@ -617,6 +624,25 @@ RUNTIME_TOOL_CALL_DECISION_REQUEST = {
         "destination_type": "customer",
     },
     "mode": "simulation",
+}
+
+RUNTIME_CONTEXTUAL_TOOL_CALL_DECISION_REQUEST = {
+    **RUNTIME_TOOL_CALL_DECISION_REQUEST,
+    "request_id": "runtime-request-contextual-001",
+    "tool_name": "vectorize_source",
+    "action_summary": "Vectorize a governed source for semantic search.",
+    "action_type": "vectorize",
+    "capability_id": CAPABILITY_ID,
+    "source_ids": [SOURCE_ID],
+    "model_id": MODEL_ASSET_ID,
+    "purpose": "semantic_search_indexing",
+    "data_classification": "confidential",
+    "contains_personal_data": True,
+    "contains_sensitive_data": False,
+    "metadata": {
+        "ticket_category": "support",
+        "embedding_provider_type": "external",
+    },
 }
 
 RUNTIME_TOOL_CALL_DECISION_ALLOW_RESPONSE = {
@@ -764,6 +790,14 @@ RUNTIME_TOOL_CALL_ACTIVITY_RESPONSE = [
         "trace_event_id": RUNTIME_RESUME_TRACE_EVENT_ID,
         "policy_decision_id": POLICY_DECISION_ID,
         "human_approval_id": HUMAN_APPROVAL_ID,
+        "action_type": None,
+        "capability_id": None,
+        "source_ids": [],
+        "model_id": None,
+        "purpose": None,
+        "data_classification": None,
+        "contains_personal_data": None,
+        "contains_sensitive_data": None,
         "related_ids": {
             "trace_event_id": RUNTIME_RESUME_TRACE_EVENT_ID,
             "policy_decision_id": POLICY_DECISION_ID,
@@ -787,6 +821,14 @@ RUNTIME_TOOL_CALL_ACTIVITY_RESPONSE = [
         "trace_event_id": TRACE_EVENT_ID,
         "policy_decision_id": POLICY_DECISION_ID,
         "human_approval_id": HUMAN_APPROVAL_ID,
+        "action_type": "send_email",
+        "capability_id": CAPABILITY_ID,
+        "source_ids": [],
+        "model_id": None,
+        "purpose": "customer_support_follow_up",
+        "data_classification": "internal",
+        "contains_personal_data": True,
+        "contains_sensitive_data": False,
         "related_ids": {
             "trace_event_id": TRACE_EVENT_ID,
             "policy_decision_id": POLICY_DECISION_ID,
@@ -1187,6 +1229,10 @@ RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
                     "notApplicableDecision": _named_example(
                         "Simulate a tool call with no matching policy.",
                         RUNTIME_TOOL_CALL_DECISION_REQUEST,
+                    ),
+                    "contextualDecision": _named_example(
+                        "Simulate a contextual RAG/vectorization request.",
+                        RUNTIME_CONTEXTUAL_TOOL_CALL_DECISION_REQUEST,
                     ),
                     "unsupportedTelemetryMode": _named_example(
                         "Telemetry mode is not implemented on this endpoint.",

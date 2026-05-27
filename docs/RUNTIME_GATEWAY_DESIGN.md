@@ -109,7 +109,10 @@ Rules:
   authorization headers, private customer data, or raw tool payloads.
 - Caller-supplied classifications and personal/sensitive-data booleans are
   recorded as declared context only. They are not legal certification and are
-  not enforced until explicit contextual policy evaluation is added.
+  not verified Data Usage Profile truth. Active PolicyRules may match these
+  declared fields explicitly, but inventory resolution, pre-check execution,
+  AccessGrant enforcement, and Data Usage Profile enforcement are not automatic
+  yet.
 
 ### Response
 

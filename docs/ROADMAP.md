@@ -241,11 +241,13 @@ Important limitations:
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
-  context, but inventory resolution during runtime decisions, AccessGrant-aware
-  evaluation, and contextual policy rules are not implemented yet.
+  context, and deterministic PolicyRules can match those declared fields
+  explicitly. Inventory resolution during runtime decisions, AccessGrant-aware
+  evaluation, and Data Usage Profile enforcement are not implemented yet.
 - Data Usage Profile persistence, nested Source APIs, and safe Evidence Bundle
   summaries for granted Sources are implemented. Profile-aware Policy
-  Pre-Checks and runtime policy context are not implemented yet.
+  Pre-Checks and Data Usage Profile-aware runtime enforcement are not
+  implemented yet.
 - Policy Pre-Checks have CheckTool and CheckResult persistence plus internal
   metadata-only execution helpers and safe Evidence Bundle summaries only.
   PolicyCheckStep authoring, scanner adapters, and pre-check-aware runtime

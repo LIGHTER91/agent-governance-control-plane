@@ -179,7 +179,14 @@ Policy Management:
   no hard-delete endpoint.
 - PolicyRule conditions must be JSON objects using the deterministic condition
   shape already consumed by the evaluator: required `decision` and `reason`,
-  optional `agent_id`, `tool_name`, `environment`, and `risk_level`.
+  optional `agent_id`, `tool_name`, `environment`, `risk_level`,
+  `action_type`, `capability_id`, `source_id` or `source_ids`, `model_id`,
+  `purpose`, `data_classification`, `contains_personal_data`, and
+  `contains_sensitive_data`.
+- Contextual PolicyRule matching is deterministic field matching only. For
+  `source_ids`, a rule matches when any declared source ID overlaps the request
+  source IDs. Caller-supplied classification and personal/sensitive-data flags
+  are declared runtime context, not verified Data Usage Profile truth.
 - Versioning, generic policy-language work, and runtime behavior changes remain
   out of scope.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
@@ -222,7 +229,9 @@ Runtime Gateway:
   `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
   `data_classification`, `contains_personal_data`, and
   `contains_sensitive_data`. These are recorded as safe context for activity and
-  evidence only; they do not change policy evaluation or enforcement yet.
+  evidence, and active PolicyRules may match them explicitly. Inventory
+  resolution, Data Usage Profile enforcement, pre-check execution, and
+  AccessGrant enforcement are not automatic yet.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

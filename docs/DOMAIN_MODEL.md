@@ -515,7 +515,15 @@ Supported persisted `condition` shape for the first evaluator adapter:
   "agent_id": "optional-agent-id",
   "tool_name": "optional_tool_name",
   "environment": "development",
-  "risk_level": "low"
+  "risk_level": "low",
+  "action_type": "vectorize",
+  "capability_id": "12121212-1212-4121-8121-121212121212",
+  "source_ids": ["13131313-1313-4131-8131-131313131313"],
+  "model_id": "14141414-1414-4141-8141-141414141414",
+  "purpose": "semantic_search_indexing",
+  "data_classification": "confidential",
+  "contains_personal_data": true,
+  "contains_sensitive_data": false
 }
 ```
 
@@ -529,7 +537,24 @@ Optional matching fields:
 - `agent_id`;
 - `tool_name`;
 - `environment`: one of `development`, `staging`, or `production`;
-- `risk_level`: one of `low`, `medium`, `high`, or `critical`.
+- `risk_level`: one of `low`, `medium`, `high`, or `critical`;
+- `action_type`;
+- `capability_id`;
+- `source_id` or `source_ids`;
+- `model_id`;
+- `purpose`;
+- `data_classification`: one of `public`, `internal`, `confidential`, or
+  `restricted`;
+- `contains_personal_data`;
+- `contains_sensitive_data`.
+
+Contextual matching is still deterministic field matching, not a DSL. Missing
+or `null` optional fields are wildcards. A `source_id` condition matches any
+source ID in the Runtime Gateway request, and a `source_ids` condition matches
+when any declared source ID overlaps the request `source_ids`. Caller-supplied
+classification and personal/sensitive-data flags are declared context only;
+they are not treated as verified Data Usage Profile truth until inventory
+resolution and profile-aware enforcement are explicitly added.
 
 Unsupported condition fields must be rejected rather than interpreted implicitly.
 

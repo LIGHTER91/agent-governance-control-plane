@@ -687,11 +687,36 @@ def _evaluate_runtime_policy(
     rules = load_active_policy_evaluation_rules(session)
     return evaluate_policy(
         agent_context={"agent_id": payload.agent_id},
-        action_context={"tool_name": payload.tool_name},
+        action_context=_runtime_policy_action_context(payload),
         environment=agent.environment,
         risk_level=agent.risk_level,
         rules=rules,
     )
+
+
+def _runtime_policy_action_context(
+    payload: RuntimeToolCallDecisionRequest,
+) -> dict[str, object]:
+    context: dict[str, object] = {
+        "tool_name": payload.tool_name,
+    }
+    if payload.action_type is not None:
+        context["action_type"] = payload.action_type
+    if payload.capability_id is not None:
+        context["capability_id"] = payload.capability_id
+    if payload.source_ids:
+        context["source_ids"] = tuple(payload.source_ids)
+    if payload.model_id is not None:
+        context["model_id"] = payload.model_id
+    if payload.purpose is not None:
+        context["purpose"] = payload.purpose
+    if payload.data_classification is not None:
+        context["data_classification"] = payload.data_classification
+    if payload.contains_personal_data is not None:
+        context["contains_personal_data"] = payload.contains_personal_data
+    if payload.contains_sensitive_data is not None:
+        context["contains_sensitive_data"] = payload.contains_sensitive_data
+    return context
 
 
 def _persist_runtime_policy_decision(

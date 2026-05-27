@@ -182,6 +182,62 @@ def test_runtime_contextual_fields_are_accepted_and_safely_persisted(
     assert "prompt" not in str(trace_event.metadata_)
 
 
+def test_runtime_contextual_policy_rule_matches_request_context(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    capability_id = uuid4()
+    source_id = uuid4()
+    other_source_id = uuid4()
+    model_id = uuid4()
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="Declared confidential vectorization is denied.",
+        condition={
+            "decision": "deny",
+            "reason": "Declared confidential vectorization is denied.",
+            "tool_name": "vectorize_source",
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_id": str(source_id),
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+            "contains_sensitive_data": False,
+        },
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(other_source_id), str(source_id)],
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+            "contains_sensitive_data": False,
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Declared confidential vectorization is denied."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+
+
 def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -1864,6 +1920,7 @@ def create_policy_rule(
     reason: str,
     tool_name: str = "send_email",
     status: PolicyStatus = PolicyStatus.ACTIVE,
+    condition: dict[str, object] | None = None,
 ) -> tuple[UUID, UUID]:
     with session_factory() as session:
         policy = Policy(
@@ -1879,7 +1936,8 @@ def create_policy_rule(
             name="Tool access rule",
             description=None,
             condition=json.dumps(
-                {
+                condition
+                or {
                     "decision": decision.value,
                     "reason": reason,
                     "tool_name": tool_name,
