@@ -123,6 +123,54 @@ def test_runtime_decision_activity_appears_after_decision_request(
     }
 
 
+def test_runtime_decision_activity_exposes_safe_contextual_fields(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+    payload = runtime_decision_payload(
+        agent_id,
+        tool_name="vectorize_source",
+        action_summary="Vectorize a governed source for semantic search.",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(source_id)],
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+            "contains_sensitive_data": False,
+        }
+    )
+
+    decision_response = client.post("/runtime/tool-calls/decision", json=payload)
+    activity_response = client.get("/runtime/tool-calls/activity")
+
+    assert decision_response.status_code == 201
+    assert activity_response.status_code == 200
+    [activity] = activity_response.json()
+    assert activity["action_type"] == "vectorize"
+    assert activity["capability_id"] == str(capability_id)
+    assert activity["source_ids"] == [str(source_id)]
+    assert activity["model_id"] == str(model_id)
+    assert activity["purpose"] == "semantic_search_indexing"
+    assert activity["data_classification"] == "confidential"
+    assert activity["contains_personal_data"] is True
+    assert activity["contains_sensitive_data"] is False
+
+
 def test_runtime_review_decision_activity_links_to_human_approval(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -417,14 +465,16 @@ def runtime_decision_payload(
     *,
     run_id: UUID | None = None,
     request_id: str = "runtime-request-001",
+    action_summary: str = "Send a support follow-up email.",
+    tool_name: str = "send_email",
 ) -> dict[str, object]:
     return {
         "request_id": request_id,
         "agent_id": str(agent_id),
         "run_id": str(run_id or uuid4()),
         "correlation_id": "support-run-001",
-        "tool_name": "send_email",
-        "action_summary": "Send a support follow-up email.",
+        "tool_name": tool_name,
+        "action_summary": action_summary,
         "metadata": {"ticket_category": "support"},
         "mode": "simulation",
     }

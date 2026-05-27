@@ -674,7 +674,14 @@ Examples:
 - human_review_requested;
 - error;
 
-Trace event metadata must contain only safe, non-sensitive context. Do not store raw prompts, credentials, tokens, secrets, authorization headers, or raw sensitive payloads in telemetry metadata.
+Runtime TraceEvent metadata may include optional contextual references and
+labels such as action type, Capability ID, Source IDs, ModelAsset ID, purpose,
+declared data classification, and personal or sensitive data booleans. These
+values are evidence context only until explicit contextual policy evaluation is
+implemented. Trace event metadata must contain only safe, non-sensitive context.
+Do not store raw source content, chunks, prompts, credentials, tokens, secrets,
+authorization headers, scanner payloads, or raw sensitive payloads in telemetry
+metadata.
 
 ## Actor
 

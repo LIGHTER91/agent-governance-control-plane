@@ -2,11 +2,12 @@
 
 ## Status
 
-Design plus V0/V1 implementation. Request/response schemas, simulation mode,
-enforcement mode behind explicit configuration, resume checks, and a read-only
-runtime activity endpoint are implemented. Runtime Gateway enforcement is
-disabled by default with `AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mode
-for the runtime decision endpoint and production SDKs do not exist yet.
+Design plus V0/V1 implementation. Request/response schemas, optional
+contextual request fields, simulation mode, enforcement mode behind explicit
+configuration, resume checks, and a read-only runtime activity endpoint are
+implemented. Runtime Gateway enforcement is disabled by default with
+`AGCP_RUNTIME_ENFORCEMENT_ENABLED=false`. Telemetry mode for the runtime
+decision endpoint and production SDKs do not exist yet.
 Dependency-free adapter examples and a LangGraph adapter spike exist as
 documentation/examples only. Runtime and telemetry integration endpoints can
 resolve minimal config-based service actor API keys, enforce endpoint/action
@@ -98,10 +99,17 @@ Rules:
 - `tool_name` is required for governed tool call decisions.
 - `action_summary` must be short and safe for evidence review.
 - `mode` must be one of `telemetry`, `simulation`, or `enforcement`.
+- Optional contextual fields can carry safe references and labels:
+  `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
+  `data_classification`, `contains_personal_data`, and
+  `contains_sensitive_data`.
 - `metadata` must use the same safe metadata rules as telemetry and audit
   records.
 - The request must not include raw prompts, credentials, API keys, tokens,
   authorization headers, private customer data, or raw tool payloads.
+- Caller-supplied classifications and personal/sensitive-data booleans are
+  recorded as declared context only. They are not legal certification and are
+  not enforced until explicit contextual policy evaluation is added.
 
 ### Response
 
@@ -154,6 +162,14 @@ Safe fields include:
 - `request_id`;
 - `timestamp`;
 - `tool_name`;
+- `action_type`;
+- `capability_id`;
+- `source_ids`;
+- `model_id`;
+- `purpose`;
+- `data_classification`;
+- `contains_personal_data`;
+- `contains_sensitive_data`;
 - `mode`;
 - `decision`;
 - `proceed`;
@@ -175,12 +191,13 @@ agentic operations where `tool_name`, `environment`, and Agent `risk_level` are
 not enough.
 
 The design is documented in
-`docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`. It proposes optional future
-context fields such as `action_type`, `capability_id`, `source_ids`,
-`model_id`, `purpose`, `data_classification`,
-`contains_personal_data`, and `contains_sensitive_data`, plus safe metadata.
-The design is not implemented yet and does not change the current runtime
-request schema or enforcement behavior.
+`docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`. The first schema slice is now
+implemented: `POST /runtime/tool-calls/decision` accepts optional
+`action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
+`data_classification`, `contains_personal_data`, and
+`contains_sensitive_data` fields. These fields are persisted only as safe
+TraceEvent metadata and surfaced in Runtime activity/Evidence Bundle records
+where available. They do not change policy evaluation or enforcement behavior.
 
 Contextual runtime governance must continue to use references,
 classifications, booleans, and short safe summaries instead of raw source
@@ -389,7 +406,7 @@ Mitigations:
 7. Add a read-only runtime activity endpoint built from persisted records.
    Implemented.
 8. Add optional contextual runtime governance fields only after the design is
-   translated into a small backward-compatible schema change.
+   translated into a small backward-compatible schema change. Implemented.
 9. Add telemetry mode to the Runtime Gateway decision endpoint only if it proves
    useful beyond the existing `/telemetry/events` behavior.
 10. Add a small local integration example only after the endpoint behavior is
@@ -401,16 +418,14 @@ service boundary.
 
 ## Recommended Follow-up Issues
 
-1. Add optional contextual runtime request fields from the contextual runtime
-   governance design without changing existing clients.
-2. Extend the deterministic evaluator with a small explicit contextual rule
+1. Extend the deterministic evaluator with a small explicit contextual rule
    surface.
-3. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
-4. Add Policy and PolicyRule versioning design.
-5. Add HumanApproval notification design.
-6. Add production SDK or framework adapter only if explicitly requested after
+2. Add Runtime Gateway telemetry mode if it is useful beyond `/telemetry/events`.
+3. Add Policy and PolicyRule versioning design.
+4. Add HumanApproval notification design.
+5. Add production SDK or framework adapter only if explicitly requested after
    the examples and spike are proven.
-7. Add broader filtering or pagination to Runtime activity only after real
+6. Add broader filtering or pagination to Runtime activity only after real
    usage requires it.
 
 ## Open Questions

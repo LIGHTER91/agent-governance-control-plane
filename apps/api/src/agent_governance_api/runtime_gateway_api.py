@@ -134,6 +134,7 @@ def decide_runtime_tool_call(
         runtime_mode=payload.mode,
         tool_name=payload.tool_name,
         settings=settings,
+        session=session,
     )
 
     existing_event = _runtime_trace_event_for_request(session, payload)
@@ -283,6 +284,7 @@ def resume_runtime_tool_call(
         environment=agent.environment,
         runtime_mode=RESUME_FINE_GRAINED_RUNTIME_MODE,
         tool_name=payload.tool_name,
+        session=session,
     )
 
     approval = _human_approval_or_404(session, payload.human_approval_id)
@@ -857,7 +859,37 @@ def _human_approval_for_policy_decision(
 def _trace_event_metadata(
     payload: RuntimeToolCallDecisionRequest,
 ) -> dict[str, str | int | float | bool | None]:
-    return {**payload.metadata, "tool_name": payload.tool_name}
+    metadata: dict[str, str | int | float | bool | None] = {
+        **payload.metadata,
+        "tool_name": payload.tool_name,
+    }
+    metadata.update(_runtime_context_metadata(payload))
+    return metadata
+
+
+def _runtime_context_metadata(
+    payload: RuntimeToolCallDecisionRequest,
+) -> dict[str, str | int | float | bool | None]:
+    metadata: dict[str, str | int | float | bool | None] = {}
+    if payload.action_type is not None:
+        metadata["action_type"] = payload.action_type
+    if payload.capability_id is not None:
+        metadata["capability_id"] = str(payload.capability_id)
+    if payload.source_ids:
+        metadata["source_ids"] = ",".join(
+            str(source_id) for source_id in payload.source_ids
+        )
+    if payload.model_id is not None:
+        metadata["model_id"] = str(payload.model_id)
+    if payload.purpose is not None:
+        metadata["purpose"] = payload.purpose
+    if payload.data_classification is not None:
+        metadata["data_classification"] = payload.data_classification.value
+    if payload.contains_personal_data is not None:
+        metadata["contains_personal_data"] = payload.contains_personal_data
+    if payload.contains_sensitive_data is not None:
+        metadata["contains_sensitive_data"] = payload.contains_sensitive_data
+    return metadata
 
 
 def _require_runtime_activity_reader(actor: ActorContext) -> None:

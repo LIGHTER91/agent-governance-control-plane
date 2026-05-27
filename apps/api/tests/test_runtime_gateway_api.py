@@ -37,6 +37,8 @@ from agent_governance_api.models import (
     ServiceActor,
     ServiceActorApiKey,
     ServiceActorApiKeyStatus,
+    ServiceActorScope,
+    ServiceActorScopeRule,
     ServiceActorStatus,
     TraceEventRecord,
     TraceEventType,
@@ -124,6 +126,60 @@ def test_runtime_simulation_with_allow_policy_returns_allow(
     assert policy_decision.rule_id == rule_id
     assert policy_decision.trace_event_id == trace_event.id
     assert fetch_human_approvals(session_factory) == []
+
+
+def test_runtime_contextual_fields_are_accepted_and_safely_persisted(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(source_id)],
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+            "contains_sensitive_data": False,
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["decision"] == "allow"
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_ == {
+        "ticket_category": "support",
+        "tool_name": "vectorize_source",
+        "action_type": "vectorize",
+        "capability_id": str(capability_id),
+        "source_ids": str(source_id),
+        "model_id": str(model_id),
+        "purpose": "semantic_search_indexing",
+        "data_classification": "confidential",
+        "contains_personal_data": True,
+        "contains_sensitive_data": False,
+    }
+    assert "raw_content" not in str(trace_event.metadata_)
+    assert "chunks" not in str(trace_event.metadata_)
+    assert "prompt" not in str(trace_event.metadata_)
 
 
 def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
@@ -356,6 +412,168 @@ def test_runtime_registry_service_api_key_without_decision_scope_is_rejected(
         "Service actor requires scope: runtime:decision."
     )
     assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_registry_scope_rule_allows_matching_context(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 201
+    assert len(fetch_trace_events(session_factory)) == 1
+    assert len(fetch_policy_decisions(session_factory)) == 1
+
+
+def test_runtime_registry_scope_rule_denies_non_matching_agent_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(uuid4())],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this agent."
+    )
+    assert SERVICE_API_KEY not in response.text
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_registry_scope_rule_denies_non_matching_environment_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory, environment=Environment.DEVELOPMENT)
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["staging"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this environment."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_registry_scope_rule_denies_non_matching_mode_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["enforcement"],
+            "tool_names": ["send_email"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, mode="simulation"),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this runtime mode."
+    )
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+
+
+def test_runtime_registry_scope_rule_denies_non_matching_tool_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    configure_service_actor_registry_api_key(
+        monkeypatch,
+        session_factory,
+        require_auth=True,
+        scope_rule={
+            "agent_ids": [str(agent_id)],
+            "environments": ["development"],
+            "runtime_modes": ["simulation"],
+            "tool_names": ["send_payment"],
+        },
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, tool_name="send_email"),
+        headers={"X-AGCP-API-Key": SERVICE_API_KEY},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Service actor is not permitted for this tool name."
+    )
     assert fetch_agent_runs(session_factory) == []
     assert fetch_trace_events(session_factory) == []
     assert fetch_policy_decisions(session_factory) == []
@@ -1142,6 +1360,26 @@ def test_runtime_request_unsafe_metadata_is_rejected(
     assert fetch_human_approval_audit_logs(session_factory) == []
 
 
+@pytest.mark.parametrize("metadata_key", ["raw_content", "chunks", "prompt"])
+def test_runtime_request_rejects_raw_context_payload_metadata_without_records(
+    api_client: tuple[TestClient, SessionFactory],
+    metadata_key: str,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    payload = runtime_decision_payload(agent_id)
+    payload["metadata"] = {metadata_key: "do-not-store"}
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 422
+    assert fetch_agent_runs(session_factory) == []
+    assert fetch_trace_events(session_factory) == []
+    assert fetch_policy_decisions(session_factory) == []
+    assert fetch_human_approvals(session_factory) == []
+    assert fetch_human_approval_audit_logs(session_factory) == []
+
+
 def test_runtime_unsafe_metadata_still_fails_closed_with_record_only_config(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,
@@ -1410,6 +1648,59 @@ def test_evidence_bundle_includes_runtime_trace_event_and_policy_decision(
     assert policy_decision["decision"] == "deny"
     assert policy_decision["policy"]
     assert policy_decision["rule"]
+
+
+def test_evidence_bundle_includes_safe_runtime_context_metadata(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="The contextual action is denied.",
+        tool_name="vectorize_source",
+    )
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(source_id)],
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "restricted",
+            "contains_personal_data": True,
+            "contains_sensitive_data": True,
+        }
+    )
+
+    runtime_response = client.post("/runtime/tool-calls/decision", json=payload)
+    set_evidence_export_actor()
+    bundle_response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert runtime_response.status_code == 201
+    assert bundle_response.status_code == 200
+    [trace_event] = bundle_response.json()["trace_events"]
+    assert trace_event["metadata"] == {
+        "ticket_category": "support",
+        "tool_name": "vectorize_source",
+        "action_type": "vectorize",
+        "capability_id": str(capability_id),
+        "source_ids": str(source_id),
+        "model_id": str(model_id),
+        "purpose": "semantic_search_indexing",
+        "data_classification": "restricted",
+        "contains_personal_data": True,
+        "contains_sensitive_data": True,
+    }
 
 
 def test_evidence_bundle_includes_runtime_review_evidence_chain(
@@ -1697,6 +1988,8 @@ def configure_service_actor_registry_api_key(
     *,
     scopes: tuple[str, ...] = ("runtime:decision",),
     require_auth: bool = False,
+    scope_rule: dict[str, object] | None = None,
+    include_scope_rule: bool = True,
     actor_status: ServiceActorStatus = ServiceActorStatus.ACTIVE,
     key_status: ServiceActorApiKeyStatus = ServiceActorApiKeyStatus.ACTIVE,
 ) -> None:
@@ -1714,26 +2007,32 @@ def configure_service_actor_registry_api_key(
         )
         session.add(actor)
         session.add(api_key)
+        for scope in scopes:
+            session.add(
+                ServiceActorScope(
+                    service_actor=actor,
+                    scope=scope,
+                )
+            )
+        if include_scope_rule:
+            rule = scope_rule or {
+                "agent_ids": ["*"],
+                "environments": ["*"],
+                "runtime_modes": ["*"],
+                "tool_names": ["*"],
+            }
+            session.add(
+                ServiceActorScopeRule(
+                    service_actor=actor,
+                    agent_ids=rule.get("agent_ids", []),
+                    environments=rule.get("environments", []),
+                    runtime_modes=rule.get("runtime_modes", []),
+                    tool_names=rule.get("tool_names", []),
+                )
+            )
         session.commit()
 
     monkeypatch.setenv("AGCP_SERVICE_ACTOR_REGISTRY_ENABLED", "true")
-    monkeypatch.setenv(
-        "AGCP_SERVICE_ACTOR_SCOPES",
-        f"{SERVICE_ACTOR_ID}={','.join(scopes)}",
-    )
-    monkeypatch.setenv(
-        "AGCP_SERVICE_ACTOR_SCOPE_RULES",
-        json.dumps(
-            {
-                SERVICE_ACTOR_ID: {
-                    "agent_ids": ["*"],
-                    "environments": ["*"],
-                    "runtime_modes": ["*"],
-                    "tool_names": ["*"],
-                }
-            }
-        ),
-    )
     if require_auth:
         monkeypatch.setenv("AGCP_REQUIRE_SERVICE_AUTH", "true")
     get_settings.cache_clear()

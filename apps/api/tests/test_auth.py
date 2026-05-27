@@ -32,10 +32,14 @@ from agent_governance_api.models import (
     Environment,
     ServiceActor,
     ServiceActorApiKeyStatus,
+    ServiceActorScope,
     ServiceActorStatus,
 )
 from agent_governance_api.models import (
     ServiceActorApiKey as ServiceActorApiKeyRecord,
+)
+from agent_governance_api.models import (
+    ServiceActorScopeRule as ServiceActorScopeRuleRecord,
 )
 
 
@@ -217,16 +221,12 @@ def test_config_service_actor_auth_is_unchanged_when_registry_disabled(
 def test_registry_active_key_authenticates_when_enabled(
     registry_session: Session,
 ) -> None:
-    add_registry_service_actor_key(registry_session, raw_key="registry-active-key")
-    settings = Settings(
-        service_actor_registry_enabled=True,
-        service_actor_scopes=(
-            ServiceActorScopes(
-                actor_id="service:registry-test",
-                scopes=("runtime:decision",),
-            ),
-        ),
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-active-key",
+        scopes=("runtime:decision",),
     )
+    settings = Settings(service_actor_registry_enabled=True)
 
     actor = service_actor_from_api_key(
         "registry-active-key",
@@ -249,16 +249,9 @@ def test_registry_retiring_non_expired_key_authenticates(
         raw_key="registry-retiring-key",
         key_status=ServiceActorApiKeyStatus.RETIRING,
         grace_expires_at=now + timedelta(hours=1),
+        scopes=("runtime:decision",),
     )
-    settings = Settings(
-        service_actor_registry_enabled=True,
-        service_actor_scopes=(
-            ServiceActorScopes(
-                actor_id="service:registry-test",
-                scopes=("runtime:decision",),
-            ),
-        ),
-    )
+    settings = Settings(service_actor_registry_enabled=True)
 
     actor = service_actor_from_api_key(
         "registry-retiring-key",
@@ -331,7 +324,11 @@ def test_registry_disabled_service_actor_is_rejected(
 def test_registry_actor_without_configured_scope_is_rejected_by_scope_check(
     registry_session: Session,
 ) -> None:
-    add_registry_service_actor_key(registry_session, raw_key="registry-no-scope-key")
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-no-scope-key",
+        scopes=(),
+    )
     settings = Settings(service_actor_registry_enabled=True)
 
     actor = service_actor_from_api_key(
@@ -347,6 +344,103 @@ def test_registry_actor_without_configured_scope_is_rejected_by_scope_check(
 
     assert exc_info.value.status_code == 403
     assert exc_info.value.detail == "Service actor requires scope: runtime:decision."
+
+
+def test_registry_actor_ignores_config_scopes_when_registry_enabled(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-scope-source-key",
+        scopes=("telemetry:write",),
+    )
+    settings = Settings(
+        service_actor_registry_enabled=True,
+        service_actor_scopes=(
+            ServiceActorScopes(
+                actor_id="service:registry-test",
+                scopes=("runtime:decision",),
+            ),
+        ),
+    )
+
+    actor = service_actor_from_api_key(
+        "registry-scope-source-key",
+        settings=settings,
+        session=registry_session,
+    )
+
+    assert actor is not None
+    assert actor.roles == ("telemetry:write",)
+    assert has_scope(actor, "telemetry:write") is True
+    assert has_scope(actor, "runtime:decision") is False
+
+
+def test_registry_fine_grained_scope_allows_matching_rule(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-rule-key",
+        scopes=("runtime:decision",),
+        scope_rules=(
+            {
+                "agent_ids": ["11111111-1111-4111-8111-111111111111"],
+                "environments": ["development"],
+                "runtime_modes": ["simulation"],
+                "tool_names": ["send_email"],
+            },
+        ),
+    )
+    settings = Settings(service_actor_registry_enabled=True, require_service_auth=True)
+    actor = service_actor_from_api_key(
+        "registry-rule-key",
+        settings=settings,
+        session=registry_session,
+    )
+    assert actor is not None
+
+    require_service_actor_fine_grained_scope(
+        actor,
+        agent_id="11111111-1111-4111-8111-111111111111",
+        environment=Environment.DEVELOPMENT,
+        runtime_mode="simulation",
+        tool_name="send_email",
+        settings=settings,
+        session=registry_session,
+    )
+
+
+def test_registry_fine_grained_scope_rejects_missing_rule(
+    registry_session: Session,
+) -> None:
+    add_registry_service_actor_key(
+        registry_session,
+        raw_key="registry-missing-rule-key",
+        scopes=("runtime:decision",),
+        scope_rules=(),
+    )
+    settings = Settings(service_actor_registry_enabled=True, require_service_auth=True)
+    actor = service_actor_from_api_key(
+        "registry-missing-rule-key",
+        settings=settings,
+        session=registry_session,
+    )
+    assert actor is not None
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_service_actor_fine_grained_scope(
+            actor,
+            agent_id="11111111-1111-4111-8111-111111111111",
+            environment=Environment.DEVELOPMENT,
+            runtime_mode="simulation",
+            tool_name="send_email",
+            settings=settings,
+            session=registry_session,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Service actor requires a fine-grained scope rule."
 
 
 def test_require_scope_rejects_service_actor_without_scope() -> None:
@@ -460,6 +554,8 @@ def add_registry_service_actor_key(
     key_status: ServiceActorApiKeyStatus = ServiceActorApiKeyStatus.ACTIVE,
     expires_at: datetime | None = None,
     grace_expires_at: datetime | None = None,
+    scopes: tuple[str, ...] = (),
+    scope_rules: tuple[dict[str, object], ...] = (),
 ) -> None:
     actor = ServiceActor(
         actor_id=actor_id,
@@ -476,4 +572,21 @@ def add_registry_service_actor_key(
     )
     session.add(actor)
     session.add(api_key)
+    for scope in scopes:
+        session.add(
+            ServiceActorScope(
+                service_actor=actor,
+                scope=scope,
+            )
+        )
+    for rule in scope_rules:
+        session.add(
+            ServiceActorScopeRuleRecord(
+                service_actor=actor,
+                agent_ids=rule.get("agent_ids", []),
+                environments=rule.get("environments", []),
+                runtime_modes=rule.get("runtime_modes", []),
+                tool_names=rule.get("tool_names", []),
+            )
+        )
     session.commit()

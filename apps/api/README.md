@@ -218,11 +218,21 @@ Runtime Gateway:
 - `GET /runtime/tool-calls/activity` returns read-only Runtime Gateway tool-call activity sorted newest first from persisted trace, policy decision, and human approval links.
 - Older or shared `tool_call_requested` records without a persisted runtime mode return `mode = null`.
 - `POST /runtime/tool-calls/decision` accepts governed tool-call decision requests.
+- Decision requests may include optional contextual fields:
+  `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
+  `data_classification`, `contains_personal_data`, and
+  `contains_sensitive_data`. These are recorded as safe context for activity and
+  evidence only; they do not change policy evaluation or enforcement yet.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.
 - The gateway never executes tools. The calling wrapper or adapter must enforce the returned `proceed` value.
 - `mode = "telemetry"` is not implemented on the runtime endpoint; use `POST /telemetry/events` for telemetry ingestion.
+- Runtime metadata rejects unsafe key names such as `api_key`, `token`,
+  `password`, `secret`, `authorization`, `raw_content`, `chunks`, and `prompt`.
+  Send stable references and short labels instead of raw source contents,
+  document chunks, prompts, scanner payloads, credentials, or provider/tool
+  payloads.
 
 Service actor API keys:
 

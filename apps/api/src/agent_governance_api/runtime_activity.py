@@ -9,6 +9,7 @@ from agent_governance_api.metadata_safety import (
 )
 from agent_governance_api.models import (
     AgentRunRecord,
+    DataUsageClassification,
     HumanApproval,
     PolicyDecision,
     PolicyDecisionValue,
@@ -16,6 +17,7 @@ from agent_governance_api.models import (
     TraceEventType,
 )
 from agent_governance_api.runtime_gateway import (
+    CONTEXT_LABEL_PATTERN,
     RuntimeDecisionMode,
     RuntimeToolCallActivityItem,
     RuntimeToolCallActivityType,
@@ -104,6 +106,23 @@ def _runtime_decision_activity_item(
             policy_decision.id if policy_decision is not None else None
         ),
         human_approval_id=human_approval.id if human_approval is not None else None,
+        action_type=_metadata_context_label(safe_metadata, "action_type"),
+        capability_id=_metadata_uuid(safe_metadata, "capability_id"),
+        source_ids=_metadata_uuid_list(safe_metadata, "source_ids"),
+        model_id=_metadata_uuid(safe_metadata, "model_id"),
+        purpose=_metadata_context_label(safe_metadata, "purpose"),
+        data_classification=_metadata_data_classification(
+            safe_metadata,
+            "data_classification",
+        ),
+        contains_personal_data=_metadata_bool_or_none(
+            safe_metadata,
+            "contains_personal_data",
+        ),
+        contains_sensitive_data=_metadata_bool_or_none(
+            safe_metadata,
+            "contains_sensitive_data",
+        ),
         related_ids=_related_ids(
             trace_event_id=trace_event.id,
             policy_decision_id=(
@@ -203,6 +222,16 @@ def _metadata_str(metadata: dict[str, object], key: str) -> str | None:
     return None
 
 
+def _metadata_context_label(metadata: dict[str, object], key: str) -> str | None:
+    value = _metadata_str(metadata, key)
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not CONTEXT_LABEL_PATTERN.fullmatch(normalized):
+        return None
+    return normalized
+
+
 def _metadata_bool_or_none(metadata: dict[str, object], key: str) -> bool | None:
     value = metadata.get(key)
     if isinstance(value, bool):
@@ -218,6 +247,36 @@ def _metadata_uuid(metadata: dict[str, object], key: str) -> UUID | None:
         return None
     try:
         return UUID(value)
+    except ValueError:
+        return None
+
+
+def _metadata_uuid_list(metadata: dict[str, object], key: str) -> list[UUID]:
+    value = metadata.get(key)
+    if not isinstance(value, str):
+        return []
+
+    parsed_values: list[UUID] = []
+    for item in value.split(","):
+        candidate = item.strip()
+        if not candidate:
+            continue
+        try:
+            parsed_values.append(UUID(candidate))
+        except ValueError:
+            return []
+    return parsed_values
+
+
+def _metadata_data_classification(
+    metadata: dict[str, object],
+    key: str,
+) -> DataUsageClassification | None:
+    value = metadata.get(key)
+    if not isinstance(value, str):
+        return None
+    try:
+        return DataUsageClassification(value)
     except ValueError:
         return None
 

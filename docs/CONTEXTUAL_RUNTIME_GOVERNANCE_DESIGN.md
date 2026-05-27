@@ -113,9 +113,9 @@ not match the grant or policy. For example, a grant may allow
 
 ## Proposed Runtime Context Fields
 
-These fields are a proposed future extension to the runtime request context.
-They should be introduced as optional fields first so existing Runtime Gateway
-clients continue to work.
+These fields are the contextual extension to the runtime request context. The
+first implementation slice introduces the core fields as optional values so
+existing Runtime Gateway clients continue to work.
 
 | Field | Purpose | Notes |
 | --- | --- | --- |
@@ -308,14 +308,18 @@ reviewed in the source system.
 
 Recommended staged implementation:
 
-1. Design the contextual runtime schema and document accepted values.
-2. Add Data Usage Profile persistence for Source governance context.
+1. Design the contextual runtime schema and document accepted values. Done.
+2. Add Data Usage Profile persistence for Source governance context. Done.
 3. Add Policy Pre-Checks for metadata-only control checks that can produce safe
-   CheckResults.
-4. Add optional contextual fields to the runtime request schema.
-5. Persist only safe context metadata and references on runtime records.
+   CheckResults. Initial persistence and helpers are done.
+4. Add optional contextual fields to the runtime request schema. Done for
+   `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
+   `data_classification`, `contains_personal_data`, and
+   `contains_sensitive_data`.
+5. Persist only safe context metadata and references on runtime records. Done
+   for the optional request fields, without inventory resolution.
 6. Update Runtime activity and Evidence Bundle export with safe contextual
-   references.
+   references. Done where values are present on TraceEvent metadata.
 7. Extend the deterministic policy evaluator with a small, explicit set of
    contextual fields.
 8. Add policy templates for common governance cases such as external

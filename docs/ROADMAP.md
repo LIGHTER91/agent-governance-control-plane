@@ -64,9 +64,11 @@ runbooks are still missing.
 
 Contextual runtime governance now has a design path for future decisions that
 need Agent, Action, Source, data classification, ModelAsset, provider,
-Capability, purpose, environment, AccessGrant, and Approval context. This is
-design-only; runtime request schemas, policy evaluation, and enforcement
-behavior still use the current implemented contract.
+Capability, purpose, environment, AccessGrant, and Approval context. The first
+schema slice is implemented as optional runtime request fields and safe
+TraceEvent metadata. Policy evaluation, inventory resolution, pre-check
+execution, and enforcement behavior still use the existing deterministic
+contract.
 
 Source Data Usage Profile now has a first backend foundation for Source-side
 governance metadata needed by contextual runtime decisions, including
@@ -210,6 +212,8 @@ Completed capabilities:
 - Runtime resume TraceEventRecord and AuditLog evidence.
 - OpenAPI examples for Runtime Gateway resume responses.
 - Read-only `GET /runtime/tool-calls/activity` endpoint sorted newest first.
+- Optional contextual runtime request fields for safe Action, Capability,
+  Source, ModelAsset, purpose, classification, and sensitivity context.
 - Minimal Python runtime wrapper example.
 - Generic runtime adapter example with retry, idempotency, and resume handling.
 - Runtime Gateway enforcement mode design.
@@ -236,8 +240,8 @@ Important limitations:
   key rotation, and broad user RBAC are not implemented.
 - Policy versioning is not implemented.
 - Runtime failure policy is global and minimal.
-- Contextual runtime governance has a design only. Optional contextual request
-  fields, inventory resolution during runtime decisions, AccessGrant-aware
+- Optional contextual request fields are accepted and recorded as safe runtime
+  context, but inventory resolution during runtime decisions, AccessGrant-aware
   evaluation, and contextual policy rules are not implemented yet.
 - Data Usage Profile persistence, nested Source APIs, and safe Evidence Bundle
   summaries for granted Sources are implemented. Profile-aware Policy
@@ -315,13 +319,14 @@ Completed foundation:
 - Metadata-only Policy Pre-Check execution helpers for AccessGrant, Data Usage
   Profile, Source, Capability, and ModelAsset status.
 - Safe CheckResult summaries in Evidence Bundle export.
+- Optional contextual runtime request fields from
+  `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`, recorded as safe TraceEvent
+  context without changing policy evaluation.
 
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
-- Add optional contextual runtime request fields from
-  `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
-  Runtime Gateway clients.
+- Extend deterministic PolicyRule matching with explicit contextual fields.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Add focused AccessGrant and inventory review workflows where they support

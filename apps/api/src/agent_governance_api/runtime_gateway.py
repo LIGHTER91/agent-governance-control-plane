@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from enum import StrEnum
 from typing import Self
@@ -9,7 +10,14 @@ from agent_governance_api.metadata_safety import (
     SafeMetadata,
     reject_unsafe_metadata_keys,
 )
-from agent_governance_api.models import HumanApprovalStatus, PolicyDecisionValue
+from agent_governance_api.models import (
+    DataUsageClassification,
+    HumanApprovalStatus,
+    PolicyDecisionValue,
+)
+
+CONTEXT_LABEL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+MAX_RUNTIME_SOURCE_IDS = 50
 
 
 class RuntimeDecisionMode(StrEnum):
@@ -34,11 +42,36 @@ class RuntimeToolCallDecisionRequest(BaseModel):
     action_summary: str
     metadata: SafeMetadata = Field(default_factory=dict)
     mode: RuntimeDecisionMode
+    action_type: str | None = None
+    capability_id: UUID | None = None
+    source_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=MAX_RUNTIME_SOURCE_IDS,
+    )
+    model_id: UUID | None = None
+    purpose: str | None = None
+    data_classification: DataUsageClassification | None = None
+    contains_personal_data: bool | None = None
+    contains_sensitive_data: bool | None = None
 
     @field_validator("request_id", "correlation_id", "tool_name", "action_summary")
     @classmethod
     def require_non_empty_text(cls, value: str) -> str:
         return _require_non_empty_text(value)
+
+    @field_validator("action_type", "purpose")
+    @classmethod
+    def require_safe_context_label(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _require_safe_context_label(value)
+
+    @field_validator("source_ids")
+    @classmethod
+    def reject_duplicate_source_ids(cls, value: list[UUID]) -> list[UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("source_ids must not contain duplicate values.")
+        return value
 
     @field_validator("metadata")
     @classmethod
@@ -176,9 +209,17 @@ class RuntimeToolCallActivityItem(BaseModel):
     trace_event_id: UUID
     policy_decision_id: UUID | None = None
     human_approval_id: UUID | None = None
+    action_type: str | None = None
+    capability_id: UUID | None = None
+    source_ids: list[UUID] = Field(default_factory=list)
+    model_id: UUID | None = None
+    purpose: str | None = None
+    data_classification: DataUsageClassification | None = None
+    contains_personal_data: bool | None = None
+    contains_sensitive_data: bool | None = None
     related_ids: dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("request_id", "tool_name", "reason")
+    @field_validator("request_id", "tool_name", "reason", "action_type", "purpose")
     @classmethod
     def require_optional_non_empty_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -190,3 +231,15 @@ def _require_non_empty_text(value: str) -> str:
     if not value.strip():
         raise ValueError("Value must not be empty.")
     return value
+
+
+def _require_safe_context_label(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Value must not be empty.")
+    if not CONTEXT_LABEL_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            "Context labels may contain only letters, numbers, underscores, "
+            "hyphens, periods, and colons."
+        )
+    return normalized

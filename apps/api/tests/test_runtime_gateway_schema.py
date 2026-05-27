@@ -34,6 +34,66 @@ def test_valid_runtime_tool_call_decision_request() -> None:
     assert request.tool_name == "send_email"
     assert request.metadata == {"ticket_category": "support"}
     assert request.mode is RuntimeDecisionMode.SIMULATION
+    assert request.source_ids == []
+
+
+def test_runtime_request_accepts_optional_contextual_fields() -> None:
+    payload = runtime_request_payload()
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(source_id)],
+            "model_id": str(model_id),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+            "contains_sensitive_data": False,
+        }
+    )
+
+    request = RuntimeToolCallDecisionRequest(**payload)
+
+    assert request.action_type == "vectorize"
+    assert request.capability_id == capability_id
+    assert request.source_ids == [source_id]
+    assert request.model_id == model_id
+    assert request.purpose == "semantic_search_indexing"
+    assert request.data_classification == "confidential"
+    assert request.contains_personal_data is True
+    assert request.contains_sensitive_data is False
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("action_type", " "),
+        ("action_type", "vectorize this entire prompt"),
+        ("purpose", " "),
+        ("purpose", "customer support answering"),
+    ],
+)
+def test_runtime_request_rejects_invalid_contextual_labels(
+    field: str,
+    value: str,
+) -> None:
+    payload = runtime_request_payload()
+    payload[field] = value
+
+    with pytest.raises(ValidationError):
+        RuntimeToolCallDecisionRequest(**payload)
+
+
+def test_runtime_request_rejects_duplicate_contextual_source_ids() -> None:
+    source_id = str(uuid4())
+    payload = runtime_request_payload()
+    payload["source_ids"] = [source_id, source_id]
+
+    with pytest.raises(ValidationError):
+        RuntimeToolCallDecisionRequest(**payload)
 
 
 def test_valid_runtime_tool_call_decision_response() -> None:
@@ -79,6 +139,9 @@ def test_runtime_request_rejects_missing_required_fields(missing_field: str) -> 
         {"password": "redacted"},
         {"client_secret": "redacted"},
         {"authorization": "Bearer redacted"},
+        {"raw_content": "do not store this"},
+        {"chunks": "do not store this"},
+        {"prompt": "do not store this"},
         {"raw_prompt": "do not store this"},
         {"raw_payload": "do not store this"},
     ],

@@ -150,6 +150,7 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
         "denyDecision",
         "requireHumanReviewDecision",
         "notApplicableDecision",
+        "contextualDecision",
         "unsupportedTelemetryMode",
         "disabledEnforcementMode",
     }
@@ -169,6 +170,11 @@ def test_runtime_gateway_openapi_examples_cover_simulation_decisions(
         "ticket_category": "support",
         "destination_type": "customer",
     }
+    contextual_request = request_examples["contextualDecision"]["value"]
+    assert contextual_request["action_type"] == "vectorize"
+    assert contextual_request["source_ids"]
+    assert contextual_request["purpose"] == "semantic_search_indexing"
+    assert contextual_request["data_classification"] == "confidential"
     assert request_examples["unsupportedTelemetryMode"]["value"]["mode"] == "telemetry"
     assert request_examples["disabledEnforcementMode"]["value"]["mode"] == "enforcement"
 
@@ -281,7 +287,12 @@ def test_runtime_gateway_activity_openapi_example_is_newest_first(
     resume_item = activity[0]
     assert resume_item["request_id"] == "runtime-request-001:resume:001"
     assert resume_item.get("mode") is None
+    assert resume_item["source_ids"] == []
     assert resume_item["related_ids"]["original_request_id"] == "runtime-request-001"
+    decision_item = activity[1]
+    assert decision_item["action_type"] == "send_email"
+    assert decision_item["capability_id"]
+    assert decision_item["purpose"] == "customer_support_follow_up"
 
 
 def test_agent_access_grants_openapi_example_is_newest_first(
