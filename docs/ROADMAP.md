@@ -153,6 +153,8 @@ Completed capabilities:
   HumanApproval, and related AuditLog.
 - Evidence Bundle coverage for Agent-scoped Access Grants and safe Capability,
   Source, and ModelAsset references.
+- Evidence Bundle coverage for safe CheckResult summaries linked through
+  PolicyDecisions or Agent-scoped pre-check records.
 - Metadata safety filtering for telemetry, audit, and evidence export.
 - OpenAPI examples for core backend endpoints.
 - Executable V0 governance flow demo.
@@ -241,8 +243,8 @@ Important limitations:
   summaries for granted Sources are implemented. Profile-aware Policy
   Pre-Checks and runtime policy context are not implemented yet.
 - Policy Pre-Checks have CheckTool and CheckResult persistence plus internal
-  metadata-only execution helpers only. PolicyCheckStep authoring, scanner
-  adapters, Evidence Bundle CheckResult summaries, and pre-check-aware runtime
+  metadata-only execution helpers and safe Evidence Bundle summaries only.
+  PolicyCheckStep authoring, scanner adapters, and pre-check-aware runtime
   decisions are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
@@ -312,12 +314,11 @@ Completed foundation:
   CheckResult records.
 - Metadata-only Policy Pre-Check execution helpers for AccessGrant, Data Usage
   Profile, Source, Capability, and ModelAsset status.
+- Safe CheckResult summaries in Evidence Bundle export.
 
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
-- Add safe CheckResult summaries to Evidence Bundle export when they support a
-  PolicyDecision.
 - Add optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md` without breaking existing
   Runtime Gateway clients.

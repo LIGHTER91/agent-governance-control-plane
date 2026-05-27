@@ -3,7 +3,10 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from agent_governance_api.metadata_safety import filter_safe_metadata
+from agent_governance_api.metadata_safety import (
+    filter_safe_metadata,
+    redact_sensitive_text,
+)
 from agent_governance_api.models import (
     AccessGrant,
     AccessGrantSubjectType,
@@ -12,6 +15,8 @@ from agent_governance_api.models import (
     AgentRunRecord,
     AuditLog,
     Capability,
+    CheckResult,
+    CheckTool,
     DataSource,
     DataUsageProfile,
     HumanApproval,
@@ -28,6 +33,7 @@ from agent_governance_api.schemas import (
     EvidenceAuditLogRead,
     EvidenceBundleRead,
     EvidenceCapabilityReferenceRead,
+    EvidenceCheckResultRead,
     EvidenceDataUsageProfileRead,
     EvidenceHumanApprovalRead,
     EvidenceModelAssetReferenceRead,
@@ -60,6 +66,11 @@ def build_agent_evidence_bundle(
     source_references = _load_source_references(session, access_grants)
     data_usage_profiles = _load_data_usage_profiles(session, access_grants)
     model_asset_references = _load_model_asset_references(session, access_grants)
+    check_results = _load_check_results(
+        session,
+        agent_id=agent.id,
+        policy_decisions=policy_decisions,
+    )
 
     return EvidenceBundleRead(
         agent=AgentRead.model_validate(agent),
@@ -96,6 +107,10 @@ def build_agent_evidence_bundle(
         model_asset_references=[
             _model_asset_reference_response(model_asset)
             for model_asset in model_asset_references
+        ],
+        check_results=[
+            _check_result_response(check_result, check_tool=check_tool)
+            for check_result, check_tool in check_results
         ],
     )
 
@@ -241,6 +256,36 @@ def _load_data_usage_profiles(
         .order_by(DataUsageProfile.created_at, DataUsageProfile.id)
     )
     return list(session.scalars(statement).all())
+
+
+def _load_check_results(
+    session: Session,
+    *,
+    agent_id: UUID,
+    policy_decisions: list[PolicyDecision],
+) -> list[tuple[CheckResult, CheckTool | None]]:
+    policy_decision_ids = {policy_decision.id for policy_decision in policy_decisions}
+    related_conditions = [
+        and_(
+            CheckResult.policy_decision_id.is_(None),
+            CheckResult.agent_id == agent_id,
+        )
+    ]
+    if policy_decision_ids:
+        related_conditions.append(
+            CheckResult.policy_decision_id.in_(policy_decision_ids)
+        )
+
+    statement = (
+        select(CheckResult, CheckTool)
+        .outerjoin(CheckTool, CheckResult.check_tool_id == CheckTool.id)
+        .where(or_(*related_conditions))
+        .order_by(CheckResult.created_at, CheckResult.id)
+    )
+    return [
+        (check_result, check_tool)
+        for check_result, check_tool in session.execute(statement).all()
+    ]
 
 
 def _target_ids(
@@ -508,4 +553,34 @@ def _model_asset_reference_response(
         metadata=filter_safe_metadata(model_asset.metadata_),
         created_at=model_asset.created_at,
         updated_at=model_asset.updated_at,
+    )
+
+
+def _check_result_response(
+    check_result: CheckResult,
+    *,
+    check_tool: CheckTool | None,
+) -> EvidenceCheckResultRead:
+    return EvidenceCheckResultRead(
+        check_result_id=check_result.id,
+        check_tool_id=check_result.check_tool_id,
+        check_tool_name=(
+            redact_sensitive_text(check_tool.name) if check_tool is not None else None
+        ),
+        check_tool_type=check_tool.tool_type if check_tool is not None else None,
+        outcome=check_result.outcome,
+        confidence=check_result.confidence,
+        summary=redact_sensitive_text(check_result.summary),
+        reason=(
+            redact_sensitive_text(check_result.reason)
+            if check_result.reason is not None
+            else None
+        ),
+        target_type=check_result.target_type,
+        target_id=check_result.target_id,
+        policy_decision_id=check_result.policy_decision_id,
+        trace_event_id=check_result.trace_event_id,
+        run_id=check_result.run_id,
+        created_at=check_result.created_at,
+        metadata=filter_safe_metadata(check_result.metadata_),
     )

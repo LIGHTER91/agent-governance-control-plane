@@ -357,8 +357,10 @@ should be documented per integration before production use.
 
 ## Evidence Bundle Implications
 
-Evidence Bundle export should include safe CheckResult summaries when they are
-part of a PolicyDecision chain.
+Evidence Bundle export includes safe CheckResult summaries when they are linked
+to a PolicyDecision in the Agent evidence chain. Agent-scoped CheckResults
+without a PolicyDecision link may also appear when they safely belong to the
+exported Agent.
 
 Safe fields may include:
 
@@ -375,6 +377,10 @@ Safe fields may include:
 Evidence Bundle export must not include raw source content, chunks, prompts,
 credentials, full scanner results, detected secret values, or raw external
 payloads.
+
+CheckResults in Evidence Bundle remain evidence inputs. They do not imply that
+pre-checks already drive Runtime Gateway enforcement, replace PolicyDecision,
+or certify legal compliance.
 
 ## Policy Authoring Implications
 
@@ -433,6 +439,7 @@ Recommended staged implementation:
 4. Support metadata-only checks first for Data Usage Profile, AccessGrant,
    ModelAsset, Capability, and Source status. Implemented as internal helpers.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.
+   Evidence Bundle export implemented for safe CheckResult summaries.
 6. Add explicit PolicyCheckStep support for a small set of PolicyRule or policy
    template use cases.
 7. Add async check handling and HumanApproval fallback behavior.

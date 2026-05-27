@@ -69,9 +69,10 @@ design for safe, auditable checks that can inform future contextual
 PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
 Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state.
 CheckTool and CheckResult persistence and internal execution helpers now exist
-as a backend foundation, but scanner adapters, public CRUD APIs, Evidence
-Bundle CheckResult summaries, PolicyRule schema changes, and runtime behavior
-remain unchanged. The frontend has a
+as a backend foundation, and Evidence Bundle export includes safe CheckResult
+summaries for PolicyDecision-linked or Agent-scoped records. Scanner adapters,
+public CRUD APIs, PolicyRule schema changes, and runtime behavior remain
+unchanged. The frontend has a
 minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -116,38 +117,35 @@ References:
 
 Recommended order:
 
-1. Add safe CheckResult summaries to Evidence Bundle export when they support a
-   PolicyDecision.
-2. Add optional contextual runtime request fields from the contextual runtime
+1. Add optional contextual runtime request fields from the contextual runtime
    governance design without breaking existing Runtime Gateway clients.
-3. Extend the deterministic evaluator with a small explicit contextual rule
+2. Extend the deterministic evaluator with a small explicit contextual rule
    surface when the request schema exists.
-4. Add Policy management UI for the existing Policy and PolicyRule APIs.
-5. Use Access Grants as optional policy context without replacing
+3. Add Policy management UI for the existing Policy and PolicyRule APIs.
+4. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-6. Add focused AccessGrant and inventory review workflows only where they
+5. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-7. Add Permission domain model only if AccessGrant target semantics prove
+6. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-8. Add frontend auth and role-aware UI later.
-9. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-10. Add OpenAPI examples for `GET /human-approvals` if missing.
-11. Design team and organization-unit ownership resolution for Evidence Bundle
+7. Add frontend auth and role-aware UI later.
+8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+9. Add OpenAPI examples for `GET /human-approvals` if missing.
+10. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-12. Add owner-based service actor scopes design.
-13. Add safe denied-scope audit events.
-14. Add admin management for persisted service actor scope and rule records.
-15. Implement service actor API key rotation and admin workflows after registry
+11. Add owner-based service actor scopes design.
+12. Add safe denied-scope audit events.
+13. Add admin management for persisted service actor scope and rule records.
+14. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-16. Add tests for overriding the Actor dependency with a non-development actor.
-17. Add deeper separation-of-duties checks for HumanApproval review.
-18. Add broad filtering and pagination for Runtime and Agent activity only
+15. Add tests for overriding the Actor dependency with a non-development actor.
+16. Add deeper separation-of-duties checks for HumanApproval review.
+17. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
-- [ ] Add safe CheckResult summaries to Evidence Bundle export.
 - [ ] Add optional contextual runtime request fields from the contextual runtime
       governance design.
 - [ ] Extend deterministic PolicyRule matching with explicit contextual fields.
@@ -326,6 +324,7 @@ credentials.
 - [x] Add safe Data Usage Profile summaries to Evidence Bundle export.
 - [x] Add metadata-only Policy Pre-Check persistence foundation.
 - [x] Add metadata-only Policy Pre-Check execution helpers.
+- [x] Add safe CheckResult summaries to Evidence Bundle export.
 
 ## Blocked
 

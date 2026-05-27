@@ -96,6 +96,7 @@ def test_openapi_examples_represent_v0_governance_chain(
     [source_reference] = evidence_bundle["source_references"]
     [data_usage_profile] = evidence_bundle["data_usage_profiles"]
     [model_asset_reference] = evidence_bundle["model_asset_references"]
+    [check_result] = evidence_bundle["check_results"]
     human_approval_audit_log = next(
         audit_log
         for audit_log in evidence_bundle["audit_logs"]
@@ -127,6 +128,10 @@ def test_openapi_examples_represent_v0_governance_chain(
         evidence_grants_by_type["model_asset"]["target_id"]
         == model_asset_reference["id"]
     )
+    assert check_result["policy_decision_id"] == policy_decision["id"]
+    assert check_result["trace_event_id"] == trace_event["id"]
+    assert check_result["target_id"] == data_usage_profile["id"]
+    assert check_result["outcome"] == "pass"
 
 
 def test_runtime_gateway_openapi_examples_cover_simulation_decisions(

@@ -156,8 +156,9 @@ Access Grant Inventory:
   Approval records.
 - Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
   Source, and ModelAsset references, and safe Data Usage Profile summaries for
-  granted Sources. It does not export source contents, credentials, or raw
-  payloads.
+  granted Sources. It also includes safe CheckResult summaries linked to the
+  Agent through PolicyDecisions or Agent-scoped pre-check records. It does not
+  export source contents, credentials, scanner payloads, or raw payloads.
 
 Policy Management:
 

@@ -24,6 +24,13 @@ from agent_governance_api.models import (
     Capability,
     CapabilityStatus,
     CapabilityType,
+    CheckResult,
+    CheckResultConfidence,
+    CheckResultOutcome,
+    CheckResultTargetType,
+    CheckTool,
+    CheckToolStatus,
+    CheckToolType,
     DataSource,
     DataSourceStatus,
     DataSourceType,
@@ -113,12 +120,14 @@ def test_successful_evidence_bundle_export(
         "source_references",
         "data_usage_profiles",
         "model_asset_references",
+        "check_results",
     }
     assert body["access_grants"] == []
     assert body["capability_references"] == []
     assert body["source_references"] == []
     assert body["data_usage_profiles"] == []
     assert body["model_asset_references"] == []
+    assert body["check_results"] == []
 
 
 def test_successful_evidence_bundle_export_creates_safe_audit_log(
@@ -151,6 +160,7 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
         "source_reference_count": 0,
         "data_usage_profile_count": 0,
         "model_asset_reference_count": 0,
+        "check_result_count": 0,
     }
     assert "agent_runs" not in audit_log.metadata_
     assert "trace_events" not in audit_log.metadata_
@@ -161,6 +171,7 @@ def test_successful_evidence_bundle_export_creates_safe_audit_log(
     assert "source_references" not in audit_log.metadata_
     assert "data_usage_profiles" not in audit_log.metadata_
     assert "model_asset_references" not in audit_log.metadata_
+    assert "check_results" not in audit_log.metadata_
     assert fetch_evidence_bundle_export_denied_audit_logs(session_factory) == []
 
 
@@ -440,6 +451,175 @@ def test_successful_evidence_bundle_export_audit_counts_data_usage_profiles(
     assert audit_log.metadata_["source_reference_count"] == 1
     assert audit_log.metadata_["data_usage_profile_count"] == 1
     assert "data_usage_profiles" not in audit_log.metadata_
+
+
+def test_evidence_bundle_includes_check_results_linked_to_policy_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    check_seed = seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=create_agent(
+            client,
+            agent_payload(name="Other support assistant"),
+        ),
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    check_results = response.json()["check_results"]
+    linked_result = next(
+        item
+        for item in check_results
+        if item["check_result_id"] == str(check_seed.linked_check_result_id)
+    )
+    assert linked_result["check_tool_id"] == str(check_seed.check_tool_id)
+    assert linked_result["check_tool_name"] == "data_usage_profile_checker"
+    assert linked_result["check_tool_type"] == "data_usage_profile_check"
+    assert linked_result["outcome"] == "pass"
+    assert linked_result["confidence"] == "high"
+    assert linked_result["summary"] == "Data Usage Profile is approved and current."
+    assert linked_result["reason"] == "Profile review is approved."
+    assert linked_result["target_type"] == "data_usage_profile"
+    assert linked_result["target_id"] == str(check_seed.target_id)
+    assert linked_result["policy_decision_id"] == str(seeded.policy_decision_id)
+    assert linked_result["trace_event_id"] == str(seeded.trace_event_id)
+    assert linked_result["run_id"] == str(seeded.run_id)
+    assert linked_result["metadata"] == {
+        "check_type": "data_usage_profile_status",
+        "review_status": "approved",
+    }
+
+
+def test_evidence_bundle_includes_agent_scoped_check_results_for_correct_agent(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    check_seed = seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=create_agent(
+            client,
+            agent_payload(name="Other support assistant"),
+        ),
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    check_result_ids = {
+        UUID(item["check_result_id"]) for item in response.json()["check_results"]
+    }
+    assert check_seed.agent_scoped_check_result_id in check_result_ids
+    assert check_seed.other_agent_check_result_id not in check_result_ids
+
+
+def test_evidence_bundle_excludes_unrelated_check_results_from_other_agents(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    other_agent_id = create_agent(
+        client,
+        agent_payload(name="Other support assistant"),
+    )
+    seeded = seed_evidence_records(session_factory, agent_id)
+    check_seed = seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=other_agent_id,
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+
+    response = client.get(f"/agents/{other_agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    check_result_ids = {
+        UUID(item["check_result_id"]) for item in response.json()["check_results"]
+    }
+    assert check_seed.other_agent_check_result_id in check_result_ids
+    assert check_seed.linked_check_result_id not in check_result_ids
+    assert check_seed.agent_scoped_check_result_id not in check_result_ids
+
+
+def test_evidence_bundle_filters_check_result_metadata(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    check_seed = seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=create_agent(
+            client,
+            agent_payload(name="Other support assistant"),
+        ),
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+    inject_unsafe_check_result_metadata(
+        session_factory,
+        check_result_id=check_seed.linked_check_result_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    linked_result = next(
+        item
+        for item in response.json()["check_results"]
+        if item["check_result_id"] == str(check_seed.linked_check_result_id)
+    )
+    assert linked_result["metadata"] == {
+        "check_type": "data_usage_profile_status",
+        "review_status": "approved",
+    }
+    assert "scanner_payload" not in response.text
+    assert "raw_payload" not in response.text
+    assert "api_key" not in str(linked_result["metadata"])
+    assert "do-not-export" not in response.text
+
+
+def test_successful_evidence_bundle_export_audit_counts_check_results(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=create_agent(
+            client,
+            agent_payload(name="Other support assistant"),
+        ),
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [audit_log] = fetch_evidence_bundle_export_audit_logs(session_factory)
+    assert audit_log.metadata_["check_result_count"] == 2
+    assert "check_results" not in audit_log.metadata_
 
 
 def test_denied_evidence_bundle_export_creates_safe_audit_log(
@@ -962,6 +1142,23 @@ class SeededDataUsageProfiles:
         self.other_profile_id = other_profile_id
 
 
+class SeededCheckResults:
+    def __init__(
+        self,
+        *,
+        check_tool_id: UUID,
+        target_id: UUID,
+        linked_check_result_id: UUID,
+        agent_scoped_check_result_id: UUID,
+        other_agent_check_result_id: UUID,
+    ) -> None:
+        self.check_tool_id = check_tool_id
+        self.target_id = target_id
+        self.linked_check_result_id = linked_check_result_id
+        self.agent_scoped_check_result_id = agent_scoped_check_result_id
+        self.other_agent_check_result_id = other_agent_check_result_id
+
+
 def create_agent(
     client: TestClient,
     payload: dict[str, object] | None = None,
@@ -997,6 +1194,7 @@ def assert_denied_response_has_no_bundle_sections(body: dict[str, object]) -> No
         "source_references",
         "data_usage_profiles",
         "model_asset_references",
+        "check_results",
     } & set(body)
 
 
@@ -1355,6 +1553,92 @@ def seed_data_usage_profiles(
         )
 
 
+def seed_check_result_records(
+    session_factory: SessionFactory,
+    *,
+    agent_id: UUID,
+    other_agent_id: UUID,
+    policy_decision_id: UUID,
+    trace_event_id: UUID,
+    run_id: UUID,
+) -> SeededCheckResults:
+    with session_factory() as session:
+        created_at = datetime(2026, 1, 15, 12, 30, tzinfo=UTC)
+        check_tool = CheckTool(
+            name="data_usage_profile_checker",
+            description="Checks declared Data Usage Profile review state.",
+            tool_type=CheckToolType.DATA_USAGE_PROFILE_CHECK,
+            status=CheckToolStatus.ACTIVE,
+            owner_type=OwnerType.TEAM,
+            owner_id="team:governance",
+            owner_name="Governance",
+            metadata_={"source": "internal_metadata"},
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        session.add(check_tool)
+        session.flush()
+
+        target_id = uuid4()
+        linked_result = CheckResult(
+            check_tool_id=check_tool.id,
+            agent_id=None,
+            run_id=run_id,
+            trace_event_id=trace_event_id,
+            policy_decision_id=policy_decision_id,
+            target_type=CheckResultTargetType.DATA_USAGE_PROFILE,
+            target_id=target_id,
+            outcome=CheckResultOutcome.PASS,
+            confidence=CheckResultConfidence.HIGH,
+            summary="Data Usage Profile is approved and current.",
+            reason="Profile review is approved.",
+            metadata_={
+                "check_type": "data_usage_profile_status",
+                "review_status": "approved",
+            },
+            created_at=created_at,
+        )
+        agent_scoped_result = CheckResult(
+            check_tool_id=check_tool.id,
+            agent_id=agent_id,
+            run_id=run_id,
+            trace_event_id=None,
+            policy_decision_id=None,
+            target_type=CheckResultTargetType.CAPABILITY,
+            target_id=uuid4(),
+            outcome=CheckResultOutcome.UNKNOWN,
+            confidence=CheckResultConfidence.MEDIUM,
+            summary="Capability status is unknown.",
+            reason="No Capability exists for requested capability_id.",
+            metadata_={"check_type": "capability_status"},
+            created_at=created_at + timedelta(seconds=1),
+        )
+        other_agent_result = CheckResult(
+            check_tool_id=check_tool.id,
+            agent_id=other_agent_id,
+            run_id=None,
+            trace_event_id=None,
+            policy_decision_id=None,
+            target_type=CheckResultTargetType.SOURCE,
+            target_id=uuid4(),
+            outcome=CheckResultOutcome.FAIL,
+            confidence=CheckResultConfidence.HIGH,
+            summary="Source inventory record is not active.",
+            reason="Source status is disabled.",
+            metadata_={"check_type": "source_status"},
+            created_at=created_at + timedelta(seconds=2),
+        )
+        session.add_all([linked_result, agent_scoped_result, other_agent_result])
+        session.commit()
+        return SeededCheckResults(
+            check_tool_id=check_tool.id,
+            target_id=target_id,
+            linked_check_result_id=linked_result.id,
+            agent_scoped_check_result_id=agent_scoped_result.id,
+            other_agent_check_result_id=other_agent_result.id,
+        )
+
+
 def create_review_policy_rule(session_factory: SessionFactory) -> tuple[UUID, UUID]:
     with session_factory() as session:
         created_at = datetime.now(UTC)
@@ -1505,6 +1789,30 @@ def inject_unsafe_data_usage_profile_metadata(
                 {
                     "metadata": {
                         "catalog_ref": "catalog:source-123",
+                        "scanner_payload": "do-not-export",
+                        "raw_payload": "do-not-export",
+                        "api_key": "do-not-export",
+                    }
+                }
+            )
+        )
+        session.commit()
+
+
+def inject_unsafe_check_result_metadata(
+    session_factory: SessionFactory,
+    *,
+    check_result_id: UUID,
+) -> None:
+    with session_factory() as session:
+        session.execute(
+            CheckResult.__table__.update()
+            .where(CheckResult.id == check_result_id)
+            .values(
+                {
+                    "metadata": {
+                        "check_type": "data_usage_profile_status",
+                        "review_status": "approved",
                         "scanner_payload": "do-not-export",
                         "raw_payload": "do-not-export",
                         "api_key": "do-not-export",

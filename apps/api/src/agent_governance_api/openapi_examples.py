@@ -3,6 +3,8 @@ CAPABILITY_ID = "12121212-1212-4121-8121-121212121212"
 SOURCE_ID = "13131313-1313-4131-8131-131313131313"
 MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
 DATA_USAGE_PROFILE_ID = "18181818-1818-4181-8181-181818181818"
+CHECK_TOOL_ID = "19191919-1919-4191-8191-191919191919"
+CHECK_RESULT_ID = "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a"
 ACCESS_GRANT_ID = "15151515-1515-4151-8151-151515151515"
 SOURCE_ACCESS_GRANT_ID = "16161616-1616-4161-8161-161616161616"
 MODEL_ASSET_ACCESS_GRANT_ID = "17171717-1717-4171-8171-171717171717"
@@ -852,6 +854,28 @@ EVIDENCE_BUNDLE_RESPONSE = {
     "source_references": [SOURCE_RESPONSE],
     "data_usage_profiles": [DATA_USAGE_PROFILE_RESPONSE],
     "model_asset_references": [MODEL_ASSET_RESPONSE],
+    "check_results": [
+        {
+            "check_result_id": CHECK_RESULT_ID,
+            "check_tool_id": CHECK_TOOL_ID,
+            "check_tool_name": "data_usage_profile_checker",
+            "check_tool_type": "data_usage_profile_check",
+            "outcome": "pass",
+            "confidence": "high",
+            "summary": "Data Usage Profile is approved and current.",
+            "reason": "Profile review is approved.",
+            "target_type": "data_usage_profile",
+            "target_id": DATA_USAGE_PROFILE_ID,
+            "policy_decision_id": POLICY_DECISION_ID,
+            "trace_event_id": TRACE_EVENT_ID,
+            "run_id": RUN_ID,
+            "created_at": POLICY_DECISION_CREATED_AT,
+            "metadata": {
+                "check_type": "data_usage_profile_status",
+                "review_status": "approved",
+            },
+        }
+    ],
 }
 
 

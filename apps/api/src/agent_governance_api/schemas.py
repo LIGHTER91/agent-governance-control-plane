@@ -924,6 +924,24 @@ class EvidenceModelAssetReferenceRead(BaseModel):
     updated_at: datetime
 
 
+class EvidenceCheckResultRead(BaseModel):
+    check_result_id: UUID
+    check_tool_id: UUID
+    check_tool_name: str | None = None
+    check_tool_type: CheckToolType | None = None
+    outcome: CheckResultOutcome
+    confidence: CheckResultConfidence | None = None
+    summary: str
+    reason: str | None = None
+    target_type: CheckResultTargetType
+    target_id: UUID | None = None
+    policy_decision_id: UUID | None = None
+    trace_event_id: UUID | None = None
+    run_id: UUID | None = None
+    created_at: datetime
+    metadata: EvidenceMetadata
+
+
 class EvidenceBundleRead(BaseModel):
     agent: AgentRead
     audit_logs: list[EvidenceAuditLogRead]
@@ -942,6 +960,7 @@ class EvidenceBundleRead(BaseModel):
     model_asset_references: list[EvidenceModelAssetReferenceRead] = Field(
         default_factory=list
     )
+    check_results: list[EvidenceCheckResultRead] = Field(default_factory=list)
 
 
 class AgentActivityItemRead(BaseModel):
