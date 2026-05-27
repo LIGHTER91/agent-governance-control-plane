@@ -242,8 +242,10 @@ Important limitations:
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
   context, and deterministic PolicyRules can match those declared fields
-  explicitly. Inventory resolution during runtime decisions, AccessGrant-aware
-  evaluation, and Data Usage Profile enforcement are not implemented yet.
+  explicitly. Runtime decisions can resolve safe Capability, Source,
+  ModelAsset, Data Usage Profile, and AccessGrant facts as deterministic policy
+  context, but AccessGrant-aware enforcement and Data Usage Profile enforcement
+  are not automatic yet.
 - Data Usage Profile persistence, nested Source APIs, and safe Evidence Bundle
   summaries for granted Sources are implemented. Profile-aware Policy
   Pre-Checks and Data Usage Profile-aware runtime enforcement are not

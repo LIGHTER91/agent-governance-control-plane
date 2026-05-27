@@ -522,6 +522,11 @@ Supported persisted `condition` shape for the first evaluator adapter:
   "model_id": "14141414-1414-4141-8141-141414141414",
   "purpose": "semantic_search_indexing",
   "data_classification": "confidential",
+  "declared_data_classification": "confidential",
+  "source_data_classification": "restricted",
+  "model_provider_type": "external",
+  "access_grant_status": "active",
+  "data_usage_review_status": "approved",
   "contains_personal_data": true,
   "contains_sensitive_data": false
 }
@@ -545,16 +550,35 @@ Optional matching fields:
 - `purpose`;
 - `data_classification`: one of `public`, `internal`, `confidential`, or
   `restricted`;
+- `declared_data_classification`: caller-declared data classification, kept
+  distinct from resolved Source profile classification;
 - `contains_personal_data`;
-- `contains_sensitive_data`.
+- `contains_sensitive_data`;
+- `capability_type`;
+- `capability_status`: capability status or `missing`;
+- `source_status` or `source_statuses`: Source status values or `missing`;
+- `source_data_classification` or `source_data_classifications`;
+- `source_contains_personal_data`;
+- `source_contains_sensitive_data`;
+- `model_type`;
+- `model_provider`;
+- `model_provider_type`: `local`, `external`, or `unknown`;
+- `model_status`: model status or `missing`;
+- `access_grant_status` or `access_grant_statuses`: AccessGrant status values
+  or `missing`;
+- `data_usage_review_status` or `data_usage_review_statuses`: review status
+  values or `missing`;
+- `data_usage_allowed_purpose` or `data_usage_allowed_purposes`;
+- `data_usage_prohibited_purpose` or `data_usage_prohibited_purposes`.
 
 Contextual matching is still deterministic field matching, not a DSL. Missing
 or `null` optional fields are wildcards. A `source_id` condition matches any
 source ID in the Runtime Gateway request, and a `source_ids` condition matches
-when any declared source ID overlaps the request `source_ids`. Caller-supplied
-classification and personal/sensitive-data flags are declared context only;
-they are not treated as verified Data Usage Profile truth until inventory
-resolution and profile-aware enforcement are explicitly added.
+when any declared source ID overlaps the request `source_ids`. List-valued
+resolved fields use the same any-overlap matching. Caller-supplied
+classification and personal/sensitive-data flags are declared context only, not
+verified Data Usage Profile truth. Resolved AccessGrant statuses are policy
+context only and are not automatically enforced by the Runtime Gateway.
 
 Unsupported condition fields must be rejected rather than interpreted implicitly.
 

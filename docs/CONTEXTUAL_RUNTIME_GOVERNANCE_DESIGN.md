@@ -226,7 +226,10 @@ The current PolicyRule condition format is intentionally small and
 deterministic. Contextual governance extends that approach through explicit
 field matching instead of a broad expression language.
 
-Implemented contextual rule matching supports declared Runtime Gateway fields:
+Implemented contextual rule matching supports declared Runtime Gateway fields
+and safe inventory-resolved fields.
+
+Declared fields:
 
 - `action_type`;
 - `capability_id`;
@@ -237,25 +240,45 @@ Implemented contextual rule matching supports declared Runtime Gateway fields:
 - `contains_personal_data`;
 - `contains_sensitive_data`.
 
+Inventory-resolved fields:
+
+- `declared_data_classification`;
+- `capability_type`;
+- `capability_status`;
+- `source_status` or `source_statuses`;
+- `source_data_classification` or `source_data_classifications`;
+- `source_contains_personal_data`;
+- `source_contains_sensitive_data`;
+- `model_type`;
+- `model_provider`;
+- `model_provider_type`;
+- `model_status`;
+- `access_grant_status` or `access_grant_statuses`;
+- `data_usage_review_status` or `data_usage_review_statuses`;
+- `data_usage_allowed_purpose` or `data_usage_allowed_purposes`;
+- `data_usage_prohibited_purpose` or `data_usage_prohibited_purposes`.
+
 Matching remains deterministic. Missing or `null` optional condition fields are
 wildcards, and `source_ids` matches when any declared source ID overlaps the
-Runtime Gateway request `source_ids`.
+Runtime Gateway request `source_ids`. List-valued resolved fields match when
+any rule value overlaps the resolved context. Missing inventory references are
+represented as `missing`, not silently treated as safe.
 
-Future contextual rule matching may add inventory-resolved fields such as:
+Future contextual rule matching may add additional inventory-resolved fields
+such as:
 
-- `source_data_classification`;
 - `source_allowed_purposes`;
 - `source_prohibited_purposes`;
 - `source_allowed_processing`;
 - `source_prohibited_processing`;
-- `source_review_status`;
-- `model_provider`;
-- `access_grant_status`.
+- model risk/provider approval categories;
+- AccessGrant owner or review references when safe.
 
 Unsupported fields should continue to be rejected rather than interpreted
 implicitly. Caller-supplied classifications and personal/sensitive-data flags
 are declared context only; they are not verified Source/Data Usage Profile
-truth until inventory resolution is explicitly implemented.
+truth. AccessGrant status is resolved as context only and is not automatically
+enforced until explicit AccessGrant-aware policy behavior is added.
 
 ## Evidence Bundle And Activity Connection
 

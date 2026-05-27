@@ -56,6 +56,10 @@ from agent_governance_api.runtime_gateway import (
     RuntimeToolCallResumeRequest,
     RuntimeToolCallResumeResponse,
 )
+from agent_governance_api.runtime_inventory_context import (
+    ResolvedRuntimeInventoryContext,
+    resolve_runtime_inventory_context,
+)
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -185,6 +189,11 @@ def decide_runtime_tool_call(
             session.add(run)
             session.flush()
 
+        inventory_context = resolve_runtime_inventory_context(
+            session,
+            agent_id=agent.id,
+            payload=payload,
+        )
         trace_event = TraceEventRecord(
             agent_id=payload.agent_id,
             run_id=payload.run_id,
@@ -193,7 +202,10 @@ def decide_runtime_tool_call(
             event_type=TraceEventType.TOOL_CALL_REQUESTED,
             timestamp=now,
             summary=payload.action_summary,
-            metadata_=_trace_event_metadata(payload),
+            metadata_=_trace_event_metadata(
+                payload,
+                inventory_context=inventory_context,
+            ),
             created_at=now,
         )
         session.add(trace_event)
@@ -206,6 +218,7 @@ def decide_runtime_tool_call(
                 session,
                 agent=agent,
                 payload=payload,
+                inventory_context=inventory_context,
             )
         except POLICY_EVALUATION_FAILURE_ERRORS:
             (
@@ -683,11 +696,15 @@ def _evaluate_runtime_policy(
     *,
     agent: Agent,
     payload: RuntimeToolCallDecisionRequest,
+    inventory_context: ResolvedRuntimeInventoryContext,
 ) -> PolicyEvaluationResult:
     rules = load_active_policy_evaluation_rules(session)
     return evaluate_policy(
         agent_context={"agent_id": payload.agent_id},
-        action_context=_runtime_policy_action_context(payload),
+        action_context=_runtime_policy_action_context(
+            payload,
+            inventory_context=inventory_context,
+        ),
         environment=agent.environment,
         risk_level=agent.risk_level,
         rules=rules,
@@ -696,6 +713,8 @@ def _evaluate_runtime_policy(
 
 def _runtime_policy_action_context(
     payload: RuntimeToolCallDecisionRequest,
+    *,
+    inventory_context: ResolvedRuntimeInventoryContext,
 ) -> dict[str, object]:
     context: dict[str, object] = {
         "tool_name": payload.tool_name,
@@ -712,10 +731,12 @@ def _runtime_policy_action_context(
         context["purpose"] = payload.purpose
     if payload.data_classification is not None:
         context["data_classification"] = payload.data_classification
+        context["declared_data_classification"] = payload.data_classification
     if payload.contains_personal_data is not None:
         context["contains_personal_data"] = payload.contains_personal_data
     if payload.contains_sensitive_data is not None:
         context["contains_sensitive_data"] = payload.contains_sensitive_data
+    context.update(inventory_context.policy_context)
     return context
 
 
@@ -883,12 +904,15 @@ def _human_approval_for_policy_decision(
 
 def _trace_event_metadata(
     payload: RuntimeToolCallDecisionRequest,
+    *,
+    inventory_context: ResolvedRuntimeInventoryContext,
 ) -> dict[str, str | int | float | bool | None]:
     metadata: dict[str, str | int | float | bool | None] = {
         **payload.metadata,
         "tool_name": payload.tool_name,
     }
     metadata.update(_runtime_context_metadata(payload))
+    metadata.update(inventory_context.trace_metadata)
     return metadata
 
 

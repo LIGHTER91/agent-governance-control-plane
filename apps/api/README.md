@@ -181,12 +181,19 @@ Policy Management:
   shape already consumed by the evaluator: required `decision` and `reason`,
   optional `agent_id`, `tool_name`, `environment`, `risk_level`,
   `action_type`, `capability_id`, `source_id` or `source_ids`, `model_id`,
-  `purpose`, `data_classification`, `contains_personal_data`, and
-  `contains_sensitive_data`.
+  `purpose`, `data_classification`, `declared_data_classification`,
+  `contains_personal_data`, `contains_sensitive_data`, and safe resolved
+  inventory fields such as `capability_type`, `capability_status`,
+  `source_status`, `source_data_classification`, `model_type`,
+  `model_provider`, `model_provider_type`, `model_status`,
+  `access_grant_status`, `data_usage_review_status`,
+  `data_usage_allowed_purpose`, and `data_usage_prohibited_purpose`.
 - Contextual PolicyRule matching is deterministic field matching only. For
   `source_ids`, a rule matches when any declared source ID overlaps the request
-  source IDs. Caller-supplied classification and personal/sensitive-data flags
-  are declared runtime context, not verified Data Usage Profile truth.
+  source IDs. List-valued resolved fields match when any rule value overlaps
+  the resolved context. Caller-supplied classification and
+  personal/sensitive-data flags are declared runtime context, not verified Data
+  Usage Profile truth.
 - Versioning, generic policy-language work, and runtime behavior changes remain
   out of scope.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
@@ -229,9 +236,13 @@ Runtime Gateway:
   `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
   `data_classification`, `contains_personal_data`, and
   `contains_sensitive_data`. These are recorded as safe context for activity and
-  evidence, and active PolicyRules may match them explicitly. Inventory
-  resolution, Data Usage Profile enforcement, pre-check execution, and
-  AccessGrant enforcement are not automatic yet.
+  evidence, and active PolicyRules may match them explicitly.
+- Runtime decisions resolve safe context from referenced Capability, Source,
+  ModelAsset, Data Usage Profile, and Agent AccessGrant records. Resolved facts
+  are kept distinct from caller-declared fields and may be recorded in trace
+  metadata with `resolved_` prefixes. Missing references are represented as
+  `missing`, not as safe or allowed. AccessGrant status is context only; it is
+  not automatically enforced yet.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

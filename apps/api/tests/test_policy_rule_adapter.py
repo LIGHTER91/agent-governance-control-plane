@@ -110,8 +110,23 @@ def test_converts_persisted_contextual_rule(session: Session) -> None:
             "model_id": str(model_id),
             "purpose": "semantic_search_indexing",
             "data_classification": "confidential",
+            "declared_data_classification": "confidential",
             "contains_personal_data": True,
             "contains_sensitive_data": False,
+            "capability_type": "tool",
+            "capability_status": "active",
+            "source_statuses": ["active"],
+            "source_data_classifications": ["restricted"],
+            "source_contains_personal_data": True,
+            "source_contains_sensitive_data": False,
+            "model_type": "embedding",
+            "model_provider": "openai",
+            "model_provider_type": "external",
+            "model_status": "active",
+            "access_grant_statuses": ["active"],
+            "data_usage_review_statuses": ["approved"],
+            "data_usage_allowed_purposes": ["semantic_search_indexing"],
+            "data_usage_prohibited_purposes": ["model_training"],
         },
     )
 
@@ -125,8 +140,23 @@ def test_converts_persisted_contextual_rule(session: Session) -> None:
     assert evaluation_rule.model_id == str(model_id)
     assert evaluation_rule.purpose == "semantic_search_indexing"
     assert evaluation_rule.data_classification == "confidential"
+    assert evaluation_rule.declared_data_classification == "confidential"
     assert evaluation_rule.contains_personal_data is True
     assert evaluation_rule.contains_sensitive_data is False
+    assert evaluation_rule.capability_type == "tool"
+    assert evaluation_rule.capability_status == "active"
+    assert evaluation_rule.source_statuses == ("active",)
+    assert evaluation_rule.source_data_classifications == ("restricted",)
+    assert evaluation_rule.source_contains_personal_data is True
+    assert evaluation_rule.source_contains_sensitive_data is False
+    assert evaluation_rule.model_type == "embedding"
+    assert evaluation_rule.model_provider == "openai"
+    assert evaluation_rule.model_provider_type == "external"
+    assert evaluation_rule.model_status == "active"
+    assert evaluation_rule.access_grant_statuses == ("active",)
+    assert evaluation_rule.data_usage_review_statuses == ("approved",)
+    assert evaluation_rule.data_usage_allowed_purposes == ("semantic_search_indexing",)
+    assert evaluation_rule.data_usage_prohibited_purposes == ("model_training",)
 
 
 def test_converts_persisted_source_ids_rule(session: Session) -> None:
@@ -217,6 +247,11 @@ def test_rejects_unsupported_condition_fields(session: Session) -> None:
             "Unsupported PolicyRule data_classification: secret.",
         ),
         (
+            "declared_data_classification",
+            "secret",
+            "Unsupported PolicyRule declared_data_classification: secret.",
+        ),
+        (
             "contains_personal_data",
             "true",
             "field contains_personal_data must be a boolean",
@@ -225,6 +260,37 @@ def test_rejects_unsupported_condition_fields(session: Session) -> None:
             "contains_sensitive_data",
             "false",
             "field contains_sensitive_data must be a boolean",
+        ),
+        ("capability_type", "database", "Unsupported PolicyRule capability_type"),
+        ("capability_status", "unknown", "Unsupported PolicyRule capability_status"),
+        ("source_status", "unknown", "Unsupported PolicyRule source_status"),
+        (
+            "source_data_classification",
+            "secret",
+            "Unsupported PolicyRule source_data_classification",
+        ),
+        (
+            "source_contains_personal_data",
+            "true",
+            "field source_contains_personal_data must be a boolean",
+        ),
+        ("model_type", "text", "Unsupported PolicyRule model_type"),
+        ("model_provider", "made_up", "Unsupported PolicyRule model_provider"),
+        (
+            "model_provider_type",
+            "partner",
+            "Unsupported PolicyRule model_provider_type",
+        ),
+        ("model_status", "unknown", "Unsupported PolicyRule model_status"),
+        (
+            "access_grant_status",
+            "unknown",
+            "Unsupported PolicyRule access_grant_status",
+        ),
+        (
+            "data_usage_review_status",
+            "unknown",
+            "Unsupported PolicyRule data_usage_review_status",
         ),
     ],
 )

@@ -6,8 +6,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.models import (
+    AccessGrantStatus,
+    CapabilityStatus,
+    CapabilityType,
+    DataSourceStatus,
     DataUsageClassification,
+    DataUsageReviewStatus,
     Environment,
+    ModelAssetStatus,
+    ModelAssetType,
+    ModelProvider,
     Policy,
     PolicyDecisionValue,
     PolicyRule,
@@ -16,6 +24,9 @@ from agent_governance_api.models import (
 )
 from agent_governance_api.policy_evaluator import PolicyEvaluationRule
 from agent_governance_api.runtime_gateway import CONTEXT_LABEL_PATTERN
+
+MISSING_RESOLVED_CONTEXT_VALUE = "missing"
+MODEL_PROVIDER_TYPE_VALUES = frozenset({"external", "local", "unknown"})
 
 SUPPORTED_CONDITION_FIELDS = frozenset(
     {
@@ -32,8 +43,29 @@ SUPPORTED_CONDITION_FIELDS = frozenset(
         "model_id",
         "purpose",
         "data_classification",
+        "declared_data_classification",
         "contains_personal_data",
         "contains_sensitive_data",
+        "capability_type",
+        "capability_status",
+        "source_status",
+        "source_statuses",
+        "source_data_classification",
+        "source_data_classifications",
+        "source_contains_personal_data",
+        "source_contains_sensitive_data",
+        "model_type",
+        "model_provider",
+        "model_provider_type",
+        "model_status",
+        "access_grant_status",
+        "access_grant_statuses",
+        "data_usage_review_status",
+        "data_usage_review_statuses",
+        "data_usage_allowed_purpose",
+        "data_usage_allowed_purposes",
+        "data_usage_prohibited_purpose",
+        "data_usage_prohibited_purposes",
     }
 )
 
@@ -78,8 +110,101 @@ def convert_policy_rule_to_evaluation_rule(
         model_id=_optional_uuid_text(condition, "model_id"),
         purpose=_optional_context_label(condition, "purpose"),
         data_classification=_data_classification(condition),
+        declared_data_classification=_declared_data_classification(condition),
         contains_personal_data=_optional_bool(condition, "contains_personal_data"),
         contains_sensitive_data=_optional_bool(condition, "contains_sensitive_data"),
+        capability_type=_optional_enum_text(
+            condition, "capability_type", CapabilityType
+        ),
+        capability_status=_optional_enum_text(
+            condition,
+            "capability_status",
+            CapabilityStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        source_status=_optional_enum_text(
+            condition,
+            "source_status",
+            DataSourceStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        source_statuses=_optional_enum_text_tuple(
+            condition,
+            "source_statuses",
+            DataSourceStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        source_data_classification=_optional_enum_text(
+            condition,
+            "source_data_classification",
+            DataUsageClassification,
+        ),
+        source_data_classifications=_optional_enum_text_tuple(
+            condition,
+            "source_data_classifications",
+            DataUsageClassification,
+        ),
+        source_contains_personal_data=_optional_bool(
+            condition,
+            "source_contains_personal_data",
+        ),
+        source_contains_sensitive_data=_optional_bool(
+            condition,
+            "source_contains_sensitive_data",
+        ),
+        model_type=_optional_enum_text(condition, "model_type", ModelAssetType),
+        model_provider=_optional_enum_text(condition, "model_provider", ModelProvider),
+        model_provider_type=_optional_allowed_text(
+            condition,
+            "model_provider_type",
+            MODEL_PROVIDER_TYPE_VALUES,
+        ),
+        model_status=_optional_enum_text(
+            condition,
+            "model_status",
+            ModelAssetStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        access_grant_status=_optional_enum_text(
+            condition,
+            "access_grant_status",
+            AccessGrantStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        access_grant_statuses=_optional_enum_text_tuple(
+            condition,
+            "access_grant_statuses",
+            AccessGrantStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        data_usage_review_status=_optional_enum_text(
+            condition,
+            "data_usage_review_status",
+            DataUsageReviewStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        data_usage_review_statuses=_optional_enum_text_tuple(
+            condition,
+            "data_usage_review_statuses",
+            DataUsageReviewStatus,
+            extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+        ),
+        data_usage_allowed_purpose=_optional_context_label(
+            condition,
+            "data_usage_allowed_purpose",
+        ),
+        data_usage_allowed_purposes=_optional_context_label_tuple(
+            condition,
+            "data_usage_allowed_purposes",
+        ),
+        data_usage_prohibited_purpose=_optional_context_label(
+            condition,
+            "data_usage_prohibited_purpose",
+        ),
+        data_usage_prohibited_purposes=_optional_context_label_tuple(
+            condition,
+            "data_usage_prohibited_purposes",
+        ),
     )
 
 
@@ -108,8 +233,73 @@ def _validated_condition(condition: str) -> dict[str, Any]:
     _optional_uuid_text(parsed, "model_id")
     _optional_context_label(parsed, "purpose")
     _data_classification(parsed)
+    _declared_data_classification(parsed)
     _optional_bool(parsed, "contains_personal_data")
     _optional_bool(parsed, "contains_sensitive_data")
+    _optional_enum_text(parsed, "capability_type", CapabilityType)
+    _optional_enum_text(
+        parsed,
+        "capability_status",
+        CapabilityStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text(
+        parsed,
+        "source_status",
+        DataSourceStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text_tuple(
+        parsed,
+        "source_statuses",
+        DataSourceStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text(parsed, "source_data_classification", DataUsageClassification)
+    _optional_enum_text_tuple(
+        parsed,
+        "source_data_classifications",
+        DataUsageClassification,
+    )
+    _optional_bool(parsed, "source_contains_personal_data")
+    _optional_bool(parsed, "source_contains_sensitive_data")
+    _optional_enum_text(parsed, "model_type", ModelAssetType)
+    _optional_enum_text(parsed, "model_provider", ModelProvider)
+    _optional_allowed_text(parsed, "model_provider_type", MODEL_PROVIDER_TYPE_VALUES)
+    _optional_enum_text(
+        parsed,
+        "model_status",
+        ModelAssetStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text(
+        parsed,
+        "access_grant_status",
+        AccessGrantStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text_tuple(
+        parsed,
+        "access_grant_statuses",
+        AccessGrantStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text(
+        parsed,
+        "data_usage_review_status",
+        DataUsageReviewStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_enum_text_tuple(
+        parsed,
+        "data_usage_review_statuses",
+        DataUsageReviewStatus,
+        extra_values=(MISSING_RESOLVED_CONTEXT_VALUE,),
+    )
+    _optional_context_label(parsed, "data_usage_allowed_purpose")
+    _optional_context_label_tuple(parsed, "data_usage_allowed_purposes")
+    _optional_context_label(parsed, "data_usage_prohibited_purpose")
+    _optional_context_label_tuple(parsed, "data_usage_prohibited_purposes")
     return parsed
 
 
@@ -183,6 +373,20 @@ def _data_classification(condition: dict[str, Any]) -> DataUsageClassification |
         ) from exc
 
 
+def _declared_data_classification(
+    condition: dict[str, Any],
+) -> DataUsageClassification | None:
+    value = _optional_text(condition, "declared_data_classification")
+    if value is None:
+        return None
+    try:
+        return DataUsageClassification(value)
+    except ValueError as exc:
+        raise UnsupportedPolicyRuleConditionError(
+            f"Unsupported PolicyRule declared_data_classification: {value}."
+        ) from exc
+
+
 def _required_text(condition: dict[str, Any], key: str) -> str:
     value = _optional_text(condition, key)
     if value is None:
@@ -231,6 +435,102 @@ def _optional_uuid_text_tuple(
     return normalized
 
 
+def _optional_context_label_tuple(
+    condition: dict[str, Any],
+    key: str,
+) -> tuple[str, ...] | None:
+    value = condition.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must be a non-empty list "
+            "of safe context labels."
+        )
+
+    normalized = tuple(_context_label_text(item, key) for item in value)
+    if len(set(normalized)) != len(normalized):
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must not contain duplicate values."
+        )
+    return normalized
+
+
+def _optional_enum_text(
+    condition: dict[str, Any],
+    key: str,
+    enum_class: type[Any],
+    *,
+    extra_values: tuple[str, ...] = (),
+) -> str | None:
+    value = _optional_text(condition, key)
+    if value is None:
+        return None
+    return _enum_text(value, key, enum_class, extra_values=extra_values)
+
+
+def _optional_enum_text_tuple(
+    condition: dict[str, Any],
+    key: str,
+    enum_class: type[Any],
+    *,
+    extra_values: tuple[str, ...] = (),
+) -> tuple[str, ...] | None:
+    value = condition.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must be a non-empty list."
+        )
+
+    normalized = tuple(
+        _enum_text(item, key, enum_class, extra_values=extra_values) for item in value
+    )
+    if len(set(normalized)) != len(normalized):
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must not contain duplicate values."
+        )
+    return normalized
+
+
+def _enum_text(
+    value: object,
+    key: str,
+    enum_class: type[Any],
+    *,
+    extra_values: tuple[str, ...] = (),
+) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must be a non-empty string."
+        )
+    if value in extra_values:
+        return value
+    try:
+        return enum_class(value).value
+    except ValueError as exc:
+        raise UnsupportedPolicyRuleConditionError(
+            f"Unsupported PolicyRule {key}: {value}."
+        ) from exc
+
+
+def _optional_allowed_text(
+    condition: dict[str, Any],
+    key: str,
+    allowed_values: frozenset[str],
+) -> str | None:
+    value = _optional_text(condition, key)
+    if value is None:
+        return None
+    if value not in allowed_values:
+        joined_values = ", ".join(sorted(allowed_values))
+        raise UnsupportedPolicyRuleConditionError(
+            f"Unsupported PolicyRule {key}: {value}. Expected one of: {joined_values}."
+        )
+    return value
+
+
 def _uuid_text(value: object, key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise UnsupportedPolicyRuleConditionError(
@@ -253,6 +553,19 @@ def _optional_bool(condition: dict[str, Any], key: str) -> bool | None:
             f"PolicyRule condition field {key} must be a boolean."
         )
     return value
+
+
+def _context_label_text(value: object, key: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must contain non-empty strings."
+        )
+    normalized = value.strip()
+    if not CONTEXT_LABEL_PATTERN.fullmatch(normalized):
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must contain safe context labels."
+        )
+    return normalized
 
 
 def _optional_text(condition: dict[str, Any], key: str) -> str | None:

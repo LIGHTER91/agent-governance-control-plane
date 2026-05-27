@@ -324,3 +324,83 @@ def test_evaluator_preserves_existing_tool_name_matching_without_context() -> No
 
     assert result.decision is PolicyDecisionValue.ALLOW
     assert result.reason == "Existing tool-only rules still match."
+
+
+def test_evaluator_matches_resolved_inventory_context_fields() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "tool_name": "vectorize_source",
+            "declared_data_classification": "public",
+            "capability_type": "tool",
+            "capability_status": "active",
+            "source_statuses": ["active"],
+            "source_data_classifications": ["restricted"],
+            "source_contains_personal_data": True,
+            "source_contains_sensitive_data": False,
+            "model_type": "embedding",
+            "model_provider": "openai",
+            "model_provider_type": "external",
+            "model_status": "active",
+            "access_grant_statuses": ["active"],
+            "data_usage_review_statuses": ["approved"],
+            "data_usage_allowed_purposes": ["semantic_search_indexing"],
+            "data_usage_prohibited_purposes": ["model_training"],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Resolved restricted source vectorization is denied.",
+                declared_data_classification="public",
+                capability_type="tool",
+                capability_status="active",
+                source_status="active",
+                source_data_classification="restricted",
+                source_contains_personal_data=True,
+                source_contains_sensitive_data=False,
+                model_type="embedding",
+                model_provider="openai",
+                model_provider_type="external",
+                model_status="active",
+                access_grant_status="active",
+                data_usage_review_status="approved",
+                data_usage_allowed_purpose="semantic_search_indexing",
+                data_usage_prohibited_purpose="model_training",
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.DENY
+    assert result.reason == "Resolved restricted source vectorization is denied."
+
+
+def test_evaluator_matches_missing_resolved_context_values() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "tool_name": "vectorize_source",
+            "capability_status": "missing",
+            "source_statuses": ["missing"],
+            "model_status": "missing",
+            "access_grant_statuses": ["missing"],
+            "data_usage_review_statuses": ["missing"],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+                reason="Missing inventory context requires review.",
+                capability_status="missing",
+                source_status="missing",
+                model_status="missing",
+                access_grant_status="missing",
+                data_usage_review_status="missing",
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    assert result.reason == "Missing inventory context requires review."

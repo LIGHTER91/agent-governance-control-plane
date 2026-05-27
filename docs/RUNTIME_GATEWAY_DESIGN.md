@@ -110,9 +110,17 @@ Rules:
 - Caller-supplied classifications and personal/sensitive-data booleans are
   recorded as declared context only. They are not legal certification and are
   not verified Data Usage Profile truth. Active PolicyRules may match these
-  declared fields explicitly, but inventory resolution, pre-check execution,
-  AccessGrant enforcement, and Data Usage Profile enforcement are not automatic
-  yet.
+  declared fields explicitly.
+- When contextual IDs are supplied, the Runtime Gateway resolves safe facts from
+  Capability, Source, ModelAsset, Data Usage Profile, and Agent AccessGrant
+  records. Resolved facts are kept distinct from declared fields and may be
+  recorded in trace metadata with `resolved_` prefixes.
+- Missing Capability, Source, ModelAsset, Data Usage Profile, and AccessGrant
+  references are represented as `missing`. Missing inventory is not treated as
+  safe.
+- AccessGrant and Data Usage Profile facts are deterministic policy context
+  only. The gateway does not automatically enforce AccessGrants, run
+  pre-checks, or legally certify data usage yet.
 
 ### Response
 

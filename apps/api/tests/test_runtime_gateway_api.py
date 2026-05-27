@@ -19,14 +19,32 @@ from agent_governance_api.config import get_settings
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
 from agent_governance_api.models import (
+    AccessGrant,
+    AccessGrantStatus,
+    AccessGrantSubjectType,
+    AccessGrantTargetType,
+    AccessGrantType,
     ActorType,
     Agent,
     AgentRunRecord,
     AgentStatus,
     AuditLog,
+    Capability,
+    CapabilityStatus,
+    CapabilityType,
+    DataSource,
+    DataSourceStatus,
+    DataSourceType,
+    DataUsageClassification,
+    DataUsageProfile,
+    DataUsageReviewStatus,
     Environment,
     HumanApproval,
     HumanApprovalStatus,
+    ModelAsset,
+    ModelAssetStatus,
+    ModelAssetType,
+    ModelProvider,
     OwnerType,
     Policy,
     PolicyDecision,
@@ -170,8 +188,19 @@ def test_runtime_contextual_fields_are_accepted_and_safely_persisted(
         "tool_name": "vectorize_source",
         "action_type": "vectorize",
         "capability_id": str(capability_id),
+        "resolved_capability_status": "missing",
+        "resolved_missing_capability_id": str(capability_id),
         "source_ids": str(source_id),
+        "resolved_source_statuses": "missing",
+        "resolved_missing_source_ids": str(source_id),
+        "resolved_data_usage_review_statuses": "missing",
         "model_id": str(model_id),
+        "resolved_model_status": "missing",
+        "resolved_missing_model_id": str(model_id),
+        "resolved_access_grant_statuses": "missing",
+        "resolved_missing_access_grant_targets": (
+            f"capability:{capability_id},source:{source_id},model_asset:{model_id}"
+        ),
         "purpose": "semantic_search_indexing",
         "data_classification": "confidential",
         "contains_personal_data": True,
@@ -236,6 +265,119 @@ def test_runtime_contextual_policy_rule_matches_request_context(
     [policy_decision] = fetch_policy_decisions(session_factory)
     assert policy_decision.policy_id == policy_id
     assert policy_decision.rule_id == rule_id
+
+
+def test_runtime_resolves_inventory_context_and_matches_resolved_policy_rule(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="Resolved restricted external vectorization is denied.",
+        condition={
+            "decision": "deny",
+            "reason": "Resolved restricted external vectorization is denied.",
+            "tool_name": "vectorize_source",
+            "source_data_classification": "restricted",
+            "model_provider_type": "external",
+            "capability_type": "tool",
+            "access_grant_status": "active",
+            "data_usage_review_status": "approved",
+            "data_usage_prohibited_purpose": "model_training",
+        },
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(inventory["capability_id"]),
+            "source_ids": [str(inventory["source_id"])],
+            "model_id": str(inventory["model_id"]),
+            "purpose": "semantic_search_indexing",
+            "data_classification": "public",
+            "contains_personal_data": False,
+            "contains_sensitive_data": False,
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Resolved restricted external vectorization is denied."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_["data_classification"] == "public"
+    assert trace_event.metadata_["resolved_capability_type"] == "tool"
+    assert trace_event.metadata_["resolved_source_data_classifications"] == "restricted"
+    assert trace_event.metadata_["resolved_model_provider"] == "openai"
+    assert trace_event.metadata_["resolved_model_provider_type"] == "external"
+    assert trace_event.metadata_["resolved_access_grant_statuses"] == "active"
+    assert trace_event.metadata_["resolved_data_usage_review_statuses"] == "approved"
+    assert (
+        trace_event.metadata_["resolved_data_usage_prohibited_purposes"]
+        == "model_training"
+    )
+
+
+def test_runtime_missing_inventory_context_can_be_matched(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    capability_id = uuid4()
+    source_id = uuid4()
+    model_id = uuid4()
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="Missing inventory context requires human review.",
+        condition={
+            "decision": "require_human_review",
+            "reason": "Missing inventory context requires human review.",
+            "tool_name": "vectorize_source",
+            "capability_status": "missing",
+            "source_status": "missing",
+            "model_status": "missing",
+            "access_grant_status": "missing",
+            "data_usage_review_status": "missing",
+        },
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize an unknown source.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "capability_id": str(capability_id),
+            "source_ids": [str(source_id)],
+            "model_id": str(model_id),
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "require_human_review"
+    assert body["reason"] == "Missing inventory context requires human review."
+    [trace_event] = fetch_trace_events(session_factory)
+    assert trace_event.metadata_["resolved_capability_status"] == "missing"
+    assert trace_event.metadata_["resolved_source_statuses"] == "missing"
+    assert trace_event.metadata_["resolved_model_status"] == "missing"
+    assert trace_event.metadata_["resolved_access_grant_statuses"] == "missing"
+    assert trace_event.metadata_["resolved_data_usage_review_statuses"] == "missing"
 
 
 def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
@@ -1750,8 +1892,19 @@ def test_evidence_bundle_includes_safe_runtime_context_metadata(
         "tool_name": "vectorize_source",
         "action_type": "vectorize",
         "capability_id": str(capability_id),
+        "resolved_capability_status": "missing",
+        "resolved_missing_capability_id": str(capability_id),
         "source_ids": str(source_id),
+        "resolved_source_statuses": "missing",
+        "resolved_missing_source_ids": str(source_id),
+        "resolved_data_usage_review_statuses": "missing",
         "model_id": str(model_id),
+        "resolved_model_status": "missing",
+        "resolved_missing_model_id": str(model_id),
+        "resolved_access_grant_statuses": "missing",
+        "resolved_missing_access_grant_targets": (
+            f"capability:{capability_id},source:{source_id},model_asset:{model_id}"
+        ),
         "purpose": "semantic_search_indexing",
         "data_classification": "restricted",
         "contains_personal_data": True,
@@ -1903,6 +2056,127 @@ def create_agent(
         session.add(agent)
         session.commit()
         return agent.id
+
+
+def seed_runtime_inventory_context(
+    session_factory: SessionFactory,
+    *,
+    agent_id: UUID,
+) -> dict[str, UUID]:
+    with session_factory() as session:
+        capability = Capability(
+            name="Vectorize source",
+            description="Governed source vectorization capability.",
+            capability_type=CapabilityType.TOOL,
+            external_ref="tool:vectorize_source",
+            status=CapabilityStatus.ACTIVE,
+            risk_level=RiskLevel.HIGH,
+            metadata_={"domain": "rag"},
+        )
+        source = DataSource(
+            name="Restricted knowledge source",
+            description="Governed source for runtime context tests.",
+            source_type=DataSourceType.KNOWLEDGE_BASE,
+            external_ref="source:restricted-kb",
+            owner_type=OwnerType.TEAM,
+            owner_id="team:data-governance",
+            owner_name="Data Governance",
+            status=DataSourceStatus.ACTIVE,
+            risk_level=RiskLevel.HIGH,
+            metadata_={"domain": "support"},
+        )
+        model_asset = ModelAsset(
+            name="External embedding model",
+            description="Governed embedding model for runtime context tests.",
+            model_type=ModelAssetType.EMBEDDING,
+            provider=ModelProvider.OPENAI,
+            model_ref="embedding:test",
+            owner_type=OwnerType.TEAM,
+            owner_id="team:model-governance",
+            owner_name="Model Governance",
+            status=ModelAssetStatus.ACTIVE,
+            risk_level=RiskLevel.HIGH,
+            metadata_={"domain": "rag"},
+        )
+        session.add_all([capability, source, model_asset])
+        session.flush()
+
+        profile = DataUsageProfile(
+            source_id=source.id,
+            data_classification=DataUsageClassification.RESTRICTED,
+            contains_personal_data=True,
+            contains_sensitive_data=True,
+            data_categories=["customer_data"],
+            allowed_purposes=["semantic_search_indexing"],
+            prohibited_purposes=["model_training"],
+            allowed_processing=["rag"],
+            prohibited_processing=["training"],
+            review_status=DataUsageReviewStatus.APPROVED,
+            dpia_required=True,
+            dpia_reference="dpia:DPIA-123",
+            metadata_={"catalog_ref": "catalog:restricted-kb"},
+        )
+        session.add(profile)
+        session.add_all(
+            [
+                runtime_access_grant(
+                    agent_id=agent_id,
+                    target_type=AccessGrantTargetType.CAPABILITY,
+                    target_id=capability.id,
+                ),
+                runtime_access_grant(
+                    agent_id=agent_id,
+                    target_type=AccessGrantTargetType.SOURCE,
+                    target_id=source.id,
+                ),
+                runtime_access_grant(
+                    agent_id=agent_id,
+                    target_type=AccessGrantTargetType.MODEL_ASSET,
+                    target_id=model_asset.id,
+                ),
+            ]
+        )
+        session.commit()
+        return {
+            "capability_id": capability.id,
+            "source_id": source.id,
+            "model_id": model_asset.id,
+        }
+
+
+def runtime_access_grant(
+    *,
+    agent_id: UUID,
+    target_type: AccessGrantTargetType,
+    target_id: UUID,
+    status: AccessGrantStatus = AccessGrantStatus.ACTIVE,
+) -> AccessGrant:
+    return AccessGrant(
+        name=f"{target_type.value} runtime access",
+        grant_type=access_grant_type_for_target(target_type),
+        subject_type=AccessGrantSubjectType.AGENT,
+        subject_id=agent_id,
+        target_type=target_type,
+        target_id=target_id,
+        status=status,
+        granted_by_actor_type=ActorType.USER,
+        granted_by_actor_id="user:governance",
+        reason="Runtime context test grant.",
+        risk_level=RiskLevel.HIGH,
+        metadata_={"ticket": "GOV-RUNTIME"},
+    )
+
+
+def access_grant_type_for_target(
+    target_type: AccessGrantTargetType,
+) -> AccessGrantType:
+    if target_type is AccessGrantTargetType.CAPABILITY:
+        return AccessGrantType.CAPABILITY
+    if target_type is AccessGrantTargetType.SOURCE:
+        return AccessGrantType.SOURCE
+    if target_type is AccessGrantTargetType.MODEL_ASSET:
+        return AccessGrantType.MODEL
+    return AccessGrantType.OTHER
 
 
 def set_evidence_export_actor() -> None:

@@ -502,6 +502,11 @@ POLICY_RULE_UPDATE_REQUEST = {
         f'"model_id":"{MODEL_ASSET_ID}",'
         '"purpose":"semantic_search_indexing",'
         '"data_classification":"confidential",'
+        '"declared_data_classification":"confidential",'
+        '"source_data_classification":"confidential",'
+        '"model_provider_type":"external",'
+        '"access_grant_status":"active",'
+        '"data_usage_review_status":"approved",'
         '"contains_personal_data":true,'
         '"contains_sensitive_data":false}'
     ),

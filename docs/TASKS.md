@@ -59,9 +59,11 @@ that need Agent, Action, Source, data classification, ModelAsset, provider,
 Capability, purpose, environment, AccessGrant, and Approval context. The first
 schema slice is implemented as optional Runtime Gateway request fields and safe
 TraceEvent metadata, and deterministic PolicyRules can now match those declared
-contextual fields explicitly. Inventory resolution, pre-check execution,
-AccessGrant enforcement, Data Usage Profile enforcement, and broader runtime
-behavior remain unchanged. Source Data Usage Profile
+contextual fields explicitly. Runtime decisions now resolve safe Capability,
+Source, ModelAsset, Data Usage Profile, and AccessGrant facts as deterministic
+policy context while keeping caller-declared fields distinct. Pre-check
+execution, AccessGrant enforcement, Data Usage Profile enforcement, and broader
+runtime behavior remain unchanged. Source Data Usage Profile
 now has a first backend foundation for Source-side governance metadata such as
 classification, personal or sensitive data signals, purpose and processing
 constraints, review status, and safe DPIA references. It is exposed through
@@ -220,6 +222,7 @@ credentials.
       conditions.
 - [x] Implement simple deterministic Policy evaluator.
 - [x] Extend deterministic PolicyRule matching with explicit contextual fields.
+- [x] Resolve safe inventory context for Runtime Gateway policy decisions.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.
