@@ -345,6 +345,8 @@ Recommended staged implementation:
    CheckResults. Initial persistence, helpers, Evidence Bundle summaries, and
    opt-in Runtime Gateway execution behind
    `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` are done.
+   PolicyCheckStep authoring is designed for explicit PolicyRule-linked check
+   requirements.
 4. Add optional contextual fields to the runtime request schema. Done for
    `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
    `data_classification`, `contains_personal_data`, and

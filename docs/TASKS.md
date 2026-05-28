@@ -83,8 +83,10 @@ summaries for PolicyDecision-linked or Agent-scoped records. Runtime Gateway can
 optionally execute metadata-only pre-checks and persist linked CheckResults
 behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but this is disabled by
 default and does not change final runtime decisions. Scanner adapters,
-public CRUD APIs for checks, PolicyCheckStep authoring, and pre-check-driven
-enforcement remain out of scope. The
+public CRUD APIs for checks, PolicyCheckStep persistence/API support, and
+pre-check-driven enforcement remain out of scope. PolicyCheckStep authoring is
+now designed as explicit PolicyRule-linked metadata-only evidence requirements.
+The
 frontend has a minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -112,6 +114,7 @@ References:
 - `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
+- `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -130,30 +133,32 @@ References:
 Recommended order:
 
 1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Use Access Grants as optional policy context without replacing
+2. Add PolicyCheckStep persistence and API support for metadata-only checks.
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add focused AccessGrant and inventory review workflows only where they
+4. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-4. Add Permission domain model only if AccessGrant target semantics prove
+5. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add frontend auth and role-aware UI later.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-9. Add owner-based service actor scopes design.
-10. Add safe denied-scope audit events.
-11. Add admin management for persisted service actor scope and rule records.
-12. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe denied-scope audit events.
+12. Add admin management for persisted service actor scope and rule records.
+13. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-13. Add tests for overriding the Actor dependency with a non-development actor.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add tests for overriding the Actor dependency with a non-development actor.
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
+- [ ] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [ ] Add safe denied-scope audit events.
 - [ ] Add admin management for persisted service actor scope and rule records.
 - [ ] Implement service actor API key rotation and admin workflows after
@@ -232,6 +237,7 @@ credentials.
 - [x] Extend deterministic PolicyRule matching with explicit contextual fields.
 - [x] Resolve safe inventory context for Runtime Gateway policy decisions.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
+- [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

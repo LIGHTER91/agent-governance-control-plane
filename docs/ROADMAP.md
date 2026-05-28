@@ -93,7 +93,10 @@ Usage Profile review status, and Source, Capability, and ModelAsset inventory
 status from persisted metadata only. Runtime Gateway can optionally execute
 these checks and persist linked CheckResults behind an explicit disabled-by-
 default feature flag, but no scanner integration, public CRUD API, automatic
-enforcement, or PolicyCheckStep authoring has been implemented.
+enforcement, or PolicyCheckStep persistence has been implemented. The
+PolicyCheckStep authoring model is designed as a PolicyRule-linked,
+metadata-only evidence requirement in
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -259,8 +262,9 @@ Important limitations:
 - Policy Pre-Checks have CheckTool and CheckResult persistence, internal
   metadata-only execution helpers, optional Runtime Gateway execution behind
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
-  summaries. PolicyCheckStep authoring, scanner adapters, and pre-check-driven
-  enforcement decisions are not implemented yet.
+  summaries. PolicyCheckStep authoring is designed, but PolicyCheckStep
+  persistence/API support, scanner adapters, and pre-check-driven enforcement
+  decisions are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 

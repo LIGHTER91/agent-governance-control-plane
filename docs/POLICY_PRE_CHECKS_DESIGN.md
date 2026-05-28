@@ -9,9 +9,11 @@ The implemented helpers can evaluate AccessGrant status, Data Usage Profile
 review status, and Source, Capability, and ModelAsset inventory status from
 persisted metadata only. Runtime Gateway can optionally run these helpers
 behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked
-CheckResults without changing the final decision. Automatic pre-check
-selection from PolicyRules, scanner integrations, external integrations, public
-CRUD APIs, and frontend UI remain out of scope.
+CheckResults without changing the final decision. PolicyCheckStep authoring is
+now designed separately in `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but no
+PolicyCheckStep persistence or runtime selection behavior exists yet. Scanner
+integrations, external integrations, public CRUD APIs, and frontend UI remain
+out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -115,6 +117,12 @@ run legal_usage_profile_checker and access_grant_checker.
 
 PolicyCheckStep should eventually be authored through templates or a constrained
 UI. It should not be a general workflow graph.
+
+The authoring model is documented in
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`. The recommended first
+implementation links PolicyCheckSteps to PolicyRules, limits checks to
+metadata-only built-ins, and records evidence intent without directly changing
+Runtime Gateway decisions.
 
 ### CheckResult
 
@@ -451,12 +459,14 @@ Recommended staged implementation:
    ModelAsset, Capability, and Source status. Implemented as internal helpers.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.
    Evidence Bundle export implemented for safe CheckResult summaries.
-6. Add explicit PolicyCheckStep support for a small set of PolicyRule or policy
-   template use cases.
-7. Add async check handling and HumanApproval fallback behavior.
-8. Later add external checker adapters for catalogs, DLP, PII scanners, and
+6. Design explicit PolicyCheckStep support for a small set of PolicyRule or
+   policy template use cases. Done in
+   `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
+7. Add PolicyCheckStep persistence and API support for metadata-only checks.
+8. Add async check handling and HumanApproval fallback behavior.
+9. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-9. Later add a constrained Policy Studio UI for check-based policy authoring.
+10. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current
@@ -464,8 +474,8 @@ Runtime Gateway contract.
 
 ## Open Questions
 
-- Should checks be selected directly by PolicyRule, by Policy template, or by a
-  separate PolicyCheckStep object?
+- Should PolicyCheckSteps attach only to PolicyRule in V1, or should
+  Policy-level defaults be supported immediately?
 - Should failed checks deny by default or require human review by default?
 - How should confidence thresholds be represented without creating fake scores?
 - How should unavailable check tools behave in simulation versus enforcement

@@ -613,16 +613,17 @@ PolicyDecision.
 
 The design is documented in `docs/POLICY_PRE_CHECKS_DESIGN.md`. It is
 implemented as a first backend persistence and internal helper foundation for
-metadata-only checks. Runtime Gateway behavior, PolicyRule schemas, scanner
-integration, public CRUD APIs, frontend UI, and external integrations have not
-changed yet.
+metadata-only checks. PolicyCheckStep authoring is designed in
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but PolicyCheckStep persistence,
+PolicyRule check-outcome matching, scanner integration, public CRUD APIs,
+frontend UI, and external integrations have not changed yet.
 
 Implemented concepts:
 
 - CheckTool;
 - CheckResult;
 
-Future concepts:
+Designed future concepts:
 
 - PolicyCheckStep;
 - CheckRun or ControlRun;
@@ -661,6 +662,12 @@ Runtime Gateway can optionally run these metadata-only helpers behind
 Agent, run, TraceEvent, and PolicyDecision where available. CheckResults are
 evidence inputs; they do not replace PolicyDecision and do not directly change
 Runtime Gateway decisions.
+
+PolicyCheckStep should become the authoring link between PolicyRule and
+CheckTool. It should declare which metadata-only check is required, which
+runtime target selector it applies to, whether evidence is required, and how
+missing or unavailable results should be represented. The recommended V1 shape
+links PolicyCheckSteps to PolicyRules first, not broad workflow graphs.
 
 ## Policy Decision
 
