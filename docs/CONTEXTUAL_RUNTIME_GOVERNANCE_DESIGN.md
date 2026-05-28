@@ -342,7 +342,9 @@ Recommended staged implementation:
 1. Design the contextual runtime schema and document accepted values. Done.
 2. Add Data Usage Profile persistence for Source governance context. Done.
 3. Add Policy Pre-Checks for metadata-only control checks that can produce safe
-   CheckResults. Initial persistence and helpers are done.
+   CheckResults. Initial persistence, helpers, Evidence Bundle summaries, and
+   opt-in Runtime Gateway execution behind
+   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` are done.
 4. Add optional contextual fields to the runtime request schema. Done for
    `action_type`, `capability_id`, `source_ids`, `model_id`, `purpose`,
    `data_classification`, `contains_personal_data`, and
@@ -352,7 +354,7 @@ Recommended staged implementation:
 6. Update Runtime activity and Evidence Bundle export with safe contextual
    references. Done where values are present on TraceEvent metadata.
 7. Extend the deterministic policy evaluator with a small, explicit set of
-   contextual fields.
+   contextual fields. Done for declared and safe resolved context fields.
 8. Add policy templates for common governance cases such as external
    vectorization, restricted-source retrieval, and unapproved model provider
    usage.

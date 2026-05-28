@@ -7,9 +7,11 @@ persistence, Pydantic create/read schemas, a minimal internal helper for
 persisting CheckResults, and internal metadata-only check helpers now exist.
 The implemented helpers can evaluate AccessGrant status, Data Usage Profile
 review status, and Source, Capability, and ModelAsset inventory status from
-persisted metadata only. Runtime Gateway behavior, PolicyRule schema changes,
-scanner integrations, external integrations, public CRUD APIs, and frontend UI
-remain out of scope.
+persisted metadata only. Runtime Gateway can optionally run these helpers
+behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked
+CheckResults without changing the final decision. Automatic pre-check
+selection from PolicyRules, scanner integrations, external integrations, public
+CRUD APIs, and frontend UI remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -141,8 +143,12 @@ The first backend foundation persists CheckResults with safe references,
 outcome, optional confidence label, summary, reason, and safe metadata.
 Internal helpers can now produce CheckResults for metadata-only AccessGrant,
 Data Usage Profile, Source, Capability, and ModelAsset status checks. They do
-not yet link CheckResults into runtime decisions, HumanApprovals, or Evidence
-Bundle export.
+not execute external scanners or inspect source contents. Runtime Gateway can
+optionally execute these helpers behind
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=false` by default and link resulting
+CheckResults to the Agent, run, TraceEvent, and PolicyDecision where available.
+CheckResults remain evidence inputs; they do not directly change Runtime
+Gateway decisions.
 
 ### CheckRun Or ControlRun
 
@@ -248,13 +254,13 @@ HumanApproval workflows.
 
 ## Decision Flow
 
-Future contextual pre-check flow:
+Contextual pre-check flow:
 
 ```text
 Runtime request
 -> resolve contextual runtime fields
 -> identify applicable PolicyRules
--> run required PolicyCheckSteps
+-> optionally run metadata-only PolicyCheckSteps
 -> collect CheckResults
 -> evaluate decision
 -> create PolicyDecision
@@ -262,6 +268,11 @@ Runtime request
 -> record Evidence Bundle chain
 -> return proceed true or false
 ```
+
+The first runtime slice runs only metadata-only checks after a TraceEvent and
+PolicyDecision are available, so records can be linked without becoming a
+hidden enforcement path. Future policy templates may decide which checks are
+required before evaluation.
 
 The runtime wrapper or adapter remains responsible for honoring `proceed`.
 AGCP records the check evidence, decision, and approval chain; it does not

@@ -32,6 +32,9 @@ from agent_governance_api.models import (
     Capability,
     CapabilityStatus,
     CapabilityType,
+    CheckResult,
+    CheckResultOutcome,
+    CheckResultTargetType,
     DataSource,
     DataSourceStatus,
     DataSourceType,
@@ -378,6 +381,182 @@ def test_runtime_missing_inventory_context_can_be_matched(
     assert trace_event.metadata_["resolved_model_status"] == "missing"
     assert trace_event.metadata_["resolved_access_grant_statuses"] == "missing"
     assert trace_event.metadata_["resolved_data_usage_review_statuses"] == "missing"
+
+
+def test_runtime_metadata_pre_checks_disabled_keeps_behavior_unchanged(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "capability_id": str(inventory["capability_id"]),
+            "source_ids": [str(inventory["source_id"])],
+            "model_id": str(inventory["model_id"]),
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["decision"] == "allow"
+    assert fetch_check_results(session_factory) == []
+
+
+def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    run_id = uuid4()
+    payload = runtime_decision_payload(
+        agent_id,
+        run_id=run_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    [trace_event] = fetch_trace_events(session_factory)
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    check_results = fetch_check_results(session_factory)
+    results_by_type = {result.target_type: result for result in check_results}
+    assert results_by_type[CheckResultTargetType.SOURCE].outcome is (
+        CheckResultOutcome.PASS
+    )
+    assert results_by_type[CheckResultTargetType.DATA_USAGE_PROFILE].outcome is (
+        CheckResultOutcome.PASS
+    )
+    assert results_by_type[CheckResultTargetType.ACCESS_GRANT].outcome is (
+        CheckResultOutcome.PASS
+    )
+    for check_result in check_results:
+        assert check_result.agent_id == agent_id
+        assert check_result.run_id == run_id
+        assert check_result.trace_event_id == trace_event.id
+        assert check_result.policy_decision_id == policy_decision.id
+
+
+def test_runtime_metadata_pre_checks_create_capability_and_model_results(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize with governed capability and model.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "capability_id": str(inventory["capability_id"]),
+            "model_id": str(inventory["model_id"]),
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    check_results = fetch_check_results(session_factory)
+    capability_results = [
+        result
+        for result in check_results
+        if result.target_type is CheckResultTargetType.CAPABILITY
+    ]
+    model_results = [
+        result
+        for result in check_results
+        if result.target_type is CheckResultTargetType.MODEL_ASSET
+    ]
+    access_grant_results = [
+        result
+        for result in check_results
+        if result.target_type is CheckResultTargetType.ACCESS_GRANT
+    ]
+    assert [result.outcome for result in capability_results] == [
+        CheckResultOutcome.PASS
+    ]
+    assert [result.outcome for result in model_results] == [CheckResultOutcome.PASS]
+    assert [result.outcome for result in access_grant_results] == [
+        CheckResultOutcome.PASS,
+        CheckResultOutcome.PASS,
+    ]
+
+
+def test_runtime_metadata_pre_checks_do_not_change_final_decision(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    disable_runtime_source_and_revoke_grant(
+        session_factory,
+        source_id=inventory["source_id"],
+    )
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="PolicyRules still govern the final decision.",
+        tool_name="vectorize_source",
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize source containing secret-token.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "allow"
+    assert body["reason"] == "PolicyRules still govern the final decision."
+    check_results = fetch_check_results(session_factory)
+    assert any(result.outcome is CheckResultOutcome.FAIL for result in check_results)
+    for check_result in check_results:
+        serialized_result = (
+            f"{check_result.summary} {check_result.reason} {check_result.metadata_}"
+        )
+        assert "secret-token" not in serialized_result
+        assert "prompt" not in serialized_result
+        assert "chunks" not in serialized_result
+        assert "raw_content" not in serialized_result
 
 
 def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
@@ -2179,6 +2358,26 @@ def access_grant_type_for_target(
     return AccessGrantType.OTHER
 
 
+def disable_runtime_source_and_revoke_grant(
+    session_factory: SessionFactory,
+    *,
+    source_id: UUID,
+) -> None:
+    with session_factory() as session:
+        source = session.get(DataSource, source_id)
+        assert source is not None
+        source.status = DataSourceStatus.DISABLED
+        grant = session.scalar(
+            select(AccessGrant).where(
+                AccessGrant.target_type == AccessGrantTargetType.SOURCE,
+                AccessGrant.target_id == source_id,
+            )
+        )
+        assert grant is not None
+        grant.status = AccessGrantStatus.REVOKED
+        session.commit()
+
+
 def set_evidence_export_actor() -> None:
     app.dependency_overrides[get_current_actor] = lambda: ActorContext(
         actor_type=ActorType.USER,
@@ -2275,6 +2474,11 @@ def runtime_decision_payload(
 
 def enable_runtime_enforcement(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGCP_RUNTIME_ENFORCEMENT_ENABLED", "true")
+    get_settings.cache_clear()
+
+
+def enable_runtime_metadata_pre_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED", "true")
     get_settings.cache_clear()
 
 
@@ -2388,6 +2592,11 @@ def fetch_policy_decisions(session_factory: SessionFactory) -> list[PolicyDecisi
 def fetch_human_approvals(session_factory: SessionFactory) -> list[HumanApproval]:
     with session_factory() as session:
         return list(session.scalars(select(HumanApproval)).all())
+
+
+def fetch_check_results(session_factory: SessionFactory) -> list[CheckResult]:
+    with session_factory() as session:
+        return list(session.scalars(select(CheckResult)).all())
 
 
 def fetch_human_approval_audit_logs(

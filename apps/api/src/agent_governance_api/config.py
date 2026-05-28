@@ -77,6 +77,7 @@ class Settings(BaseModel):
     log_level: str = Field(default="INFO")
     database_url: str = Field(default=DEFAULT_DATABASE_URL)
     runtime_enforcement_enabled: bool = Field(default=False)
+    runtime_metadata_pre_checks_enabled: bool = Field(default=False)
     runtime_failure_default: RuntimeFailureDefault = Field(
         default=RuntimeFailureDefault.FAIL_CLOSED_DENY
     )
@@ -101,6 +102,10 @@ def get_settings() -> Settings:
         database_url=getenv("AGCP_DATABASE_URL", DEFAULT_DATABASE_URL),
         runtime_enforcement_enabled=_get_bool_env(
             "AGCP_RUNTIME_ENFORCEMENT_ENABLED",
+            default=False,
+        ),
+        runtime_metadata_pre_checks_enabled=_get_bool_env(
+            "AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED",
             default=False,
         ),
         runtime_failure_default=_get_runtime_failure_default_env(

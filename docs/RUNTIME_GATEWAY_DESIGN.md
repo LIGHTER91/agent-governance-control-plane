@@ -119,8 +119,13 @@ Rules:
   references are represented as `missing`. Missing inventory is not treated as
   safe.
 - AccessGrant and Data Usage Profile facts are deterministic policy context
-  only. The gateway does not automatically enforce AccessGrants, run
-  pre-checks, or legally certify data usage yet.
+  only. The gateway does not automatically enforce AccessGrants or legally
+  certify data usage.
+- Metadata-only pre-check execution is opt-in with
+  `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`. When enabled, the gateway
+  persists safe CheckResults for referenced inventory and AccessGrant context
+  after the TraceEvent and PolicyDecision are available. These CheckResults do
+  not directly change the final decision or `proceed` value.
 
 ### Response
 

@@ -199,8 +199,11 @@ Policy Management:
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
   AccessGrant status, Data Usage Profile review status, and Source,
-  Capability, and ModelAsset inventory status, but there are no public CRUD
-  APIs yet and Runtime Gateway/policy evaluation do not run pre-checks yet.
+  Capability, and ModelAsset inventory status. When
+  `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, Runtime Gateway decision
+  requests run the relevant metadata-only helpers for referenced context and
+  persist linked CheckResults. The flag is disabled by default, there are no
+  public CRUD APIs yet, and CheckResults do not change the final decision.
   CheckResults store safe outcomes, confidence labels, summaries, reasons,
   references, and safe metadata only; they must not store source contents,
   prompts, scanner raw payloads, or credentials.
@@ -243,6 +246,12 @@ Runtime Gateway:
   metadata with `resolved_` prefixes. Missing references are represented as
   `missing`, not as safe or allowed. AccessGrant status is context only; it is
   not automatically enforced yet.
+- Optional metadata-only runtime pre-check execution is disabled by default.
+  Set `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` to persist safe
+  CheckResults for referenced Capability, Source, Data Usage Profile,
+  ModelAsset, and AccessGrant status checks. These checks read persisted
+  metadata only, do not execute tools or scanners, and do not directly change
+  `decision` or `proceed`.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

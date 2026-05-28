@@ -60,6 +60,9 @@ from agent_governance_api.runtime_inventory_context import (
     ResolvedRuntimeInventoryContext,
     resolve_runtime_inventory_context,
 )
+from agent_governance_api.runtime_metadata_pre_checks import (
+    run_runtime_metadata_pre_checks,
+)
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -245,6 +248,16 @@ def decide_runtime_tool_call(
                     policy_decision,
                     actor=actor,
                 )
+
+        if settings.runtime_metadata_pre_checks_enabled:
+            run_runtime_metadata_pre_checks(
+                session,
+                payload=payload,
+                trace_event=trace_event,
+                policy_decision_id=(
+                    policy_decision.id if policy_decision is not None else None
+                ),
+            )
 
         session.commit()
         session.refresh(trace_event)

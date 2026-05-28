@@ -61,22 +61,30 @@ schema slice is implemented as optional Runtime Gateway request fields and safe
 TraceEvent metadata, and deterministic PolicyRules can now match those declared
 contextual fields explicitly. Runtime decisions now resolve safe Capability,
 Source, ModelAsset, Data Usage Profile, and AccessGrant facts as deterministic
-policy context while keeping caller-declared fields distinct. Pre-check
-execution, AccessGrant enforcement, Data Usage Profile enforcement, and broader
-runtime behavior remain unchanged. Source Data Usage Profile
+policy context while keeping caller-declared fields distinct. Optional
+metadata-only pre-check execution can persist CheckResults behind a
+disabled-by-default feature flag, but AccessGrant enforcement, Data Usage
+Profile enforcement, and broader runtime behavior remain unchanged. Source Data
+Usage Profile
 now has a first backend foundation for Source-side governance metadata such as
 classification, personal or sensitive data signals, purpose and processing
 constraints, review status, and safe DPIA references. It is exposed through
-nested Source API endpoints and audited with safe metadata, but Runtime Gateway,
-policy evaluation, and Policy Pre-Checks do not use it yet. Policy Pre-Checks
+nested Source API endpoints and audited with safe metadata. Runtime Gateway can
+resolve profile fields as context and optionally run profile status checks, but
+profile metadata is not automatically enforced or treated as legal
+certification. Policy Pre-Checks
 and Control Tools have a
 design for safe, auditable checks that can inform future contextual
 PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
 Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state.
 CheckTool and CheckResult persistence and internal execution helpers now exist
 as a backend foundation, and Evidence Bundle export includes safe CheckResult
-summaries for PolicyDecision-linked or Agent-scoped records. Scanner adapters,
-public CRUD APIs for checks, and runtime behavior remain unchanged. The
+summaries for PolicyDecision-linked or Agent-scoped records. Runtime Gateway can
+optionally execute metadata-only pre-checks and persist linked CheckResults
+behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but this is disabled by
+default and does not change final runtime decisions. Scanner adapters,
+public CRUD APIs for checks, PolicyCheckStep authoring, and pre-check-driven
+enforcement remain out of scope. The
 frontend has a minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -223,6 +231,7 @@ credentials.
 - [x] Implement simple deterministic Policy evaluator.
 - [x] Extend deterministic PolicyRule matching with explicit contextual fields.
 - [x] Resolve safe inventory context for Runtime Gateway policy decisions.
+- [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

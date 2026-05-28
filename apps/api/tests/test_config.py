@@ -36,6 +36,18 @@ def test_runtime_enforcement_is_disabled_by_default(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_runtime_metadata_pre_checks_are_disabled_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.runtime_metadata_pre_checks_enabled is False
+    finally:
+        get_settings.cache_clear()
+
+
 def test_require_service_auth_is_disabled_by_default(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.delenv("AGCP_REQUIRE_SERVICE_AUTH", raising=False)
@@ -70,6 +82,18 @@ def test_runtime_enforcement_can_be_enabled_from_environment(monkeypatch) -> Non
         settings = get_settings()
 
         assert settings.runtime_enforcement_enabled is True
+    finally:
+        get_settings.cache_clear()
+
+
+def test_runtime_metadata_pre_checks_can_be_enabled(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED", "true")
+
+    try:
+        settings = get_settings()
+
+        assert settings.runtime_metadata_pre_checks_enabled is True
     finally:
         get_settings.cache_clear()
 

@@ -656,8 +656,11 @@ metadata. Internal helpers can generate CheckResults for AccessGrant status,
 Data Usage Profile review status, and Source, Capability, and ModelAsset
 inventory status. Evidence Bundle export includes safe CheckResult summaries
 linked to the Agent through PolicyDecisions or Agent-scoped pre-check records.
-CheckResults are evidence inputs; they do not replace PolicyDecision or prove
-that Runtime Gateway enforcement used pre-checks.
+Runtime Gateway can optionally run these metadata-only helpers behind
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and link CheckResults to the
+Agent, run, TraceEvent, and PolicyDecision where available. CheckResults are
+evidence inputs; they do not replace PolicyDecision and do not directly change
+Runtime Gateway decisions.
 
 ## Policy Decision
 

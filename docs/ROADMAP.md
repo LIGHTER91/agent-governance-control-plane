@@ -66,9 +66,11 @@ Contextual runtime governance now has a design path for future decisions that
 need Agent, Action, Source, data classification, ModelAsset, provider,
 Capability, purpose, environment, AccessGrant, and Approval context. The first
 schema slice is implemented as optional runtime request fields and safe
-TraceEvent metadata. Policy evaluation, inventory resolution, pre-check
-execution, and enforcement behavior still use the existing deterministic
-contract.
+TraceEvent metadata. Policy evaluation can match declared and resolved
+contextual fields deterministically, and runtime decisions resolve safe
+inventory facts. Metadata-only pre-check execution is available behind
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but default runtime behavior
+and enforcement semantics remain unchanged.
 
 Source Data Usage Profile now has a first backend foundation for Source-side
 governance metadata needed by contextual runtime decisions, including
@@ -76,8 +78,10 @@ classification, personal or sensitive data signals, allowed and prohibited
 purposes, processing constraints, review status, and safe DPIA references. It
 is exposed through nested Source endpoints and audited with safe metadata.
 Evidence Bundle export includes safe profile summaries for Sources referenced
-by Agent AccessGrants. Runtime Gateway, policy evaluation, and Policy
-Pre-Checks do not use Data Usage Profiles yet.
+by Agent AccessGrants. Runtime Gateway can resolve profile fields as
+deterministic context and optionally run profile status checks, but Data Usage
+Profile metadata is not automatically enforced or treated as legal
+certification.
 
 Policy Pre-Checks and Control Tools now have a design path for safe,
 auditable checks that can inform future contextual PolicyDecisions. The design
@@ -86,8 +90,10 @@ AccessGrant, ModelAsset, Capability, and HumanApproval state. A first backend
 persistence and internal helper foundation now exists for CheckTool and
 CheckResult records. Internal helpers can evaluate AccessGrant status, Data
 Usage Profile review status, and Source, Capability, and ModelAsset inventory
-status from persisted metadata only, but no scanner integration, public CRUD
-API, PolicyRule schema change, or runtime behavior has been implemented.
+status from persisted metadata only. Runtime Gateway can optionally execute
+these checks and persist linked CheckResults behind an explicit disabled-by-
+default feature flag, but no scanner integration, public CRUD API, automatic
+enforcement, or PolicyCheckStep authoring has been implemented.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -250,10 +256,11 @@ Important limitations:
   summaries for granted Sources are implemented. Profile-aware Policy
   Pre-Checks and Data Usage Profile-aware runtime enforcement are not
   implemented yet.
-- Policy Pre-Checks have CheckTool and CheckResult persistence plus internal
-  metadata-only execution helpers and safe Evidence Bundle summaries only.
-  PolicyCheckStep authoring, scanner adapters, and pre-check-aware runtime
-  decisions are not implemented yet.
+- Policy Pre-Checks have CheckTool and CheckResult persistence, internal
+  metadata-only execution helpers, optional Runtime Gateway execution behind
+  `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
+  summaries. PolicyCheckStep authoring, scanner adapters, and pre-check-driven
+  enforcement decisions are not implemented yet.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 

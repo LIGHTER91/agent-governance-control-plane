@@ -1215,6 +1215,12 @@ TELEMETRY_EVENT_OPENAPI = _request_response_example(
 )
 
 RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
+    "description": (
+        "Creates a Runtime Gateway decision record. Optional metadata-only "
+        "pre-check execution is disabled by default and can be enabled with "
+        "AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true; CheckResults are "
+        "evidence inputs and do not directly change the decision."
+    ),
     "requestBody": {
         "content": {
             "application/json": {
