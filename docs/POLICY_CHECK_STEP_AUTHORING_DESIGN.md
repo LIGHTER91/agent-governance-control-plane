@@ -2,15 +2,21 @@
 
 ## Status
 
-Design only. This document does not add migrations, models, APIs, frontend UI,
-Runtime Gateway behavior, PolicyRule evaluation behavior, scanner integrations,
-or external tool execution.
+Design plus backend persistence/API. The implementation now includes a
+PolicyRule-linked `PolicyCheckStep` SQLAlchemy model, Alembic migration,
+Pydantic create/update/read schemas, CRUD-style API endpoints, OpenAPI
+examples, and audit events for create/update/status changes.
+
+This document and implementation do not add frontend UI, Runtime Gateway
+execution of authored steps, PolicyRule evaluation changes, scanner
+integrations, or external tool execution.
 
 AGCP already has `CheckTool` and `CheckResult` persistence, metadata-only
 check helpers, optional Runtime Gateway metadata pre-check execution behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=false` by default, and Evidence
 Bundle summaries for safe CheckResults. The next gap is authoring: policies do
-not yet explicitly declare which checks should run.
+not yet explicitly drive Runtime Gateway check selection from authored
+PolicyCheckSteps.
 
 ## Critical Assessment
 
@@ -73,29 +79,25 @@ clear governance intent.
 A PolicyCheckStep is a constrained authoring record that declares a metadata
 check requirement for a Policy or PolicyRule.
 
-Suggested fields:
+Implemented V1 fields:
 
 - `id`;
-- `policy_id`;
-- `policy_rule_id`, nullable only if policy-level steps are supported;
-- `name`;
-- `description`;
-- `status`, for example `active`, `disabled`, `archived`;
-- `check_tool_id`, when bound to a persisted CheckTool;
-- `check_type`, when using a built-in metadata-only check type;
+- `policy_rule_id`;
+- `check_tool_id`, nullable when using a built-in metadata-only check type
+  without a specific CheckTool record;
+- `check_type`;
 - `target_selector`;
 - `required`;
 - `failure_behavior`;
-- `minimum_confidence`;
-- `evidence_required`;
-- `result_retention`;
-- `execution_order`, for stable evidence ordering only;
+- `min_confidence`, nullable numeric value between 0 and 1;
+- `status`, `active`, `disabled`, or `retired`;
+- `evidence_retention`, `decision_only`, `evidence_bundle`, or `none`;
 - `metadata`, safe-filtered only;
 - `created_at`;
 - `updated_at`.
 
-`execution_order` must not create dependencies or branching. It should only
-make output stable for humans and tests.
+Fields such as `policy_id`, `name`, `description`, execution ordering,
+branching, and policy-level defaults are intentionally deferred.
 
 ### Linked Policy Or PolicyRule
 
@@ -120,8 +122,9 @@ V1 should support either:
 - `check_type`, referencing a built-in metadata-only check type.
 
 Using `check_type` is simpler for early internal checks. Using `check_tool_id`
-is better once admins manage CheckTool records. The API can accept one of these
-but should not require both.
+is better once admins manage CheckTool records. The API accepts a built-in
+`check_type` and optionally a compatible `check_tool_id`; when a CheckTool is
+provided, its `tool_type` must match the PolicyCheckStep check type.
 
 ### Target Selector
 
@@ -132,22 +135,18 @@ V1 target selectors should be explicit strings or a small validated enum, not a
 query language. Suggested values:
 
 - `agent`;
-- `request_capability`;
-- `request_model`;
-- `each_source`;
-- `each_source_data_usage_profile`;
-- `each_access_grant_target`;
-- `source_access_grant`;
-- `model_access_grant`;
-- `capability_access_grant`.
+- `source_ids`;
+- `model_id`;
+- `capability_id`;
+- `access_grants`.
 
 Examples:
 
-- `source_status` with `each_source`;
-- `data_usage_profile_status` with `each_source_data_usage_profile`;
-- `model_asset_status` with `request_model`;
-- `capability_status` with `request_capability`;
-- `access_grant_status` with `each_access_grant_target`.
+- `source_status` with `source_ids`;
+- `data_usage_profile_status` with `source_ids`;
+- `model_asset_status` with `model_id`;
+- `capability_status` with `capability_id`;
+- `access_grant_status` with `access_grants`.
 
 V1 should not accept arbitrary JSONPath, SQL, Python expressions, webhooks, or
 template code as target selectors.
@@ -177,7 +176,7 @@ Suggested values:
 - `fail_closed`;
 - `require_human_review`;
 - `ignore_if_unavailable`;
-- `record_unknown_only`.
+- `record_only`.
 
 V1 should persist and expose this intent but should not automatically change
 Runtime Gateway decisions until PolicyRule evaluation explicitly supports check
@@ -185,17 +184,18 @@ outcome matching.
 
 ### Confidence Threshold
 
-`minimum_confidence` is a bounded label such as `high`, `medium`, `low`, or
-`unknown`. It is not a score.
+`min_confidence` is an optional bounded numeric threshold between 0 and 1. It
+is configuration intent, not a compliance score or legal confidence claim.
 
 For metadata-only V1 checks, most results will be `high` or `medium` depending
 on whether the record exists and is current. Future scanner adapters may need
-confidence thresholds, but V1 should avoid false precision.
+more careful confidence semantics, but V1 should avoid false precision and not
+derive legal certainty from this value.
 
 ### Evidence Requirement
 
-`evidence_required` indicates whether the CheckResult should appear in the
-Evidence Bundle when it safely belongs to the Agent evidence chain.
+`evidence_retention` indicates whether future CheckResults should be retained
+for the PolicyDecision chain, Evidence Bundle, or neither.
 
 Evidence may include:
 
@@ -214,11 +214,11 @@ detected secret values, scanner raw payloads, or private customer data.
 
 ### Result Retention
 
-V1 can use a simple retention hint, such as:
+V1 uses a simple retention hint:
 
-- `per_runtime_request`;
-- `reuse_until_stale`;
-- `retain_for_evidence`.
+- `decision_only`;
+- `evidence_bundle`;
+- `none`.
 
 Actual deletion or retention enforcement should be a later platform-wide
 retention design. CheckResults are audit-adjacent evidence and should not be
@@ -299,31 +299,31 @@ PolicyCheckSteps:
 [
   {
     "check_type": "source_status",
-    "target_selector": "each_source",
+    "target_selector": "source_ids",
     "required": true,
     "failure_behavior": "require_human_review",
-    "evidence_required": true
+    "evidence_retention": "evidence_bundle"
   },
   {
     "check_type": "data_usage_profile_status",
-    "target_selector": "each_source_data_usage_profile",
+    "target_selector": "source_ids",
     "required": true,
     "failure_behavior": "require_human_review",
-    "evidence_required": true
+    "evidence_retention": "evidence_bundle"
   },
   {
     "check_type": "access_grant_status",
-    "target_selector": "each_access_grant_target",
+    "target_selector": "access_grants",
     "required": true,
     "failure_behavior": "require_human_review",
-    "evidence_required": true
+    "evidence_retention": "evidence_bundle"
   },
   {
     "check_type": "model_asset_status",
-    "target_selector": "request_model",
+    "target_selector": "model_id",
     "required": true,
     "failure_behavior": "fail_closed",
-    "evidence_required": true
+    "evidence_retention": "evidence_bundle"
   }
 ]
 ```
@@ -348,7 +348,7 @@ implementation. It must stay deterministic and explicit.
 
 Recommended staged approach:
 
-1. Add PolicyCheckStep persistence and API.
+1. Add PolicyCheckStep persistence and API. Implemented.
    - No Runtime Gateway behavior change.
    - Steps can be listed for policies and rules.
    - Mutations are audited.
@@ -387,7 +387,7 @@ Suggested values:
   failure.
 - `ignore_if_unavailable`: missing check tool or unavailable result should not
   affect the decision, but may still be recorded.
-- `record_unknown_only`: persist `unknown` CheckResults for evidence and let
+- `record_only`: persist CheckResults for evidence and let
   PolicyRules decide only if they explicitly match those outcomes.
 
 Initial implementation should record failure behavior but not enforce it
@@ -421,13 +421,13 @@ governance metadata, not legal certification.
 
 ## API Shape
 
-Suggested future endpoints:
+Implemented endpoints:
 
 ```http
 POST /policy-check-steps
 GET /policy-check-steps
-GET /policy-check-steps/{policy_check_step_id}
-PATCH /policy-check-steps/{policy_check_step_id}
+GET /policy-check-steps/{step_id}
+PATCH /policy-check-steps/{step_id}
 GET /policy-rules/{rule_id}/check-steps
 ```
 
@@ -435,7 +435,7 @@ Delete should stay out of scope. Use status lifecycle instead:
 
 - `active`;
 - `disabled`;
-- `archived`.
+- `retired`.
 
 Suggested audit events:
 
@@ -466,9 +466,7 @@ workflow log or policy authoring UI.
 
 ## Non-goals
 
-- Do not implement migrations in this design issue.
-- Do not add SQLAlchemy models in this design issue.
-- Do not add Pydantic schemas in this design issue.
+- Do not execute PolicyCheckSteps in Runtime Gateway in this issue.
 - Do not change Runtime Gateway behavior in this design issue.
 - Do not change PolicyRule evaluation in this design issue.
 - Do not add frontend UI.
@@ -488,9 +486,12 @@ Recommended staged implementation:
 
 1. Finalize this design. Done.
 2. Add `PolicyCheckStep` persistence linked to PolicyRule first.
+   Implemented.
 3. Add Pydantic create/update/read schemas and validation for V1 check types
    and target selectors.
+   Implemented.
 4. Add CRUD-style management endpoints with audit logs.
+   Implemented.
 5. Include PolicyCheckStep references in Evidence Bundle CheckResult summaries.
 6. Update Runtime Gateway optional pre-check execution to run only authored
    active steps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.

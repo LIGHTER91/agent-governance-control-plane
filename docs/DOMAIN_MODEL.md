@@ -613,19 +613,20 @@ PolicyDecision.
 
 The design is documented in `docs/POLICY_PRE_CHECKS_DESIGN.md`. It is
 implemented as a first backend persistence and internal helper foundation for
-metadata-only checks. PolicyCheckStep authoring is designed in
-`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but PolicyCheckStep persistence,
-PolicyRule check-outcome matching, scanner integration, public CRUD APIs,
-frontend UI, and external integrations have not changed yet.
+metadata-only checks. PolicyCheckStep authoring is implemented as
+PolicyRule-linked persistence and API support, following
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`. PolicyRule check-outcome
+matching, scanner integration, frontend UI, and external integrations have not
+changed yet.
 
 Implemented concepts:
 
 - CheckTool;
 - CheckResult;
+- PolicyCheckStep;
 
 Designed future concepts:
 
-- PolicyCheckStep;
 - CheckRun or ControlRun;
 - outcome;
 - confidence;
@@ -664,10 +665,23 @@ evidence inputs; they do not replace PolicyDecision and do not directly change
 Runtime Gateway decisions.
 
 PolicyCheckStep should become the authoring link between PolicyRule and
-CheckTool. It should declare which metadata-only check is required, which
-runtime target selector it applies to, whether evidence is required, and how
-missing or unavailable results should be represented. The recommended V1 shape
-links PolicyCheckSteps to PolicyRules first, not broad workflow graphs.
+CheckTool. It declares which metadata-only check is expected, which runtime
+target selector it applies to, whether the check is required, how unavailable
+results should be represented later, and whether safe evidence should be
+retained. V1 links PolicyCheckSteps to PolicyRules first, not broad workflow
+graphs.
+
+`POST /policy-check-steps`, `GET /policy-check-steps`,
+`GET /policy-check-steps/{step_id}`, and `PATCH
+/policy-check-steps/{step_id}` manage PolicyCheckStep records. `GET
+/policy-rules/{rule_id}/check-steps` reads declarations scoped to one
+PolicyRule. Mutations append `policy_check_step_created`,
+`policy_check_step_updated`, or `policy_check_step_status_changed` audit
+records with safe references only.
+
+PolicyCheckStep records are authoring/configuration. They are not executed by
+Runtime Gateway yet, they do not change PolicyRule evaluation, and they do not
+certify legal compliance.
 
 ## Policy Decision
 
@@ -829,6 +843,9 @@ Examples:
 - policy_status_changed;
 - policy_rule_created;
 - policy_rule_updated;
+- policy_check_step_created;
+- policy_check_step_updated;
+- policy_check_step_status_changed;
 - check_tool_registered;
 - policy_check_result_recorded;
 - policy_check_run_recorded;

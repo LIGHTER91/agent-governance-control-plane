@@ -10,10 +10,11 @@ review status, and Source, Capability, and ModelAsset inventory status from
 persisted metadata only. Runtime Gateway can optionally run these helpers
 behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked
 CheckResults without changing the final decision. PolicyCheckStep authoring is
-now designed separately in `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but no
-PolicyCheckStep persistence or runtime selection behavior exists yet. Scanner
-integrations, external integrations, public CRUD APIs, and frontend UI remain
-out of scope.
+now implemented as PolicyRule-linked persistence and API support, following
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but Runtime Gateway does not
+select or execute authored steps yet. Scanner integrations, external
+integrations, public CheckTool/CheckResult management APIs, and frontend UI
+remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -123,6 +124,10 @@ The authoring model is documented in
 implementation links PolicyCheckSteps to PolicyRules, limits checks to
 metadata-only built-ins, and records evidence intent without directly changing
 Runtime Gateway decisions.
+
+PolicyCheckStep persistence and CRUD-style API support now exist for this V1
+authoring shape. This is configuration only; authored steps are not executed by
+Runtime Gateway yet.
 
 ### CheckResult
 
@@ -463,10 +468,13 @@ Recommended staged implementation:
    policy template use cases. Done in
    `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 7. Add PolicyCheckStep persistence and API support for metadata-only checks.
-8. Add async check handling and HumanApproval fallback behavior.
-9. Later add external checker adapters for catalogs, DLP, PII scanners, and
+   Implemented as PolicyRule-linked authoring/configuration only.
+8. Wire Runtime Gateway metadata-only pre-check execution to authored active
+   PolicyCheckSteps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
+9. Add async check handling and HumanApproval fallback behavior.
+10. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-10. Later add a constrained Policy Studio UI for check-based policy authoring.
+11. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current

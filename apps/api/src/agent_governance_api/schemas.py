@@ -33,6 +33,11 @@ from agent_governance_api.models import (
     ModelAssetType,
     ModelProvider,
     OwnerType,
+    PolicyCheckStepCheckType,
+    PolicyCheckStepEvidenceRetention,
+    PolicyCheckStepFailureBehavior,
+    PolicyCheckStepStatus,
+    PolicyCheckStepTargetSelector,
     PolicyDecisionValue,
     PolicyStatus,
     RiskLevel,
@@ -716,6 +721,40 @@ EvidenceMetadata = dict[str, EvidenceMetadataValue]
 AgentActivitySeverity = Literal["info", "warning", "error"]
 
 
+POLICY_CHECK_STEP_TARGET_SELECTORS = {
+    PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: {
+        PolicyCheckStepTargetSelector.ACCESS_GRANTS,
+    },
+    PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS: {
+        PolicyCheckStepTargetSelector.SOURCE_IDS,
+    },
+    PolicyCheckStepCheckType.SOURCE_STATUS: {
+        PolicyCheckStepTargetSelector.SOURCE_IDS,
+    },
+    PolicyCheckStepCheckType.CAPABILITY_STATUS: {
+        PolicyCheckStepTargetSelector.CAPABILITY_ID,
+    },
+    PolicyCheckStepCheckType.MODEL_ASSET_STATUS: {
+        PolicyCheckStepTargetSelector.MODEL_ID,
+    },
+}
+
+
+def validate_policy_check_step_target_selector(
+    check_type: PolicyCheckStepCheckType,
+    target_selector: PolicyCheckStepTargetSelector,
+) -> None:
+    supported_selectors = POLICY_CHECK_STEP_TARGET_SELECTORS[check_type]
+    if target_selector not in supported_selectors:
+        supported = ", ".join(
+            sorted(selector.value for selector in supported_selectors)
+        )
+        raise ValueError(
+            f"target_selector {target_selector.value!r} is not supported for "
+            f"check_type {check_type.value!r}. Supported selectors: {supported}."
+        )
+
+
 def _validate_access_grant_target_reference(
     access_grant: AccessGrantCreate,
 ) -> AccessGrantCreate:
@@ -1111,6 +1150,103 @@ class PolicyRuleRead(PolicyRuleBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class PolicyCheckStepBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy_rule_id: UUID
+    check_tool_id: UUID | None = None
+    check_type: PolicyCheckStepCheckType
+    target_selector: PolicyCheckStepTargetSelector
+    required: bool = True
+    failure_behavior: PolicyCheckStepFailureBehavior
+    min_confidence: float | None = Field(default=None, ge=0, le=1)
+    status: PolicyCheckStepStatus
+    evidence_retention: PolicyCheckStepEvidenceRetention
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="after")
+    def validate_target_selector(self) -> Self:
+        validate_policy_check_step_target_selector(
+            self.check_type,
+            self.target_selector,
+        )
+        return self
+
+
+class PolicyCheckStepCreate(PolicyCheckStepBase):
+    pass
+
+
+class PolicyCheckStepUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy_rule_id: UUID | None = None
+    check_tool_id: UUID | None = None
+    check_type: PolicyCheckStepCheckType | None = None
+    target_selector: PolicyCheckStepTargetSelector | None = None
+    required: bool | None = None
+    failure_behavior: PolicyCheckStepFailureBehavior | None = None
+    min_confidence: float | None = Field(default=None, ge=0, le=1)
+    status: PolicyCheckStepStatus | None = None
+    evidence_retention: PolicyCheckStepEvidenceRetention | None = None
+    metadata: SafeMetadata | None = None
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata | None) -> SafeMetadata | None:
+        if value is None:
+            return None
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {"check_tool_id", "min_confidence"}
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_target_selector_when_complete(self) -> Self:
+        if self.check_type is not None and self.target_selector is not None:
+            validate_policy_check_step_target_selector(
+                self.check_type,
+                self.target_selector,
+            )
+        return self
+
+
+class PolicyCheckStepRead(PolicyCheckStepBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    metadata: SafeMetadata = Field(default_factory=dict, validation_alias="metadata_")
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def filter_metadata(cls, value: object) -> SafeMetadata:
+        if isinstance(value, dict):
+            return filter_safe_metadata(value)
+        return {}
 
 
 class PolicyDecisionBase(BaseModel):

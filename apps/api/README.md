@@ -173,8 +173,16 @@ Policy Management:
   `policy_rule_created`.
 - `GET /policy-rules` lists PolicyRule records.
 - `GET /policy-rules/{rule_id}` returns one PolicyRule.
+- `GET /policy-rules/{rule_id}/check-steps` lists PolicyCheckStep records
+  attached to one PolicyRule.
 - `PATCH /policy-rules/{rule_id}` updates a PolicyRule and appends
   `policy_rule_updated`.
+- `POST /policy-check-steps` creates a metadata-only check declaration for a
+  PolicyRule and appends `policy_check_step_created`.
+- `GET /policy-check-steps` lists PolicyCheckStep records.
+- `GET /policy-check-steps/{step_id}` returns one PolicyCheckStep.
+- `PATCH /policy-check-steps/{step_id}` updates a PolicyCheckStep and appends
+  `policy_check_step_updated` or `policy_check_step_status_changed`.
 - Policy statuses are `draft`, `active`, `disabled`, and `archived`; there is
   no hard-delete endpoint.
 - PolicyRule conditions must be JSON objects using the deterministic condition
@@ -203,10 +211,15 @@ Policy Management:
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, Runtime Gateway decision
   requests run the relevant metadata-only helpers for referenced context and
   persist linked CheckResults. The flag is disabled by default, there are no
-  public CRUD APIs yet, and CheckResults do not change the final decision.
+  public CheckTool or CheckResult management APIs yet, and CheckResults do not
+  change the final decision.
   CheckResults store safe outcomes, confidence labels, summaries, reasons,
   references, and safe metadata only; they must not store source contents,
   prompts, scanner raw payloads, or credentials.
+- PolicyCheckStep records are authoring/configuration only. They declare
+  expected metadata-only checks for PolicyRules using constrained check types
+  and target selectors. They are not executed by the Runtime Gateway yet and do
+  not change PolicyRule evaluation or runtime decisions.
 
 Human Approvals:
 

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     String,
@@ -195,6 +196,41 @@ class CheckResultConfidence(StrEnum):
     MEDIUM = "medium"
     LOW = "low"
     UNKNOWN = "unknown"
+
+
+class PolicyCheckStepCheckType(StrEnum):
+    ACCESS_GRANT_STATUS = "access_grant_status"
+    DATA_USAGE_PROFILE_STATUS = "data_usage_profile_status"
+    SOURCE_STATUS = "source_status"
+    CAPABILITY_STATUS = "capability_status"
+    MODEL_ASSET_STATUS = "model_asset_status"
+
+
+class PolicyCheckStepTargetSelector(StrEnum):
+    AGENT = "agent"
+    SOURCE_IDS = "source_ids"
+    MODEL_ID = "model_id"
+    CAPABILITY_ID = "capability_id"
+    ACCESS_GRANTS = "access_grants"
+
+
+class PolicyCheckStepFailureBehavior(StrEnum):
+    RECORD_ONLY = "record_only"
+    REQUIRE_HUMAN_REVIEW = "require_human_review"
+    FAIL_CLOSED = "fail_closed"
+    IGNORE_IF_UNAVAILABLE = "ignore_if_unavailable"
+
+
+class PolicyCheckStepStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    RETIRED = "retired"
+
+
+class PolicyCheckStepEvidenceRetention(StrEnum):
+    DECISION_ONLY = "decision_only"
+    EVIDENCE_BUNDLE = "evidence_bundle"
+    NONE = "none"
 
 
 class OwnerType(StrEnum):
@@ -975,6 +1011,9 @@ class CheckTool(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
     results: Mapped[list["CheckResult"]] = relationship(back_populates="check_tool")
+    check_steps: Mapped[list["PolicyCheckStep"]] = relationship(
+        back_populates="check_tool"
+    )
 
     @validates("metadata_")
     def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
@@ -1393,6 +1432,113 @@ class PolicyRule(Base):
         onupdate=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+    check_steps: Mapped[list["PolicyCheckStep"]] = relationship(
+        back_populates="policy_rule"
+    )
+
+
+class PolicyCheckStep(Base):
+    __tablename__ = "policy_check_steps"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    policy_rule_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("policy_rules.id"),
+        nullable=False,
+    )
+    check_tool_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("check_tools.id"),
+        nullable=True,
+    )
+    check_type: Mapped[PolicyCheckStepCheckType] = mapped_column(
+        Enum(
+            PolicyCheckStepCheckType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_check_step_type",
+        ),
+        nullable=False,
+    )
+    target_selector: Mapped[PolicyCheckStepTargetSelector] = mapped_column(
+        Enum(
+            PolicyCheckStepTargetSelector,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_check_step_target_selector",
+        ),
+        nullable=False,
+    )
+    required: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true"),
+    )
+    failure_behavior: Mapped[PolicyCheckStepFailureBehavior] = mapped_column(
+        Enum(
+            PolicyCheckStepFailureBehavior,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_check_step_failure_behavior",
+        ),
+        nullable=False,
+    )
+    min_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[PolicyCheckStepStatus] = mapped_column(
+        Enum(
+            PolicyCheckStepStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_check_step_status",
+        ),
+        nullable=False,
+    )
+    evidence_retention: Mapped[PolicyCheckStepEvidenceRetention] = mapped_column(
+        Enum(
+            PolicyCheckStepEvidenceRetention,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_check_step_evidence_retention",
+        ),
+        nullable=False,
+    )
+    metadata_: Mapped[SafeMetadata] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    policy_rule: Mapped[PolicyRule] = relationship(back_populates="check_steps")
+    check_tool: Mapped[CheckTool | None] = relationship(back_populates="check_steps")
+
+    @validates("metadata_")
+    def validate_metadata(self, _key: str, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
 
 
 class PolicyDecision(Base):

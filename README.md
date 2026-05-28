@@ -87,6 +87,9 @@ integrations are intentionally not implemented yet.
 - Policy management API with auditable create, update, and status lifecycle
   changes.
 - PolicyRule management API for deterministic rule conditions.
+- PolicyCheckStep persistence API for declaring metadata-only checks expected
+  by PolicyRules. These records are authoring/configuration only and do not
+  execute checks or change runtime decisions yet.
 - Simple policy evaluator supporting explicit matching fields:
   `agent_id`, `tool_name`, `environment`, and `risk_level`.
 - Adapter from persisted active PolicyRule records into evaluator rules.
@@ -262,12 +265,20 @@ Policy Management:
 - `POST /policy-rules`
 - `GET /policy-rules`
 - `GET /policy-rules/{rule_id}`
+- `GET /policy-rules/{rule_id}/check-steps`
 - `PATCH /policy-rules/{rule_id}`
+- `POST /policy-check-steps`
+- `GET /policy-check-steps`
+- `GET /policy-check-steps/{step_id}`
+- `PATCH /policy-check-steps/{step_id}`
 
 Policy management records the lifecycle of policies with `draft`, `active`,
 `disabled`, and `archived` statuses. PolicyRule management accepts only the
 deterministic JSON condition shape already consumed by the evaluator. It does
 not add a generic policy language or change runtime evaluation behavior.
+PolicyCheckStep records declare metadata-only evidence expectations for
+PolicyRules with constrained check types and target selectors; they are not
+Runtime Gateway execution steps yet.
 
 Human Approvals:
 
@@ -381,6 +392,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Docker Compose or production deployment.
 - Policy versioning and Runtime Gateway telemetry mode on the runtime decision
   endpoint.
+- Runtime execution of authored PolicyCheckSteps.
 - Retention policies.
 - Signed or PDF evidence bundles.
 - SIEM/GRC integrations.
@@ -390,25 +402,28 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Use Access Grants as optional policy context without replacing
+1. Wire optional Runtime Gateway metadata pre-check execution to authored
+   active PolicyCheckSteps behind the existing disabled feature flag.
+2. Add Policy management UI for the existing Policy, PolicyRule, and
+   PolicyCheckStep APIs.
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add focused AccessGrant and inventory workflows only where they support
+4. Add focused AccessGrant and inventory workflows only where they support
    review, approval, or evidence collection.
-4. Implement Permission domain model only if AccessGrant target semantics prove
+5. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add frontend auth and role-aware UI.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+6. Add frontend auth and role-aware UI.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-9. Add owner-based service actor scopes design.
-10. Add safe audit events for denied service actor scope checks.
-11. Implement service actor registry admin management workflow.
-12. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe audit events for denied service actor scope checks.
+12. Implement service actor registry admin management workflow.
+13. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-13. Add deeper separation-of-duties checks for HumanApproval review.
-14. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add deeper separation-of-duties checks for HumanApproval review.
+15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

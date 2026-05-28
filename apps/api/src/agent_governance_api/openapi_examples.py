@@ -5,6 +5,7 @@ MODEL_ASSET_ID = "14141414-1414-4141-8141-141414141414"
 DATA_USAGE_PROFILE_ID = "18181818-1818-4181-8181-181818181818"
 CHECK_TOOL_ID = "19191919-1919-4191-8191-191919191919"
 CHECK_RESULT_ID = "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a"
+POLICY_CHECK_STEP_ID = "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b"
 ACCESS_GRANT_ID = "15151515-1515-4151-8151-151515151515"
 SOURCE_ACCESS_GRANT_ID = "16161616-1616-4161-8161-161616161616"
 MODEL_ASSET_ACCESS_GRANT_ID = "17171717-1717-4171-8171-171717171717"
@@ -515,6 +516,39 @@ POLICY_RULE_UPDATE_REQUEST = {
 POLICY_RULE_UPDATED_RESPONSE = {
     **POLICY_RULE_RESPONSE,
     **POLICY_RULE_UPDATE_REQUEST,
+    "updated_at": "2026-01-15T12:10:00Z",
+}
+
+POLICY_CHECK_STEP_CREATE_REQUEST = {
+    "policy_rule_id": RULE_ID,
+    "check_tool_id": CHECK_TOOL_ID,
+    "check_type": "data_usage_profile_status",
+    "target_selector": "source_ids",
+    "required": True,
+    "failure_behavior": "require_human_review",
+    "min_confidence": 0.8,
+    "status": "active",
+    "evidence_retention": "evidence_bundle",
+    "metadata": {
+        "purpose": "runtime_metadata_pre_check",
+    },
+}
+
+POLICY_CHECK_STEP_RESPONSE = {
+    **POLICY_CHECK_STEP_CREATE_REQUEST,
+    "id": POLICY_CHECK_STEP_ID,
+    "created_at": CREATED_AT,
+    "updated_at": UPDATED_AT,
+}
+
+POLICY_CHECK_STEP_UPDATE_REQUEST = {
+    "status": "disabled",
+    "failure_behavior": "record_only",
+}
+
+POLICY_CHECK_STEP_UPDATED_RESPONSE = {
+    **POLICY_CHECK_STEP_RESPONSE,
+    **POLICY_CHECK_STEP_UPDATE_REQUEST,
     "updated_at": "2026-01-15T12:10:00Z",
 }
 
@@ -1204,6 +1238,40 @@ POLICY_RULES_FOR_POLICY_OPENAPI = _response_example(
     200,
     "List PolicyRules for the V0 email tool review policy.",
     [POLICY_RULE_RESPONSE],
+)
+
+POLICY_CHECK_STEP_CREATE_OPENAPI = _request_response_example(
+    request_summary="Declare a metadata-only check step for a PolicyRule.",
+    request_value=POLICY_CHECK_STEP_CREATE_REQUEST,
+    response_status_code=201,
+    response_summary="Created PolicyCheckStep.",
+    response_value=POLICY_CHECK_STEP_RESPONSE,
+)
+
+POLICY_CHECK_STEP_LIST_OPENAPI = _response_example(
+    200,
+    "List PolicyCheckSteps including the Data Usage Profile check.",
+    [POLICY_CHECK_STEP_RESPONSE],
+)
+
+POLICY_CHECK_STEP_GET_OPENAPI = _response_example(
+    200,
+    "Read the Data Usage Profile PolicyCheckStep.",
+    POLICY_CHECK_STEP_RESPONSE,
+)
+
+POLICY_CHECK_STEP_UPDATE_OPENAPI = _request_response_example(
+    request_summary="Disable a PolicyCheckStep declaration.",
+    request_value=POLICY_CHECK_STEP_UPDATE_REQUEST,
+    response_status_code=200,
+    response_summary="Updated PolicyCheckStep.",
+    response_value=POLICY_CHECK_STEP_UPDATED_RESPONSE,
+)
+
+POLICY_CHECK_STEPS_FOR_RULE_OPENAPI = _response_example(
+    200,
+    "List PolicyCheckSteps attached to the send_email PolicyRule.",
+    [POLICY_CHECK_STEP_RESPONSE],
 )
 
 TELEMETRY_EVENT_OPENAPI = _request_response_example(

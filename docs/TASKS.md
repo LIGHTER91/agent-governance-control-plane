@@ -83,9 +83,10 @@ summaries for PolicyDecision-linked or Agent-scoped records. Runtime Gateway can
 optionally execute metadata-only pre-checks and persist linked CheckResults
 behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but this is disabled by
 default and does not change final runtime decisions. Scanner adapters,
-public CRUD APIs for checks, PolicyCheckStep persistence/API support, and
-pre-check-driven enforcement remain out of scope. PolicyCheckStep authoring is
-now designed as explicit PolicyRule-linked metadata-only evidence requirements.
+public CRUD APIs for CheckTool/CheckResult management, and pre-check-driven
+enforcement remain out of scope. PolicyCheckStep persistence/API support now
+exists for explicit PolicyRule-linked metadata-only evidence requirements, but
+Runtime Gateway does not execute authored steps yet.
 The
 frontend has a minimal dashboard shell, a read-only Agent list
 page backed by `GET /agents`, a read-only Agent detail and Agent Governance
@@ -132,8 +133,9 @@ References:
 
 Recommended order:
 
-1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Add PolicyCheckStep persistence and API support for metadata-only checks.
+1. Wire optional Runtime Gateway metadata pre-check execution to authored
+   active PolicyCheckSteps behind the existing disabled feature flag.
+2. Add Policy management UI for the existing Policy and PolicyRule APIs.
 3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 4. Add focused AccessGrant and inventory review workflows only where they
@@ -158,7 +160,8 @@ Recommended order:
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
-- [ ] Add PolicyCheckStep persistence and API support for metadata-only checks.
+- [ ] Wire optional Runtime Gateway metadata pre-check execution to authored
+      active PolicyCheckSteps behind the existing disabled feature flag.
 - [ ] Add safe denied-scope audit events.
 - [ ] Add admin management for persisted service actor scope and rule records.
 - [ ] Implement service actor API key rotation and admin workflows after
@@ -238,6 +241,7 @@ credentials.
 - [x] Resolve safe inventory context for Runtime Gateway policy decisions.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
 - [x] Design PolicyCheckStep authoring model.
+- [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

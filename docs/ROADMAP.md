@@ -92,10 +92,10 @@ CheckResult records. Internal helpers can evaluate AccessGrant status, Data
 Usage Profile review status, and Source, Capability, and ModelAsset inventory
 status from persisted metadata only. Runtime Gateway can optionally execute
 these checks and persist linked CheckResults behind an explicit disabled-by-
-default feature flag, but no scanner integration, public CRUD API, automatic
-enforcement, or PolicyCheckStep persistence has been implemented. The
-PolicyCheckStep authoring model is designed as a PolicyRule-linked,
-metadata-only evidence requirement in
+default feature flag. PolicyCheckStep persistence and API support now exist for
+PolicyRule-linked metadata-only check declarations, but no scanner integration,
+automatic enforcement, or authored-step Runtime Gateway selection has been
+implemented. The PolicyCheckStep authoring model is documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 The next phase should deepen workflows instead of simply adding more models.
@@ -262,9 +262,10 @@ Important limitations:
 - Policy Pre-Checks have CheckTool and CheckResult persistence, internal
   metadata-only execution helpers, optional Runtime Gateway execution behind
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
-  summaries. PolicyCheckStep authoring is designed, but PolicyCheckStep
-  persistence/API support, scanner adapters, and pre-check-driven enforcement
-  decisions are not implemented yet.
+  summaries. PolicyCheckStep persistence/API support now exists for
+  PolicyRule-linked metadata-only check declarations, but Runtime Gateway does
+  not execute authored steps yet. Scanner adapters and pre-check-driven
+  enforcement decisions are not implemented.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 

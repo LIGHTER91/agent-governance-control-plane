@@ -14,6 +14,7 @@ from agent_governance_api.models import (
     DataUsageProfile,
     HumanApproval,
     Policy,
+    PolicyCheckStep,
     PolicyDecision,
     PolicyRule,
     ServiceActor,
@@ -41,6 +42,7 @@ def test_declarative_base_includes_domain_tables() -> None:
     assert AuditLog.__tablename__ in Base.metadata.tables
     assert Policy.__tablename__ in Base.metadata.tables
     assert PolicyRule.__tablename__ in Base.metadata.tables
+    assert PolicyCheckStep.__tablename__ in Base.metadata.tables
     assert PolicyDecision.__tablename__ in Base.metadata.tables
     assert HumanApproval.__tablename__ in Base.metadata.tables
     assert AgentRunRecord.__tablename__ in Base.metadata.tables
