@@ -508,6 +508,10 @@ POLICY_RULE_UPDATE_REQUEST = {
         '"model_provider_type":"external",'
         '"access_grant_status":"active",'
         '"data_usage_review_status":"approved",'
+        '"check_type":"data_usage_profile_status",'
+        '"check_outcome":"fail",'
+        '"check_target_type":"data_usage_profile",'
+        '"check_min_confidence":0.5,'
         '"contains_personal_data":true,'
         '"contains_sensitive_data":false}'
     ),
@@ -1287,7 +1291,8 @@ RUNTIME_TOOL_CALL_DECISION_OPENAPI = {
         "Creates a Runtime Gateway decision record. Optional metadata-only "
         "pre-check execution is disabled by default and can be enabled with "
         "AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true; CheckResults are "
-        "evidence inputs and do not directly change the decision."
+        "evidence inputs and can affect decisions only when PolicyRules "
+        "explicitly match safe CheckResult fields."
     ),
     "requestBody": {
         "content": {

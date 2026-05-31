@@ -527,6 +527,10 @@ Supported persisted `condition` shape for the first evaluator adapter:
   "model_provider_type": "external",
   "access_grant_status": "active",
   "data_usage_review_status": "approved",
+  "check_type": "data_usage_profile_status",
+  "check_outcome": "fail",
+  "check_target_type": "data_usage_profile",
+  "check_min_confidence": 0.5,
   "contains_personal_data": true,
   "contains_sensitive_data": false
 }
@@ -569,7 +573,15 @@ Optional matching fields:
 - `data_usage_review_status` or `data_usage_review_statuses`: review status
   values or `missing`;
 - `data_usage_allowed_purpose` or `data_usage_allowed_purposes`;
-- `data_usage_prohibited_purpose` or `data_usage_prohibited_purposes`.
+- `data_usage_prohibited_purpose` or `data_usage_prohibited_purposes`;
+- `check_type`;
+- `check_outcome`: one of `pass`, `fail`, `unknown`, `error`, or
+  `not_applicable`;
+- `check_target_type`: one of `source`, `capability`, `model_asset`,
+  `access_grant`, `data_usage_profile`, or `external`;
+- `check_target_id`;
+- `check_tool_id`;
+- `check_min_confidence`: numeric threshold from `0` to `1`.
 
 Contextual matching is still deterministic field matching, not a DSL. Missing
 or `null` optional fields are wildcards. A `source_id` condition matches any
@@ -578,7 +590,11 @@ when any declared source ID overlaps the request `source_ids`. List-valued
 resolved fields use the same any-overlap matching. Caller-supplied
 classification and personal/sensitive-data flags are declared context only, not
 verified Data Usage Profile truth. Resolved AccessGrant statuses are policy
-context only and are not automatically enforced by the Runtime Gateway.
+context only and are not automatically enforced by the Runtime Gateway. A rule
+with any `check_*` condition matches only when at least one safe CheckResult for
+the current decision satisfies all specified `check_*` fields. CheckResult
+metadata is not used for arbitrary matching; only safe summary fields surfaced
+by the runtime policy context are considered.
 
 Unsupported condition fields must be rejected rather than interpreted implicitly.
 
@@ -616,7 +632,8 @@ implemented as a first backend persistence and internal helper foundation for
 metadata-only checks. PolicyCheckStep authoring is implemented as
 PolicyRule-linked persistence and API support, following
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`. PolicyRule check-outcome
-matching, scanner integration, frontend UI, and external integrations have not
+matching is implemented as deterministic matching over safe CheckResult summary
+fields. Scanner integration, frontend UI, and external integrations have not
 changed yet.
 
 Implemented concepts:
@@ -663,6 +680,10 @@ Runtime Gateway can optionally run active authored PolicyCheckSteps behind
 Agent, run, TraceEvent, PolicyDecision, and safe PolicyCheckStep reference
 metadata where available. CheckResults are evidence inputs; they do not replace
 PolicyDecision and do not directly change Runtime Gateway decisions.
+PolicyRules may explicitly match CheckResult outcome context through
+deterministic `check_*` condition fields, so the final decision still comes
+from PolicyRule evaluation rather than from CheckResult or PolicyCheckStep
+`failure_behavior` alone.
 
 PolicyCheckStep is the authoring link between PolicyRule and CheckTool. It
 declares which metadata-only check is expected, which runtime target selector
@@ -681,8 +702,9 @@ records with safe references only.
 PolicyCheckStep records are authoring/configuration. Runtime Gateway executes
 active authored steps only when
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; they do not change PolicyRule
-evaluation, they do not directly enforce `failure_behavior`, and they do not
-certify legal compliance.
+evaluation by themselves, they do not directly enforce `failure_behavior`, and
+they do not certify legal compliance. Their CheckResults become decision input
+only when a PolicyRule explicitly matches safe CheckResult outcome fields.
 
 ## Policy Decision
 

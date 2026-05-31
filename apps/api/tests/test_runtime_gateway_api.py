@@ -637,6 +637,122 @@ def test_runtime_metadata_pre_checks_do_not_change_final_decision(
         assert "raw_content" not in serialized_result
 
 
+def test_runtime_check_result_rule_matches_authored_pre_check_outcome(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    disable_runtime_source_and_revoke_grant(
+        session_factory,
+        source_id=inventory["source_id"],
+    )
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Fallback policy would otherwise allow vectorization.",
+        tool_name="vectorize_source",
+    )
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="Failed source pre-check denies vectorization.",
+        condition={
+            "decision": "deny",
+            "reason": "Failed source pre-check denies vectorization.",
+            "tool_name": "vectorize_source",
+            "check_type": "source_status",
+            "check_outcome": "fail",
+            "check_target_type": "source",
+            "check_min_confidence": 0.5,
+        },
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    run_id = uuid4()
+    payload = runtime_decision_payload(
+        agent_id,
+        run_id=run_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Failed source pre-check denies vectorization."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+    [check_result] = fetch_check_results(session_factory)
+    assert check_result.outcome is CheckResultOutcome.FAIL
+    assert check_result.target_type is CheckResultTargetType.SOURCE
+    assert check_result.target_id == inventory["source_id"]
+    assert check_result.run_id == run_id
+    assert check_result.policy_decision_id == policy_decision.id
+    assert check_result.metadata_["policy_check_step_check_type"] == "source_status"
+
+
+def test_runtime_check_result_rule_does_not_match_without_check_results(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    disable_runtime_source_and_revoke_grant(
+        session_factory,
+        source_id=inventory["source_id"],
+    )
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Fallback policy allows vectorization.",
+        tool_name="vectorize_source",
+    )
+    _, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.DENY,
+        reason="Failed source pre-check denies vectorization.",
+        condition={
+            "decision": "deny",
+            "reason": "Failed source pre-check denies vectorization.",
+            "tool_name": "vectorize_source",
+            "check_type": "source_status",
+            "check_outcome": "fail",
+            "check_target_type": "source",
+        },
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "allow"
+    assert body["reason"] == "Fallback policy allows vectorization."
+    assert fetch_check_results(session_factory) == []
+
+
 def test_runtime_metadata_pre_checks_skip_disabled_and_retired_policy_check_steps(
     api_client: tuple[TestClient, SessionFactory],
     monkeypatch: pytest.MonkeyPatch,

@@ -26,6 +26,7 @@ from agent_governance_api.models import (
     ActorType,
     Agent,
     AgentRunRecord,
+    CheckResult,
     HumanApproval,
     HumanApprovalStatus,
     PolicyDecision,
@@ -216,13 +217,31 @@ def decide_runtime_tool_call(
 
         human_approval = None
         evaluation_result: PolicyEvaluationResult | None = None
+        pre_check_results: list[CheckResult] = []
         record_only_failure_reason = None
         try:
+            if settings.runtime_metadata_pre_checks_enabled:
+                candidate_evaluation_result = _evaluate_runtime_policy(
+                    session,
+                    agent=agent,
+                    payload=payload,
+                    inventory_context=inventory_context,
+                    ignore_check_result_conditions=True,
+                )
+                pre_check_results = run_runtime_metadata_pre_checks(
+                    session,
+                    payload=payload,
+                    trace_event=trace_event,
+                    policy_decision_id=None,
+                    policy_rule_ids=candidate_evaluation_result.matched_rule_ids,
+                )
+
             evaluation_result = _evaluate_runtime_policy(
                 session,
                 agent=agent,
                 payload=payload,
                 inventory_context=inventory_context,
+                check_results=pre_check_results,
             )
         except POLICY_EVALUATION_FAILURE_ERRORS:
             (
@@ -236,6 +255,9 @@ def decide_runtime_tool_call(
                 failure_default=settings.runtime_failure_default,
                 actor=actor,
             )
+            if policy_decision is not None:
+                for check_result in pre_check_results:
+                    check_result.policy_decision_id = policy_decision.id
         else:
             policy_decision = _persist_runtime_policy_decision(
                 session,
@@ -243,28 +265,14 @@ def decide_runtime_tool_call(
                 trace_event=trace_event,
                 evaluation_result=evaluation_result,
             )
+            for check_result in pre_check_results:
+                check_result.policy_decision_id = policy_decision.id
             if policy_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW:
                 human_approval = _create_human_approval_for_policy_decision(
                     session,
                     policy_decision,
                     actor=actor,
                 )
-
-        if settings.runtime_metadata_pre_checks_enabled:
-            matched_rule_ids = (
-                evaluation_result.matched_rule_ids
-                if evaluation_result is not None
-                else ()
-            )
-            run_runtime_metadata_pre_checks(
-                session,
-                payload=payload,
-                trace_event=trace_event,
-                policy_decision_id=(
-                    policy_decision.id if policy_decision is not None else None
-                ),
-                policy_rule_ids=matched_rule_ids,
-            )
 
         session.commit()
         session.refresh(trace_event)
@@ -717,6 +725,8 @@ def _evaluate_runtime_policy(
     agent: Agent,
     payload: RuntimeToolCallDecisionRequest,
     inventory_context: ResolvedRuntimeInventoryContext,
+    check_results: list[CheckResult] | None = None,
+    ignore_check_result_conditions: bool = False,
 ) -> PolicyEvaluationResult:
     rules = load_active_policy_evaluation_rules(session)
     return evaluate_policy(
@@ -724,10 +734,12 @@ def _evaluate_runtime_policy(
         action_context=_runtime_policy_action_context(
             payload,
             inventory_context=inventory_context,
+            check_results=check_results or [],
         ),
         environment=agent.environment,
         risk_level=agent.risk_level,
         rules=rules,
+        ignore_check_result_conditions=ignore_check_result_conditions,
     )
 
 
@@ -735,6 +747,7 @@ def _runtime_policy_action_context(
     payload: RuntimeToolCallDecisionRequest,
     *,
     inventory_context: ResolvedRuntimeInventoryContext,
+    check_results: list[CheckResult],
 ) -> dict[str, object]:
     context: dict[str, object] = {
         "tool_name": payload.tool_name,
@@ -756,7 +769,33 @@ def _runtime_policy_action_context(
         context["contains_personal_data"] = payload.contains_personal_data
     if payload.contains_sensitive_data is not None:
         context["contains_sensitive_data"] = payload.contains_sensitive_data
+    if check_results:
+        context["check_results"] = [
+            _check_result_policy_context(check_result) for check_result in check_results
+        ]
     context.update(inventory_context.policy_context)
+    return context
+
+
+def _check_result_policy_context(
+    check_result: CheckResult,
+) -> dict[str, str]:
+    context = {
+        "check_outcome": check_result.outcome.value,
+        "check_target_type": check_result.target_type.value,
+        "check_tool_id": str(check_result.check_tool_id),
+    }
+    if check_result.target_id is not None:
+        context["check_target_id"] = str(check_result.target_id)
+    if check_result.confidence is not None:
+        context["check_confidence"] = check_result.confidence.value
+
+    metadata = check_result.metadata_ or {}
+    check_type = metadata.get("policy_check_step_check_type")
+    if not isinstance(check_type, str):
+        check_type = metadata.get("check_type")
+    if isinstance(check_type, str):
+        context["check_type"] = check_type
     return context
 
 

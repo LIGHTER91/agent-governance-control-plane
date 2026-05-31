@@ -134,8 +134,8 @@ References:
 Recommended order:
 
 1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Design deterministic CheckResult outcome matching before any pre-check
-   failure behavior can influence decisions.
+2. Add guided PolicyCheckStep UI support only after versioning, review, and
+   simulation semantics are designed.
 3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 4. Add focused AccessGrant and inventory review workflows only where they
@@ -160,8 +160,6 @@ Recommended order:
 ## Backlog
 
 - [ ] Add owner-based service actor scopes design.
-- [ ] Design deterministic CheckResult outcome matching before any pre-check
-      failure behavior can influence decisions.
 - [ ] Add safe denied-scope audit events.
 - [ ] Add admin management for persisted service actor scope and rule records.
 - [ ] Implement service actor API key rotation and admin workflows after
@@ -240,6 +238,8 @@ credentials.
 - [x] Extend deterministic PolicyRule matching with explicit contextual fields.
 - [x] Resolve safe inventory context for Runtime Gateway policy decisions.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
+- [x] Add deterministic CheckResult outcome matching for explicit PolicyRule
+      conditions.
 - [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [x] Wire optional Runtime Gateway metadata pre-check execution to authored

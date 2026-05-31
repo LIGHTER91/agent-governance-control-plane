@@ -9,6 +9,8 @@ from agent_governance_api.models import (
     AccessGrantStatus,
     CapabilityStatus,
     CapabilityType,
+    CheckResultOutcome,
+    CheckResultTargetType,
     DataSourceStatus,
     DataUsageClassification,
     DataUsageReviewStatus,
@@ -66,6 +68,12 @@ SUPPORTED_CONDITION_FIELDS = frozenset(
         "data_usage_allowed_purposes",
         "data_usage_prohibited_purpose",
         "data_usage_prohibited_purposes",
+        "check_type",
+        "check_outcome",
+        "check_target_type",
+        "check_target_id",
+        "check_min_confidence",
+        "check_tool_id",
     }
 )
 
@@ -205,6 +213,21 @@ def convert_policy_rule_to_evaluation_rule(
             condition,
             "data_usage_prohibited_purposes",
         ),
+        check_type=_optional_context_label(condition, "check_type"),
+        check_outcome=_optional_enum_text(
+            condition, "check_outcome", CheckResultOutcome
+        ),
+        check_target_type=_optional_enum_text(
+            condition,
+            "check_target_type",
+            CheckResultTargetType,
+        ),
+        check_target_id=_optional_uuid_text(condition, "check_target_id"),
+        check_min_confidence=_optional_confidence_threshold(
+            condition,
+            "check_min_confidence",
+        ),
+        check_tool_id=_optional_uuid_text(condition, "check_tool_id"),
     )
 
 
@@ -300,6 +323,12 @@ def _validated_condition(condition: str) -> dict[str, Any]:
     _optional_context_label_tuple(parsed, "data_usage_allowed_purposes")
     _optional_context_label(parsed, "data_usage_prohibited_purpose")
     _optional_context_label_tuple(parsed, "data_usage_prohibited_purposes")
+    _optional_context_label(parsed, "check_type")
+    _optional_enum_text(parsed, "check_outcome", CheckResultOutcome)
+    _optional_enum_text(parsed, "check_target_type", CheckResultTargetType)
+    _optional_uuid_text(parsed, "check_target_id")
+    _optional_confidence_threshold(parsed, "check_min_confidence")
+    _optional_uuid_text(parsed, "check_tool_id")
     return parsed
 
 
@@ -553,6 +582,22 @@ def _optional_bool(condition: dict[str, Any], key: str) -> bool | None:
             f"PolicyRule condition field {key} must be a boolean."
         )
     return value
+
+
+def _optional_confidence_threshold(condition: dict[str, Any], key: str) -> float | None:
+    value = condition.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must be a number between 0 and 1."
+        )
+    threshold = float(value)
+    if threshold < 0 or threshold > 1:
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyRule condition field {key} must be a number between 0 and 1."
+        )
+    return threshold
 
 
 def _context_label_text(value: object, key: str) -> str:

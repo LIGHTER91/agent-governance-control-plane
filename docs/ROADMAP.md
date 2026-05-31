@@ -93,9 +93,11 @@ Usage Profile review status, and Source, Capability, and ModelAsset inventory
 status from persisted metadata only. Runtime Gateway can optionally execute
 active authored PolicyCheckSteps linked to matched PolicyRules and persist
 linked CheckResults behind an explicit disabled-by-default feature flag. No
-scanner integration, automatic enforcement, or CheckResult-driven policy
-decision semantics have been implemented. The PolicyCheckStep authoring model
-is documented in `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
+scanner integration or automatic enforcement has been implemented. PolicyRules
+can now explicitly match safe CheckResult outcome summaries with deterministic
+`check_*` fields, so CheckResults remain policy context rather than hidden
+decisions. The PolicyCheckStep authoring model is documented in
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -263,8 +265,9 @@ Important limitations:
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
   summaries. Runtime Gateway can execute active authored PolicyCheckSteps
   linked to matched PolicyRules when the feature flag is enabled.
-  `failure_behavior` is recorded as evidence intent only. Scanner adapters,
-  CheckResult-driven enforcement decisions, and external tool execution are not
+  `failure_behavior` is recorded as evidence intent only. PolicyRules may
+  explicitly match safe CheckResult outcome summaries. Scanner adapters,
+  automatic CheckResult-driven enforcement, and external tool execution are not
   implemented.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
@@ -337,12 +340,15 @@ Completed foundation:
 - Safe CheckResult summaries in Evidence Bundle export.
 - Optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`, recorded as safe TraceEvent
-  context without changing policy evaluation.
+  context.
+- Deterministic PolicyRule matching for explicit contextual fields, resolved
+  inventory context, and safe CheckResult outcome summaries.
 
 Recommended next work:
 
 - Add Policy management UI for the existing Policy and PolicyRule APIs.
-- Extend deterministic PolicyRule matching with explicit contextual fields.
+- Add guided PolicyCheckStep UI support only after versioning, review, and
+  simulation semantics are designed.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Add focused AccessGrant and inventory review workflows where they support

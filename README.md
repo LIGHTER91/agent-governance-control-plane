@@ -90,10 +90,11 @@ integrations are intentionally not implemented yet.
 - PolicyCheckStep persistence API for declaring metadata-only checks expected
   by PolicyRules. When the disabled-by-default runtime metadata pre-check flag
   is enabled, active steps linked to matched PolicyRules can execute bounded
-  metadata-only helpers and persist CheckResults as evidence without changing
-  runtime decisions.
-- Simple policy evaluator supporting explicit matching fields:
-  `agent_id`, `tool_name`, `environment`, and `risk_level`.
+  metadata-only helpers and persist CheckResults as evidence. CheckResults do
+  not enforce anything automatically, but active PolicyRules can explicitly
+  match their safe outcome summaries.
+- Simple policy evaluator supporting explicit request, resolved inventory, and
+  safe CheckResult outcome matching fields.
 - Adapter from persisted active PolicyRule records into evaluator rules.
 - PolicyDecision persistence service.
 - Telemetry schemas and `POST /telemetry/events` ingestion.
@@ -282,8 +283,9 @@ PolicyCheckStep records declare metadata-only evidence expectations for
 PolicyRules with constrained check types and target selectors. Runtime Gateway
 executes active authored steps only when
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; CheckResults are evidence
-inputs and do not directly change PolicyDecision, `proceed`, or PolicyRule
-matching behavior.
+inputs and do not directly change PolicyDecision or `proceed`. They may affect
+the final decision only when a PolicyRule explicitly matches safe CheckResult
+fields such as `check_type` and `check_outcome`.
 
 Human Approvals:
 
@@ -397,8 +399,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Docker Compose or production deployment.
 - Policy versioning and Runtime Gateway telemetry mode on the runtime decision
   endpoint.
-- Pre-check failure behavior enforcement, scanner execution, or CheckResult-
-  driven policy decisions.
+- Pre-check failure behavior enforcement, scanner execution, or automatic
+  CheckResult-driven policy decisions.
 - Retention policies.
 - Signed or PDF evidence bundles.
 - SIEM/GRC integrations.

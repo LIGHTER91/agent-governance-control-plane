@@ -3,6 +3,9 @@ from uuid import uuid4
 import pytest
 
 from agent_governance_api.models import (
+    CheckResultConfidence,
+    CheckResultOutcome,
+    CheckResultTargetType,
     DataUsageClassification,
     Environment,
     PolicyDecisionValue,
@@ -404,3 +407,208 @@ def test_evaluator_matches_missing_resolved_context_values() -> None:
 
     assert result.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
     assert result.reason == "Missing inventory context requires review."
+
+
+def test_evaluator_matches_check_type_and_outcome() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "tool_name": "vectorize_source",
+            "check_results": [
+                {
+                    "check_type": "source_status",
+                    "check_outcome": "fail",
+                    "check_target_type": "source",
+                    "check_confidence": "high",
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Failed source status check denies vectorization.",
+                tool_name="vectorize_source",
+                check_type="source_status",
+                check_outcome=CheckResultOutcome.FAIL,
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.DENY
+    assert result.reason == "Failed source status check denies vectorization."
+
+
+def test_evaluator_matches_check_target_type_and_id() -> None:
+    source_id = uuid4()
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "tool_name": "vectorize_source",
+            "check_results": [
+                {
+                    "check_type": "source_status",
+                    "check_outcome": "pass",
+                    "check_target_type": "source",
+                    "check_target_id": source_id,
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.ALLOW,
+                reason="Specific source check passed.",
+                check_target_type=CheckResultTargetType.SOURCE,
+                check_target_id=str(source_id),
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.ALLOW
+    assert result.reason == "Specific source check passed."
+
+
+def test_evaluator_respects_check_min_confidence() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "check_results": [
+                {
+                    "check_type": "data_usage_profile_status",
+                    "check_outcome": "pass",
+                    "check_target_type": "data_usage_profile",
+                    "check_confidence": CheckResultConfidence.MEDIUM,
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Low-confidence profile checks are insufficient.",
+                check_type="data_usage_profile_status",
+                check_min_confidence=1.0,
+            ),
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+                reason="Medium-confidence profile checks require review.",
+                check_type="data_usage_profile_status",
+                check_min_confidence=0.5,
+            ),
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    assert result.reason == "Medium-confidence profile checks require review."
+
+
+def test_evaluator_does_not_match_unrelated_check_results() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "check_results": [
+                {
+                    "check_type": "model_asset_status",
+                    "check_outcome": "pass",
+                    "check_target_type": "model_asset",
+                    "check_confidence": "high",
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Failed source check should deny.",
+                check_type="source_status",
+                check_outcome="fail",
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.NOT_APPLICABLE
+
+
+def test_evaluator_check_result_precedence_still_applies() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "check_results": [
+                {
+                    "check_type": "source_status",
+                    "check_outcome": "fail",
+                    "check_target_type": "source",
+                    "check_confidence": "high",
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.ALLOW,
+                reason="Fallback allow.",
+            ),
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Failed source check denies.",
+                check_type="source_status",
+                check_outcome="fail",
+            ),
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.DENY
+    assert result.reason == "Failed source check denies."
+
+
+def test_evaluator_check_result_rule_does_not_match_without_check_results() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={"tool_name": "vectorize_source"},
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Failed check denies.",
+                check_type="source_status",
+                check_outcome="fail",
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.NOT_APPLICABLE
+
+
+def test_evaluator_ignores_unsafe_check_result_metadata_for_matching() -> None:
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={
+            "check_results": [
+                {
+                    "check_outcome": "fail",
+                    "check_target_type": "source",
+                    "check_confidence": "high",
+                    "metadata": {"check_type": "source_status"},
+                }
+            ],
+        },
+        environment=Environment.PRODUCTION,
+        risk_level=RiskLevel.HIGH,
+        rules=[
+            PolicyEvaluationRule(
+                decision=PolicyDecisionValue.DENY,
+                reason="Metadata-derived check type should not match.",
+                check_type="source_status",
+                check_outcome="fail",
+            )
+        ],
+    )
+
+    assert result.decision is PolicyDecisionValue.NOT_APPLICABLE

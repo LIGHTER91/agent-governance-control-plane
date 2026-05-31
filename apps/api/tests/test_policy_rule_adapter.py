@@ -177,6 +177,34 @@ def test_converts_persisted_source_ids_rule(session: Session) -> None:
     )
 
 
+def test_converts_persisted_check_result_matching_rule(session: Session) -> None:
+    target_id = uuid4()
+    check_tool_id = uuid4()
+    add_policy_rule(
+        session,
+        condition={
+            "decision": "deny",
+            "reason": "Failed source pre-check denies vectorization.",
+            "tool_name": "vectorize_source",
+            "check_type": "source_status",
+            "check_outcome": "fail",
+            "check_target_type": "source",
+            "check_target_id": str(target_id),
+            "check_min_confidence": 0.5,
+            "check_tool_id": str(check_tool_id),
+        },
+    )
+
+    [evaluation_rule] = load_active_policy_evaluation_rules(session)
+
+    assert evaluation_rule.check_type == "source_status"
+    assert evaluation_rule.check_outcome == "fail"
+    assert evaluation_rule.check_target_type == "source"
+    assert evaluation_rule.check_target_id == str(target_id)
+    assert evaluation_rule.check_min_confidence == 0.5
+    assert evaluation_rule.check_tool_id == str(check_tool_id)
+
+
 def test_ignores_disabled_and_archived_policies(session: Session) -> None:
     add_policy_rule(
         session,
@@ -291,6 +319,20 @@ def test_rejects_unsupported_condition_fields(session: Session) -> None:
             "data_usage_review_status",
             "unknown",
             "Unsupported PolicyRule data_usage_review_status",
+        ),
+        (
+            "check_type",
+            "unsafe label",
+            "field check_type must be a safe context label",
+        ),
+        ("check_outcome", "missing", "Unsupported PolicyRule check_outcome"),
+        ("check_target_type", "agent", "Unsupported PolicyRule check_target_type"),
+        ("check_target_id", "not-a-uuid", "field check_target_id must be a UUID"),
+        ("check_tool_id", "not-a-uuid", "field check_tool_id must be a UUID"),
+        (
+            "check_min_confidence",
+            1.5,
+            "field check_min_confidence must be a number between 0 and 1",
         ),
     ],
 )

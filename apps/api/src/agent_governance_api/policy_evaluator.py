@@ -7,6 +7,9 @@ from agent_governance_api.models import (
     AccessGrantStatus,
     CapabilityStatus,
     CapabilityType,
+    CheckResultConfidence,
+    CheckResultOutcome,
+    CheckResultTargetType,
     DataSourceStatus,
     DataUsageClassification,
     DataUsageReviewStatus,
@@ -21,6 +24,12 @@ from agent_governance_api.models import (
 ContextScalar = str | UUID | StrEnum | bool
 ContextValue = ContextScalar | None
 ContextListScalar = ContextScalar
+CHECK_CONFIDENCE_RANKS = {
+    CheckResultConfidence.UNKNOWN.value: 0.0,
+    CheckResultConfidence.LOW.value: 0.25,
+    CheckResultConfidence.MEDIUM.value: 0.5,
+    CheckResultConfidence.HIGH.value: 1.0,
+}
 
 DECISION_PRECEDENCE = {
     PolicyDecisionValue.DENY: 3,
@@ -70,6 +79,23 @@ class PolicyEvaluationRule:
     data_usage_allowed_purposes: tuple[str, ...] | None = None
     data_usage_prohibited_purpose: str | None = None
     data_usage_prohibited_purposes: tuple[str, ...] | None = None
+    check_type: str | None = None
+    check_outcome: CheckResultOutcome | str | None = None
+    check_target_type: CheckResultTargetType | str | None = None
+    check_target_id: str | UUID | None = None
+    check_min_confidence: float | None = None
+    check_tool_id: str | UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CheckResultEvaluationContext:
+    check_type: ContextValue
+    check_outcome: ContextValue
+    check_target_type: ContextValue
+    check_target_id: ContextValue
+    check_confidence: str | None
+    check_confidence_rank: float | None
+    check_tool_id: ContextValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +115,7 @@ def evaluate_policy(
     environment: Environment | str,
     risk_level: RiskLevel | str,
     rules: Iterable[PolicyEvaluationRule],
+    ignore_check_result_conditions: bool = False,
 ) -> PolicyEvaluationResult:
     agent_id = _required_context_value(agent_context, "agent_id")
     tool_name = _optional_context_value(action_context, "tool_name")
@@ -160,6 +187,7 @@ def evaluate_policy(
         "data_usage_prohibited_purpose",
         "data_usage_prohibited_purposes",
     )
+    check_results = _check_result_contexts(action_context.get("check_results"))
 
     matching_rules: list[tuple[tuple[int, int, int], PolicyEvaluationRule]] = []
     matched_rule_ids: list[str | UUID] = []
@@ -193,6 +221,8 @@ def evaluate_policy(
             data_usage_review_statuses=data_usage_review_statuses,
             data_usage_allowed_purposes=data_usage_allowed_purposes,
             data_usage_prohibited_purposes=data_usage_prohibited_purposes,
+            check_results=check_results,
+            ignore_check_result_conditions=ignore_check_result_conditions,
         ):
             decision = PolicyDecisionValue(rule.decision)
             rank = (
@@ -252,6 +282,8 @@ def _rule_matches(
     data_usage_review_statuses: tuple[ContextListScalar, ...],
     data_usage_allowed_purposes: tuple[ContextListScalar, ...],
     data_usage_prohibited_purposes: tuple[ContextListScalar, ...],
+    check_results: tuple[CheckResultEvaluationContext, ...],
+    ignore_check_result_conditions: bool,
 ) -> bool:
     return (
         _matches(rule.agent_id, agent_id)
@@ -312,7 +344,69 @@ def _rule_matches(
             expected_values=rule.data_usage_prohibited_purposes,
             actual_values=data_usage_prohibited_purposes,
         )
+        and _check_results_match(
+            rule,
+            check_results,
+            ignore_check_result_conditions=ignore_check_result_conditions,
+        )
     )
+
+
+def _check_results_match(
+    rule: PolicyEvaluationRule,
+    check_results: tuple[CheckResultEvaluationContext, ...],
+    *,
+    ignore_check_result_conditions: bool,
+) -> bool:
+    has_check_condition = any(
+        value is not None
+        for value in (
+            rule.check_type,
+            rule.check_outcome,
+            rule.check_target_type,
+            rule.check_target_id,
+            rule.check_min_confidence,
+            rule.check_tool_id,
+        )
+    )
+    if not has_check_condition:
+        return True
+    if ignore_check_result_conditions:
+        return True
+    if not check_results:
+        return False
+
+    return any(
+        _check_result_matches(rule, check_result) for check_result in check_results
+    )
+
+
+def _check_result_matches(
+    rule: PolicyEvaluationRule,
+    check_result: CheckResultEvaluationContext,
+) -> bool:
+    return (
+        _matches(rule.check_type, check_result.check_type)
+        and _matches(rule.check_outcome, check_result.check_outcome)
+        and _matches(rule.check_target_type, check_result.check_target_type)
+        and _matches(rule.check_target_id, check_result.check_target_id)
+        and _matches(rule.check_tool_id, check_result.check_tool_id)
+        and _check_confidence_matches(
+            rule.check_min_confidence,
+            check_result.check_confidence_rank,
+        )
+    )
+
+
+def _check_confidence_matches(
+    expected_min_confidence: float | None,
+    actual_confidence_rank: float | None,
+) -> bool:
+    if expected_min_confidence is None:
+        return True
+    if actual_confidence_rank is None:
+        return False
+    return actual_confidence_rank >= expected_min_confidence
 
 
 def _matches(expected: ContextValue, actual: ContextValue) -> bool:
@@ -388,6 +482,12 @@ def _specificity(rule: PolicyEvaluationRule) -> int:
             rule.data_usage_review_status,
             rule.data_usage_allowed_purpose,
             rule.data_usage_prohibited_purpose,
+            rule.check_type,
+            rule.check_outcome,
+            rule.check_target_type,
+            rule.check_target_id,
+            rule.check_min_confidence,
+            rule.check_tool_id,
         )
     ) + sum(
         bool(value)
@@ -401,6 +501,51 @@ def _specificity(rule: PolicyEvaluationRule) -> int:
             rule.data_usage_prohibited_purposes,
         )
     )
+
+
+def _check_result_contexts(value: object) -> tuple[CheckResultEvaluationContext, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, Mapping):
+        return (_check_result_context(value),)
+    if isinstance(value, str | UUID | StrEnum | bool):
+        raise TypeError("Policy evaluation check_results context must be mappings.")
+    if isinstance(value, Iterable):
+        return tuple(_check_result_context(item) for item in value)
+    raise TypeError("Policy evaluation check_results context must be mappings.")
+
+
+def _check_result_context(value: object) -> CheckResultEvaluationContext:
+    if not isinstance(value, Mapping):
+        raise TypeError("Policy evaluation check_results context must be mappings.")
+
+    check_confidence = _optional_check_confidence(value)
+    confidence_rank = (
+        CHECK_CONFIDENCE_RANKS[check_confidence]
+        if check_confidence is not None
+        else None
+    )
+    return CheckResultEvaluationContext(
+        check_type=_optional_context_value(value, "check_type"),
+        check_outcome=_optional_context_value(value, "check_outcome"),
+        check_target_type=_optional_context_value(value, "check_target_type"),
+        check_target_id=_optional_context_value(value, "check_target_id"),
+        check_confidence=check_confidence,
+        check_confidence_rank=confidence_rank,
+        check_tool_id=_optional_context_value(value, "check_tool_id"),
+    )
+
+
+def _optional_check_confidence(context: Mapping[str, object]) -> str | None:
+    value = context.get("check_confidence")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError("Policy evaluation check_confidence context must be a string.")
+    normalized = value.strip()
+    if normalized not in CHECK_CONFIDENCE_RANKS:
+        raise TypeError("Policy evaluation check_confidence context is unsupported.")
+    return normalized
 
 
 def _required_context_value(

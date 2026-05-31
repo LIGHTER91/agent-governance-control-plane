@@ -196,6 +196,9 @@ Policy Management:
   `model_provider`, `model_provider_type`, `model_status`,
   `access_grant_status`, `data_usage_review_status`,
   `data_usage_allowed_purpose`, and `data_usage_prohibited_purpose`.
+  Conditions may also explicitly match safe CheckResult summaries through
+  `check_type`, `check_outcome`, `check_target_type`, `check_target_id`,
+  `check_min_confidence`, and `check_tool_id`.
 - Contextual PolicyRule matching is deterministic field matching only. For
   `source_ids`, a rule matches when any declared source ID overlaps the request
   source IDs. List-valued resolved fields match when any rule value overlaps
@@ -212,7 +215,9 @@ Policy Management:
   requests execute active authored PolicyCheckSteps linked to matched
   PolicyRules and persist linked CheckResults. The flag is disabled by default,
   there are no public CheckTool or CheckResult management APIs yet, and
-  CheckResults do not change the final decision.
+  CheckResults do not automatically change the final decision. A CheckResult
+  can affect `decision` or `proceed` only when a PolicyRule explicitly matches
+  its safe outcome context.
   CheckResults store safe outcomes, confidence labels, summaries, reasons,
   references, and safe metadata only; they must not store source contents,
   prompts, scanner raw payloads, or credentials.
@@ -220,8 +225,9 @@ Policy Management:
   expected metadata-only checks for PolicyRules using constrained check types
   and target selectors. Runtime Gateway executes active authored steps only
   when `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; the recorded
-  CheckResults remain evidence inputs and do not change PolicyRule evaluation
-  or runtime decisions.
+  CheckResults remain evidence inputs and affect runtime decisions only through
+  explicit deterministic PolicyRule matching. PolicyCheckStep
+  `failure_behavior` is not automatically enforced.
 
 Human Approvals:
 
@@ -267,8 +273,9 @@ Runtime Gateway:
   CheckResults for referenced Capability, Source, Data Usage Profile,
   ModelAsset, and AccessGrant status checks. These checks read persisted
   metadata only, do not execute tools or scanners, and do not directly change
-  `decision` or `proceed`; `failure_behavior` is recorded as evidence intent
-  only.
+  `decision` or `proceed`; active PolicyRules may explicitly match their safe
+  CheckResult outcome context, while `failure_behavior` is recorded as
+  evidence intent only.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

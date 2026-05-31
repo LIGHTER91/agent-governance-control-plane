@@ -124,9 +124,12 @@ Rules:
 - Metadata-only pre-check execution is opt-in with
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`. When enabled, the gateway
   executes active authored PolicyCheckSteps linked to matched PolicyRules and
-  persists safe CheckResults after the TraceEvent and PolicyDecision are
-  available. These CheckResults do not directly change the final decision or
-  `proceed` value, and `failure_behavior` is evidence intent only for now.
+  persists safe CheckResults linked to the TraceEvent and final PolicyDecision
+  where available. These CheckResults do not automatically change the final
+  decision or `proceed` value, and `failure_behavior` is evidence intent only
+  for now. They can affect a decision only when a PolicyRule explicitly matches
+  safe CheckResult fields such as `check_type`, `check_outcome`,
+  `check_target_type`, and `check_min_confidence`.
 
 ### Response
 

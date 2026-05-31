@@ -10,9 +10,11 @@ review status, and Source, Capability, and ModelAsset inventory status from
 persisted metadata only. Runtime Gateway can optionally execute active
 authored PolicyCheckSteps linked to matched PolicyRules behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked CheckResults
-without changing the final decision. Scanner integrations, external
-integrations, CheckResult-driven enforcement, public CheckTool/CheckResult
-management APIs, and frontend UI remain out of scope.
+without changing the final decision automatically. PolicyRules can now
+explicitly match safe CheckResult outcome context through deterministic
+`check_*` fields. Scanner integrations, external integrations, automatic
+CheckResult-driven enforcement, public CheckTool/CheckResult management APIs,
+and frontend UI remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -160,7 +162,10 @@ optionally execute these helpers behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=false` by default and link resulting
 CheckResults to the Agent, run, TraceEvent, and PolicyDecision where available.
 CheckResults remain evidence inputs; they do not directly change Runtime
-Gateway decisions.
+Gateway decisions. They can influence a decision only when an active PolicyRule
+explicitly matches safe fields such as `check_type`, `check_outcome`,
+`check_target_type`, `check_target_id`, `check_tool_id`, and
+`check_min_confidence`.
 
 ### CheckRun Or ControlRun
 
@@ -182,7 +187,10 @@ Suggested check outcomes:
 - `requires_review`.
 
 PolicyRules should explicitly decide how outcomes map to `allow`, `deny`, or
-`require_human_review`.
+`require_human_review`. The implemented deterministic semantics are
+any-matching over the CheckResults produced for the current runtime decision:
+a rule with `check_*` fields matches when at least one CheckResult satisfies
+all specified check conditions.
 
 ### Confidence
 
@@ -471,10 +479,13 @@ Recommended staged implementation:
 8. Wire Runtime Gateway metadata-only pre-check execution to authored active
    PolicyCheckSteps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
    Implemented as evidence-only execution.
-9. Add async check handling and HumanApproval fallback behavior.
-10. Later add external checker adapters for catalogs, DLP, PII scanners, and
+9. Add deterministic CheckResult outcome matching for PolicyRules. Implemented
+   with explicit `check_*` condition fields and no automatic
+   `failure_behavior` enforcement.
+10. Add async check handling and HumanApproval fallback behavior.
+11. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-11. Later add a constrained Policy Studio UI for check-based policy authoring.
+12. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current
