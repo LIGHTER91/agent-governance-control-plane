@@ -2,21 +2,23 @@
 
 ## Status
 
-Design plus backend persistence/API. The implementation now includes a
-PolicyRule-linked `PolicyCheckStep` SQLAlchemy model, Alembic migration,
-Pydantic create/update/read schemas, CRUD-style API endpoints, OpenAPI
-examples, and audit events for create/update/status changes.
+Design plus backend persistence/API and opt-in Runtime Gateway execution. The
+implementation now includes a PolicyRule-linked `PolicyCheckStep` SQLAlchemy
+model, Alembic migration, Pydantic create/update/read schemas, CRUD-style API
+endpoints, OpenAPI examples, audit events for create/update/status changes, and
+Runtime Gateway execution of active authored steps when
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
 
-This document and implementation do not add frontend UI, Runtime Gateway
-execution of authored steps, PolicyRule evaluation changes, scanner
-integrations, or external tool execution.
+This document and implementation do not add frontend UI, PolicyRule evaluation
+changes, scanner integrations, external tool execution, or CheckResult-driven
+enforcement.
 
 AGCP already has `CheckTool` and `CheckResult` persistence, metadata-only
 check helpers, optional Runtime Gateway metadata pre-check execution behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=false` by default, and Evidence
-Bundle summaries for safe CheckResults. The next gap is authoring: policies do
-not yet explicitly drive Runtime Gateway check selection from authored
-PolicyCheckSteps.
+Bundle summaries for safe CheckResults. Policies can now explicitly drive
+Runtime Gateway check selection through authored active PolicyCheckSteps linked
+to matched PolicyRules.
 
 ## Critical Assessment
 
@@ -360,10 +362,10 @@ Recommended staged approach:
 3. Execute metadata-only steps behind
    `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
    - Resolve runtime inventory context first.
-   - Identify candidate active PolicyRules using declared and resolved context.
-   - Run only active PolicyCheckSteps attached to candidate rules.
+   - Identify matching active PolicyRules using declared and resolved context.
+   - Run only active PolicyCheckSteps attached to matching rules.
    - Persist CheckResults linked to Agent, run, TraceEvent, PolicyDecision, and
-     PolicyCheckStep where available.
+     safe PolicyCheckStep reference metadata where available.
    - Do not directly alter `decision` or `proceed`.
 
 4. Later add explicit check outcome matching.
@@ -449,8 +451,9 @@ secrets.
 
 ## Evidence Bundle Implications
 
-Evidence Bundle should eventually include safe PolicyCheckStep references for
-CheckResults when available:
+Evidence Bundle includes safe CheckResult summaries. When authored runtime
+PolicyCheckSteps execute, the CheckResult safe metadata can include
+PolicyCheckStep references:
 
 - `policy_check_step_id`;
 - linked `policy_id`;
@@ -466,9 +469,10 @@ workflow log or policy authoring UI.
 
 ## Non-goals
 
-- Do not execute PolicyCheckSteps in Runtime Gateway in this issue.
-- Do not change Runtime Gateway behavior in this design issue.
-- Do not change PolicyRule evaluation in this design issue.
+- Do not execute scanners or external tools from PolicyCheckSteps.
+- Do not make PolicyCheckStep `failure_behavior` directly change runtime
+  `decision` or `proceed`.
+- Do not change PolicyRule evaluation in this implementation slice.
 - Do not add frontend UI.
 - Do not add external scanners.
 - Do not execute tools.
@@ -492,9 +496,12 @@ Recommended staged implementation:
    Implemented.
 4. Add CRUD-style management endpoints with audit logs.
    Implemented.
-5. Include PolicyCheckStep references in Evidence Bundle CheckResult summaries.
+5. Include safe PolicyCheckStep reference metadata in CheckResult summaries.
+   Implemented for runtime-authored step execution through CheckResult safe
+   metadata.
 6. Update Runtime Gateway optional pre-check execution to run only authored
    active steps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
+   Implemented.
 7. Add deterministic check outcome context only after the policy evaluator
    contract is designed.
 8. Add guided Policy UI support only after versioning, review, and simulation

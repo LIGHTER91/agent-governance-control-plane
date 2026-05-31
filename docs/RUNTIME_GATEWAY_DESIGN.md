@@ -123,9 +123,10 @@ Rules:
   certify data usage.
 - Metadata-only pre-check execution is opt-in with
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`. When enabled, the gateway
-  persists safe CheckResults for referenced inventory and AccessGrant context
-  after the TraceEvent and PolicyDecision are available. These CheckResults do
-  not directly change the final decision or `proceed` value.
+  executes active authored PolicyCheckSteps linked to matched PolicyRules and
+  persists safe CheckResults after the TraceEvent and PolicyDecision are
+  available. These CheckResults do not directly change the final decision or
+  `proceed` value, and `failure_behavior` is evidence intent only for now.
 
 ### Response
 

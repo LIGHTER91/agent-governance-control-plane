@@ -215,6 +215,7 @@ def decide_runtime_tool_call(
         session.flush()
 
         human_approval = None
+        evaluation_result: PolicyEvaluationResult | None = None
         record_only_failure_reason = None
         try:
             evaluation_result = _evaluate_runtime_policy(
@@ -250,6 +251,11 @@ def decide_runtime_tool_call(
                 )
 
         if settings.runtime_metadata_pre_checks_enabled:
+            matched_rule_ids = (
+                evaluation_result.matched_rule_ids
+                if evaluation_result is not None
+                else ()
+            )
             run_runtime_metadata_pre_checks(
                 session,
                 payload=payload,
@@ -257,6 +263,7 @@ def decide_runtime_tool_call(
                 policy_decision_id=(
                     policy_decision.id if policy_decision is not None else None
                 ),
+                policy_rule_ids=matched_rule_ids,
             )
 
         session.commit()

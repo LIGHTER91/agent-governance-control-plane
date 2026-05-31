@@ -79,6 +79,7 @@ class PolicyEvaluationResult:
     agent_id: str
     policy_id: str | UUID | None = None
     rule_id: str | UUID | None = None
+    matched_rule_ids: tuple[str | UUID, ...] = ()
 
 
 def evaluate_policy(
@@ -161,6 +162,7 @@ def evaluate_policy(
     )
 
     matching_rules: list[tuple[tuple[int, int, int], PolicyEvaluationRule]] = []
+    matched_rule_ids: list[str | UUID] = []
     for index, rule in enumerate(rules):
         if _rule_matches(
             rule,
@@ -199,6 +201,8 @@ def evaluate_policy(
                 -index,
             )
             matching_rules.append((rank, rule))
+            if rule.rule_id is not None:
+                matched_rule_ids.append(rule.rule_id)
 
     if not matching_rules:
         return PolicyEvaluationResult(
@@ -214,6 +218,7 @@ def evaluate_policy(
         agent_id=str(agent_id),
         policy_id=selected_rule.policy_id,
         rule_id=selected_rule.rule_id,
+        matched_rule_ids=tuple(matched_rule_ids),
     )
 
 

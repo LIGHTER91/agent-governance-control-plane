@@ -209,17 +209,19 @@ Policy Management:
   AccessGrant status, Data Usage Profile review status, and Source,
   Capability, and ModelAsset inventory status. When
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, Runtime Gateway decision
-  requests run the relevant metadata-only helpers for referenced context and
-  persist linked CheckResults. The flag is disabled by default, there are no
-  public CheckTool or CheckResult management APIs yet, and CheckResults do not
-  change the final decision.
+  requests execute active authored PolicyCheckSteps linked to matched
+  PolicyRules and persist linked CheckResults. The flag is disabled by default,
+  there are no public CheckTool or CheckResult management APIs yet, and
+  CheckResults do not change the final decision.
   CheckResults store safe outcomes, confidence labels, summaries, reasons,
   references, and safe metadata only; they must not store source contents,
   prompts, scanner raw payloads, or credentials.
 - PolicyCheckStep records are authoring/configuration only. They declare
   expected metadata-only checks for PolicyRules using constrained check types
-  and target selectors. They are not executed by the Runtime Gateway yet and do
-  not change PolicyRule evaluation or runtime decisions.
+  and target selectors. Runtime Gateway executes active authored steps only
+  when `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; the recorded
+  CheckResults remain evidence inputs and do not change PolicyRule evaluation
+  or runtime decisions.
 
 Human Approvals:
 
@@ -260,11 +262,13 @@ Runtime Gateway:
   `missing`, not as safe or allowed. AccessGrant status is context only; it is
   not automatically enforced yet.
 - Optional metadata-only runtime pre-check execution is disabled by default.
-  Set `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` to persist safe
+  Set `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` to execute active
+  authored PolicyCheckSteps linked to matched PolicyRules and persist safe
   CheckResults for referenced Capability, Source, Data Usage Profile,
   ModelAsset, and AccessGrant status checks. These checks read persisted
   metadata only, do not execute tools or scanners, and do not directly change
-  `decision` or `proceed`.
+  `decision` or `proceed`; `failure_behavior` is recorded as evidence intent
+  only.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

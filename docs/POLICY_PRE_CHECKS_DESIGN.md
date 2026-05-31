@@ -7,14 +7,12 @@ persistence, Pydantic create/read schemas, a minimal internal helper for
 persisting CheckResults, and internal metadata-only check helpers now exist.
 The implemented helpers can evaluate AccessGrant status, Data Usage Profile
 review status, and Source, Capability, and ModelAsset inventory status from
-persisted metadata only. Runtime Gateway can optionally run these helpers
-behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked
-CheckResults without changing the final decision. PolicyCheckStep authoring is
-now implemented as PolicyRule-linked persistence and API support, following
-`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`, but Runtime Gateway does not
-select or execute authored steps yet. Scanner integrations, external
-integrations, public CheckTool/CheckResult management APIs, and frontend UI
-remain out of scope.
+persisted metadata only. Runtime Gateway can optionally execute active
+authored PolicyCheckSteps linked to matched PolicyRules behind
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked CheckResults
+without changing the final decision. Scanner integrations, external
+integrations, CheckResult-driven enforcement, public CheckTool/CheckResult
+management APIs, and frontend UI remain out of scope.
 
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
@@ -126,8 +124,9 @@ metadata-only built-ins, and records evidence intent without directly changing
 Runtime Gateway decisions.
 
 PolicyCheckStep persistence and CRUD-style API support now exist for this V1
-authoring shape. This is configuration only; authored steps are not executed by
-Runtime Gateway yet.
+authoring shape. Runtime Gateway can execute active authored steps only when
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; execution records evidence and
+does not directly change `decision` or `proceed`.
 
 ### CheckResult
 
@@ -471,6 +470,7 @@ Recommended staged implementation:
    Implemented as PolicyRule-linked authoring/configuration only.
 8. Wire Runtime Gateway metadata-only pre-check execution to authored active
    PolicyCheckSteps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
+   Implemented as evidence-only execution.
 9. Add async check handling and HumanApproval fallback behavior.
 10. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.

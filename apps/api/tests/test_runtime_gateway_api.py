@@ -50,6 +50,12 @@ from agent_governance_api.models import (
     ModelProvider,
     OwnerType,
     Policy,
+    PolicyCheckStep,
+    PolicyCheckStepCheckType,
+    PolicyCheckStepEvidenceRetention,
+    PolicyCheckStepFailureBehavior,
+    PolicyCheckStepStatus,
+    PolicyCheckStepTargetSelector,
     PolicyDecision,
     PolicyDecisionValue,
     PolicyRule,
@@ -389,11 +395,29 @@ def test_runtime_metadata_pre_checks_disabled_keeps_behavior_unchanged(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
-    create_policy_rule(
+    _, rule_id = create_policy_rule(
         session_factory,
         decision=PolicyDecisionValue.ALLOW,
         reason="The requested contextual action is allowed.",
         tool_name="vectorize_source",
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.ACCESS_GRANT_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.ACCESS_GRANTS,
     )
     payload = runtime_decision_payload(
         agent_id,
@@ -423,11 +447,29 @@ def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
-    create_policy_rule(
+    _, rule_id = create_policy_rule(
         session_factory,
         decision=PolicyDecisionValue.ALLOW,
         reason="The requested contextual action is allowed.",
         tool_name="vectorize_source",
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.ACCESS_GRANT_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.ACCESS_GRANTS,
     )
     run_id = uuid4()
     payload = runtime_decision_payload(
@@ -459,6 +501,10 @@ def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
         assert check_result.run_id == run_id
         assert check_result.trace_event_id == trace_event.id
         assert check_result.policy_decision_id == policy_decision.id
+        assert check_result.metadata_["policy_check_step_rule_id"] == str(rule_id)
+        assert check_result.metadata_["policy_check_step_failure_behavior"] == (
+            PolicyCheckStepFailureBehavior.RECORD_ONLY.value
+        )
 
 
 def test_runtime_metadata_pre_checks_create_capability_and_model_results(
@@ -469,11 +515,29 @@ def test_runtime_metadata_pre_checks_create_capability_and_model_results(
     client, session_factory = api_client
     agent_id = create_agent(session_factory)
     inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
-    create_policy_rule(
+    _, rule_id = create_policy_rule(
         session_factory,
         decision=PolicyDecisionValue.ALLOW,
         reason="The requested contextual action is allowed.",
         tool_name="vectorize_source",
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.CAPABILITY_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.CAPABILITY_ID,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.MODEL_ASSET_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.MODEL_ID,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.ACCESS_GRANT_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.ACCESS_GRANTS,
     )
     payload = runtime_decision_payload(
         agent_id,
@@ -528,11 +592,25 @@ def test_runtime_metadata_pre_checks_do_not_change_final_decision(
         session_factory,
         source_id=inventory["source_id"],
     )
-    create_policy_rule(
+    _, rule_id = create_policy_rule(
         session_factory,
         decision=PolicyDecisionValue.ALLOW,
         reason="PolicyRules still govern the final decision.",
         tool_name="vectorize_source",
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+        failure_behavior=PolicyCheckStepFailureBehavior.FAIL_CLOSED,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.ACCESS_GRANT_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.ACCESS_GRANTS,
+        failure_behavior=PolicyCheckStepFailureBehavior.FAIL_CLOSED,
     )
     payload = runtime_decision_payload(
         agent_id,
@@ -557,6 +635,48 @@ def test_runtime_metadata_pre_checks_do_not_change_final_decision(
         assert "prompt" not in serialized_result
         assert "chunks" not in serialized_result
         assert "raw_content" not in serialized_result
+
+
+def test_runtime_metadata_pre_checks_skip_disabled_and_retired_policy_check_steps(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    _, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="The requested contextual action is allowed.",
+        tool_name="vectorize_source",
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+        status=PolicyCheckStepStatus.DISABLED,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+        status=PolicyCheckStepStatus.RETIRED,
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["decision"] == "allow"
+    assert fetch_check_results(session_factory) == []
 
 
 def test_runtime_simulation_behavior_is_unchanged_by_failure_policy_config(
@@ -2420,6 +2540,32 @@ def create_policy_rule(
         session.add(rule)
         session.commit()
         return policy.id, rule.id
+
+
+def create_policy_check_step(
+    session_factory: SessionFactory,
+    *,
+    policy_rule_id: UUID,
+    check_type: PolicyCheckStepCheckType,
+    target_selector: PolicyCheckStepTargetSelector,
+    status: PolicyCheckStepStatus = PolicyCheckStepStatus.ACTIVE,
+    failure_behavior: PolicyCheckStepFailureBehavior = (
+        PolicyCheckStepFailureBehavior.RECORD_ONLY
+    ),
+) -> UUID:
+    with session_factory() as session:
+        step = PolicyCheckStep(
+            policy_rule_id=policy_rule_id,
+            check_type=check_type,
+            target_selector=target_selector,
+            failure_behavior=failure_behavior,
+            status=status,
+            evidence_retention=PolicyCheckStepEvidenceRetention.EVIDENCE_BUNDLE,
+            metadata_={"purpose": "runtime_metadata_pre_check"},
+        )
+        session.add(step)
+        session.commit()
+        return step.id
 
 
 def create_unsupported_policy_rule(

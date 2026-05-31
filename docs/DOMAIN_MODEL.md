@@ -658,18 +658,17 @@ metadata. Internal helpers can generate CheckResults for AccessGrant status,
 Data Usage Profile review status, and Source, Capability, and ModelAsset
 inventory status. Evidence Bundle export includes safe CheckResult summaries
 linked to the Agent through PolicyDecisions or Agent-scoped pre-check records.
-Runtime Gateway can optionally run these metadata-only helpers behind
+Runtime Gateway can optionally run active authored PolicyCheckSteps behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and link CheckResults to the
-Agent, run, TraceEvent, and PolicyDecision where available. CheckResults are
-evidence inputs; they do not replace PolicyDecision and do not directly change
-Runtime Gateway decisions.
+Agent, run, TraceEvent, PolicyDecision, and safe PolicyCheckStep reference
+metadata where available. CheckResults are evidence inputs; they do not replace
+PolicyDecision and do not directly change Runtime Gateway decisions.
 
-PolicyCheckStep should become the authoring link between PolicyRule and
-CheckTool. It declares which metadata-only check is expected, which runtime
-target selector it applies to, whether the check is required, how unavailable
-results should be represented later, and whether safe evidence should be
-retained. V1 links PolicyCheckSteps to PolicyRules first, not broad workflow
-graphs.
+PolicyCheckStep is the authoring link between PolicyRule and CheckTool. It
+declares which metadata-only check is expected, which runtime target selector
+it applies to, whether the check is required, how unavailable results should be
+represented later, and whether safe evidence should be retained. V1 links
+PolicyCheckSteps to PolicyRules first, not broad workflow graphs.
 
 `POST /policy-check-steps`, `GET /policy-check-steps`,
 `GET /policy-check-steps/{step_id}`, and `PATCH
@@ -679,8 +678,10 @@ PolicyRule. Mutations append `policy_check_step_created`,
 `policy_check_step_updated`, or `policy_check_step_status_changed` audit
 records with safe references only.
 
-PolicyCheckStep records are authoring/configuration. They are not executed by
-Runtime Gateway yet, they do not change PolicyRule evaluation, and they do not
+PolicyCheckStep records are authoring/configuration. Runtime Gateway executes
+active authored steps only when
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; they do not change PolicyRule
+evaluation, they do not directly enforce `failure_behavior`, and they do not
 certify legal compliance.
 
 ## Policy Decision

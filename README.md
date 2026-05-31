@@ -88,8 +88,10 @@ integrations are intentionally not implemented yet.
   changes.
 - PolicyRule management API for deterministic rule conditions.
 - PolicyCheckStep persistence API for declaring metadata-only checks expected
-  by PolicyRules. These records are authoring/configuration only and do not
-  execute checks or change runtime decisions yet.
+  by PolicyRules. When the disabled-by-default runtime metadata pre-check flag
+  is enabled, active steps linked to matched PolicyRules can execute bounded
+  metadata-only helpers and persist CheckResults as evidence without changing
+  runtime decisions.
 - Simple policy evaluator supporting explicit matching fields:
   `agent_id`, `tool_name`, `environment`, and `risk_level`.
 - Adapter from persisted active PolicyRule records into evaluator rules.
@@ -277,8 +279,11 @@ Policy management records the lifecycle of policies with `draft`, `active`,
 deterministic JSON condition shape already consumed by the evaluator. It does
 not add a generic policy language or change runtime evaluation behavior.
 PolicyCheckStep records declare metadata-only evidence expectations for
-PolicyRules with constrained check types and target selectors; they are not
-Runtime Gateway execution steps yet.
+PolicyRules with constrained check types and target selectors. Runtime Gateway
+executes active authored steps only when
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; CheckResults are evidence
+inputs and do not directly change PolicyDecision, `proceed`, or PolicyRule
+matching behavior.
 
 Human Approvals:
 
@@ -392,7 +397,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Docker Compose or production deployment.
 - Policy versioning and Runtime Gateway telemetry mode on the runtime decision
   endpoint.
-- Runtime execution of authored PolicyCheckSteps.
+- Pre-check failure behavior enforcement, scanner execution, or CheckResult-
+  driven policy decisions.
 - Retention policies.
 - Signed or PDF evidence bundles.
 - SIEM/GRC integrations.
@@ -402,27 +408,25 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Wire optional Runtime Gateway metadata pre-check execution to authored
-   active PolicyCheckSteps behind the existing disabled feature flag.
-2. Add Policy management UI for the existing Policy, PolicyRule, and
+1. Add Policy management UI for the existing Policy, PolicyRule, and
    PolicyCheckStep APIs.
-3. Use Access Grants as optional policy context without replacing
+2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Add focused AccessGrant and inventory workflows only where they support
+3. Add focused AccessGrant and inventory workflows only where they support
    review, approval, or evidence collection.
-5. Implement Permission domain model only if AccessGrant target semantics prove
+4. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-6. Add frontend auth and role-aware UI.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+5. Add frontend auth and role-aware UI.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-10. Add owner-based service actor scopes design.
-11. Add safe audit events for denied service actor scope checks.
-12. Implement service actor registry admin management workflow.
-13. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe audit events for denied service actor scope checks.
+11. Implement service actor registry admin management workflow.
+12. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-14. Add deeper separation-of-duties checks for HumanApproval review.
+13. Add deeper separation-of-duties checks for HumanApproval review.
 15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 

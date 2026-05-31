@@ -91,12 +91,11 @@ persistence and internal helper foundation now exists for CheckTool and
 CheckResult records. Internal helpers can evaluate AccessGrant status, Data
 Usage Profile review status, and Source, Capability, and ModelAsset inventory
 status from persisted metadata only. Runtime Gateway can optionally execute
-these checks and persist linked CheckResults behind an explicit disabled-by-
-default feature flag. PolicyCheckStep persistence and API support now exist for
-PolicyRule-linked metadata-only check declarations, but no scanner integration,
-automatic enforcement, or authored-step Runtime Gateway selection has been
-implemented. The PolicyCheckStep authoring model is documented in
-`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
+active authored PolicyCheckSteps linked to matched PolicyRules and persist
+linked CheckResults behind an explicit disabled-by-default feature flag. No
+scanner integration, automatic enforcement, or CheckResult-driven policy
+decision semantics have been implemented. The PolicyCheckStep authoring model
+is documented in `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -262,10 +261,11 @@ Important limitations:
 - Policy Pre-Checks have CheckTool and CheckResult persistence, internal
   metadata-only execution helpers, optional Runtime Gateway execution behind
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
-  summaries. PolicyCheckStep persistence/API support now exists for
-  PolicyRule-linked metadata-only check declarations, but Runtime Gateway does
-  not execute authored steps yet. Scanner adapters and pre-check-driven
-  enforcement decisions are not implemented.
+  summaries. Runtime Gateway can execute active authored PolicyCheckSteps
+  linked to matched PolicyRules when the feature flag is enabled.
+  `failure_behavior` is recorded as evidence intent only. Scanner adapters,
+  CheckResult-driven enforcement decisions, and external tool execution are not
+  implemented.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 
