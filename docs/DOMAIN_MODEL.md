@@ -499,7 +499,11 @@ under_review, approved, rejected, active, superseded, and archived states, with
 rollback handled by copying an approved, rejected, active, or superseded
 snapshot into a new draft. Runtime Gateway still evaluates the current
 unversioned Policy/PolicyRule records until active-version evaluation and
-PolicyDecision version references are implemented deliberately.
+full versioned evaluation are implemented deliberately. PolicyDecision records
+can now optionally store `policy_version_id` for the active PolicyVersion
+associated with the unversioned Policy selected by the current evaluator. This
+is evidence context only; Runtime Gateway still reads unversioned Policy and
+PolicyRule records until active-version evaluation is migrated separately.
 
 Lifecycle APIs are available at `POST /policies/{policy_id}/versions`,
 `GET /policies/{policy_id}/versions`, `GET /policy-versions/{version_id}`, and
@@ -741,11 +745,17 @@ Suggested fields:
 - id;
 - agent_id;
 - policy_id;
+- policy_version_id;
 - rule_id;
 - decision;
 - reason;
 - context_hash;
 - created_at.
+
+`policy_version_id` is nullable and backward-compatible. When populated, it
+references the active PolicyVersion that was available for the selected Policy
+when the PolicyDecision was persisted. It does not imply that Runtime Gateway
+evaluated the PolicyVersion snapshot.
 
 ## Agent Run
 
@@ -971,10 +981,14 @@ Initial format:
 The JSON export includes Agent metadata, related AuditLogs, AgentRunRecords,
 TraceEventRecords, PolicyDecisions, HumanApprovals, Agent-scoped Access Grants,
 safe references to granted Capability, Source, and ModelAsset targets, and safe
-Data Usage Profile summaries for granted Sources when available. Access Grant,
-inventory, and Data Usage Profile records are declarative evidence only; they
-do not imply that Runtime Gateway policy evaluation currently enforces the
-grant or certifies legal usability.
+Data Usage Profile summaries for granted Sources when available. PolicyDecision
+and linked CheckResult summaries may include compact PolicyVersion references:
+`policy_version_id`, `policy_id`, `version_number`, `status`, `activated_at`,
+and a safe `change_summary` when available. Evidence Bundle does not include
+full PolicyVersion snapshots. Access Grant, inventory, Data Usage Profile, and
+PolicyVersion records are declarative evidence only; they do not imply that
+Runtime Gateway policy evaluation currently enforces grants or evaluates
+PolicyVersion snapshots.
 
 Current export access is intentionally narrow: `auditor`, `platform_admin`, and
 direct user owners can export. Direct owner access means a user actor whose

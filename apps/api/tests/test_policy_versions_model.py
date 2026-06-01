@@ -151,6 +151,23 @@ def test_policy_version_migration_declares_expected_table() -> None:
     assert '"policy_version_status"' in migration_text
 
 
+def test_policy_decision_policy_version_migration_declares_expected_reference() -> None:
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "202606010002_add_policy_decision_policy_version_reference.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert 'revision: str = "202606010002"' in migration_text
+    assert 'down_revision: str | None = "202606010001"' in migration_text
+    assert '"policy_decisions"' in migration_text
+    assert '"policy_version_id"' in migration_text
+    assert '"fk_policy_decisions_policy_version"' in migration_text
+    assert '"policy_versions"' in migration_text
+
+
 def test_policy_version_persists_with_policy_relationship() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

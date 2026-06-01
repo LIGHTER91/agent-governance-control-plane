@@ -11,6 +11,7 @@ from sqlalchemy.schema import CreateTable
 
 from agent_governance_api.database import Base
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentStatus,
     Environment,
@@ -20,6 +21,8 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
 )
 from agent_governance_api.schemas import (
@@ -197,6 +200,7 @@ def test_policy_decision_schema_validates_from_model_instance() -> None:
         id=uuid4(),
         agent_id=uuid4(),
         policy_id=uuid4(),
+        policy_version_id=uuid4(),
         rule_id=uuid4(),
         trace_event_id=uuid4(),
         decision=PolicyDecisionValue.DENY,
@@ -209,6 +213,7 @@ def test_policy_decision_schema_validates_from_model_instance() -> None:
 
     assert schema.decision is PolicyDecisionValue.DENY
     assert schema.reason == "Agent is not approved for this action."
+    assert schema.policy_version_id == policy_decision.policy_version_id
     assert schema.trace_event_id == policy_decision.trace_event_id
 
 
@@ -248,6 +253,7 @@ def test_policy_tables_compile_for_postgresql() -> None:
     assert "policy_decision_value" in decisions_ddl
     assert "FOREIGN KEY(agent_id) REFERENCES agents" in decisions_ddl
     assert "FOREIGN KEY(policy_id) REFERENCES policies" in decisions_ddl
+    assert "FOREIGN KEY(policy_version_id) REFERENCES policy_versions" in decisions_ddl
     assert "FOREIGN KEY(rule_id) REFERENCES policy_rules" in decisions_ddl
     assert "FOREIGN KEY(trace_event_id) REFERENCES trace_events" in decisions_ddl
 
@@ -276,9 +282,29 @@ def test_policy_decision_persists_with_optional_domain_links() -> None:
             session.add(rule)
             session.flush()
 
+            policy_version = PolicyVersion(
+                policy_id=policy.id,
+                version_number=1,
+                status=PolicyVersionStatus.ACTIVE,
+                change_summary="Initial approved policy.",
+                policy_snapshot={
+                    "id": str(policy.id),
+                    "name": policy.name,
+                    "description": policy.description,
+                    "status": policy.status.value,
+                },
+                rule_snapshots=[],
+                check_step_snapshots=[],
+                created_by_actor_type=ActorType.DEVELOPMENT,
+                created_by_actor_id="dev-placeholder",
+            )
+            session.add(policy_version)
+            session.flush()
+
             decision = PolicyDecision(
                 agent_id=agent.id,
                 policy_id=policy.id,
+                policy_version_id=policy_version.id,
                 rule_id=rule.id,
                 decision=PolicyDecisionValue.DENY,
                 reason="Agent status is draft.",
@@ -291,6 +317,7 @@ def test_policy_decision_persists_with_optional_domain_links() -> None:
 
             assert saved_decision.agent_id == agent.id
             assert saved_decision.policy_id == policy.id
+            assert saved_decision.policy_version_id == policy_version.id
             assert saved_decision.rule_id == rule.id
             assert saved_decision.decision is PolicyDecisionValue.DENY
             assert saved_decision.context_hash == "sha256:agent-status-draft"

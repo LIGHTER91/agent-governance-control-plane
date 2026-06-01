@@ -71,6 +71,7 @@ def ingest_trace_event(
         agent_id=payload.agent_id,
         environment=agent.environment,
         tool_name=tool_name,
+        session=session,
     )
     existing_event = session.scalar(
         select(TraceEventRecord).where(
@@ -254,6 +255,7 @@ def _policy_decision_response(
         decision=policy_decision.decision,
         reason=policy_decision.reason,
         policy_id=policy_decision.policy_id,
+        policy_version_id=policy_decision.policy_version_id,
         rule_id=policy_decision.rule_id,
         created_at=policy_decision.created_at,
     )

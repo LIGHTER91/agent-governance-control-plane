@@ -231,3 +231,40 @@ Alternatives considered:
 - Change Runtime Gateway to evaluate only active versions in the same issue.
 - Add enterprise approval chains or separation-of-duties workflows before real
   authentication and role modeling exist.
+
+## ADR-0009 - PolicyVersion evidence references precede versioned evaluation
+
+Date: 2026-06-01
+
+Status: accepted
+
+Context:
+PolicyVersion persistence exists, but Runtime Gateway still evaluates current
+Policy and PolicyRule rows. Evidence Bundle needs to explain which reviewed
+PolicyVersion was active or relevant when a PolicyDecision was recorded without
+claiming that version snapshots drive runtime evaluation yet.
+
+Decision:
+Add a nullable direct `policy_version_id` foreign key to PolicyDecision and set
+it to the currently active PolicyVersion for the selected Policy when one is
+available. Evidence Bundle renders compact PolicyVersion summaries on
+PolicyDecision records and on CheckResult summaries through their linked
+PolicyDecision. CheckResult does not get a separate version column in this
+step.
+
+Consequences:
+- New evidence can point to reviewed policy configuration while historical
+  PolicyDecision rows remain valid with `policy_version_id = null`.
+- Runtime Gateway rule loading, rule precedence, and evaluator behavior remain
+  unchanged.
+- Evidence Bundle avoids full PolicyVersion snapshots and exposes only safe
+  identifiers, status, activation time, and safe change summaries.
+- A later active-version migration can switch evaluation to PolicyVersion
+  snapshots and add granular PolicyRuleVersion or PolicyCheckStepVersion
+  references deliberately.
+
+Alternatives considered:
+- Store PolicyVersion references only in CheckResult metadata.
+- Add direct PolicyVersion columns to both PolicyDecision and CheckResult.
+- Change Runtime Gateway to evaluate active PolicyVersion snapshots at the same
+  time as adding evidence references.

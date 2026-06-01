@@ -247,12 +247,14 @@ runtime payloads, source content, prompts, credentials, scanner payloads,
 secrets, or full unredacted policy condition blobs if those conditions may
 contain operationally sensitive details.
 
-Evidence Bundle should later show:
+Evidence Bundle now shows compact PolicyVersion references when
+PolicyDecision records have `policy_version_id`:
 
-- PolicyVersion ID and version number used by each PolicyDecision;
-- PolicyRuleVersion ID and version number used by each PolicyDecision;
+- PolicyVersion ID and version number relevant to each PolicyDecision;
+- PolicyVersion references on CheckResult summaries through linked
+  PolicyDecisions;
 - PolicyCheckStepVersion references for CheckResults produced by authored
-  checks;
+  checks later;
 - activation and review audit events relevant to those versions;
 - safe change summaries when useful.
 
@@ -265,8 +267,11 @@ No Runtime Gateway behavior changes in this issue.
 Future behavior:
 
 - Runtime Gateway evaluates only active policy/rule/check-step versions.
-- PolicyDecision stores `policy_version_id` and `policy_rule_version_id` when
-  available.
+- PolicyDecision already stores optional `policy_version_id` when an active
+  PolicyVersion exists for the unversioned Policy selected by current
+  evaluation.
+- PolicyDecision stores `policy_rule_version_id` later when granular rule
+  versioning exists.
 - CheckResults generated from authored PolicyCheckSteps can store
   `policy_check_step_version_id` in safe metadata or a typed field.
 - Runtime activity and Evidence Bundle can expose version references as

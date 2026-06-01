@@ -50,6 +50,8 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
     TraceEventRecord,
     TraceEventType,
@@ -128,6 +130,9 @@ def test_successful_evidence_bundle_export(
     assert body["data_usage_profiles"] == []
     assert body["model_asset_references"] == []
     assert body["check_results"] == []
+    [policy_decision] = body["policy_decisions"]
+    assert policy_decision["policy_version_id"] is None
+    assert policy_decision["policy_version"] is None
 
 
 def test_successful_evidence_bundle_export_creates_safe_audit_log(
@@ -496,6 +501,108 @@ def test_evidence_bundle_includes_check_results_linked_to_policy_decision(
         "check_type": "data_usage_profile_status",
         "review_status": "approved",
     }
+
+
+def test_evidence_bundle_includes_safe_policy_version_summary(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    policy_version_id = attach_active_policy_version_to_decision(
+        session_factory,
+        seeded=seeded,
+        change_summary="Approved reviewed email policy version.",
+        snapshot_marker="snapshot-only-wire-funds",
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [policy_decision] = response.json()["policy_decisions"]
+    assert policy_decision["policy_version_id"] == str(policy_version_id)
+    policy_version = policy_decision["policy_version"]
+    assert policy_version["policy_version_id"] == str(policy_version_id)
+    assert policy_version["policy_id"] == str(seeded.policy_id)
+    assert policy_version["version_number"] == 1
+    assert policy_version["status"] == "active"
+    assert policy_version["activated_at"].startswith("2026-01-15T12:45:00")
+    assert policy_version["change_summary"] == "Approved reviewed email policy version."
+    assert "policy_snapshot" not in response.text
+    assert "rule_snapshots" not in response.text
+    assert "check_step_snapshots" not in response.text
+    assert "snapshot-only-wire-funds" not in response.text
+
+
+def test_evidence_bundle_omits_unsafe_policy_version_change_summary(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    policy_version_id = attach_active_policy_version_to_decision(
+        session_factory,
+        seeded=seeded,
+        change_summary="api_key=do-not-export",
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    [policy_decision] = response.json()["policy_decisions"]
+    assert policy_decision["policy_version_id"] == str(policy_version_id)
+    assert policy_decision["policy_version"]["change_summary"] is None
+    assert "api_key" not in response.text
+    assert "do-not-export" not in response.text
+
+
+def test_check_result_summary_surfaces_policy_version_from_linked_decision(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    seeded = seed_evidence_records(session_factory, agent_id)
+    policy_version_id = attach_active_policy_version_to_decision(
+        session_factory,
+        seeded=seeded,
+        change_summary="Approved reviewed email policy version.",
+    )
+    check_seed = seed_check_result_records(
+        session_factory,
+        agent_id=agent_id,
+        other_agent_id=create_agent(
+            client,
+            agent_payload(name="Other support assistant"),
+        ),
+        policy_decision_id=seeded.policy_decision_id,
+        trace_event_id=seeded.trace_event_id,
+        run_id=seeded.run_id,
+    )
+
+    response = client.get(f"/agents/{agent_id}/evidence-bundle")
+
+    assert response.status_code == 200
+    check_results = response.json()["check_results"]
+    linked_result = next(
+        item
+        for item in check_results
+        if item["check_result_id"] == str(check_seed.linked_check_result_id)
+    )
+    agent_scoped_result = next(
+        item
+        for item in check_results
+        if item["check_result_id"] == str(check_seed.agent_scoped_check_result_id)
+    )
+    assert linked_result["policy_version_id"] == str(policy_version_id)
+    policy_version = linked_result["policy_version"]
+    assert policy_version["policy_version_id"] == str(policy_version_id)
+    assert policy_version["policy_id"] == str(seeded.policy_id)
+    assert policy_version["version_number"] == 1
+    assert policy_version["status"] == "active"
+    assert policy_version["activated_at"].startswith("2026-01-15T12:45:00")
+    assert policy_version["change_summary"] == "Approved reviewed email policy version."
+    assert agent_scoped_result["policy_version_id"] is None
+    assert agent_scoped_result["policy_version"] is None
 
 
 def test_evidence_bundle_includes_agent_scoped_check_results_for_correct_agent(
@@ -1637,6 +1744,66 @@ def seed_check_result_records(
             agent_scoped_check_result_id=agent_scoped_result.id,
             other_agent_check_result_id=other_agent_result.id,
         )
+
+
+def attach_active_policy_version_to_decision(
+    session_factory: SessionFactory,
+    *,
+    seeded: SeededEvidence,
+    change_summary: str,
+    snapshot_marker: str = "snapshot-only-email-review",
+) -> UUID:
+    with session_factory() as session:
+        activated_at = datetime(2026, 1, 15, 12, 45, tzinfo=UTC)
+        policy_version = PolicyVersion(
+            policy_id=seeded.policy_id,
+            version_number=1,
+            status=PolicyVersionStatus.ACTIVE,
+            change_summary=change_summary,
+            policy_snapshot={
+                "id": str(seeded.policy_id),
+                "name": "Tool access policy",
+                "description": None,
+                "status": "active",
+                "snapshot_marker": snapshot_marker,
+            },
+            rule_snapshots=[
+                {
+                    "id": str(seeded.rule_id),
+                    "policy_id": str(seeded.policy_id),
+                    "name": "Deny email tool",
+                    "description": None,
+                    "condition": (
+                        '{"decision":"deny","reason":"Snapshot-only rule.",'
+                        f'"tool_name":"{snapshot_marker}"}}'
+                    ),
+                }
+            ],
+            check_step_snapshots=[
+                {
+                    "id": str(uuid4()),
+                    "policy_rule_id": str(seeded.rule_id),
+                    "check_type": "source_status",
+                    "target_selector": "source_ids",
+                    "status": "active",
+                    "metadata": {"snapshot_marker": snapshot_marker},
+                }
+            ],
+            created_by_actor_type=ActorType.DEVELOPMENT,
+            created_by_actor_id="dev-placeholder",
+            activated_at=activated_at,
+            created_at=activated_at,
+            updated_at=activated_at,
+        )
+        session.add(policy_version)
+        session.flush()
+        session.execute(
+            PolicyDecision.__table__.update()
+            .where(PolicyDecision.id == seeded.policy_decision_id)
+            .values(policy_version_id=policy_version.id)
+        )
+        session.commit()
+        return policy_version.id
 
 
 def create_review_policy_rule(session_factory: SessionFactory) -> tuple[UUID, UUID]:

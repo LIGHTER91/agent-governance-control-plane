@@ -8,13 +8,18 @@ from sqlalchemy.orm import Session
 
 from agent_governance_api.database import Base
 from agent_governance_api.models import (
+    ActorType,
     Agent,
     AgentRunRecord,
     AgentStatus,
     Environment,
     OwnerType,
+    Policy,
     PolicyDecision,
     PolicyDecisionValue,
+    PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
     TraceEventRecord,
     TraceEventType,
@@ -56,6 +61,7 @@ def test_persists_allow_decision(session: Session) -> None:
     assert saved_decision.decision is PolicyDecisionValue.ALLOW
     assert saved_decision.reason == "The requested tool is allowed."
     assert saved_decision.trace_event_id is None
+    assert saved_decision.policy_version_id is None
     assert saved_decision.context_hash == "sha256:allow-context"
 
 
@@ -134,6 +140,38 @@ def test_preserves_policy_and_rule_ids_when_available(session: Session) -> None:
 
     assert decision.policy_id == policy_id
     assert decision.rule_id == rule_id
+    assert decision.policy_version_id is None
+
+
+def test_references_active_policy_version_when_available(session: Session) -> None:
+    agent = add_agent(session)
+    policy = add_policy(session)
+    active_version = add_policy_version(
+        session,
+        policy=policy,
+        version_number=2,
+        status=PolicyVersionStatus.ACTIVE,
+    )
+    add_policy_version(
+        session,
+        policy=policy,
+        version_number=1,
+        status=PolicyVersionStatus.SUPERSEDED,
+    )
+    result = policy_result(
+        decision=PolicyDecisionValue.DENY,
+        reason="Matched persisted rule with active version.",
+        policy_id=policy.id,
+    )
+
+    decision = persist_policy_decision(
+        session,
+        agent_id=agent.id,
+        evaluation_result=result,
+    )
+
+    assert decision.policy_id == policy.id
+    assert decision.policy_version_id == active_version.id
 
 
 def test_preserves_trace_event_id_when_available(session: Session) -> None:
@@ -264,6 +302,50 @@ def add_trace_event(session: Session, agent: Agent) -> TraceEventRecord:
     session.add_all([run, trace_event])
     session.commit()
     return trace_event
+
+
+def add_policy(session: Session) -> Policy:
+    policy = Policy(
+        name="Email policy",
+        description="Governed email policy.",
+        status=PolicyStatus.ACTIVE,
+    )
+    session.add(policy)
+    session.commit()
+    return policy
+
+
+def add_policy_version(
+    session: Session,
+    *,
+    policy: Policy,
+    version_number: int,
+    status: PolicyVersionStatus,
+) -> PolicyVersion:
+    now = datetime.now(UTC)
+    policy_version = PolicyVersion(
+        policy_id=policy.id,
+        version_number=version_number,
+        status=status,
+        change_summary=f"Policy version {version_number}.",
+        policy_snapshot={
+            "id": str(policy.id),
+            "name": policy.name,
+            "description": policy.description,
+            "status": policy.status.value,
+        },
+        rule_snapshots=[],
+        check_step_snapshots=[],
+        created_by_actor_type=ActorType.DEVELOPMENT,
+        created_by_actor_id="dev-placeholder",
+        activated_at=now if status is PolicyVersionStatus.ACTIVE else None,
+        superseded_at=now if status is PolicyVersionStatus.SUPERSEDED else None,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(policy_version)
+    session.commit()
+    return policy_version
 
 
 def policy_result(

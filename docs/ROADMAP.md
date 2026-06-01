@@ -106,8 +106,11 @@ Policy versioning and review guardrails are now designed in
 `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend `PolicyVersion`
 aggregate now snapshots Policy fields, associated PolicyRules, and associated
 PolicyCheckSteps with draft, review, approval, activation, supersession,
-archive, and rollback-copy APIs. Runtime Gateway version references and review
-UI have not been implemented.
+archive, and rollback-copy APIs. PolicyDecision records can now optionally
+reference the active PolicyVersion for the selected Policy, and Evidence Bundle
+renders safe PolicyVersion summaries on PolicyDecision and linked CheckResult
+records. Runtime Gateway active-version evaluation and review UI have not been
+implemented.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -258,8 +261,9 @@ Important limitations:
   not implemented.
 - Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
   key rotation, and broad user RBAC are not implemented.
-- Policy versioning and review guardrails have a minimal backend foundation;
-  Runtime Gateway version references and review UI are not implemented.
+- Policy versioning and review guardrails have a minimal backend foundation,
+  and evidence records can reference active PolicyVersions. Runtime Gateway
+  active-version evaluation and review UI are not implemented.
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
   context, and deterministic PolicyRules can match those declared fields
@@ -359,10 +363,8 @@ Completed foundation:
 
 Recommended next work:
 
-- Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
-  review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
-- Add active policy/rule/check-step version references to PolicyDecision,
-  CheckResult evidence, and Evidence Bundle before expanding authoring UI.
+- Migrate Runtime Gateway evaluation to active PolicyVersion snapshots once
+  rollout and backfill semantics are explicit.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing

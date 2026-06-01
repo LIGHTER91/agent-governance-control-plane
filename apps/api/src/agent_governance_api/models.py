@@ -1744,6 +1744,11 @@ class PolicyDecision(Base):
         ForeignKey("policies.id"),
         nullable=True,
     )
+    policy_version_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_versions.id"),
+        nullable=True,
+    )
     rule_id: Mapped[UUID | None] = mapped_column(
         Uuid,
         ForeignKey("policy_rules.id"),

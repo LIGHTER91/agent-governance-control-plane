@@ -81,6 +81,7 @@ class TraceEventPolicyDecisionResponse(BaseModel):
     decision: PolicyDecisionValue
     reason: str
     policy_id: UUID | None = None
+    policy_version_id: UUID | None = None
     rule_id: UUID | None = None
     created_at: datetime
 

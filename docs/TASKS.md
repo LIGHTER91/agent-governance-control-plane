@@ -133,8 +133,8 @@ References:
 
 Recommended order:
 
-1. Add active policy/rule/check-step version references to PolicyDecision,
-   CheckResult evidence, and Evidence Bundle before expanding authoring UI.
+1. Migrate Runtime Gateway evaluation to active PolicyVersion snapshots once
+   rollout and backfill semantics are explicit.
 2. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
 3. Use Access Grants as optional policy context without replacing
@@ -172,8 +172,7 @@ Recommended order:
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [x] Add Policy management UI for Policy lifecycle and constrained
       PolicyRule condition editing.
-- [ ] Add active policy/rule/check-step version references to PolicyDecision,
-      CheckResult evidence, and Evidence Bundle.
+- [ ] Migrate Runtime Gateway evaluation to active PolicyVersion snapshots.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
@@ -221,6 +220,11 @@ credentials.
       instance.
 - [ ] Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning
       and review lifecycle support.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Add active PolicyVersion references to PolicyDecision, CheckResult
+      evidence context, and Evidence Bundle.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

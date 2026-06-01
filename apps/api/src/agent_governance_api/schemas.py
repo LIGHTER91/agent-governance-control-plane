@@ -837,10 +837,20 @@ class EvidencePolicyRuleReferenceRead(BaseModel):
     name: str
 
 
+class EvidencePolicyVersionReferenceRead(BaseModel):
+    policy_version_id: UUID
+    policy_id: UUID
+    version_number: int
+    status: PolicyVersionStatus
+    activated_at: datetime | None = None
+    change_summary: str | None = None
+
+
 class EvidencePolicyDecisionRead(BaseModel):
     id: UUID
     agent_id: UUID | None = None
     policy_id: UUID | None = None
+    policy_version_id: UUID | None = None
     rule_id: UUID | None = None
     trace_event_id: UUID | None = None
     decision: PolicyDecisionValue
@@ -848,6 +858,7 @@ class EvidencePolicyDecisionRead(BaseModel):
     context_hash: str | None = None
     policy: EvidencePolicyReferenceRead | None = None
     rule: EvidencePolicyRuleReferenceRead | None = None
+    policy_version: EvidencePolicyVersionReferenceRead | None = None
     created_at: datetime
 
 
@@ -976,6 +987,8 @@ class EvidenceCheckResultRead(BaseModel):
     target_type: CheckResultTargetType
     target_id: UUID | None = None
     policy_decision_id: UUID | None = None
+    policy_version_id: UUID | None = None
+    policy_version: EvidencePolicyVersionReferenceRead | None = None
     trace_event_id: UUID | None = None
     run_id: UUID | None = None
     created_at: datetime
@@ -1308,6 +1321,7 @@ class PolicyCheckStepRead(PolicyCheckStepBase):
 class PolicyDecisionBase(BaseModel):
     agent_id: UUID | None = None
     policy_id: UUID | None = None
+    policy_version_id: UUID | None = None
     rule_id: UUID | None = None
     trace_event_id: UUID | None = None
     decision: PolicyDecisionValue

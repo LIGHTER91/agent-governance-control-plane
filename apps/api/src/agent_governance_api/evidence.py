@@ -4,6 +4,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.metadata_safety import (
+    UNSAFE_METADATA_KEY_PARTS,
     filter_safe_metadata,
     redact_sensitive_text,
 )
@@ -24,6 +25,7 @@ from agent_governance_api.models import (
     Policy,
     PolicyDecision,
     PolicyRule,
+    PolicyVersion,
     TraceEventRecord,
 )
 from agent_governance_api.schemas import (
@@ -40,6 +42,7 @@ from agent_governance_api.schemas import (
     EvidencePolicyDecisionRead,
     EvidencePolicyReferenceRead,
     EvidencePolicyRuleReferenceRead,
+    EvidencePolicyVersionReferenceRead,
     EvidenceSourceReferenceRead,
     EvidenceTraceEventRead,
 )
@@ -62,6 +65,10 @@ def build_agent_evidence_bundle(
     )
     policy_references = _load_policy_references(session, policy_decisions)
     rule_references = _load_rule_references(session, policy_decisions)
+    policy_version_references = _load_policy_version_references(
+        session,
+        policy_decisions,
+    )
     capability_references = _load_capability_references(session, access_grants)
     source_references = _load_source_references(session, access_grants)
     data_usage_profiles = _load_data_usage_profiles(session, access_grants)
@@ -70,6 +77,10 @@ def build_agent_evidence_bundle(
         session,
         agent_id=agent.id,
         policy_decisions=policy_decisions,
+    )
+    policy_versions_by_policy_decision_id = _policy_versions_by_policy_decision_id(
+        policy_decisions,
+        policy_version_references,
     )
 
     return EvidenceBundleRead(
@@ -84,6 +95,7 @@ def build_agent_evidence_bundle(
                 policy_decision,
                 policy_references=policy_references,
                 rule_references=rule_references,
+                policy_version_references=policy_version_references,
             )
             for policy_decision in policy_decisions
         ],
@@ -109,7 +121,13 @@ def build_agent_evidence_bundle(
             for model_asset in model_asset_references
         ],
         check_results=[
-            _check_result_response(check_result, check_tool=check_tool)
+            _check_result_response(
+                check_result,
+                check_tool=check_tool,
+                policy_versions_by_policy_decision_id=(
+                    policy_versions_by_policy_decision_id
+                ),
+            )
             for check_result, check_tool in check_results
         ],
     )
@@ -346,6 +364,61 @@ def _load_rule_references(
     }
 
 
+def _load_policy_version_references(
+    session: Session,
+    policy_decisions: list[PolicyDecision],
+) -> dict[UUID, EvidencePolicyVersionReferenceRead]:
+    policy_version_ids = {
+        policy_decision.policy_version_id
+        for policy_decision in policy_decisions
+        if policy_decision.policy_version_id is not None
+    }
+    if not policy_version_ids:
+        return {}
+
+    statement = select(PolicyVersion).where(PolicyVersion.id.in_(policy_version_ids))
+    return {
+        policy_version.id: _policy_version_reference_response(policy_version)
+        for policy_version in session.scalars(statement).all()
+    }
+
+
+def _policy_versions_by_policy_decision_id(
+    policy_decisions: list[PolicyDecision],
+    policy_version_references: dict[UUID, EvidencePolicyVersionReferenceRead],
+) -> dict[UUID, EvidencePolicyVersionReferenceRead]:
+    references: dict[UUID, EvidencePolicyVersionReferenceRead] = {}
+    for policy_decision in policy_decisions:
+        if policy_decision.policy_version_id is None:
+            continue
+        policy_version = policy_version_references.get(
+            policy_decision.policy_version_id
+        )
+        if policy_version is not None:
+            references[policy_decision.id] = policy_version
+    return references
+
+
+def _policy_version_reference_response(
+    policy_version: PolicyVersion,
+) -> EvidencePolicyVersionReferenceRead:
+    return EvidencePolicyVersionReferenceRead(
+        policy_version_id=policy_version.id,
+        policy_id=policy_version.policy_id,
+        version_number=policy_version.version_number,
+        status=policy_version.status,
+        activated_at=policy_version.activated_at,
+        change_summary=_safe_change_summary(policy_version.change_summary),
+    )
+
+
+def _safe_change_summary(change_summary: str) -> str | None:
+    lowered_summary = change_summary.lower()
+    if any(part in lowered_summary for part in UNSAFE_METADATA_KEY_PARTS):
+        return None
+    return redact_sensitive_text(change_summary)
+
+
 def _audit_log_response(audit_log: AuditLog) -> EvidenceAuditLogRead:
     return EvidenceAuditLogRead(
         id=audit_log.id,
@@ -396,6 +469,7 @@ def _policy_decision_response(
     *,
     policy_references: dict[UUID, EvidencePolicyReferenceRead],
     rule_references: dict[UUID, EvidencePolicyRuleReferenceRead],
+    policy_version_references: dict[UUID, EvidencePolicyVersionReferenceRead],
 ) -> EvidencePolicyDecisionRead:
     policy = (
         policy_references.get(policy_decision.policy_id)
@@ -407,11 +481,17 @@ def _policy_decision_response(
         if policy_decision.rule_id is not None
         else None
     )
+    policy_version = (
+        policy_version_references.get(policy_decision.policy_version_id)
+        if policy_decision.policy_version_id is not None
+        else None
+    )
 
     return EvidencePolicyDecisionRead(
         id=policy_decision.id,
         agent_id=policy_decision.agent_id,
         policy_id=policy_decision.policy_id,
+        policy_version_id=policy_decision.policy_version_id,
         rule_id=policy_decision.rule_id,
         trace_event_id=policy_decision.trace_event_id,
         decision=policy_decision.decision,
@@ -419,6 +499,7 @@ def _policy_decision_response(
         context_hash=policy_decision.context_hash,
         policy=policy,
         rule=rule,
+        policy_version=policy_version,
         created_at=policy_decision.created_at,
     )
 
@@ -560,7 +641,16 @@ def _check_result_response(
     check_result: CheckResult,
     *,
     check_tool: CheckTool | None,
+    policy_versions_by_policy_decision_id: dict[
+        UUID,
+        EvidencePolicyVersionReferenceRead,
+    ],
 ) -> EvidenceCheckResultRead:
+    policy_version = (
+        policy_versions_by_policy_decision_id.get(check_result.policy_decision_id)
+        if check_result.policy_decision_id is not None
+        else None
+    )
     return EvidenceCheckResultRead(
         check_result_id=check_result.id,
         check_tool_id=check_result.check_tool_id,
@@ -579,6 +669,10 @@ def _check_result_response(
         target_type=check_result.target_type,
         target_id=check_result.target_id,
         policy_decision_id=check_result.policy_decision_id,
+        policy_version_id=(
+            policy_version.policy_version_id if policy_version is not None else None
+        ),
+        policy_version=policy_version,
         trace_event_id=check_result.trace_event_id,
         run_id=check_result.run_id,
         created_at=check_result.created_at,
