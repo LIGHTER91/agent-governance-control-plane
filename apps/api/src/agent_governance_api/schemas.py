@@ -40,6 +40,7 @@ from agent_governance_api.models import (
     PolicyCheckStepTargetSelector,
     PolicyDecisionValue,
     PolicyStatus,
+    PolicyVersionStatus,
     RiskLevel,
     ServiceActorApiKeyStatus,
     ServiceActorStatus,
@@ -1074,6 +1075,61 @@ class PolicyRead(PolicyBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class PolicyVersionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    change_summary: str
+
+    @field_validator("change_summary")
+    @classmethod
+    def reject_blank_change_summary(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyVersion change_summary must be non-empty.")
+        return value
+
+
+class PolicyVersionReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_note: str | None = None
+
+    @field_validator("review_note")
+    @classmethod
+    def reject_blank_review_note(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyVersion review_note must be non-empty when set.")
+        return value
+
+
+class PolicyVersionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    policy_id: UUID
+    source_version_id: UUID | None = None
+    version_number: int
+    status: PolicyVersionStatus
+    change_summary: str
+    policy_snapshot: dict[str, Any]
+    rule_snapshots: list[dict[str, Any]]
+    check_step_snapshots: list[dict[str, Any]]
+    created_by_actor_type: ActorType
+    created_by_actor_id: str
+    review_requested_by_actor_type: ActorType | None = None
+    review_requested_by_actor_id: str | None = None
+    reviewed_by_actor_type: ActorType | None = None
+    reviewed_by_actor_id: str | None = None
+    review_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    submitted_at: datetime | None = None
+    approved_at: datetime | None = None
+    rejected_at: datetime | None = None
+    activated_at: datetime | None = None
+    superseded_at: datetime | None = None
+    archived_at: datetime | None = None
 
 
 class PolicyRuleBase(BaseModel):

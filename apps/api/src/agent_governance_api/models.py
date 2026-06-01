@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
@@ -10,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -30,6 +32,7 @@ from agent_governance_api.database import Base
 from agent_governance_api.metadata_safety import (
     SafeMetadata,
     reject_unsafe_metadata_keys,
+    unsafe_metadata_keys,
 )
 
 
@@ -266,6 +269,16 @@ class PolicyStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class PolicyVersionStatus(StrEnum):
+    DRAFT = "draft"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+    ARCHIVED = "archived"
+
+
 class PolicyDecisionValue(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
@@ -383,6 +396,41 @@ def validate_data_usage_string_list(
         normalized_values.append(raw_value.strip())
 
     return list(dict.fromkeys(normalized_values))
+
+
+def reject_unsafe_snapshot_keys(value: object, *, field_name: str) -> None:
+    unsafe_paths = _unsafe_snapshot_keys(value)
+    if unsafe_paths:
+        raise ValueError(f"{field_name} contains unsafe key names.")
+
+
+def _unsafe_snapshot_keys(value: object, *, prefix: str = "") -> list[str]:
+    unsafe_paths: list[str] = []
+    if isinstance(value, Mapping):
+        for unsafe_path in unsafe_metadata_keys(value):
+            unsafe_paths.append(f"{prefix}.{unsafe_path}" if prefix else unsafe_path)
+        for key, nested_value in value.items():
+            nested_prefix = f"{prefix}.{key}" if prefix else str(key)
+            if _is_json_sequence(nested_value):
+                unsafe_paths.extend(
+                    _unsafe_snapshot_keys(nested_value, prefix=nested_prefix)
+                )
+        return unsafe_paths
+
+    if _is_json_sequence(value):
+        for index, item in enumerate(value):
+            unsafe_paths.extend(
+                _unsafe_snapshot_keys(item, prefix=f"{prefix}[{index}]")
+            )
+
+    return unsafe_paths
+
+
+def _is_json_sequence(value: object) -> bool:
+    return isinstance(value, Sequence) and not isinstance(
+        value,
+        str | bytes | bytearray,
+    )
 
 
 class Agent(Base):
@@ -1405,6 +1453,147 @@ class Policy(Base):
         onupdate=lambda: datetime.now(UTC),
         server_default=text("CURRENT_TIMESTAMP"),
     )
+    versions: Mapped[list["PolicyVersion"]] = relationship(back_populates="policy")
+
+
+class PolicyVersion(Base):
+    __tablename__ = "policy_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "policy_id",
+            "version_number",
+            name="uq_policy_versions_policy_version_number",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    policy_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("policies.id"),
+        nullable=False,
+    )
+    source_version_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_versions.id"),
+        nullable=True,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[PolicyVersionStatus] = mapped_column(
+        Enum(
+            PolicyVersionStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_status",
+        ),
+        nullable=False,
+    )
+    change_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_snapshot: Mapped[dict[str, object]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
+    )
+    rule_snapshots: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    check_step_snapshots: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    created_by_actor_type: Mapped[ActorType] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_created_actor_type",
+        ),
+        nullable=False,
+    )
+    created_by_actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    review_requested_by_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_requested_actor_type",
+        ),
+        nullable=True,
+    )
+    review_requested_by_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    reviewed_by_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_reviewed_actor_type",
+        ),
+        nullable=True,
+    )
+    reviewed_by_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    policy: Mapped[Policy] = relationship(back_populates="versions")
+
+    @validates("policy_snapshot", "rule_snapshots", "check_step_snapshots")
+    def validate_snapshots(self, key: str, value: object) -> object:
+        reject_unsafe_snapshot_keys(value, field_name=key)
+        return value
 
 
 class PolicyRule(Base):

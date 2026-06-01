@@ -103,8 +103,11 @@ decisions. The PolicyCheckStep authoring model is documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 Policy versioning and review guardrails are now designed in
-`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`, but no version tables, lifecycle
-APIs, Runtime Gateway version references, or review UI have been implemented.
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend `PolicyVersion`
+aggregate now snapshots Policy fields, associated PolicyRules, and associated
+PolicyCheckSteps with draft, review, approval, activation, supersession,
+archive, and rollback-copy APIs. Runtime Gateway version references and review
+UI have not been implemented.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -255,9 +258,8 @@ Important limitations:
   not implemented.
 - Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
   key rotation, and broad user RBAC are not implemented.
-- Policy versioning and review guardrails are design-only; version tables,
-  activation workflows, rollback, and Runtime Gateway version references are
-  not implemented.
+- Policy versioning and review guardrails have a minimal backend foundation;
+  Runtime Gateway version references and review UI are not implemented.
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
   context, and deterministic PolicyRules can match those declared fields
@@ -464,7 +466,8 @@ Planned capabilities:
 - Retention policies.
 - Signed or packaged evidence exports.
 - Approval workflow enhancements.
-- Policy, PolicyRule, and PolicyCheckStep versioning implementation.
+- Runtime Gateway active-version evaluation and PolicyDecision version
+  references.
 - Risk review dashboard.
 - SIEM/GRC integrations.
 - Deeper Agent Governance Profile workflows for reviewing Access Grants,

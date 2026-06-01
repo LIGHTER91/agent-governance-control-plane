@@ -14,6 +14,10 @@ from agent_governance_api.policy_check_steps import (
 )
 from agent_governance_api.policy_check_steps import router as policy_check_steps_router
 from agent_governance_api.policy_rules import router as policy_rules_router
+from agent_governance_api.policy_versions import (
+    policies_router as policy_versions_policies_router,
+)
+from agent_governance_api.policy_versions import router as policy_versions_router
 from agent_governance_api.runtime_gateway_api import router as runtime_gateway_router
 from agent_governance_api.sources import router as sources_router
 from agent_governance_api.telemetry_api import router as telemetry_router
@@ -28,6 +32,8 @@ app.include_router(capabilities_router)
 app.include_router(human_approvals_router)
 app.include_router(model_assets_router)
 app.include_router(policies_router)
+app.include_router(policy_versions_policies_router)
+app.include_router(policy_versions_router)
 app.include_router(policy_check_steps_router)
 app.include_router(policy_check_steps_policy_rules_router)
 app.include_router(policy_rules_router)

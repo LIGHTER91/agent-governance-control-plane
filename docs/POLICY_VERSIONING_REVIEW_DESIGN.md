@@ -2,8 +2,10 @@
 
 ## Status
 
-Design-only. No database models, migrations, APIs, frontend UI, Runtime Gateway
-behavior, or policy evaluator behavior are changed by this document.
+Initial backend foundation implemented. AGCP now has a minimal `PolicyVersion`
+aggregate snapshot table, lifecycle APIs, and append-only audit events for
+review and activation guardrails. Frontend UI, Runtime Gateway behavior, and
+policy evaluator behavior are unchanged.
 
 AGCP remains a governance and evidence control plane. It is not an
 orchestrator, workflow engine, enterprise GRC suite, policy simulation engine,
@@ -110,6 +112,13 @@ Recommended V1 records:
 - `PolicyVersion`;
 - `PolicyRuleVersion`;
 - `PolicyCheckStepVersion`.
+
+Implementation note: issue #65 intentionally starts with a bounded
+`PolicyVersion` aggregate rather than three independently activated version
+tables. The aggregate snapshots Policy fields, associated PolicyRules, and
+associated PolicyCheckSteps together so the review/activation unit is explicit
+without introducing granular runtime version references before Runtime Gateway
+versioned evaluation is designed.
 
 Each version should include:
 
@@ -304,9 +313,6 @@ policy simulation until the core version lifecycle is proven.
 
 ## Non-goals
 
-- No code in this issue.
-- No migrations in this issue.
-- No API changes in this issue.
 - No frontend UI in this issue.
 - No enterprise GRC workflow engine.
 - No OIDC/SAML/JWT design or implementation in this issue.

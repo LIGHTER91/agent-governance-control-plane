@@ -492,13 +492,19 @@ lifecycle changes happen through `/policies`; rule condition changes happen
 through `/policy-rules`.
 
 Policy versioning and review guardrails are designed in
-`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. Implementation is pending. The
-recommended direction is immutable activated versions, draft-next-version
-editing, review and approval state, explicit activation, supersession, and
-rollback by copying a previous approved version into a new draft. Runtime
-Gateway should eventually evaluate only active versions, and PolicyDecision
-records should eventually store the Policy and PolicyRule version references
-that produced the decision.
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. The initial backend foundation uses
+a bounded `PolicyVersion` aggregate that snapshots Policy fields, associated
+PolicyRules, and associated PolicyCheckSteps. Versions move through draft,
+under_review, approved, rejected, active, superseded, and archived states, with
+rollback handled by copying an approved, rejected, active, or superseded
+snapshot into a new draft. Runtime Gateway still evaluates the current
+unversioned Policy/PolicyRule records until active-version evaluation and
+PolicyDecision version references are implemented deliberately.
+
+Lifecycle APIs are available at `POST /policies/{policy_id}/versions`,
+`GET /policies/{policy_id}/versions`, `GET /policy-versions/{version_id}`, and
+the `/policy-versions/{version_id}` lifecycle actions `submit-review`,
+`approve`, `reject`, `activate`, `archive`, and `rollback-copy`.
 
 Examples:
 
@@ -884,6 +890,7 @@ Examples:
 - policy_version_activated;
 - policy_version_superseded;
 - policy_version_archived;
+- policy_version_rollback_copy_created;
 - policy_rule_created;
 - policy_rule_updated;
 - policy_rule_version_created;

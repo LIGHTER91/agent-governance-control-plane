@@ -35,7 +35,14 @@ Every policy decision should answer:
 
 Public APIs must not allow editing or deleting audit records.
 
-## 5. Avoid compliance claims in code
+## 5. Versioned policy changes stay reviewable
+
+Policy, PolicyRule, and PolicyCheckStep changes that can affect future runtime
+decisions should move toward explicit versions, review state, activation, and
+append-only audit events. Runtime Gateway behavior should only switch to active
+versions in a deliberate migration, not as a side effect of persistence work.
+
+## 6. Avoid compliance claims in code
 
 Do not encode labels such as:
 
@@ -47,13 +54,13 @@ compliance_score = 98
 
 Use neutral evidence/control fields instead.
 
-## 6. Standards-compatible telemetry
+## 7. Standards-compatible telemetry
 
 Prefer event schemas that can later map to OpenTelemetry-style traces.
 
 Do not overfit to one framework.
 
-## 7. Integration-friendly by design
+## 8. Integration-friendly by design
 
 The product should be usable with external agent frameworks.
 
@@ -63,7 +70,7 @@ Initial integrations should be minimal:
 - later SDK/middleware;
 - later framework-specific adapters.
 
-## 8. Security from the start
+## 9. Security from the start
 
 Secrets must not appear in:
 
@@ -74,13 +81,13 @@ Secrets must not appear in:
 - audit records;
 - examples.
 
-## 9. Human review remains final
+## 10. Human review remains final
 
 For governance-sensitive decisions, the system should support human oversight.
 
 Do not pretend automated checks solve governance alone.
 
-## 10. Boring infrastructure first
+## 11. Boring infrastructure first
 
 Use simple proven components:
 

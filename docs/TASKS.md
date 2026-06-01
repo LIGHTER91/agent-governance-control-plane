@@ -133,31 +133,29 @@ References:
 
 Recommended order:
 
-1. Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
-   review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
-2. Add active policy/rule/check-step version references to PolicyDecision,
+1. Add active policy/rule/check-step version references to PolicyDecision,
    CheckResult evidence, and Evidence Bundle before expanding authoring UI.
-3. Add guided PolicyCheckStep UI support only after versioning, review, and
+2. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
-4. Use Access Grants as optional policy context without replacing
+3. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-5. Add focused AccessGrant and inventory review workflows only where they
+4. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-6. Add Permission domain model only if AccessGrant target semantics prove
+5. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-7. Add frontend auth and role-aware UI later.
-8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-9. Add OpenAPI examples for `GET /human-approvals` if missing.
-10. Design team and organization-unit ownership resolution for Evidence Bundle
+6. Add frontend auth and role-aware UI later.
+7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+8. Add OpenAPI examples for `GET /human-approvals` if missing.
+9. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-11. Add owner-based service actor scopes design.
-12. Add safe denied-scope audit events.
-13. Add admin management for persisted service actor scope and rule records.
-14. Implement service actor API key rotation and admin workflows after registry
+10. Add owner-based service actor scopes design.
+11. Add safe denied-scope audit events.
+12. Add admin management for persisted service actor scope and rule records.
+13. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-15. Add tests for overriding the Actor dependency with a non-development actor.
-16. Add deeper separation-of-duties checks for HumanApproval review.
-17. Add broad filtering and pagination for Runtime and Agent activity only
+14. Add tests for overriding the Actor dependency with a non-development actor.
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -174,8 +172,6 @@ Recommended order:
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [x] Add Policy management UI for Policy lifecycle and constrained
       PolicyRule condition editing.
-- [ ] Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning
-      and review lifecycle support.
 - [ ] Add active policy/rule/check-step version references to PolicyDecision,
       CheckResult evidence, and Evidence Bundle.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
@@ -220,6 +216,11 @@ credentials.
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.
 - [ ] Import service actor scopes and fine-grained rules into registry.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning
+      and review lifecycle support.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

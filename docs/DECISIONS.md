@@ -193,3 +193,41 @@ Alternatives considered:
 - Keep service actors permanently in environment variables.
 - Implement a separate identity service.
 - Add public service actor CRUD endpoints before user authentication exists.
+
+## ADR-0008 - Policy versioning starts as a bounded snapshot aggregate
+
+Date: 2026-06-01
+
+Status: accepted
+
+Context:
+PolicyRules can now match contextual Runtime Gateway fields and deterministic
+`check_*` CheckResult outcomes, while PolicyCheckSteps can declare evidence
+collection behind a feature flag. Direct active edits can therefore affect
+future runtime decisions, but AGCP does not yet have Runtime Gateway
+active-version evaluation, PolicyDecision version references, real user auth,
+or enterprise review workflows.
+
+Decision:
+Implement the first policy versioning foundation as a single `PolicyVersion`
+aggregate that snapshots Policy fields, associated PolicyRules, and associated
+PolicyCheckSteps. Lifecycle APIs cover draft, review, approval, rejection,
+activation, supersession, archive, and rollback-copy. Runtime Gateway and the
+policy evaluator continue to use the existing unversioned records until a
+separate issue deliberately adds versioned evaluation.
+
+Consequences:
+- Policy changes become reviewable, attributable, and reversible without
+  introducing a workflow engine or enterprise GRC process.
+- The review/activation unit is the whole Policy bundle, which avoids
+  mismatched rule/check-step activation in V1.
+- Future PolicyRuleVersion and PolicyCheckStepVersion tables can still be added
+  if Runtime Gateway needs granular version references.
+- Existing Policy and PolicyRule edit APIs remain unblocked for now.
+
+Alternatives considered:
+- Add separate PolicyVersion, PolicyRuleVersion, and PolicyCheckStepVersion
+  tables immediately.
+- Change Runtime Gateway to evaluate only active versions in the same issue.
+- Add enterprise approval chains or separation-of-duties workflows before real
+  authentication and role modeling exist.
