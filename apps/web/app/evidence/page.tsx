@@ -7,9 +7,9 @@ export default function EvidencePage() {
         <p className="eyebrow">Evidence Review</p>
         <h2>Evidence</h2>
         <p>
-          Read-only Evidence Bundle JSON from the backend API, organized by
-          Agent metadata, audit logs, runs, trace events, policy decisions, and
-          human approvals.
+          Manual Evidence Bundle review and JSON download for one Agent. The
+          page explains the evidence chain while keeping the bounded backend
+          JSON as the canonical audit artifact.
         </p>
       </section>
 

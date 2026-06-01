@@ -174,11 +174,30 @@ const requiredText = [
   "Loading Evidence Bundle",
   "Unable to load Evidence Bundle",
   "Evidence Bundle export requires an auditor or platform_admin role",
+  "Download Evidence Bundle JSON",
+  "export_warnings",
+  "safe_export_metadata",
+  "human_readable_evidence_chain",
+  "canonical_json_export",
+  "Evidence Bundle is an audit/review package",
+  "does not certify legal compliance",
+  "raw prompts, source contents, secrets, tokens, credentials",
+  "Access Grants",
+  "Data Usage Profile summaries",
+  "PolicyVersion references",
+  "policy_version_references",
+  "access_grants",
   "Agent not found",
   "audit_logs",
   "agent_runs",
   "trace_events",
   "policy_decisions",
+  "policy_version_id",
+  "capability_references",
+  "source_references",
+  "data_usage_profile_summaries",
+  "model_asset_references",
+  "check_results",
   "human_approvals",
   "simulation",
   "enforcement",
@@ -225,6 +244,7 @@ for (const text of forbiddenText) {
 runActivityTimelineFixtureSmoke();
 runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
+runEvidenceBundleWorkflowFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
@@ -702,4 +722,221 @@ function agentProfileGroupLabel(targetType) {
   }
 
   return "External grants";
+}
+
+function runEvidenceBundleWorkflowFixtureSmoke() {
+  const policyVersionId = "77777777-7777-4777-8777-777777777777";
+  const policyDecisionId = "88888888-8888-4888-8888-888888888888";
+  const agentId = "99999999-9999-4999-8999-999999999999";
+
+  const fixture = {
+    agent: {
+      id: agentId,
+      name: "Claims Assistant",
+      environment: "production",
+      risk_level: "high"
+    },
+    access_grants: [
+      {
+        id: "grant-001",
+        name: "Claims knowledge grant",
+        target_type: "source",
+        target_id: "source-001",
+        status: "active"
+      }
+    ],
+    capability_references: [
+      {
+        id: "capability-001",
+        name: "Send email",
+        capability_type: "tool",
+        status: "active"
+      }
+    ],
+    source_references: [
+      {
+        id: "source-001",
+        name: "Claims knowledge base",
+        source_type: "knowledge_base",
+        status: "active"
+      }
+    ],
+    data_usage_profiles: [
+      {
+        id: "profile-001",
+        source_id: "source-001",
+        data_classification: "confidential",
+        review_status: "approved"
+      }
+    ],
+    model_asset_references: [
+      {
+        id: "model-001",
+        name: "Claims model",
+        model_type: "llm",
+        provider: "local"
+      }
+    ],
+    agent_runs: [
+      {
+        id: "run-record-001",
+        run_id: "run-001"
+      }
+    ],
+    trace_events: [
+      {
+        id: "trace-001",
+        event_type: "tool_call_requested"
+      }
+    ],
+    policy_decisions: [
+      {
+        id: policyDecisionId,
+        decision: "require_human_review",
+        reason: "External email requires review.",
+        policy_version_id: policyVersionId,
+        policy_version: {
+          policy_version_id: policyVersionId,
+          policy_id: "policy-001",
+          version_number: 3,
+          status: "active"
+        }
+      }
+    ],
+    check_results: [
+      {
+        check_result_id: "check-001",
+        outcome: "pass",
+        policy_decision_id: policyDecisionId,
+        policy_version_id: policyVersionId,
+        summary: "Data Usage Profile is approved."
+      }
+    ],
+    human_approvals: [
+      {
+        id: "approval-001",
+        status: "pending",
+        policy_decision_id: policyDecisionId
+      }
+    ],
+    audit_logs: [
+      {
+        id: "audit-001",
+        event_type: "evidence_bundle_exported"
+      }
+    ]
+  };
+
+  const renderedWorkflow = renderEvidenceBundleWorkflowFixture(fixture);
+  const rawArtifact = JSON.stringify(fixture);
+
+  for (const expectedText of [
+    "Evidence Bundle is an audit/review package",
+    "does not certify legal compliance",
+    "Download Evidence Bundle JSON",
+    "safe_export_metadata",
+    "exported_at",
+    "exported_by",
+    "agent_id",
+    "human_readable_evidence_chain",
+    "Agent",
+    "Access Grants",
+    "Data Usage Profile summaries",
+    "data_usage_profile_summaries",
+    "TraceEvents",
+    "PolicyDecisions",
+    "PolicyVersion references",
+    "policy_version_references",
+    "CheckResults",
+    "HumanApprovals",
+    "AuditLogs",
+    "canonical_json_export",
+    "access_grants",
+    "capability_references",
+    "source_references",
+    "data_usage_profile_summaries",
+    "model_asset_references",
+    "check_results",
+    "policy_version_id",
+    policyVersionId,
+    agentId
+  ]) {
+    if (!renderedWorkflow.includes(expectedText)) {
+      throw new Error(`Evidence Bundle workflow fixture missing: ${expectedText}`);
+    }
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "authorization",
+    "password",
+    "raw_prompt",
+    "raw_payload"
+  ]) {
+    if (rawArtifact.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe Evidence Bundle fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderEvidenceBundleWorkflowFixture(bundle) {
+  const counts = {
+    access_grants: bundle.access_grants.length,
+    agent_runs: bundle.agent_runs.length,
+    audit_logs: bundle.audit_logs.length,
+    capability_references: bundle.capability_references.length,
+    check_results: bundle.check_results.length,
+    data_usage_profiles: bundle.data_usage_profiles.length,
+    human_approvals: bundle.human_approvals.length,
+    model_asset_references: bundle.model_asset_references.length,
+    policy_decisions: bundle.policy_decisions.length,
+    policy_versions: evidencePolicyVersionCount(bundle),
+    source_references: bundle.source_references.length,
+    trace_events: bundle.trace_events.length
+  };
+
+  return [
+    "Evidence Bundle is an audit/review package; it does not certify legal compliance.",
+    "The Evidence Bundle excludes raw prompts, source contents, secrets, tokens, credentials, and unsafe payloads.",
+    "Download Evidence Bundle JSON",
+    "safe_export_metadata",
+    "exported_at",
+    "exported_by",
+    "agent_id",
+    bundle.agent.id,
+    "human_readable_evidence_chain",
+    "Agent",
+    bundle.agent.name,
+    "Access Grants",
+    "Data Usage Profile summaries",
+    "data_usage_profile_summaries",
+    "TraceEvents",
+    "PolicyDecisions",
+    "PolicyVersion references",
+    "policy_version_references",
+    "CheckResults",
+    "HumanApprovals",
+    "AuditLogs",
+    "canonical_json_export",
+    ...Object.keys(counts),
+    JSON.stringify(bundle)
+  ].join("\n");
+}
+
+function evidencePolicyVersionCount(bundle) {
+  const ids = new Set();
+
+  for (const decision of bundle.policy_decisions) {
+    if (decision.policy_version_id) {
+      ids.add(decision.policy_version_id);
+    }
+  }
+
+  for (const result of bundle.check_results) {
+    if (result.policy_version_id) {
+      ids.add(result.policy_version_id);
+    }
+  }
+
+  return ids.size;
 }

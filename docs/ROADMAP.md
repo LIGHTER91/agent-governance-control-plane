@@ -33,11 +33,13 @@ still missing. The frontend now has a minimal dashboard shell, a read-only Agent
 list page backed by the backend Agent Registry API, a read-only Agent detail
 page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
 Bundle APIs, read-only Runtime Gateway overview and activity pages, a Human
-Approvals page with pending review actions, and a read-only Evidence Bundle
-page backed by the backend Evidence Bundle export API. It does not have login,
-role-aware views, Agent edit forms, broad activity filtering or pagination,
-Evidence Bundle PDF/download/signature actions, or enterprise-auth-backed review
-workflows.
+Approvals page with pending review actions, and an Evidence Bundle page backed
+by the backend Evidence Bundle export API. The Evidence page now loads bundles
+only by manual user action, explains the evidence chain, shows safe export
+warnings and metadata, and downloads the bounded JSON artifact returned by the
+backend. It does not have login, role-aware views, Agent edit forms, broad
+activity filtering or pagination, Evidence Bundle PDF/signature actions, or
+enterprise-auth-backed review workflows.
 
 AGCP is now closer to a true governance control plane than a runtime decision
 logger: the backend can register Agents, inventory governed Capabilities,
@@ -60,10 +62,12 @@ evaluation yet. Evidence Bundle export
 includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
 remains a bounded JSON review export rather than a full data catalog or
-UI-oriented profile. Full user authentication, OIDC/SAML/JWT, team or
-organization-unit resolution, production service actor administration, API key
-rotation endpoints, notifications, deployment hardening, and operational
-runbooks are still missing.
+UI-oriented profile. The frontend Evidence page adds a review-friendly summary
+and JSON download action, but JSON remains the canonical bounded export and the
+workflow does not certify legal compliance. Full user authentication,
+OIDC/SAML/JWT, team or organization-unit resolution, production service actor
+administration, API key rotation endpoints, notifications, deployment
+hardening, and operational runbooks are still missing.
 
 Contextual runtime governance now has a design path for future decisions that
 need Agent, Action, Source, data classification, ModelAsset, provider,
@@ -341,8 +345,9 @@ Completed foundation:
   `GET /runtime/tool-calls/activity`.
 - Human Approvals page backed by `GET /human-approvals`, with approve, reject,
   and cancel actions shown only for pending approvals.
-- Read-only Evidence Bundle page backed by
-  `GET /agents/{agent_id}/evidence-bundle`.
+- Evidence Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`,
+  with manual JSON loading, human-readable evidence chain summary, safe export
+  warnings, and bounded JSON download.
 - Agent-scoped Access Grant reads through `GET /agents/{agent_id}/access-grants`,
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
@@ -409,8 +414,8 @@ Important limitations:
 - The Agent detail page has no edit form.
 - Agent and Runtime activity views do not have broad filtering, search, or
   pagination yet.
-- The Evidence page does not provide PDF export, download, or cryptographic
-  signing.
+- The Evidence page provides bounded JSON download only; PDF export and
+  cryptographic signing are not implemented.
 - Evidence Bundle export requires the backend actor to have `auditor` or
   `platform_admin` role, or to be the direct user owner of the Agent.
 - Local CORS or a frontend proxy may be needed depending on browser/API setup.
@@ -448,14 +453,15 @@ Planned capabilities:
 - Runtime decisions/activity backend endpoint. Completed as read-only.
 - Runtime decisions/activity page. Completed as read-only.
 - Human Approvals page. Completed with pending review actions.
-- Evidence Bundle page. Completed as read-only.
+- Evidence Bundle page. Completed with manual review summary and bounded JSON
+  download.
 - Agent Governance Profile backend endpoint. Completed.
 - Agent Governance Profile frontend UI. Completed.
 - Policy management UI. Completed for Policy lifecycle and constrained
   PolicyRule condition editing.
 - Policy versioning and review UI after the backend version lifecycle exists.
 - PolicyCheckStep management UI.
-- Evidence Bundle download, PDF, and signing actions.
+- Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.
 
 ## Phase 5 - Enterprise Hardening And Expansion
