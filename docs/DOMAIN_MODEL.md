@@ -399,6 +399,19 @@ details. Evidence Bundle export includes Agent-scoped Access Grants and safe
 Capability, Source, and ModelAsset references for granted inventory targets.
 Later work may use grants as policy context.
 
+Access Grant status changes should use explicit lifecycle transition endpoints
+when available:
+
+- `POST /access-grants/{access_grant_id}/suspend`;
+- `POST /access-grants/{access_grant_id}/revoke`;
+- `POST /access-grants/{access_grant_id}/reactivate`;
+- `POST /access-grants/{access_grant_id}/expire`.
+
+These transitions append audit events and update the declarative grant status
+only. They do not issue credentials, revoke external system access, create
+Runtime Gateway enforcement, or replace PolicyDecision records. Runtime
+enforcement still requires explicit policy/rule/check behavior.
+
 Access Grant metadata must contain only safe, non-sensitive context. Do not
 store credentials, tokens, secrets, authorization headers, raw prompts, private
 customer data, or raw sensitive payloads in Access Grant metadata.
@@ -894,6 +907,10 @@ Examples:
 - access_grant_created;
 - access_grant_updated;
 - access_grant_status_changed;
+- access_grant_suspended;
+- access_grant_revoked;
+- access_grant_reactivated;
+- access_grant_expired;
 - policy_created;
 - policy_updated;
 - policy_status_changed;

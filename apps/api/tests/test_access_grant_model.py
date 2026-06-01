@@ -16,7 +16,11 @@ from agent_governance_api.models import (
     ActorType,
     RiskLevel,
 )
-from agent_governance_api.schemas import AccessGrantCreate, AccessGrantRead
+from agent_governance_api.schemas import (
+    AccessGrantCreate,
+    AccessGrantRead,
+    AccessGrantTransitionRequest,
+)
 
 
 def test_access_grant_enums_have_expected_values() -> None:
@@ -77,6 +81,19 @@ def test_access_grant_create_schema_rejects_invalid_enum_values(
 
     with pytest.raises(ValidationError):
         AccessGrantCreate(**payload)
+
+
+def test_access_grant_transition_schema_accepts_optional_note() -> None:
+    request = AccessGrantTransitionRequest(
+        transition_note="Owner requested temporary pause."
+    )
+
+    assert request.transition_note == "Owner requested temporary pause."
+
+
+def test_access_grant_transition_schema_rejects_blank_note() -> None:
+    with pytest.raises(ValidationError, match="transition_note must be non-empty"):
+        AccessGrantTransitionRequest(transition_note=" ")
 
 
 def test_access_grant_schema_requires_target_id_for_inventory_targets() -> None:

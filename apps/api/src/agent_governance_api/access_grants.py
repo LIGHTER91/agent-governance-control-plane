@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import get_db_session
-from agent_governance_api.models import AccessGrant
+from agent_governance_api.models import AccessGrant, AccessGrantStatus
 from agent_governance_api.openapi_examples import (
     ACCESS_GRANT_CREATE_OPENAPI,
     ACCESS_GRANT_GET_OPENAPI,
@@ -18,10 +18,19 @@ from agent_governance_api.openapi_examples import (
 from agent_governance_api.schemas import (
     AccessGrantCreate,
     AccessGrantRead,
+    AccessGrantTransitionRequest,
     AccessGrantUpdate,
 )
 
 router = APIRouter(prefix="/access-grants", tags=["access grants"])
+
+ACTIVE_TRANSITION_STATUSES = {AccessGrantStatus.ACTIVE}
+PENDING_OR_ACTIVE_OR_SUSPENDED_STATUSES = {
+    AccessGrantStatus.PENDING_REVIEW,
+    AccessGrantStatus.ACTIVE,
+    AccessGrantStatus.SUSPENDED,
+}
+SUSPENDED_TRANSITION_STATUSES = {AccessGrantStatus.SUSPENDED}
 
 
 @router.post(
@@ -86,6 +95,98 @@ def list_access_grants(
     return list(session.scalars(statement).all())
 
 
+@router.post(
+    "/{access_grant_id}/suspend",
+    response_model=AccessGrantRead,
+)
+def suspend_access_grant(
+    access_grant_id: UUID,
+    payload: AccessGrantTransitionRequest | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> AccessGrant:
+    return _transition_access_grant(
+        session,
+        actor,
+        access_grant_id=access_grant_id,
+        payload=payload,
+        transition="suspend",
+        target_status=AccessGrantStatus.SUSPENDED,
+        allowed_statuses=ACTIVE_TRANSITION_STATUSES,
+        event_type="access_grant_suspended",
+        summary="Access grant suspended.",
+    )
+
+
+@router.post(
+    "/{access_grant_id}/revoke",
+    response_model=AccessGrantRead,
+)
+def revoke_access_grant(
+    access_grant_id: UUID,
+    payload: AccessGrantTransitionRequest | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> AccessGrant:
+    return _transition_access_grant(
+        session,
+        actor,
+        access_grant_id=access_grant_id,
+        payload=payload,
+        transition="revoke",
+        target_status=AccessGrantStatus.REVOKED,
+        allowed_statuses=PENDING_OR_ACTIVE_OR_SUSPENDED_STATUSES,
+        event_type="access_grant_revoked",
+        summary="Access grant revoked.",
+    )
+
+
+@router.post(
+    "/{access_grant_id}/reactivate",
+    response_model=AccessGrantRead,
+)
+def reactivate_access_grant(
+    access_grant_id: UUID,
+    payload: AccessGrantTransitionRequest | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> AccessGrant:
+    return _transition_access_grant(
+        session,
+        actor,
+        access_grant_id=access_grant_id,
+        payload=payload,
+        transition="reactivate",
+        target_status=AccessGrantStatus.ACTIVE,
+        allowed_statuses=SUSPENDED_TRANSITION_STATUSES,
+        event_type="access_grant_reactivated",
+        summary="Access grant reactivated.",
+    )
+
+
+@router.post(
+    "/{access_grant_id}/expire",
+    response_model=AccessGrantRead,
+)
+def expire_access_grant(
+    access_grant_id: UUID,
+    payload: AccessGrantTransitionRequest | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> AccessGrant:
+    return _transition_access_grant(
+        session,
+        actor,
+        access_grant_id=access_grant_id,
+        payload=payload,
+        transition="expire",
+        target_status=AccessGrantStatus.EXPIRED,
+        allowed_statuses=PENDING_OR_ACTIVE_OR_SUSPENDED_STATUSES,
+        event_type="access_grant_expired",
+        summary="Access grant expired.",
+    )
+
+
 @router.get(
     "/{access_grant_id}",
     response_model=AccessGrantRead,
@@ -148,6 +249,55 @@ def update_access_grant(
             else "Access grant updated."
         ),
         metadata=metadata,
+    )
+    session.commit()
+    session.refresh(access_grant)
+
+    return access_grant
+
+
+def _transition_access_grant(
+    session: Session,
+    actor: ActorContext,
+    *,
+    access_grant_id: UUID,
+    payload: AccessGrantTransitionRequest | None,
+    transition: str,
+    target_status: AccessGrantStatus,
+    allowed_statuses: set[AccessGrantStatus],
+    event_type: str,
+    summary: str,
+) -> AccessGrant:
+    access_grant = _get_access_grant_or_404(session, access_grant_id)
+    previous_status = access_grant.status
+    if previous_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Access grant status transition from "
+                f"{previous_status.value} to {target_status.value} is not allowed."
+            ),
+        )
+
+    access_grant.status = target_status
+    access_grant.updated_at = datetime.now(UTC)
+    append_audit_log(
+        session,
+        event_type=event_type,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
+        entity_type="access_grant",
+        entity_id=str(access_grant.id),
+        summary=summary,
+        metadata={
+            **_audit_metadata(access_grant, operation="transition"),
+            "transition": transition,
+            "status_from": previous_status.value,
+            "status_to": target_status.value,
+            "transition_note_present": (
+                payload is not None and payload.transition_note is not None
+            ),
+        },
     )
     session.commit()
     session.refresh(access_grant)

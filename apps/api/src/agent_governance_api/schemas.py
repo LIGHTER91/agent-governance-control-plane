@@ -528,6 +528,19 @@ class AccessGrantUpdate(BaseModel):
         return data
 
 
+class AccessGrantTransitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    transition_note: str | None = None
+
+    @field_validator("transition_note")
+    @classmethod
+    def reject_blank_transition_note(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("AccessGrant transition_note must be non-empty when set.")
+        return value
+
+
 class AccessGrantRead(AccessGrantBase):
     model_config = ConfigDict(from_attributes=True)
 

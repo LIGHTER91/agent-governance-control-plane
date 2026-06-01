@@ -29,11 +29,11 @@ from agent_governance_api.models import (
     RiskLevel,
 )
 from agent_governance_api.policy_evaluator import PolicyEvaluationRule
+from agent_governance_api.runtime_gateway import CONTEXT_LABEL_PATTERN
 from agent_governance_api.runtime_metadata_pre_checks import (
     RuntimePolicyCheckStep,
     runtime_policy_check_step_from_snapshot,
 )
-from agent_governance_api.runtime_gateway import CONTEXT_LABEL_PATTERN
 
 MISSING_RESOLVED_CONTEXT_VALUE = "missing"
 MODEL_PROVIDER_TYPE_VALUES = frozenset({"external", "local", "unknown"})

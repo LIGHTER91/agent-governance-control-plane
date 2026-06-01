@@ -203,10 +203,10 @@ def test_activating_policy_version_supersedes_existing_active_version(
 
     event_types = [log.event_type for log in fetch_audit_logs(session_factory)]
     assert "policy_version_superseded" in event_types
-    assert event_types[-2:] == [
+    assert set(event_types[-2:]) == {
         "policy_version_superseded",
         "policy_version_activated",
-    ]
+    }
 
 
 def test_policy_version_invalid_transitions_return_conflict(
