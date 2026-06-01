@@ -51,9 +51,12 @@ inventory references, policy/rule technical references, and an Evidence Bundle
 availability hint.
 
 Several important surfaces remain backend-only: Capability, Source, ModelAsset,
-AccessGrant, Policy, and PolicyRule management have APIs but no dedicated
-frontend management workflows. Access Grants are inventory declarations only;
-they are not enforced by runtime policy evaluation yet. Evidence Bundle export
+AccessGrant, and PolicyCheckStep management have APIs but no dedicated
+frontend management workflows. Policy and PolicyRule management now have a
+minimal frontend page for lifecycle records and constrained deterministic
+condition editing, including explicit `check_*` outcome fields. Access Grants
+are inventory declarations only; they are not enforced by runtime policy
+evaluation yet. Evidence Bundle export
 includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
 remains a bounded JSON review export rather than a full data catalog or
@@ -330,6 +333,8 @@ Completed foundation:
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
 - PolicyRule management API for deterministic rule conditions.
+- Policy frontend for Policy lifecycle records and constrained PolicyRule
+  condition editing, including safe CheckResult outcome match fields.
 - Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
   Source, and ModelAsset references, and safe Data Usage Profile summaries for
   granted Sources.
@@ -346,7 +351,6 @@ Completed foundation:
 
 Recommended next work:
 
-- Add Policy management UI for the existing Policy and PolicyRule APIs.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics are designed.
 - Use Access Grants as optional policy context without replacing
@@ -429,7 +433,9 @@ Planned capabilities:
 - Evidence Bundle page. Completed as read-only.
 - Agent Governance Profile backend endpoint. Completed.
 - Agent Governance Profile frontend UI. Completed.
-- Policy management UI.
+- Policy management UI. Completed for Policy lifecycle and constrained
+  PolicyRule condition editing.
+- PolicyCheckStep management UI.
 - Evidence Bundle download, PDF, and signing actions.
 - Frontend auth and role-aware UI later.
 

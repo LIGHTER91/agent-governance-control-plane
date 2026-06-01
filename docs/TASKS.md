@@ -133,28 +133,27 @@ References:
 
 Recommended order:
 
-1. Add Policy management UI for the existing Policy and PolicyRule APIs.
-2. Add guided PolicyCheckStep UI support only after versioning, review, and
+1. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics are designed.
-3. Use Access Grants as optional policy context without replacing
+2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Add focused AccessGrant and inventory review workflows only where they
+3. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-5. Add Permission domain model only if AccessGrant target semantics prove
+4. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-6. Add frontend auth and role-aware UI later.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+5. Add frontend auth and role-aware UI later.
+6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+7. Add OpenAPI examples for `GET /human-approvals` if missing.
+8. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-10. Add owner-based service actor scopes design.
-11. Add safe denied-scope audit events.
-12. Add admin management for persisted service actor scope and rule records.
-13. Implement service actor API key rotation and admin workflows after registry
+9. Add owner-based service actor scopes design.
+10. Add safe denied-scope audit events.
+11. Add admin management for persisted service actor scope and rule records.
+12. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-14. Add tests for overriding the Actor dependency with a non-development actor.
-15. Add deeper separation-of-duties checks for HumanApproval review.
-16. Add broad filtering and pagination for Runtime and Agent activity only
+13. Add tests for overriding the Actor dependency with a non-development actor.
+14. Add deeper separation-of-duties checks for HumanApproval review.
+15. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -169,7 +168,8 @@ Recommended order:
 - [ ] Design team and organization-unit ownership resolution for Evidence
       Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [ ] Add Policy management UI.
+- [x] Add Policy management UI for Policy lifecycle and constrained
+      PolicyRule condition editing.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.

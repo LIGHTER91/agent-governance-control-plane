@@ -160,6 +160,8 @@ integrations are intentionally not implemented yet.
   environment, risk level, Access Grant summary, recent activity,
   HumanApproval summary, Evidence Bundle availability, inventory/access
   details, and compact technical policy/rule references.
+- Frontend Policies page for Policy lifecycle records and constrained
+  PolicyRule condition editing, including explicit `check_*` outcome fields.
 - Read-only frontend Runtime Gateway overview and activity pages.
 - Frontend Human Approvals page backed by `GET /human-approvals`, with review
   actions shown only for pending approvals.
@@ -410,8 +412,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add Policy management UI for the existing Policy, PolicyRule, and
-   PolicyCheckStep APIs.
+1. Add guided PolicyCheckStep UI support only after versioning, review, and
+   simulation semantics are designed.
 2. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
 3. Add focused AccessGrant and inventory workflows only where they support

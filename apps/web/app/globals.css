@@ -422,6 +422,114 @@ a {
   min-width: 1020px;
 }
 
+.policy-rule-workspace {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+  padding-bottom: 16px;
+}
+
+.policy-rule-header {
+  align-items: flex-start;
+  background: #f3f6f5;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.policy-rule-header strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.policy-rule-header p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.policy-rule-warning {
+  background: #f7eadf;
+  border-radius: 8px;
+  color: var(--warning);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 16px;
+  padding: 10px 12px;
+}
+
+.policy-rule-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
+  padding: 0 16px;
+}
+
+.policy-rule-table {
+  min-width: 900px;
+}
+
+.compact-action {
+  min-height: 36px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.policy-rule-form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+}
+
+.policy-rule-form legend {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.rule-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.condition-preview {
+  background: #fbfcfc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.condition-preview summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.condition-preview pre {
+  color: #243532;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 12px 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .selected-row td {
   background: #fbfcfc;
 }
@@ -1253,6 +1361,8 @@ a {
   .runtime-grid,
   .detail-summary-grid,
   .policy-manager-grid,
+  .policy-rule-grid,
+  .rule-form-grid,
   .profile-access-grid,
   .profile-grant-fields,
   .evidence-hint-fields,
@@ -1296,6 +1406,8 @@ a {
   .runtime-grid,
   .detail-summary-grid,
   .policy-manager-grid,
+  .policy-rule-grid,
+  .rule-form-grid,
   .profile-access-grid,
   .profile-grant-fields,
   .evidence-hint-fields,
@@ -1313,6 +1425,10 @@ a {
 
   .detail-card-header {
     align-items: stretch;
+    display: grid;
+  }
+
+  .policy-rule-header {
     display: grid;
   }
 
