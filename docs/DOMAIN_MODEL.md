@@ -491,6 +491,15 @@ Policy management and PolicyRule management are separate API surfaces. Policy
 lifecycle changes happen through `/policies`; rule condition changes happen
 through `/policy-rules`.
 
+Policy versioning and review guardrails are designed in
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. Implementation is pending. The
+recommended direction is immutable activated versions, draft-next-version
+editing, review and approval state, explicit activation, supersession, and
+rollback by copying a previous approved version into a new draft. Runtime
+Gateway should eventually evaluate only active versions, and PolicyDecision
+records should eventually store the Policy and PolicyRule version references
+that produced the decision.
+
 Examples:
 
 - "Production agents must have an owner."
@@ -621,6 +630,10 @@ turning AGCP into a generic policy-language platform.
 PolicyRule mutations append `policy_rule_created` or `policy_rule_updated`.
 Audit metadata must not include full rule conditions; conditions can contain
 operational details such as tool names and reasons.
+
+PolicyRule versioning should eventually prevent direct mutation of active rule
+conditions. Versioned PolicyRules should preserve the deterministic condition
+shape above while making the active snapshot immutable and reviewable.
 
 ## Policy Pre-Check
 
@@ -864,11 +877,32 @@ Examples:
 - policy_created;
 - policy_updated;
 - policy_status_changed;
+- policy_version_created;
+- policy_version_submitted_for_review;
+- policy_version_approved;
+- policy_version_rejected;
+- policy_version_activated;
+- policy_version_superseded;
+- policy_version_archived;
 - policy_rule_created;
 - policy_rule_updated;
+- policy_rule_version_created;
+- policy_rule_version_submitted_for_review;
+- policy_rule_version_approved;
+- policy_rule_version_rejected;
+- policy_rule_version_activated;
+- policy_rule_version_superseded;
+- policy_rule_version_archived;
 - policy_check_step_created;
 - policy_check_step_updated;
 - policy_check_step_status_changed;
+- policy_check_step_version_created;
+- policy_check_step_version_submitted_for_review;
+- policy_check_step_version_approved;
+- policy_check_step_version_rejected;
+- policy_check_step_version_activated;
+- policy_check_step_version_superseded;
+- policy_check_step_version_archived;
 - check_tool_registered;
 - policy_check_result_recorded;
 - policy_check_run_recorded;

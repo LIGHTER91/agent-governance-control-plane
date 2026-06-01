@@ -16,6 +16,11 @@ explicitly match safe CheckResult outcome context through deterministic
 CheckResult-driven enforcement, public CheckTool/CheckResult management APIs,
 and frontend UI remain out of scope.
 
+Policy versioning and review guardrails are designed separately in
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. PolicyCheckStep authoring should
+eventually be governed by that lifecycle because check steps can affect which
+evidence is collected for future Runtime Gateway decisions.
+
 AGCP remains a governance and evidence control plane. It does not execute
 arbitrary tools, orchestrate workflows, replace DLP or data catalog systems, act
 as a DPO or legal counsel, or certify legal compliance.
@@ -438,6 +443,9 @@ THEN require_human_review if either check is unknown or unavailable
 
 This should be implemented with explicit check types and validated fields, not
 arbitrary code, generic workflow graphs, or an unbounded expression language.
+Before richer authoring UI expands, Policy, PolicyRule, and PolicyCheckStep
+changes should have lightweight versioning, review, activation, and rollback
+guardrails so active runtime policy behavior is not changed casually.
 
 ## Non-goals
 
@@ -485,7 +493,9 @@ Recommended staged implementation:
 10. Add async check handling and HumanApproval fallback behavior.
 11. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-12. Later add a constrained Policy Studio UI for check-based policy authoring.
+12. Implement lightweight policy versioning and review guardrails before
+    expanding PolicyCheckStep or check-based authoring UI.
+13. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current

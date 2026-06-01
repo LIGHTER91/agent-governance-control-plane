@@ -399,8 +399,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Docker Compose or production deployment.
-- Policy versioning and Runtime Gateway telemetry mode on the runtime decision
-  endpoint.
+- Policy versioning and review implementation, plus Runtime Gateway telemetry
+  mode on the runtime decision endpoint.
 - Pre-check failure behavior enforcement, scanner execution, or automatic
   CheckResult-driven policy decisions.
 - Retention policies.
@@ -412,26 +412,30 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Add guided PolicyCheckStep UI support only after versioning, review, and
-   simulation semantics are designed.
-2. Use Access Grants as optional policy context without replacing
+1. Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
+   review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
+2. Add active policy/rule/check-step version references to PolicyDecision,
+   CheckResult evidence, and Evidence Bundle before expanding authoring UI.
+3. Add guided PolicyCheckStep UI support only after versioning, review, and
+   simulation semantics have a safe implementation path.
+4. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add focused AccessGrant and inventory workflows only where they support
+5. Add focused AccessGrant and inventory workflows only where they support
    review, approval, or evidence collection.
-4. Implement Permission domain model only if AccessGrant target semantics prove
+6. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add frontend auth and role-aware UI.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+7. Add frontend auth and role-aware UI.
+8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+9. Add OpenAPI examples for `GET /human-approvals` if missing.
+10. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-9. Add owner-based service actor scopes design.
-10. Add safe audit events for denied service actor scope checks.
-11. Implement service actor registry admin management workflow.
-12. Implement service actor API key rotation and admin workflows after registry
+11. Add owner-based service actor scopes design.
+12. Add safe audit events for denied service actor scope checks.
+13. Implement service actor registry admin management workflow.
+14. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-13. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+15. Add deeper separation-of-duties checks for HumanApproval review.
+16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

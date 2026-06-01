@@ -102,6 +102,10 @@ can now explicitly match safe CheckResult outcome summaries with deterministic
 decisions. The PolicyCheckStep authoring model is documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
+Policy versioning and review guardrails are now designed in
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`, but no version tables, lifecycle
+APIs, Runtime Gateway version references, or review UI have been implemented.
+
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
 policy workflows that help users answer what an Agent is allowed to use, why it
@@ -251,7 +255,9 @@ Important limitations:
   not implemented.
 - Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
   key rotation, and broad user RBAC are not implemented.
-- Policy versioning is not implemented.
+- Policy versioning and review guardrails are design-only; version tables,
+  activation workflows, rollback, and Runtime Gateway version references are
+  not implemented.
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
   context, and deterministic PolicyRules can match those declared fields
@@ -351,8 +357,12 @@ Completed foundation:
 
 Recommended next work:
 
+- Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
+  review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
+- Add active policy/rule/check-step version references to PolicyDecision,
+  CheckResult evidence, and Evidence Bundle before expanding authoring UI.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
-  simulation semantics are designed.
+  simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
   PolicyDecision records.
 - Add focused AccessGrant and inventory review workflows where they support
@@ -403,6 +413,7 @@ References:
 - `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
+- `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
@@ -435,6 +446,7 @@ Planned capabilities:
 - Agent Governance Profile frontend UI. Completed.
 - Policy management UI. Completed for Policy lifecycle and constrained
   PolicyRule condition editing.
+- Policy versioning and review UI after the backend version lifecycle exists.
 - PolicyCheckStep management UI.
 - Evidence Bundle download, PDF, and signing actions.
 - Frontend auth and role-aware UI later.
@@ -452,12 +464,12 @@ Planned capabilities:
 - Retention policies.
 - Signed or packaged evidence exports.
 - Approval workflow enhancements.
-- Policy and PolicyRule versioning.
+- Policy, PolicyRule, and PolicyCheckStep versioning implementation.
 - Risk review dashboard.
 - SIEM/GRC integrations.
 - Deeper Agent Governance Profile workflows for reviewing Access Grants,
   policy references, Evidence Bundle links, and inventory changes.
-- Policy versioning and rule change review workflows.
+- Policy versioning and rule change review workflow hardening.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.
 - Compliance framework mapping support for evidence workflows, without claiming

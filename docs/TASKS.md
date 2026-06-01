@@ -87,18 +87,17 @@ default and does not change final runtime decisions. `failure_behavior` is
 recorded as evidence intent only. Scanner adapters, public CRUD APIs for
 CheckTool/CheckResult management, and pre-check-driven enforcement remain out
 of scope.
-The
-frontend has a minimal dashboard shell, a read-only Agent list
-page backed by `GET /agents`, a read-only Agent detail and Agent Governance
+The frontend has a minimal dashboard shell, a read-only Agent list page backed
+by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
 `GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
 and Runtime activity pages, a Human Approvals page with pending review actions,
 and a read-only Evidence Bundle page backed by
 `GET /agents/{agent_id}/evidence-bundle`, but no login/auth UI, no role-aware
-frontend behavior, no Agent edit form, no dedicated inventory or policy
-management UI, no broad activity filtering or pagination, and no Evidence
-Bundle PDF/download/signature actions.
+frontend behavior, no Agent edit form, no dedicated inventory or
+PolicyCheckStep management UI, no broad activity filtering or pagination, and
+no Evidence Bundle PDF/download/signature actions.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -116,6 +115,7 @@ References:
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`
+- `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -133,27 +133,31 @@ References:
 
 Recommended order:
 
-1. Add guided PolicyCheckStep UI support only after versioning, review, and
-   simulation semantics are designed.
-2. Use Access Grants as optional policy context without replacing
+1. Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
+   review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
+2. Add active policy/rule/check-step version references to PolicyDecision,
+   CheckResult evidence, and Evidence Bundle before expanding authoring UI.
+3. Add guided PolicyCheckStep UI support only after versioning, review, and
+   simulation semantics have a safe implementation path.
+4. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-3. Add focused AccessGrant and inventory review workflows only where they
+5. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-4. Add Permission domain model only if AccessGrant target semantics prove
+6. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-5. Add frontend auth and role-aware UI later.
-6. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-7. Add OpenAPI examples for `GET /human-approvals` if missing.
-8. Design team and organization-unit ownership resolution for Evidence Bundle
+7. Add frontend auth and role-aware UI later.
+8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+9. Add OpenAPI examples for `GET /human-approvals` if missing.
+10. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-9. Add owner-based service actor scopes design.
-10. Add safe denied-scope audit events.
-11. Add admin management for persisted service actor scope and rule records.
-12. Implement service actor API key rotation and admin workflows after registry
+11. Add owner-based service actor scopes design.
+12. Add safe denied-scope audit events.
+13. Add admin management for persisted service actor scope and rule records.
+14. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-13. Add tests for overriding the Actor dependency with a non-development actor.
-14. Add deeper separation-of-duties checks for HumanApproval review.
-15. Add broad filtering and pagination for Runtime and Agent activity only
+15. Add tests for overriding the Actor dependency with a non-development actor.
+16. Add deeper separation-of-duties checks for HumanApproval review.
+17. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Backlog
@@ -170,6 +174,10 @@ Recommended order:
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [x] Add Policy management UI for Policy lifecycle and constrained
       PolicyRule condition editing.
+- [ ] Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning
+      and review lifecycle support.
+- [ ] Add active policy/rule/check-step version references to PolicyDecision,
+      CheckResult evidence, and Evidence Bundle.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
@@ -182,7 +190,6 @@ Recommended order:
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
       prove insufficient.
-- [ ] Add policy versioning design.
 - [ ] Add approval notification design.
 - [ ] Add retention policy design.
 - [ ] Add production deployment design.
@@ -240,6 +247,7 @@ credentials.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
 - [x] Add deterministic CheckResult outcome matching for explicit PolicyRule
       conditions.
+- [x] Design policy versioning and review guardrails.
 - [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [x] Wire optional Runtime Gateway metadata pre-check execution to authored
