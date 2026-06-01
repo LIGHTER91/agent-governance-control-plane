@@ -6,6 +6,7 @@ import "./globals.css";
 const navItems = [
   { label: "Overview", href: "/" },
   { label: "Agents", href: "/agents" },
+  { label: "Access & Data", href: "/access-data" },
   { label: "Policies", href: "/policies" },
   { label: "Runtime Gateway", href: "/runtime-gateway" },
   { label: "Human Approvals", href: "/human-approvals" },

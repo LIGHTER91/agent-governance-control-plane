@@ -13,9 +13,12 @@ const files = [
   "app/agents/[agentId]/agent-detail.tsx",
   "app/lib/api.ts",
   "app/lib/agents.ts",
+  "app/lib/sources.ts",
   "app/lib/runtime.ts",
   "app/lib/human-approvals.ts",
   "app/lib/policies.ts",
+  "app/access-data/page.tsx",
+  "app/access-data/sources-workflow.tsx",
   "app/policies/page.tsx",
   "app/policies/policies-manager.tsx",
   "app/runtime-gateway/page.tsx",
@@ -37,6 +40,48 @@ const source = (
 const requiredText = [
   "Agents",
   "Policies",
+  "Access & Data",
+  "Source Data Usage Profiles",
+  "GET /sources",
+  "GET /sources/{source_id}/usage-profile",
+  "GET /access-grants",
+  "Data Usage Profiles are governance metadata",
+  "does not inspect raw Source contents",
+  "does not certify legal compliance",
+  "Loading Sources",
+  "Unable to load Sources",
+  "No Sources found",
+  "Source review",
+  "No Source selected",
+  "Data Usage Profile",
+  "Loading Data Usage Profile",
+  "No Data Usage Profile found",
+  "Data Usage Profile loaded",
+  "review_status",
+  "data_classification",
+  "contains_personal_data",
+  "contains_sensitive_data",
+  "data_categories",
+  "allowed_purposes",
+  "prohibited_purposes",
+  "allowed_processing",
+  "prohibited_processing",
+  "residency",
+  "retention_policy",
+  "data_owner",
+  "reviewed_by",
+  "reviewed_at",
+  "review_expires_at",
+  "dpia_required",
+  "dpia_reference",
+  "Safe Data Usage Profile metadata",
+  "Safe Source metadata",
+  "RAG retrieval",
+  "Vectorization / embedding",
+  "Summarization",
+  "Training",
+  "External model usage",
+  "related_source_access_grants",
   "Policy Governance",
   "GET /policies",
   "POST /policies",
@@ -245,6 +290,7 @@ runActivityTimelineFixtureSmoke();
 runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
+runDataUsageWorkflowFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
@@ -939,4 +985,217 @@ function evidencePolicyVersionCount(bundle) {
   }
 
   return ids.size;
+}
+
+function runDataUsageWorkflowFixtureSmoke() {
+  const sourceId = "12121212-1212-4121-8121-121212121212";
+  const fixture = {
+    source: {
+      id: sourceId,
+      name: "Support knowledge base",
+      source_type: "knowledge_base",
+      status: "active",
+      risk_level: "medium",
+      owner_name: "Support Operations",
+      metadata: {
+        catalog_ref: "catalog:support-kb"
+      }
+    },
+    profile: {
+      id: "23232323-2323-4232-8232-232323232323",
+      source_id: sourceId,
+      data_classification: "confidential",
+      contains_personal_data: true,
+      contains_sensitive_data: false,
+      data_categories: ["customer_data", "support_ticket"],
+      allowed_purposes: ["customer_support_answering"],
+      prohibited_purposes: ["training_data_generation"],
+      allowed_processing: ["search", "rag", "embedding"],
+      prohibited_processing: ["external_model_provider"],
+      residency: "eu",
+      retention_policy: "retention:standard-support",
+      data_owner: "team:support-ops",
+      review_status: "approved",
+      reviewed_by_actor_type: "user",
+      reviewed_by_actor_id: "user:dpo-1",
+      reviewed_at: "2026-01-15T12:00:00Z",
+      review_expires_at: "2027-01-15T12:00:00Z",
+      dpia_required: true,
+      dpia_reference: "dpia:DPIA-123",
+      metadata: {
+        catalog_ref: "catalog:support-kb"
+      }
+    },
+    access_grants: [
+      {
+        id: "34343434-3434-4343-8434-343434343434",
+        name: "Support agent source access",
+        subject_id: "45454545-4545-4454-8454-454545454545",
+        target_type: "source",
+        target_id: sourceId,
+        status: "active"
+      }
+    ]
+  };
+
+  const renderedWorkflow = renderDataUsageWorkflowFixture(fixture);
+
+  for (const expectedText of [
+    "Access & Data",
+    "Source Data Usage Profiles",
+    "Data Usage Profiles are governance metadata",
+    "does not certify legal compliance",
+    "GET /sources",
+    "GET /sources/{source_id}/usage-profile",
+    "Source review",
+    "Support knowledge base",
+    "data_classification",
+    "Confidential",
+    "contains_personal_data",
+    "review_status",
+    "Approved",
+    "RAG retrieval",
+    "Vectorization / embedding",
+    "Summarization",
+    "Training",
+    "External model usage",
+    "Listed allowed",
+    "Listed prohibited",
+    "No explicit signal",
+    "allowed_purposes",
+    "prohibited_processing",
+    "related_source_access_grants",
+    "Support agent source access",
+    sourceId
+  ]) {
+    if (!renderedWorkflow.includes(expectedText)) {
+      throw new Error(`Data Usage workflow fixture missing: ${expectedText}`);
+    }
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "raw_prompt",
+    "raw_payload",
+    "raw source content",
+    "compliance score"
+  ]) {
+    if (renderedWorkflow.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe Data Usage workflow fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderDataUsageWorkflowFixture(fixture) {
+  const signals = [
+    dataUsageSignal(fixture.profile, "RAG retrieval", [
+      "rag",
+      "retrieval",
+      "search"
+    ]),
+    dataUsageSignal(fixture.profile, "Vectorization / embedding", [
+      "vector",
+      "embedding"
+    ]),
+    dataUsageSignal(fixture.profile, "Summarization", [
+      "summarization",
+      "summary"
+    ]),
+    dataUsageSignal(fixture.profile, "Training", ["training"]),
+    dataUsageSignal(fixture.profile, "External model usage", [
+      "external_model",
+      "external_provider"
+    ])
+  ];
+
+  return [
+    "Access & Data",
+    "Source Data Usage Profiles",
+    "Data Usage Profiles are governance metadata",
+    "This workflow reviews safe Source metadata and does not certify legal compliance.",
+    "GET /sources",
+    "GET /sources/{source_id}/usage-profile",
+    "Source review",
+    fixture.source.name,
+    fixture.source.id,
+    "data_classification",
+    formatActivityValue(fixture.profile.data_classification),
+    "contains_personal_data",
+    String(fixture.profile.contains_personal_data),
+    "review_status",
+    formatActivityValue(fixture.profile.review_status),
+    "allowed_purposes",
+    ...fixture.profile.allowed_purposes,
+    "prohibited_processing",
+    ...fixture.profile.prohibited_processing,
+    "related_source_access_grants",
+    ...fixture.access_grants.map((grant) => grant.name),
+    ...signals.flatMap((signal) => [
+      signal.label,
+      dataUsageSignalLabel(signal.status),
+      signal.detail
+    ])
+  ].join("\n");
+}
+
+function dataUsageSignal(profile, label, tokens) {
+  const allowedMatches = dataUsageMatchingValues(
+    [...profile.allowed_purposes, ...profile.allowed_processing],
+    tokens
+  );
+  const prohibitedMatches = dataUsageMatchingValues(
+    [...profile.prohibited_purposes, ...profile.prohibited_processing],
+    tokens
+  );
+
+  if (prohibitedMatches.length > 0) {
+    return {
+      label,
+      status: "listed_prohibited",
+      detail: prohibitedMatches.join(", ")
+    };
+  }
+
+  if (allowedMatches.length > 0) {
+    return {
+      label,
+      status: "listed_allowed",
+      detail: allowedMatches.join(", ")
+    };
+  }
+
+  return {
+    label,
+    status: "no_signal",
+    detail: "No explicit profile signal."
+  };
+}
+
+function dataUsageMatchingValues(values, tokens) {
+  return values.filter((value) => {
+    const normalizedValue = dataUsageNormalizeForMatch(value);
+    return tokens.some((token) =>
+      normalizedValue.includes(dataUsageNormalizeForMatch(token))
+    );
+  });
+}
+
+function dataUsageNormalizeForMatch(value) {
+  return value.toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function dataUsageSignalLabel(status) {
+  if (status === "listed_allowed") {
+    return "Listed allowed";
+  }
+
+  if (status === "listed_prohibited") {
+    return "Listed prohibited";
+  }
+
+  return "No explicit signal";
 }
