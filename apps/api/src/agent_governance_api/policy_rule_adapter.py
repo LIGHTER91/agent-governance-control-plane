@@ -1,8 +1,10 @@
 import json
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from agent_governance_api.models import (
@@ -22,9 +24,15 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
 )
 from agent_governance_api.policy_evaluator import PolicyEvaluationRule
+from agent_governance_api.runtime_metadata_pre_checks import (
+    RuntimePolicyCheckStep,
+    runtime_policy_check_step_from_snapshot,
+)
 from agent_governance_api.runtime_gateway import CONTEXT_LABEL_PATTERN
 
 MISSING_RESOLVED_CONTEXT_VALUE = "missing"
@@ -82,6 +90,13 @@ class UnsupportedPolicyRuleConditionError(ValueError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimePolicyEvaluationConfig:
+    rules: tuple[PolicyEvaluationRule, ...]
+    versioned_policy_rule_ids: tuple[UUID, ...] = ()
+    versioned_policy_check_steps: tuple[RuntimePolicyCheckStep, ...] = ()
+
+
 def load_active_policy_evaluation_rules(session: Session) -> list[PolicyEvaluationRule]:
     statement = (
         select(Policy, PolicyRule)
@@ -96,15 +111,116 @@ def load_active_policy_evaluation_rules(session: Session) -> list[PolicyEvaluati
     ]
 
 
+def load_runtime_policy_evaluation_config(
+    session: Session,
+) -> RuntimePolicyEvaluationConfig:
+    """Load active PolicyVersion snapshot rules with live-row fallback.
+
+    Runtime Gateway prefers immutable active PolicyVersion snapshots for each
+    Policy. Policies without an active version keep the existing live
+    Policy/PolicyRule behavior.
+    """
+
+    active_versions_by_policy_id = _latest_active_versions_by_policy_id(session)
+    ordered_policies = _runtime_policy_order(
+        session,
+        active_policy_version_policy_ids=set(active_versions_by_policy_id),
+    )
+    fallback_rules_by_policy_id = _fallback_policy_rules_by_policy_id(
+        session,
+        [
+            policy.id
+            for policy in ordered_policies
+            if policy.id not in active_versions_by_policy_id
+            and policy.status is PolicyStatus.ACTIVE
+        ],
+    )
+
+    rules: list[PolicyEvaluationRule] = []
+    versioned_policy_rule_ids: list[UUID] = []
+    versioned_policy_check_steps: list[RuntimePolicyCheckStep] = []
+    for policy in ordered_policies:
+        active_version = active_versions_by_policy_id.get(policy.id)
+        if active_version is not None:
+            version_rules = convert_policy_version_to_evaluation_rules(active_version)
+            rules.extend(version_rules)
+            versioned_policy_rule_ids.extend(
+                UUID(str(rule.rule_id))
+                for rule in version_rules
+                if rule.rule_id is not None
+            )
+            versioned_policy_check_steps.extend(
+                convert_policy_version_check_steps(active_version)
+            )
+            continue
+
+        rules.extend(
+            convert_policy_rule_to_evaluation_rule(policy, rule)
+            for rule in fallback_rules_by_policy_id.get(policy.id, ())
+        )
+
+    return RuntimePolicyEvaluationConfig(
+        rules=tuple(rules),
+        versioned_policy_rule_ids=tuple(versioned_policy_rule_ids),
+        versioned_policy_check_steps=tuple(versioned_policy_check_steps),
+    )
+
+
 def convert_policy_rule_to_evaluation_rule(
     policy: Policy,
     rule: PolicyRule,
 ) -> PolicyEvaluationRule:
-    condition = _validated_condition(rule.condition)
+    return _condition_to_evaluation_rule(
+        rule.condition,
+        policy_id=policy.id,
+        policy_version_id=None,
+        rule_id=rule.id,
+    )
+
+
+def convert_policy_version_to_evaluation_rules(
+    policy_version: PolicyVersion,
+) -> list[PolicyEvaluationRule]:
+    return [
+        convert_policy_rule_snapshot_to_evaluation_rule(policy_version, snapshot)
+        for snapshot in policy_version.rule_snapshots
+    ]
+
+
+def convert_policy_version_check_steps(
+    policy_version: PolicyVersion,
+) -> list[RuntimePolicyCheckStep]:
+    return [
+        runtime_policy_check_step_from_snapshot(snapshot)
+        for snapshot in policy_version.check_step_snapshots
+    ]
+
+
+def convert_policy_rule_snapshot_to_evaluation_rule(
+    policy_version: PolicyVersion,
+    rule_snapshot: dict[str, object],
+) -> PolicyEvaluationRule:
+    return _condition_to_evaluation_rule(
+        _snapshot_text(rule_snapshot, "condition"),
+        policy_id=policy_version.policy_id,
+        policy_version_id=policy_version.id,
+        rule_id=_snapshot_uuid(rule_snapshot, "id"),
+    )
+
+
+def _condition_to_evaluation_rule(
+    condition_text: str,
+    *,
+    policy_id: UUID,
+    policy_version_id: UUID | None,
+    rule_id: UUID,
+) -> PolicyEvaluationRule:
+    condition = _validated_condition(condition_text)
 
     return PolicyEvaluationRule(
-        policy_id=policy.id,
-        rule_id=rule.id,
+        policy_id=policy_id,
+        policy_version_id=policy_version_id,
+        rule_id=rule_id,
         decision=_decision(condition),
         reason=_required_text(condition, "reason"),
         agent_id=_optional_text(condition, "agent_id"),
@@ -229,6 +345,93 @@ def convert_policy_rule_to_evaluation_rule(
         ),
         check_tool_id=_optional_uuid_text(condition, "check_tool_id"),
     )
+
+
+def _latest_active_versions_by_policy_id(
+    session: Session,
+) -> dict[UUID, PolicyVersion]:
+    statement = (
+        select(PolicyVersion)
+        .where(PolicyVersion.status == PolicyVersionStatus.ACTIVE)
+        .order_by(
+            PolicyVersion.policy_id,
+            PolicyVersion.version_number,
+            PolicyVersion.activated_at,
+            PolicyVersion.id,
+        )
+    )
+    selected_versions: dict[UUID, PolicyVersion] = {}
+    for version in session.scalars(statement).all():
+        current = selected_versions.get(version.policy_id)
+        if current is None:
+            selected_versions[version.policy_id] = version
+            continue
+        if _active_version_sort_key(version) > _active_version_sort_key(current):
+            selected_versions[version.policy_id] = version
+    return selected_versions
+
+
+def _runtime_policy_order(
+    session: Session,
+    *,
+    active_policy_version_policy_ids: set[UUID],
+) -> list[Policy]:
+    if active_policy_version_policy_ids:
+        predicate = or_(
+            Policy.status == PolicyStatus.ACTIVE,
+            Policy.id.in_(active_policy_version_policy_ids),
+        )
+    else:
+        predicate = Policy.status == PolicyStatus.ACTIVE
+
+    statement = select(Policy).where(predicate).order_by(Policy.created_at, Policy.id)
+    return list(session.scalars(statement).all())
+
+
+def _fallback_policy_rules_by_policy_id(
+    session: Session,
+    policy_ids: list[UUID],
+) -> dict[UUID, list[PolicyRule]]:
+    if not policy_ids:
+        return {}
+
+    statement = (
+        select(PolicyRule)
+        .where(PolicyRule.policy_id.in_(policy_ids))
+        .order_by(PolicyRule.created_at, PolicyRule.id)
+    )
+    rules_by_policy_id: dict[UUID, list[PolicyRule]] = defaultdict(list)
+    for rule in session.scalars(statement).all():
+        rules_by_policy_id[rule.policy_id].append(rule)
+    return rules_by_policy_id
+
+
+def _active_version_sort_key(policy_version: PolicyVersion) -> tuple[int, str, str]:
+    activated_at = policy_version.activated_at
+    return (
+        policy_version.version_number,
+        activated_at.isoformat() if activated_at is not None else "",
+        str(policy_version.id),
+    )
+
+
+def _snapshot_text(snapshot: dict[str, object], key: str) -> str:
+    value = snapshot.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyVersion rule snapshot requires a non-empty {key}."
+        )
+    return value
+
+
+def _snapshot_uuid(snapshot: dict[str, object], key: str) -> UUID:
+    value = _snapshot_text(snapshot, key)
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise UnsupportedPolicyRuleConditionError(
+            f"PolicyVersion rule snapshot {key} must be a UUID string."
+        ) from exc
 
 
 def validate_policy_rule_condition(condition: str) -> str:

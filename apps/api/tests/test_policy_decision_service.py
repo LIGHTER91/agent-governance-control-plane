@@ -143,7 +143,7 @@ def test_preserves_policy_and_rule_ids_when_available(session: Session) -> None:
     assert decision.policy_version_id is None
 
 
-def test_references_active_policy_version_when_available(session: Session) -> None:
+def test_references_policy_version_from_evaluation_result(session: Session) -> None:
     agent = add_agent(session)
     policy = add_policy(session)
     active_version = add_policy_version(
@@ -162,6 +162,7 @@ def test_references_active_policy_version_when_available(session: Session) -> No
         decision=PolicyDecisionValue.DENY,
         reason="Matched persisted rule with active version.",
         policy_id=policy.id,
+        policy_version_id=active_version.id,
     )
 
     decision = persist_policy_decision(
@@ -195,13 +196,16 @@ def test_preserves_trace_event_id_when_available(session: Session) -> None:
 def test_optional_policy_and_rule_ids_override_result_values(session: Session) -> None:
     agent = add_agent(session)
     result_policy_id = uuid4()
+    result_policy_version_id = uuid4()
     result_rule_id = uuid4()
     override_policy_id = uuid4()
+    override_policy_version_id = uuid4()
     override_rule_id = uuid4()
     result = policy_result(
         decision=PolicyDecisionValue.ALLOW,
         reason="Matched rule with override.",
         policy_id=result_policy_id,
+        policy_version_id=result_policy_version_id,
         rule_id=result_rule_id,
     )
 
@@ -210,10 +214,12 @@ def test_optional_policy_and_rule_ids_override_result_values(session: Session) -
         agent_id=agent.id,
         evaluation_result=result,
         policy_id=override_policy_id,
+        policy_version_id=override_policy_version_id,
         rule_id=override_rule_id,
     )
 
     assert decision.policy_id == override_policy_id
+    assert decision.policy_version_id == override_policy_version_id
     assert decision.rule_id == override_rule_id
 
 
@@ -353,6 +359,7 @@ def policy_result(
     decision: PolicyDecisionValue,
     reason: str,
     policy_id: str | UUID | None = None,
+    policy_version_id: str | UUID | None = None,
     rule_id: str | UUID | None = None,
 ) -> PolicyEvaluationResult:
     return PolicyEvaluationResult(
@@ -360,6 +367,7 @@ def policy_result(
         reason=reason,
         agent_id="agent-1",
         policy_id=policy_id,
+        policy_version_id=policy_version_id,
         rule_id=rule_id,
     )
 

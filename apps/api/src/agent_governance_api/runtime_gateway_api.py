@@ -46,7 +46,8 @@ from agent_governance_api.policy_evaluator import (
 )
 from agent_governance_api.policy_rule_adapter import (
     UnsupportedPolicyRuleConditionError,
-    load_active_policy_evaluation_rules,
+    RuntimePolicyEvaluationConfig,
+    load_runtime_policy_evaluation_config,
 )
 from agent_governance_api.runtime_activity import build_runtime_tool_call_activity
 from agent_governance_api.runtime_gateway import (
@@ -220,12 +221,13 @@ def decide_runtime_tool_call(
         pre_check_results: list[CheckResult] = []
         record_only_failure_reason = None
         try:
+            policy_evaluation_config = load_runtime_policy_evaluation_config(session)
             if settings.runtime_metadata_pre_checks_enabled:
                 candidate_evaluation_result = _evaluate_runtime_policy(
-                    session,
                     agent=agent,
                     payload=payload,
                     inventory_context=inventory_context,
+                    policy_evaluation_config=policy_evaluation_config,
                     ignore_check_result_conditions=True,
                 )
                 pre_check_results = run_runtime_metadata_pre_checks(
@@ -234,13 +236,19 @@ def decide_runtime_tool_call(
                     trace_event=trace_event,
                     policy_decision_id=None,
                     policy_rule_ids=candidate_evaluation_result.matched_rule_ids,
+                    versioned_policy_rule_ids=(
+                        policy_evaluation_config.versioned_policy_rule_ids
+                    ),
+                    versioned_policy_check_steps=(
+                        policy_evaluation_config.versioned_policy_check_steps
+                    ),
                 )
 
             evaluation_result = _evaluate_runtime_policy(
-                session,
                 agent=agent,
                 payload=payload,
                 inventory_context=inventory_context,
+                policy_evaluation_config=policy_evaluation_config,
                 check_results=pre_check_results,
             )
         except POLICY_EVALUATION_FAILURE_ERRORS:
@@ -720,15 +728,14 @@ def _metadata_bool(value: object) -> bool:
 
 
 def _evaluate_runtime_policy(
-    session: Session,
     *,
     agent: Agent,
     payload: RuntimeToolCallDecisionRequest,
     inventory_context: ResolvedRuntimeInventoryContext,
+    policy_evaluation_config: RuntimePolicyEvaluationConfig,
     check_results: list[CheckResult] | None = None,
     ignore_check_result_conditions: bool = False,
 ) -> PolicyEvaluationResult:
-    rules = load_active_policy_evaluation_rules(session)
     return evaluate_policy(
         agent_context={"agent_id": payload.agent_id},
         action_context=_runtime_policy_action_context(
@@ -738,7 +745,7 @@ def _evaluate_runtime_policy(
         ),
         environment=agent.environment,
         risk_level=agent.risk_level,
-        rules=rules,
+        rules=policy_evaluation_config.rules,
         ignore_check_result_conditions=ignore_check_result_conditions,
     )
 

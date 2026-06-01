@@ -1,5 +1,6 @@
 import json
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -8,17 +9,21 @@ from sqlalchemy.orm import Session
 
 from agent_governance_api.database import Base
 from agent_governance_api.models import (
+    ActorType,
     Environment,
     Policy,
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
 )
 from agent_governance_api.policy_evaluator import evaluate_policy
 from agent_governance_api.policy_rule_adapter import (
     UnsupportedPolicyRuleConditionError,
     load_active_policy_evaluation_rules,
+    load_runtime_policy_evaluation_config,
 )
 
 
@@ -430,6 +435,147 @@ def test_preserves_evaluator_precedence(session: Session) -> None:
     assert result.reason == "Production email is denied."
 
 
+def test_runtime_config_prefers_active_policy_version_snapshot(
+    session: Session,
+) -> None:
+    policy, rule = add_policy_rule(
+        session,
+        condition={
+            "decision": "allow",
+            "reason": "Live rule should not be used when a version is active.",
+            "tool_name": "send_email",
+        },
+    )
+    active_version = add_policy_version(
+        session,
+        policy=policy,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            rule_snapshot(
+                rule,
+                condition={
+                    "decision": "deny",
+                    "reason": "Reviewed snapshot denies email.",
+                    "tool_name": "send_email",
+                },
+            )
+        ],
+    )
+
+    [evaluation_rule] = load_runtime_policy_evaluation_config(session).rules
+
+    assert evaluation_rule.policy_id == policy.id
+    assert evaluation_rule.policy_version_id == active_version.id
+    assert evaluation_rule.rule_id == rule.id
+    assert evaluation_rule.decision is PolicyDecisionValue.DENY
+    assert evaluation_rule.reason == "Reviewed snapshot denies email."
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        PolicyVersionStatus.DRAFT,
+        PolicyVersionStatus.UNDER_REVIEW,
+        PolicyVersionStatus.APPROVED,
+        PolicyVersionStatus.REJECTED,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    ],
+)
+def test_runtime_config_ignores_non_active_policy_versions(
+    session: Session,
+    status: PolicyVersionStatus,
+) -> None:
+    policy, rule = add_policy_rule(
+        session,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback rule is still used.",
+            "tool_name": "send_email",
+        },
+    )
+    add_policy_version(
+        session,
+        policy=policy,
+        status=status,
+        rule_snapshots=[
+            rule_snapshot(
+                rule,
+                condition={
+                    "decision": "deny",
+                    "reason": "Inactive snapshot should not be used.",
+                    "tool_name": "send_email",
+                },
+            )
+        ],
+    )
+
+    [evaluation_rule] = load_runtime_policy_evaluation_config(session).rules
+
+    assert evaluation_rule.policy_id == policy.id
+    assert evaluation_rule.policy_version_id is None
+    assert evaluation_rule.decision is PolicyDecisionValue.ALLOW
+    assert evaluation_rule.reason == "Live fallback rule is still used."
+
+
+def test_runtime_config_preserves_policy_order_across_versions_and_fallback(
+    session: Session,
+) -> None:
+    fallback_policy, fallback_rule = add_policy_rule(
+        session,
+        condition={
+            "decision": "allow",
+            "reason": "Earlier fallback policy wins equal ties.",
+            "tool_name": "send_email",
+        },
+    )
+    versioned_policy, versioned_rule = add_policy_rule(
+        session,
+        condition={
+            "decision": "allow",
+            "reason": "Live versioned rule should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+    active_version = add_policy_version(
+        session,
+        policy=versioned_policy,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            rule_snapshot(
+                versioned_rule,
+                condition={
+                    "decision": "allow",
+                    "reason": "Later snapshot policy keeps its stable order.",
+                    "tool_name": "send_email",
+                },
+            )
+        ],
+    )
+
+    config = load_runtime_policy_evaluation_config(session)
+
+    assert [rule.policy_id for rule in config.rules] == [
+        fallback_policy.id,
+        versioned_policy.id,
+    ]
+    assert [rule.policy_version_id for rule in config.rules] == [
+        None,
+        active_version.id,
+    ]
+    result = evaluate_policy(
+        agent_context={"agent_id": "agent-1"},
+        action_context={"tool_name": "send_email"},
+        environment=Environment.DEVELOPMENT,
+        risk_level=RiskLevel.LOW,
+        rules=config.rules,
+    )
+    assert result.policy_id == fallback_policy.id
+    assert result.rule_id == fallback_rule.id
+    assert result.policy_version_id is None
+    assert result.reason == "Earlier fallback policy wins equal ties."
+
+
 def add_policy_rule(
     session: Session,
     *,
@@ -454,3 +600,49 @@ def add_policy_rule(
     session.commit()
 
     return policy, rule
+
+
+def add_policy_version(
+    session: Session,
+    *,
+    policy: Policy,
+    status: PolicyVersionStatus,
+    rule_snapshots: list[dict[str, object]],
+) -> PolicyVersion:
+    now = datetime.now(UTC)
+    version = PolicyVersion(
+        policy_id=policy.id,
+        version_number=1,
+        status=status,
+        change_summary="Reviewed policy snapshot.",
+        policy_snapshot={
+            "id": str(policy.id),
+            "name": policy.name,
+            "description": policy.description,
+            "status": policy.status.value,
+        },
+        rule_snapshots=rule_snapshots,
+        check_step_snapshots=[],
+        created_by_actor_type=ActorType.DEVELOPMENT,
+        created_by_actor_id="dev-placeholder",
+        activated_at=now if status is PolicyVersionStatus.ACTIVE else None,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(version)
+    session.commit()
+    return version
+
+
+def rule_snapshot(
+    rule: PolicyRule,
+    *,
+    condition: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "id": str(rule.id),
+        "policy_id": str(rule.policy_id),
+        "name": rule.name,
+        "description": rule.description,
+        "condition": json.dumps(condition),
+    }

@@ -109,8 +109,9 @@ PolicyCheckSteps with draft, review, approval, activation, supersession,
 archive, and rollback-copy APIs. PolicyDecision records can now optionally
 reference the active PolicyVersion for the selected Policy, and Evidence Bundle
 renders safe PolicyVersion summaries on PolicyDecision and linked CheckResult
-records. Runtime Gateway active-version evaluation and review UI have not been
-implemented.
+records. Runtime Gateway now evaluates active PolicyVersion snapshots where
+available and falls back to unversioned Policy/PolicyRule rows for Policies
+without an active version. Review UI has not been implemented.
 
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
@@ -262,8 +263,9 @@ Important limitations:
 - Owner-based service actor restrictions, user login, OIDC/SAML, persisted API
   key rotation, and broad user RBAC are not implemented.
 - Policy versioning and review guardrails have a minimal backend foundation,
-  and evidence records can reference active PolicyVersions. Runtime Gateway
-  active-version evaluation and review UI are not implemented.
+  evidence records can reference active PolicyVersions, and Runtime Gateway can
+  evaluate active PolicyVersion snapshots with unversioned fallback. Review UI
+  is not implemented.
 - Runtime failure policy is global and minimal.
 - Optional contextual request fields are accepted and recorded as safe runtime
   context, and deterministic PolicyRules can match those declared fields
@@ -363,8 +365,9 @@ Completed foundation:
 
 Recommended next work:
 
-- Migrate Runtime Gateway evaluation to active PolicyVersion snapshots once
-  rollout and backfill semantics are explicit.
+- Harden rollout, backfill, and operational guidance for active PolicyVersion
+  evaluation now that Runtime Gateway can evaluate active snapshots with
+  unversioned fallback.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
@@ -468,8 +471,8 @@ Planned capabilities:
 - Retention policies.
 - Signed or packaged evidence exports.
 - Approval workflow enhancements.
-- Runtime Gateway active-version evaluation and PolicyDecision version
-  references.
+- Runtime Gateway active-version rollout hardening and historical
+  PolicyDecision backfill guidance.
 - Risk review dashboard.
 - SIEM/GRC integrations.
 - Deeper Agent Governance Profile workflows for reviewing Access Grants,

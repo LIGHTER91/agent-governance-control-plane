@@ -44,6 +44,7 @@ class PolicyEvaluationRule:
     decision: PolicyDecisionValue | str
     reason: str
     policy_id: str | UUID | None = None
+    policy_version_id: str | UUID | None = None
     rule_id: str | UUID | None = None
     agent_id: str | UUID | None = None
     tool_name: str | None = None
@@ -104,6 +105,7 @@ class PolicyEvaluationResult:
     reason: str
     agent_id: str
     policy_id: str | UUID | None = None
+    policy_version_id: str | UUID | None = None
     rule_id: str | UUID | None = None
     matched_rule_ids: tuple[str | UUID, ...] = ()
 
@@ -247,6 +249,7 @@ def evaluate_policy(
         reason=selected_rule.reason,
         agent_id=str(agent_id),
         policy_id=selected_rule.policy_id,
+        policy_version_id=selected_rule.policy_version_id,
         rule_id=selected_rule.rule_id,
         matched_rule_ids=tuple(matched_rule_ids),
     )

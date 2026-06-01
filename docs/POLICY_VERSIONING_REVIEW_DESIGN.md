@@ -3,9 +3,10 @@
 ## Status
 
 Initial backend foundation implemented. AGCP now has a minimal `PolicyVersion`
-aggregate snapshot table, lifecycle APIs, and append-only audit events for
-review and activation guardrails. Frontend UI, Runtime Gateway behavior, and
-policy evaluator behavior are unchanged.
+aggregate snapshot table, lifecycle APIs, append-only audit events for review
+and activation guardrails, PolicyDecision version references, and Runtime
+Gateway active-version evaluation with unversioned fallback. Frontend review UI
+and the deterministic policy evaluator semantics are unchanged.
 
 AGCP remains a governance and evidence control plane. It is not an
 orchestrator, workflow engine, enterprise GRC suite, policy simulation engine,
@@ -262,14 +263,28 @@ Evidence Bundle should not become a full policy diff viewer.
 
 ## Runtime Implications
 
-No Runtime Gateway behavior changes in this issue.
+Runtime Gateway now prefers active PolicyVersion snapshots for runtime policy
+evaluation. For each Policy, the runtime rule loader uses the active
+PolicyVersion when one exists and falls back to current unversioned
+Policy/PolicyRule rows only when no active version exists for that Policy.
+The snapshot adapter emits the same deterministic `PolicyEvaluationRule` shape
+as the unversioned adapter, so precedence and matching remain:
+
+- deny > require_human_review > allow > not_applicable;
+- deterministic field matching;
+- contextual field matching;
+- `check_*` outcome matching;
+- any-overlap `source_ids` behavior;
+- no DSL or nested boolean logic.
+
+PolicyDecision stores optional `policy_version_id` for decisions produced from
+active PolicyVersion snapshots. Runtime Gateway metadata pre-check execution,
+when enabled, uses versioned PolicyCheckStep snapshots for matched versioned
+rules and keeps unversioned PolicyCheckStep fallback behavior for policies
+without active versions.
 
 Future behavior:
 
-- Runtime Gateway evaluates only active policy/rule/check-step versions.
-- PolicyDecision already stores optional `policy_version_id` when an active
-  PolicyVersion exists for the unversioned Policy selected by current
-  evaluation.
 - PolicyDecision stores `policy_rule_version_id` later when granular rule
   versioning exists.
 - CheckResults generated from authored PolicyCheckSteps can store
@@ -278,7 +293,8 @@ Future behavior:
   technical evidence.
 
 Existing unversioned policy evaluation should continue until the versioning
-foundation is implemented and migrated deliberately.
+foundation is fully migrated outside Runtime Gateway, such as telemetry
+ingestion and future adapters.
 
 ## UI Implications
 
@@ -325,8 +341,8 @@ policy simulation until the core version lifecycle is proven.
 - No policy simulation in this issue.
 - No automatic compliance scoring.
 - No legal compliance certification claims.
-- No change to Runtime Gateway behavior.
-- No change to policy evaluator behavior.
+- No generic DSL or nested boolean language.
+- No change to policy evaluator precedence or matching semantics.
 
 ## Migration Path
 
@@ -336,7 +352,8 @@ Recommended staged implementation:
 2. Add version persistence for Policy, PolicyRule, and PolicyCheckStep.
 3. Add version lifecycle API and audit events.
 4. Update PolicyDecision to store active policy and rule version references.
-5. Update Runtime Gateway evaluation to read active versions.
+5. Update Runtime Gateway evaluation to read active versions. Implemented for
+   Runtime Gateway with unversioned fallback.
 6. Include version references in Evidence Bundle and Runtime activity.
 7. Add UI guardrails for draft creation, review, approval, activation, and
    rollback.

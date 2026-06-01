@@ -1,5 +1,7 @@
 import json
 from collections.abc import Callable, Iterator
+from copy import deepcopy
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -60,6 +62,8 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
     ServiceActor,
     ServiceActorApiKey,
@@ -151,8 +155,319 @@ def test_runtime_simulation_with_allow_policy_returns_allow(
     assert policy_decision.decision is PolicyDecisionValue.ALLOW
     assert policy_decision.policy_id == policy_id
     assert policy_decision.rule_id == rule_id
+    assert policy_decision.policy_version_id is None
     assert policy_decision.trace_event_id == trace_event.id
     assert fetch_human_approvals(session_factory) == []
+
+
+def test_runtime_uses_active_policy_version_snapshot_when_present(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live mutable rule should not be used.",
+    )
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=rule_id,
+                condition={
+                    "decision": "deny",
+                    "reason": "Reviewed snapshot denies email.",
+                    "tool_name": "send_email",
+                },
+            )
+        ],
+    )
+    before_snapshot = deepcopy(fetch_policy_version(session_factory, version_id))
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Reviewed snapshot denies email."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.policy_version_id == version_id
+    assert policy_decision.rule_id == rule_id
+    assert fetch_policy_version(session_factory, version_id) == before_snapshot
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        PolicyVersionStatus.DRAFT,
+        PolicyVersionStatus.UNDER_REVIEW,
+        PolicyVersionStatus.APPROVED,
+        PolicyVersionStatus.REJECTED,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    ],
+)
+def test_runtime_ignores_policy_versions_that_are_not_active(
+    api_client: tuple[TestClient, SessionFactory],
+    status: PolicyVersionStatus,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live fallback rule is still used.",
+    )
+    create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        status=status,
+        rule_snapshots=[
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=rule_id,
+                condition={
+                    "decision": "deny",
+                    "reason": "Inactive snapshot should not be used.",
+                    "tool_name": "send_email",
+                },
+            )
+        ],
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "allow"
+    assert body["reason"] == "Live fallback rule is still used."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.policy_version_id is None
+    assert policy_decision.rule_id == rule_id
+
+
+def test_runtime_active_policy_version_preserves_decision_precedence(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(
+        session_factory,
+        environment=Environment.PRODUCTION,
+    )
+    policy_id, allow_rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live mutable rule should not be used.",
+    )
+    review_rule_id = create_policy_rule_for_policy(
+        session_factory,
+        policy_id=policy_id,
+        condition={
+            "decision": "allow",
+            "reason": "Live mutable review rule should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+    deny_rule_id = create_policy_rule_for_policy(
+        session_factory,
+        policy_id=policy_id,
+        condition={
+            "decision": "allow",
+            "reason": "Live mutable deny rule should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=allow_rule_id,
+                condition={
+                    "decision": "allow",
+                    "reason": "Email is generally allowed.",
+                    "tool_name": "send_email",
+                },
+            ),
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=review_rule_id,
+                condition={
+                    "decision": "require_human_review",
+                    "reason": "High risk requires review.",
+                    "risk_level": "high",
+                },
+            ),
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=deny_rule_id,
+                condition={
+                    "decision": "deny",
+                    "reason": "Production email is denied.",
+                    "environment": "production",
+                },
+            ),
+        ],
+    )
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Production email is denied."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_version_id == version_id
+    assert policy_decision.rule_id == deny_rule_id
+
+
+def test_runtime_active_policy_version_matches_contextual_fields(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    capability_id = uuid4()
+    source_id = uuid4()
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live mutable rule should not be used.",
+        tool_name="vectorize_source",
+    )
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=rule_id,
+                condition={
+                    "decision": "deny",
+                    "reason": "Reviewed snapshot denies governed vectorization.",
+                    "tool_name": "vectorize_source",
+                    "action_type": "vectorize",
+                    "capability_id": str(capability_id),
+                    "source_ids": [str(source_id)],
+                    "purpose": "semantic_search_indexing",
+                    "data_classification": "confidential",
+                    "contains_personal_data": True,
+                },
+            )
+        ],
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update(
+        {
+            "action_type": "vectorize",
+            "capability_id": str(capability_id),
+            "source_ids": [str(uuid4()), str(source_id)],
+            "purpose": "semantic_search_indexing",
+            "data_classification": "confidential",
+            "contains_personal_data": True,
+        }
+    )
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Reviewed snapshot denies governed vectorization."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_version_id == version_id
+    assert policy_decision.rule_id == rule_id
+
+
+def test_runtime_active_policy_version_matches_check_result_fields(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live mutable rule should not be used.",
+        tool_name="vectorize_source",
+    )
+    check_step_id = create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    disable_policy_check_step(session_factory, check_step_id)
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        status=PolicyVersionStatus.ACTIVE,
+        rule_snapshots=[
+            policy_rule_snapshot(
+                policy_id=policy_id,
+                rule_id=rule_id,
+                condition={
+                    "decision": "deny",
+                    "reason": "Reviewed snapshot denies after source check.",
+                    "tool_name": "vectorize_source",
+                    "check_type": "source_status",
+                    "check_outcome": "pass",
+                    "check_target_type": "source",
+                    "check_target_id": str(inventory["source_id"]),
+                },
+            )
+        ],
+        check_step_snapshots=[
+            policy_check_step_snapshot(
+                check_step_id=check_step_id,
+                policy_rule_id=rule_id,
+                check_type=PolicyCheckStepCheckType.SOURCE_STATUS,
+                target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+            )
+        ],
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"source_ids": [str(inventory["source_id"])]})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "deny"
+    assert body["reason"] == "Reviewed snapshot denies after source check."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_version_id == version_id
+    assert policy_decision.rule_id == rule_id
+    [check_result] = fetch_check_results(session_factory)
+    assert check_result.policy_decision_id == policy_decision.id
+    assert check_result.outcome is CheckResultOutcome.PASS
 
 
 def test_runtime_contextual_fields_are_accepted_and_safely_persisted(
@@ -2658,6 +2973,137 @@ def create_policy_rule(
         return policy.id, rule.id
 
 
+def create_policy_rule_for_policy(
+    session_factory: SessionFactory,
+    *,
+    policy_id: UUID,
+    condition: dict[str, object],
+    name: str = "Additional tool access rule",
+) -> UUID:
+    with session_factory() as session:
+        rule = PolicyRule(
+            policy_id=policy_id,
+            name=name,
+            description=None,
+            condition=json.dumps(condition),
+        )
+        session.add(rule)
+        session.commit()
+        return rule.id
+
+
+def create_policy_version(
+    session_factory: SessionFactory,
+    *,
+    policy_id: UUID,
+    status: PolicyVersionStatus,
+    rule_snapshots: list[dict[str, object]],
+    check_step_snapshots: list[dict[str, object]] | None = None,
+) -> UUID:
+    now = datetime.now(UTC)
+    submitted_statuses = {
+        PolicyVersionStatus.UNDER_REVIEW,
+        PolicyVersionStatus.APPROVED,
+        PolicyVersionStatus.REJECTED,
+        PolicyVersionStatus.ACTIVE,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    }
+    approved_statuses = {
+        PolicyVersionStatus.APPROVED,
+        PolicyVersionStatus.ACTIVE,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    }
+    activated_statuses = {
+        PolicyVersionStatus.ACTIVE,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    }
+    with session_factory() as session:
+        policy = session.get(Policy, policy_id)
+        assert policy is not None
+        version = PolicyVersion(
+            policy_id=policy.id,
+            version_number=1,
+            status=status,
+            change_summary="Reviewed runtime policy snapshot.",
+            policy_snapshot={
+                "id": str(policy.id),
+                "name": policy.name,
+                "description": policy.description,
+                "status": policy.status.value,
+            },
+            rule_snapshots=rule_snapshots,
+            check_step_snapshots=check_step_snapshots or [],
+            created_by_actor_type=ActorType.DEVELOPMENT,
+            created_by_actor_id="dev-placeholder",
+            submitted_at=now if status in submitted_statuses else None,
+            approved_at=now if status in approved_statuses else None,
+            rejected_at=now if status is PolicyVersionStatus.REJECTED else None,
+            activated_at=now if status in activated_statuses else None,
+            superseded_at=now if status is PolicyVersionStatus.SUPERSEDED else None,
+            archived_at=now if status is PolicyVersionStatus.ARCHIVED else None,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(version)
+        session.commit()
+        return version.id
+
+
+def policy_rule_snapshot(
+    *,
+    policy_id: UUID,
+    rule_id: UUID,
+    condition: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "id": str(rule_id),
+        "policy_id": str(policy_id),
+        "name": "Snapshot tool access rule",
+        "description": None,
+        "condition": json.dumps(condition),
+    }
+
+
+def policy_check_step_snapshot(
+    *,
+    check_step_id: UUID,
+    policy_rule_id: UUID,
+    check_type: PolicyCheckStepCheckType,
+    target_selector: PolicyCheckStepTargetSelector,
+) -> dict[str, object]:
+    return {
+        "id": str(check_step_id),
+        "policy_rule_id": str(policy_rule_id),
+        "check_tool_id": None,
+        "check_type": check_type.value,
+        "target_selector": target_selector.value,
+        "required": True,
+        "failure_behavior": PolicyCheckStepFailureBehavior.RECORD_ONLY.value,
+        "min_confidence": None,
+        "status": PolicyCheckStepStatus.ACTIVE.value,
+        "evidence_retention": PolicyCheckStepEvidenceRetention.EVIDENCE_BUNDLE.value,
+        "metadata": {"purpose": "runtime_metadata_pre_check"},
+    }
+
+
+def fetch_policy_version(
+    session_factory: SessionFactory,
+    version_id: UUID,
+) -> dict[str, object]:
+    with session_factory() as session:
+        version = session.get(PolicyVersion, version_id)
+        assert version is not None
+        return {
+            "policy_snapshot": deepcopy(version.policy_snapshot),
+            "rule_snapshots": deepcopy(version.rule_snapshots),
+            "check_step_snapshots": deepcopy(version.check_step_snapshots),
+            "status": version.status.value,
+        }
+
+
 def create_policy_check_step(
     session_factory: SessionFactory,
     *,
@@ -2682,6 +3128,17 @@ def create_policy_check_step(
         session.add(step)
         session.commit()
         return step.id
+
+
+def disable_policy_check_step(
+    session_factory: SessionFactory,
+    check_step_id: UUID,
+) -> None:
+    with session_factory() as session:
+        check_step = session.get(PolicyCheckStep, check_step_id)
+        assert check_step is not None
+        check_step.status = PolicyCheckStepStatus.DISABLED
+        session.commit()
 
 
 def create_unsupported_policy_rule(

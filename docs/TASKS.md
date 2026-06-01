@@ -87,6 +87,11 @@ default and does not change final runtime decisions. `failure_behavior` is
 recorded as evidence intent only. Scanner adapters, public CRUD APIs for
 CheckTool/CheckResult management, and pre-check-driven enforcement remain out
 of scope.
+Runtime Gateway now evaluates active PolicyVersion snapshots where available,
+including versioned PolicyRule conditions and versioned PolicyCheckStep
+snapshots for metadata pre-check selection, while preserving unversioned
+fallback for Policies without an active PolicyVersion. Telemetry policy
+evaluation remains on the existing unversioned path.
 The frontend has a minimal dashboard shell, a read-only Agent list page backed
 by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -133,8 +138,9 @@ References:
 
 Recommended order:
 
-1. Migrate Runtime Gateway evaluation to active PolicyVersion snapshots once
-   rollout and backfill semantics are explicit.
+1. Harden rollout, backfill, and operational guidance for active PolicyVersion
+   evaluation now that Runtime Gateway has active snapshot evaluation with
+   unversioned fallback.
 2. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
 3. Use Access Grants as optional policy context without replacing
@@ -172,7 +178,8 @@ Recommended order:
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [x] Add Policy management UI for Policy lifecycle and constrained
       PolicyRule condition editing.
-- [ ] Migrate Runtime Gateway evaluation to active PolicyVersion snapshots.
+- [ ] Harden active PolicyVersion rollout, historical PolicyDecision backfill,
+      and operational guidance.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
@@ -225,6 +232,10 @@ credentials.
       instance.
 - [ ] Add active PolicyVersion references to PolicyDecision, CheckResult
       evidence context, and Evidence Bundle.
+      Implementation complete; validation pending only for online
+      `uv run alembic upgrade head` against a reachable local PostgreSQL
+      instance.
+- [ ] Migrate Runtime Gateway evaluation to active PolicyVersion snapshots.
       Implementation complete; validation pending only for online
       `uv run alembic upgrade head` against a reachable local PostgreSQL
       instance.

@@ -239,15 +239,16 @@ Date: 2026-06-01
 Status: accepted
 
 Context:
-PolicyVersion persistence exists, but Runtime Gateway still evaluates current
-Policy and PolicyRule rows. Evidence Bundle needs to explain which reviewed
-PolicyVersion was active or relevant when a PolicyDecision was recorded without
-claiming that version snapshots drive runtime evaluation yet.
+Before active-version evaluation landed, PolicyVersion persistence existed but
+Runtime Gateway evaluated current Policy and PolicyRule rows. Evidence Bundle
+needed to explain which reviewed PolicyVersion was active or relevant when a
+PolicyDecision was recorded without claiming that version snapshots drove
+runtime evaluation yet.
 
 Decision:
-Add a nullable direct `policy_version_id` foreign key to PolicyDecision and set
-it to the currently active PolicyVersion for the selected Policy when one is
-available. Evidence Bundle renders compact PolicyVersion summaries on
+Add a nullable direct `policy_version_id` foreign key to PolicyDecision so
+runtime and evidence paths can record active PolicyVersion context when it is
+known. Evidence Bundle renders compact PolicyVersion summaries on
 PolicyDecision records and on CheckResult summaries through their linked
 PolicyDecision. CheckResult does not get a separate version column in this
 step.
@@ -268,3 +269,42 @@ Alternatives considered:
 - Add direct PolicyVersion columns to both PolicyDecision and CheckResult.
 - Change Runtime Gateway to evaluate active PolicyVersion snapshots at the same
   time as adding evidence references.
+
+## ADR-0010 - Runtime Gateway evaluates active PolicyVersion snapshots
+
+Date: 2026-06-01
+
+Status: accepted
+
+Context:
+PolicyVersion lifecycle, evidence references, contextual PolicyRule matching,
+and `check_*` outcome matching now exist. Continuing to evaluate mutable
+Policy/PolicyRule rows in Runtime Gateway would leave reviewed active versions
+as evidence-only records and would not prevent direct edits from changing
+future runtime behavior.
+
+Decision:
+Runtime Gateway now loads a runtime policy evaluation configuration that
+prefers active PolicyVersion snapshots per Policy. When a Policy has an active
+version, its immutable rule snapshots are adapted into the existing
+`PolicyEvaluationRule` shape and its versioned PolicyCheckStep snapshots are
+used for metadata pre-check selection when that feature flag is enabled. When a
+Policy has no active version, Runtime Gateway falls back to the existing
+unversioned active Policy/PolicyRule and PolicyCheckStep row behavior.
+
+Consequences:
+- PolicyDecision records from versioned Runtime Gateway matches reference the
+  PolicyVersion actually used.
+- Existing evaluator precedence and deterministic matching are unchanged.
+- Unversioned fallback behavior remains available for policies that have not
+  been migrated to active versions.
+- The change does not add a generic policy engine, simulation engine,
+  enterprise GRC workflow, or legal certification claim.
+- Telemetry policy evaluation remains on the existing unversioned path until a
+  separate migration is designed.
+
+Alternatives considered:
+- Switch all policy evaluation paths to PolicyVersion snapshots at once.
+- Require every Policy to have an active version before Runtime Gateway can
+  evaluate it.
+- Replace the simple deterministic evaluator with a generic policy language.

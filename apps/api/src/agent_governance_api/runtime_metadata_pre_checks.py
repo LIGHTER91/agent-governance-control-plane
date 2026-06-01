@@ -1,5 +1,7 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from enum import Enum
+from typing import TypeVar
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,6 +19,8 @@ from agent_governance_api.models import (
     OwnerType,
     PolicyCheckStep,
     PolicyCheckStepCheckType,
+    PolicyCheckStepEvidenceRetention,
+    PolicyCheckStepFailureBehavior,
     PolicyCheckStepStatus,
     PolicyCheckStepTargetSelector,
     TraceEventRecord,
@@ -34,6 +38,7 @@ from agent_governance_api.runtime_gateway import RuntimeToolCallDecisionRequest
 
 INTERNAL_CHECK_TOOL_OWNER_ID = "service:agcp-runtime-metadata-pre-checks"
 INTERNAL_CHECK_TOOL_OWNER_NAME = "AGCP Runtime Metadata Pre-Checks"
+SnapshotEnum = TypeVar("SnapshotEnum", bound=Enum)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +46,23 @@ class RuntimeMetadataPreCheckToolSpec:
     name: str
     description: str
     tool_type: CheckToolType
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimePolicyCheckStep:
+    id: UUID
+    policy_rule_id: UUID
+    check_tool_id: UUID | None
+    check_type: PolicyCheckStepCheckType
+    target_selector: PolicyCheckStepTargetSelector
+    required: bool
+    failure_behavior: PolicyCheckStepFailureBehavior
+    min_confidence: float | None
+    status: PolicyCheckStepStatus
+    evidence_retention: PolicyCheckStepEvidenceRetention
+
+
+PolicyCheckStepSource = PolicyCheckStep | RuntimePolicyCheckStep
 
 
 ACCESS_GRANT_CHECK_TOOL = RuntimeMetadataPreCheckToolSpec(
@@ -113,6 +135,8 @@ def run_runtime_metadata_pre_checks(
     trace_event: TraceEventRecord,
     policy_decision_id: UUID | None,
     policy_rule_ids: tuple[str | UUID, ...] = (),
+    versioned_policy_rule_ids: tuple[str | UUID, ...] = (),
+    versioned_policy_check_steps: tuple[RuntimePolicyCheckStep, ...] = (),
 ) -> list[CheckResult]:
     """Run authored metadata-only check steps without changing the decision."""
 
@@ -121,7 +145,18 @@ def run_runtime_metadata_pre_checks(
     if not rule_ids:
         return results
 
-    steps = _load_active_policy_check_steps(session, rule_ids)
+    versioned_rule_ids = set(_dedupe_rule_ids(versioned_policy_rule_ids))
+    steps: list[PolicyCheckStepSource] = [
+        step
+        for step in versioned_policy_check_steps
+        if step.policy_rule_id in rule_ids
+        and step.status is PolicyCheckStepStatus.ACTIVE
+    ]
+    fallback_rule_ids = tuple(
+        rule_id for rule_id in rule_ids if rule_id not in versioned_rule_ids
+    )
+    if fallback_rule_ids:
+        steps.extend(_load_active_policy_check_steps(session, fallback_rule_ids))
     for step in steps:
         _append_policy_check_step_results(
             results,
@@ -147,6 +182,35 @@ def _dedupe_rule_ids(policy_rule_ids: tuple[str | UUID, ...]) -> tuple[UUID, ...
     return tuple(rule_ids)
 
 
+def runtime_policy_check_step_from_snapshot(
+    snapshot: Mapping[str, object],
+) -> RuntimePolicyCheckStep:
+    return RuntimePolicyCheckStep(
+        id=_snapshot_uuid(snapshot, "id"),
+        policy_rule_id=_snapshot_uuid(snapshot, "policy_rule_id"),
+        check_tool_id=_snapshot_optional_uuid(snapshot, "check_tool_id"),
+        check_type=_snapshot_enum(snapshot, "check_type", PolicyCheckStepCheckType),
+        target_selector=_snapshot_enum(
+            snapshot,
+            "target_selector",
+            PolicyCheckStepTargetSelector,
+        ),
+        required=_snapshot_bool(snapshot, "required"),
+        failure_behavior=_snapshot_enum(
+            snapshot,
+            "failure_behavior",
+            PolicyCheckStepFailureBehavior,
+        ),
+        min_confidence=_snapshot_optional_float(snapshot, "min_confidence"),
+        status=_snapshot_enum(snapshot, "status", PolicyCheckStepStatus),
+        evidence_retention=_snapshot_enum(
+            snapshot,
+            "evidence_retention",
+            PolicyCheckStepEvidenceRetention,
+        ),
+    )
+
+
 def _load_active_policy_check_steps(
     session: Session,
     policy_rule_ids: tuple[UUID, ...],
@@ -166,7 +230,7 @@ def _append_policy_check_step_results(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
     policy_decision_id: UUID | None,
@@ -250,7 +314,7 @@ def _append_access_grant_step_results(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -304,7 +368,7 @@ def _append_data_usage_profile_step_results(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -357,7 +421,7 @@ def _append_source_step_results(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -408,7 +472,7 @@ def _append_capability_step_result(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -458,7 +522,7 @@ def _append_model_asset_step_result(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -508,7 +572,7 @@ def _append_access_grant_check(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -545,7 +609,7 @@ def _append_checked_result(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     target_type: CheckResultTargetType,
     target_id: UUID | None,
@@ -584,7 +648,7 @@ def _append_not_applicable_result(
     *,
     session: Session,
     check_tool: CheckTool,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
     policy_decision_id: UUID | None,
@@ -615,7 +679,7 @@ def _append_unsupported_step_result(
     results: list[CheckResult],
     *,
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
     check_tool: CheckTool,
     payload: RuntimeToolCallDecisionRequest,
     trace_event: TraceEventRecord,
@@ -643,7 +707,7 @@ def _append_unsupported_step_result(
 
 def _runtime_check_tool_for_step(
     session: Session,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
 ) -> CheckTool | None:
     if step.check_tool_id is not None:
         check_tool = session.get(CheckTool, step.check_tool_id)
@@ -662,7 +726,7 @@ def _runtime_check_tool_for_step(
 
 def _attach_policy_check_step_metadata(
     check_result: CheckResult,
-    step: PolicyCheckStep,
+    step: PolicyCheckStepSource,
 ) -> None:
     metadata = {
         **(check_result.metadata_ or {}),
@@ -677,6 +741,64 @@ def _attach_policy_check_step_metadata(
     if step.min_confidence is not None:
         metadata["policy_check_step_min_confidence"] = step.min_confidence
     check_result.metadata_ = metadata
+
+
+def _snapshot_uuid(snapshot: Mapping[str, object], key: str) -> UUID:
+    value = snapshot.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"PolicyCheckStep snapshot requires a non-empty {key}.")
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"PolicyCheckStep snapshot {key} must be a UUID string."
+        ) from exc
+
+
+def _snapshot_optional_uuid(snapshot: Mapping[str, object], key: str) -> UUID | None:
+    value = snapshot.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"PolicyCheckStep snapshot {key} must be a UUID string.")
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"PolicyCheckStep snapshot {key} must be a UUID string."
+        ) from exc
+
+
+def _snapshot_enum(
+    snapshot: Mapping[str, object],
+    key: str,
+    enum_class: type[SnapshotEnum],
+) -> SnapshotEnum:
+    value = snapshot.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"PolicyCheckStep snapshot requires a non-empty {key}.")
+    try:
+        return enum_class(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"PolicyCheckStep snapshot {key} has unsupported value: {value}."
+        ) from exc
+
+
+def _snapshot_bool(snapshot: Mapping[str, object], key: str) -> bool:
+    value = snapshot.get(key)
+    if not isinstance(value, bool):
+        raise ValueError(f"PolicyCheckStep snapshot {key} must be a boolean.")
+    return value
+
+
+def _snapshot_optional_float(snapshot: Mapping[str, object], key: str) -> float | None:
+    value = snapshot.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"PolicyCheckStep snapshot {key} must be a number.")
+    return float(value)
 
 
 def _get_or_create_runtime_check_tool(

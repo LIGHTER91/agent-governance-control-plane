@@ -498,12 +498,12 @@ PolicyRules, and associated PolicyCheckSteps. Versions move through draft,
 under_review, approved, rejected, active, superseded, and archived states, with
 rollback handled by copying an approved, rejected, active, or superseded
 snapshot into a new draft. Runtime Gateway still evaluates the current
-unversioned Policy/PolicyRule records until active-version evaluation and
-full versioned evaluation are implemented deliberately. PolicyDecision records
-can now optionally store `policy_version_id` for the active PolicyVersion
-associated with the unversioned Policy selected by the current evaluator. This
-is evidence context only; Runtime Gateway still reads unversioned Policy and
-PolicyRule records until active-version evaluation is migrated separately.
+unversioned Policy/PolicyRule records only when a Policy has no active
+PolicyVersion. Where an active PolicyVersion exists, Runtime Gateway converts
+the immutable rule snapshot into the same deterministic evaluator input shape
+used by current PolicyRules and records that PolicyVersion on the resulting
+PolicyDecision. This preserves V0 fallback behavior while making reviewed
+active versions the source of truth where they exist.
 
 Lifecycle APIs are available at `POST /policies/{policy_id}/versions`,
 `GET /policies/{policy_id}/versions`, `GET /policy-versions/{version_id}`, and
@@ -727,7 +727,11 @@ active authored steps only when
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; they do not change PolicyRule
 evaluation by themselves, they do not directly enforce `failure_behavior`, and
 they do not certify legal compliance. Their CheckResults become decision input
-only when a PolicyRule explicitly matches safe CheckResult outcome fields.
+only when a PolicyRule explicitly matches safe CheckResult outcome fields. For
+Policies with an active PolicyVersion, Runtime Gateway uses versioned
+PolicyCheckStep snapshots associated with matched versioned rule snapshots.
+For Policies without an active PolicyVersion, existing unversioned
+PolicyCheckStep row behavior remains the fallback.
 
 ## Policy Decision
 
@@ -753,9 +757,9 @@ Suggested fields:
 - created_at.
 
 `policy_version_id` is nullable and backward-compatible. When populated, it
-references the active PolicyVersion that was available for the selected Policy
-when the PolicyDecision was persisted. It does not imply that Runtime Gateway
-evaluated the PolicyVersion snapshot.
+references the active PolicyVersion used for a versioned Runtime Gateway
+decision. Older records, telemetry-created decisions, failure-default
+decisions, and decisions from unversioned fallback evaluation can remain null.
 
 ## Agent Run
 
@@ -986,9 +990,10 @@ and linked CheckResult summaries may include compact PolicyVersion references:
 `policy_version_id`, `policy_id`, `version_number`, `status`, `activated_at`,
 and a safe `change_summary` when available. Evidence Bundle does not include
 full PolicyVersion snapshots. Access Grant, inventory, Data Usage Profile, and
-PolicyVersion records are declarative evidence only; they do not imply that
-Runtime Gateway policy evaluation currently enforces grants or evaluates
-PolicyVersion snapshots.
+PolicyVersion records are declarative evidence. Runtime Gateway evaluates
+active PolicyVersion snapshots where they exist, but Access Grants and Data
+Usage Profile records are still policy context unless a PolicyRule explicitly
+matches their resolved fields.
 
 Current export access is intentionally narrow: `auditor`, `platform_admin`, and
 direct user owners can export. Direct owner access means a user actor whose
