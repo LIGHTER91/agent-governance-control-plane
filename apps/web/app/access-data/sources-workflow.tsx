@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiRequestError, getApiBaseUrl } from "../lib/api";
 import {
   AccessGrantRecord,
@@ -226,6 +226,7 @@ export function SourcesWorkflow() {
   return (
     <div className="access-data-workflow">
       <WorkflowBoundary />
+      <h3 className="section-title">Source Data Usage Profiles</h3>
       <section className="source-workspace" aria-label="Source Data Usage workflow">
         <SourcesPanel
           onSelectSource={handleSelectSource}

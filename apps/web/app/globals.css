@@ -467,9 +467,14 @@ a {
 }
 
 .access-data-workflow,
+.access-grant-workflow,
 .source-review-stack {
   display: grid;
   gap: 18px;
+}
+
+.access-grant-workflow {
+  margin-bottom: 34px;
 }
 
 .source-workspace {
@@ -479,11 +484,72 @@ a {
   grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
 }
 
-.source-list-panel .evidence-section-header p {
+.source-list-panel .evidence-section-header p,
+.access-grant-workflow .evidence-section-header p {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
   margin: 6px 0 0;
+}
+
+.access-grant-filters {
+  align-items: end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filter-bar input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  min-height: 38px;
+  min-width: 180px;
+  padding: 7px 10px;
+}
+
+.access-grant-counts {
+  border-bottom: 1px solid var(--border);
+}
+
+.access-grants-table {
+  min-width: 1720px;
+}
+
+.table-pill.grant-active {
+  background: #e3f1ec;
+  color: var(--accent-strong);
+}
+
+.table-pill.grant-pending_review {
+  background: #f7eadf;
+  color: var(--warning);
+}
+
+.table-pill.grant-suspended,
+.table-pill.grant-revoked,
+.table-pill.grant-expired {
+  background: #f6e2e4;
+  color: var(--danger);
+}
+
+.grant-reference-links {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.grant-reference-links span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.table-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .source-list {
@@ -767,6 +833,12 @@ a {
   gap: 12px;
   justify-content: flex-start;
   padding: 16px;
+}
+
+.filter-bar.access-grant-filters {
+  align-items: end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .filter-bar label {
@@ -1712,6 +1784,7 @@ a {
     .detail-summary-grid,
     .policy-manager-grid,
     .source-workspace,
+    .access-grant-filters,
     .policy-rule-grid,
     .rule-form-grid,
     .profile-access-grid,
@@ -1734,6 +1807,10 @@ a {
   .usage-signal-card:last-child,
   .data-usage-lists div:last-child {
     border-right: 1px solid var(--border);
+  }
+
+  .filter-bar.access-grant-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .evidence-count-grid div:nth-child(4n) {
@@ -1797,6 +1874,7 @@ a {
     .detail-summary-grid,
     .policy-manager-grid,
     .source-workspace,
+    .access-grant-filters,
     .policy-rule-grid,
     .rule-form-grid,
     .profile-access-grid,
@@ -1859,6 +1937,10 @@ a {
   .source-list-header {
     align-items: flex-start;
     display: grid;
+  }
+
+  .filter-bar.access-grant-filters {
+    grid-template-columns: 1fr;
   }
 
   .usage-signal-card,

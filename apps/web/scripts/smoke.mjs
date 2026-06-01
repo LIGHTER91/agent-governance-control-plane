@@ -18,6 +18,7 @@ const files = [
   "app/lib/human-approvals.ts",
   "app/lib/policies.ts",
   "app/access-data/page.tsx",
+  "app/access-data/access-grants-workflow.tsx",
   "app/access-data/sources-workflow.tsx",
   "app/policies/page.tsx",
   "app/policies/policies-manager.tsx",
@@ -41,6 +42,27 @@ const requiredText = [
   "Agents",
   "Policies",
   "Access & Data",
+  "Access Grants and Source Data Usage",
+  "Access Grant workflow",
+  "Access Grants are declared governance records",
+  "Runtime enforcement happens only through explicit policies and runtime decisions",
+  "GET /access-grants",
+  "Loading Access Grants",
+  "Unable to load Access Grants",
+  "Access Grants loaded",
+  "No Access Grants match the current filters",
+  "subject_type",
+  "subject_id",
+  "target_type",
+  "target_id",
+  "external_ref",
+  "granted_by_actor_type",
+  "granted_by_actor_id",
+  "expires_at",
+  "Safe Metadata",
+  "Agent Governance Profile",
+  "Evidence Bundle lookup",
+  "Source/Data Usage workflow",
   "Source Data Usage Profiles",
   "GET /sources",
   "GET /sources/{source_id}/usage-profile",
@@ -291,6 +313,7 @@ runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
+runAccessGrantWorkflowFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
@@ -1198,4 +1221,147 @@ function dataUsageSignalLabel(status) {
   }
 
   return "No explicit signal";
+}
+
+function runAccessGrantWorkflowFixtureSmoke() {
+  const agentId = "56565656-5656-4565-8565-565656565656";
+  const sourceId = "67676767-6767-4676-8676-676767676767";
+  const fixture = [
+    {
+      id: "78787878-7878-4787-8787-787878787878",
+      name: "Claims source access",
+      subject_type: "agent",
+      subject_id: agentId,
+      target_type: "source",
+      target_id: sourceId,
+      external_ref: null,
+      status: "active",
+      reason: "Claims assistant can retrieve reviewed claim guidance.",
+      risk_level: "medium",
+      granted_by_actor_type: "user",
+      granted_by_actor_id: "user:governance-reviewer",
+      expires_at: "2027-01-15T12:00:00Z",
+      metadata: {
+        ticket_ref: "JIRA-123"
+      },
+      created_at: "2026-01-15T12:00:00Z",
+      updated_at: "2026-01-15T12:00:00Z"
+    },
+    {
+      id: "89898989-8989-4898-8898-898989898989",
+      name: "External ticketing access",
+      subject_type: "agent",
+      subject_id: agentId,
+      target_type: "external",
+      target_id: null,
+      external_ref: "ticketing:claims",
+      status: "pending_review",
+      reason: "Pending governance review.",
+      risk_level: "high",
+      granted_by_actor_type: "development",
+      granted_by_actor_id: "dev-placeholder",
+      expires_at: null,
+      metadata: {},
+      created_at: "2026-01-16T12:00:00Z",
+      updated_at: "2026-01-16T12:00:00Z"
+    }
+  ];
+
+  const renderedWorkflow = renderAccessGrantWorkflowFixture(fixture);
+  const activeSourceFiltered = renderAccessGrantWorkflowFixture(
+    fixture.filter(
+      (grant) => grant.status === "active" && grant.target_type === "source"
+    )
+  );
+
+  for (const expectedText of [
+    "Access Grant workflow",
+    "Access Grants are declared governance records",
+    "not automatically enforced by the Runtime Gateway",
+    "Runtime enforcement happens only through explicit policies and runtime decisions",
+    "GET /access-grants",
+    "Access Grants loaded",
+    "subject_type",
+    "subject_id",
+    "target_type",
+    "target_id",
+    "external_ref",
+    "active",
+    "pending_review",
+    "risk_level",
+    "granted_by_actor_type",
+    "granted_by_actor_id",
+    "expires_at",
+    "Safe Metadata",
+    "Agent Governance Profile",
+    "Evidence Bundle lookup",
+    "Source/Data Usage workflow",
+    "Claims source access",
+    "External ticketing access",
+    agentId,
+    sourceId
+  ]) {
+    if (!renderedWorkflow.includes(expectedText)) {
+      throw new Error(`Access Grant workflow fixture missing: ${expectedText}`);
+    }
+  }
+
+  if (!activeSourceFiltered.includes("Claims source access")) {
+    throw new Error("Access Grant workflow fixture did not cover filtered grants.");
+  }
+
+  if (activeSourceFiltered.includes("External ticketing access")) {
+    throw new Error("Access Grant workflow fixture filter retained wrong target.");
+  }
+
+  for (const unsafeText of [
+    "api_key",
+    "password",
+    "raw_prompt",
+    "raw_payload",
+    "source contents",
+    "compliance score"
+  ]) {
+    if (renderedWorkflow.toLowerCase().includes(unsafeText)) {
+      throw new Error(`Unsafe Access Grant workflow fixture text rendered: ${unsafeText}`);
+    }
+  }
+}
+
+function renderAccessGrantWorkflowFixture(grants) {
+  return [
+    "Access Grant workflow",
+    "Access Grants are declared governance records",
+    "Grants describe intended Agent access and are not automatically enforced by the Runtime Gateway.",
+    "Runtime enforcement happens only through explicit policies and runtime decisions",
+    "GET /access-grants",
+    "Access Grants loaded",
+    "subject_type",
+    "subject_id",
+    "target_type",
+    "target_id",
+    "external_ref",
+    "risk_level",
+    "granted_by_actor_type",
+    "granted_by_actor_id",
+    "expires_at",
+    "Safe Metadata",
+    "Agent Governance Profile",
+    "Evidence Bundle lookup",
+    "Source/Data Usage workflow",
+    ...grants.flatMap((grant) => [
+      grant.id,
+      grant.name,
+      grant.subject_type,
+      grant.subject_id,
+      grant.target_type,
+      grant.target_id || grant.external_ref || "Not set",
+      grant.status,
+      grant.reason,
+      grant.risk_level,
+      grant.granted_by_actor_type,
+      grant.granted_by_actor_id,
+      JSON.stringify(grant.metadata)
+    ])
+  ].join("\n");
 }

@@ -32,8 +32,8 @@ team membership resolution, production deployment, and operational hardening are
 still missing. The frontend now has a minimal dashboard shell, a read-only Agent
 list page backed by the backend Agent Registry API, a read-only Agent detail
 page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
-Bundle APIs, a read-only Access & Data page backed by Source, DataUsageProfile,
-and AccessGrant APIs, read-only Runtime Gateway overview and activity pages, a
+Bundle APIs, a read-only Access & Data page backed by AccessGrant, Source, and
+DataUsageProfile APIs, read-only Runtime Gateway overview and activity pages, a
 Human Approvals page with pending review actions, and an Evidence Bundle page
 backed by the backend Evidence Bundle export API. The Evidence page now loads
 bundles only by manual user action, explains the evidence chain, shows safe
@@ -53,16 +53,19 @@ environment, risk level, Access Grants, recent activity, HumanApproval summary,
 inventory references, policy/rule technical references, and an Evidence Bundle
 availability hint.
 
-Several important surfaces remain backend-only: Capability, ModelAsset,
-AccessGrant, and PolicyCheckStep management have APIs but no dedicated
-frontend management workflows. Source Data Usage Profiles now have a read-only
-review UI for classification, personal/sensitive data flags, allowed and
-prohibited purposes, processing constraints, review status, DPIA references,
-safe metadata, and Source-targeting Access Grants. Policy and PolicyRule
-management now have a minimal frontend page for lifecycle records and
-constrained deterministic condition editing, including explicit `check_*`
-outcome fields. Access Grants are inventory declarations only; they are not
-enforced by runtime policy evaluation yet. Evidence Bundle export
+Several important surfaces remain backend-only: Capability, ModelAsset, and
+PolicyCheckStep management have APIs but no dedicated frontend management
+workflows. Access Grants now have a read-only review UI for declared Agent
+access, target references, reason, risk, grantor, expiration, safe metadata,
+and links to Agent profiles, Evidence Bundle lookup, and Source/Data Usage
+review. Source Data Usage Profiles now have a read-only review UI for
+classification, personal/sensitive data flags, allowed and prohibited purposes,
+processing constraints, review status, DPIA references, safe metadata, and
+Source-targeting Access Grants. Policy and PolicyRule management now have a
+minimal frontend page for lifecycle records and constrained deterministic
+condition editing, including explicit `check_*` outcome fields. Access Grants
+are inventory declarations only; they are not enforced by runtime policy
+evaluation yet. Evidence Bundle export
 includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
 remains a bounded JSON review export rather than a full data catalog or
@@ -348,9 +351,9 @@ Completed foundation:
 - Read-only Runtime Gateway overview page.
 - Read-only Runtime activity page backed by
   `GET /runtime/tool-calls/activity`.
-- Read-only Access & Data page backed by `GET /sources`,
-  `GET /sources/{source_id}/usage-profile`, and `GET /access-grants` for Source
-  Data Usage Profile review.
+- Read-only Access & Data page backed by `GET /access-grants`, `GET /sources`,
+  and `GET /sources/{source_id}/usage-profile` for Access Grant and Source Data
+  Usage Profile review.
 - Human Approvals page backed by `GET /human-approvals`, with approve, reject,
   and cancel actions shown only for pending approvals.
 - Evidence Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`,
@@ -420,6 +423,7 @@ Important limitations:
   Evidence Bundle views require the backend API to be running. The Access &
   Data workflow is read-only. Human Approval review actions are available only
   for pending approvals.
+- Access Grant status transition actions are not implemented in the frontend.
 - The Agent detail page has no edit form.
 - Agent and Runtime activity views do not have broad filtering, search, or
   pagination yet.
@@ -461,6 +465,7 @@ Planned capabilities:
 - Runtime Gateway overview page. Completed as read-only.
 - Runtime decisions/activity backend endpoint. Completed as read-only.
 - Runtime decisions/activity page. Completed as read-only.
+- Access Grant review UI. Completed as read-only.
 - Source Data Usage Profile review UI. Completed as read-only.
 - Human Approvals page. Completed with pending review actions.
 - Evidence Bundle page. Completed with manual review summary and bounded JSON
