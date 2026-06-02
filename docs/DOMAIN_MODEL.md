@@ -862,8 +862,7 @@ Suggested service actor fields:
 Allowed service actor statuses:
 
 - active;
-- disabled;
-- retired.
+- disabled.
 
 The registry is disabled by default. With
 `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`, runtime and telemetry service actor
@@ -871,6 +870,20 @@ authentication can resolve active service actors with active or retiring
 non-expired API keys from the registry. Registry-backed actors use persisted
 endpoint/action scopes and fine-grained rule records. Config auth remains the
 default behavior when the registry flag is disabled.
+
+Minimal admin read endpoints expose registry-backed integration state when the
+registry flag is enabled:
+
+- `GET /service-actors`;
+- `GET /service-actors/{service_actor_id}`;
+- `GET /service-actors/{service_actor_id}/api-keys`;
+- `GET /service-actors/{service_actor_id}/scopes`;
+- `GET /service-actors/{service_actor_id}/scope-rules`.
+
+These endpoints are for registry inspection only. API key responses must never
+include plaintext keys or key hashes. Safe key metadata is limited to key id,
+status, created time, expiry, last-used time, and revocation time. The admin
+read workflow is not a full IAM, OIDC, SAML, or user-management system.
 
 ## Audit Log
 

@@ -186,8 +186,10 @@ Consequences:
 - API key rotation can change credentials without changing governance evidence
   identity.
 - Registry mutations must append safe AuditLog events.
-- Public registry management endpoints should wait for real user auth and admin
-  RBAC.
+- Minimal feature-flagged read endpoints can expose safe registry state for
+  admin review without exposing plaintext keys or key hashes.
+- Public registry mutation endpoints should wait for real user auth, admin
+  RBAC, and a one-time-secret key lifecycle design.
 
 Alternatives considered:
 - Keep service actors permanently in environment variables.

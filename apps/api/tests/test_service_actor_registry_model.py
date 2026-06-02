@@ -291,6 +291,8 @@ def test_service_actor_read_schemas_do_not_expose_key_hash() -> None:
     assert actor_schema.actor_id == "service:schema-test"
     assert api_key_schema.key_id == "sak_schema_001"
     assert not hasattr(api_key_schema, "key_hash")
+    assert not hasattr(api_key_schema, "hash_algorithm")
+    assert not hasattr(api_key_schema, "service_actor_id")
     assert "schema-secret" not in api_key_schema.model_dump_json()
     assert "sha256:" not in api_key_schema.model_dump_json()
 

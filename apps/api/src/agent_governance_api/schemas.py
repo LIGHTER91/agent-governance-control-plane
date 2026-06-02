@@ -1406,19 +1406,12 @@ class ServiceActorRead(BaseModel):
 class ServiceActorApiKeyRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
-    service_actor_id: UUID
     key_id: str
-    hash_algorithm: str
     status: ServiceActorApiKeyStatus
     created_at: datetime
-    activated_at: datetime | None = None
-    retiring_at: datetime | None = None
-    grace_expires_at: datetime | None = None
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
     last_used_at: datetime | None = None
-    last_used_endpoint: str | None = None
 
 
 class ServiceActorScopeRead(BaseModel):
