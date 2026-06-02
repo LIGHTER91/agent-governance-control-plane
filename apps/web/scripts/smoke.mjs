@@ -45,11 +45,17 @@ const requiredText = [
   "Access Grants and Source Data Usage",
   "Access Grant workflow",
   "Access Grants are declared governance records",
-  "Runtime enforcement happens only through explicit policies and runtime decisions",
+  "Transition actions update the governance record status",
+  "does not by itself guarantee runtime blocking",
+  "runtime enforcement depends on policies",
   "GET /access-grants",
+  "POST /access-grants/{access_grant_id}",
   "Loading Access Grants",
   "Unable to load Access Grants",
   "Access Grants loaded",
+  "Access Grant transition actions",
+  "Transition note",
+  "Updates the governance record status only",
   "No Access Grants match the current filters",
   "subject_type",
   "subject_id",
@@ -1264,6 +1270,42 @@ function runAccessGrantWorkflowFixtureSmoke() {
       metadata: {},
       created_at: "2026-01-16T12:00:00Z",
       updated_at: "2026-01-16T12:00:00Z"
+    },
+    {
+      id: "90909090-9090-4909-8909-909090909090",
+      name: "Suspended model access",
+      subject_type: "agent",
+      subject_id: agentId,
+      target_type: "model_asset",
+      target_id: "91919191-9191-4919-8919-919191919191",
+      external_ref: null,
+      status: "suspended",
+      reason: "Paused during model review.",
+      risk_level: "medium",
+      granted_by_actor_type: "user",
+      granted_by_actor_id: "user:model-reviewer",
+      expires_at: null,
+      metadata: {},
+      created_at: "2026-01-17T12:00:00Z",
+      updated_at: "2026-01-17T12:30:00Z"
+    },
+    {
+      id: "92929292-9292-4929-8929-929292929292",
+      name: "Revoked capability access",
+      subject_type: "agent",
+      subject_id: agentId,
+      target_type: "capability",
+      target_id: "93939393-9393-4939-8939-939393939393",
+      external_ref: null,
+      status: "revoked",
+      reason: "No longer required for this Agent.",
+      risk_level: "low",
+      granted_by_actor_type: "user",
+      granted_by_actor_id: "user:governance-reviewer",
+      expires_at: null,
+      metadata: {},
+      created_at: "2026-01-18T12:00:00Z",
+      updated_at: "2026-01-18T12:30:00Z"
     }
   ];
 
@@ -1278,9 +1320,19 @@ function runAccessGrantWorkflowFixtureSmoke() {
     "Access Grant workflow",
     "Access Grants are declared governance records",
     "not automatically enforced by the Runtime Gateway",
-    "Runtime enforcement happens only through explicit policies and runtime decisions",
+    "Transition actions update the governance record status",
+    "does not by itself guarantee runtime blocking",
+    "runtime enforcement depends on policies",
     "GET /access-grants",
     "Access Grants loaded",
+    "Access Grant transition actions",
+    "Transition note",
+    "Updates the governance record status only",
+    "Suspend",
+    "Revoke",
+    "Expire",
+    "Reactivate",
+    "Terminal governance status",
     "subject_type",
     "subject_id",
     "target_type",
@@ -1288,6 +1340,8 @@ function runAccessGrantWorkflowFixtureSmoke() {
     "external_ref",
     "active",
     "pending_review",
+    "suspended",
+    "revoked",
     "risk_level",
     "granted_by_actor_type",
     "granted_by_actor_id",
@@ -1298,6 +1352,8 @@ function runAccessGrantWorkflowFixtureSmoke() {
     "Source/Data Usage workflow",
     "Claims source access",
     "External ticketing access",
+    "Suspended model access",
+    "Revoked capability access",
     agentId,
     sourceId
   ]) {
@@ -1333,9 +1389,14 @@ function renderAccessGrantWorkflowFixture(grants) {
     "Access Grant workflow",
     "Access Grants are declared governance records",
     "Grants describe intended Agent access and are not automatically enforced by the Runtime Gateway.",
-    "Runtime enforcement happens only through explicit policies and runtime decisions",
+    "Transition actions update the governance record status",
+    "does not by itself guarantee runtime blocking",
+    "runtime enforcement depends on policies",
     "GET /access-grants",
     "Access Grants loaded",
+    "Access Grant transition actions",
+    "Transition note",
+    "Updates the governance record status only",
     "subject_type",
     "subject_id",
     "target_type",
@@ -1361,7 +1422,24 @@ function renderAccessGrantWorkflowFixture(grants) {
       grant.risk_level,
       grant.granted_by_actor_type,
       grant.granted_by_actor_id,
-      JSON.stringify(grant.metadata)
+      JSON.stringify(grant.metadata),
+      ...accessGrantFixtureActionsForStatus(grant.status)
     ])
   ].join("\n");
+}
+
+function accessGrantFixtureActionsForStatus(status) {
+  if (status === "active") {
+    return ["Suspend", "Revoke", "Expire"];
+  }
+
+  if (status === "pending_review") {
+    return ["Revoke", "Expire"];
+  }
+
+  if (status === "suspended") {
+    return ["Reactivate", "Revoke", "Expire"];
+  }
+
+  return ["Terminal governance status"];
 }

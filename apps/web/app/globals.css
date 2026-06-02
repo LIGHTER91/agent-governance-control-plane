@@ -514,7 +514,7 @@ a {
 }
 
 .access-grants-table {
-  min-width: 1720px;
+  min-width: 1980px;
 }
 
 .table-pill.grant-active {
@@ -543,6 +543,61 @@ a {
 .grant-reference-links span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.grant-transition-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 230px;
+}
+
+.grant-transition-field {
+  display: grid;
+  gap: 6px;
+}
+
+.grant-transition-field span,
+.grant-transition-help,
+.grant-transition-note {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.grant-transition-field input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+.grant-transition-field input:disabled {
+  opacity: 0.65;
+}
+
+.grant-transition-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.table-action-button.grant-action-reactivate,
+.table-action-button.grant-action-suspend {
+  background: #e3f1ec;
+  color: var(--accent-strong);
+}
+
+.table-action-button.grant-action-expire,
+.table-action-button.grant-action-revoke {
+  background: #f6e2e4;
+  color: var(--danger);
 }
 
 .table-details summary {

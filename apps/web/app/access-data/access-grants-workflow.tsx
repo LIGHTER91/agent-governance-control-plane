@@ -1,18 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { getApiBaseUrl } from "../lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApiRequestError, getApiBaseUrl } from "../lib/api";
 import {
   AccessGrantRecord,
+  AccessGrantTransitionAction,
   SourceMetadata,
-  fetchAccessGrants
+  fetchAccessGrants,
+  transitionAccessGrant
 } from "../lib/sources";
 
 type AccessGrantsState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; grants: AccessGrantRecord[] };
+
+type AccessGrantsRefreshState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; message: string }
+  | { status: "error"; message: string };
+
+type AccessGrantActionState =
+  | { status: "idle" }
+  | { status: "loading"; action: AccessGrantTransitionAction }
+  | { status: "success"; message: string }
+  | { status: "error"; message: string };
 
 type GrantStatusFilter =
   | "all"
@@ -95,22 +109,79 @@ function accessGrantErrorMessage(error: unknown) {
     : "Unable to load Access Grants from the backend.";
 }
 
+function accessGrantTransitionErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 404) {
+      return "Access Grant not found. Refresh the list and try again.";
+    }
+
+    if (error.status === 409) {
+      return "The backend rejected this transition for the current Access Grant status.";
+    }
+
+    if (error.status === 422) {
+      return "Transition note must be non-empty when provided.";
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Unable to update Access Grant status.";
+}
+
+function transitionActionsForStatus(
+  statusValue: string
+): AccessGrantTransitionAction[] {
+  if (statusValue === "active") {
+    return ["suspend", "revoke", "expire"];
+  }
+
+  if (statusValue === "pending_review") {
+    return ["revoke", "expire"];
+  }
+
+  if (statusValue === "suspended") {
+    return ["reactivate", "revoke", "expire"];
+  }
+
+  return [];
+}
+
+function transitionPastTense(action: AccessGrantTransitionAction) {
+  if (action === "suspend") {
+    return "suspended";
+  }
+
+  if (action === "revoke") {
+    return "revoked";
+  }
+
+  if (action === "reactivate") {
+    return "reactivated";
+  }
+
+  return "expired";
+}
+
 export function AccessGrantsWorkflow() {
   const [state, setState] = useState<AccessGrantsState>({ status: "loading" });
+  const [refreshState, setRefreshState] = useState<AccessGrantsRefreshState>({
+    status: "idle"
+  });
   const [statusFilter, setStatusFilter] = useState<GrantStatusFilter>("all");
   const [targetFilter, setTargetFilter] = useState<GrantTargetFilter>("all");
   const [subjectFilter, setSubjectFilter] = useState("");
 
-  useEffect(() => {
-    const controller = new AbortController();
-
+  const loadAccessGrants = useCallback((signal?: AbortSignal) => {
     setState({ status: "loading" });
-    fetchAccessGrants(controller.signal)
+    setRefreshState({ status: "idle" });
+
+    fetchAccessGrants(signal)
       .then((grants) => {
         setState({ status: "ready", grants });
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) {
+        if (signal?.aborted) {
           return;
         }
 
@@ -119,11 +190,53 @@ export function AccessGrantsWorkflow() {
           message: accessGrantErrorMessage(error)
         });
       });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    loadAccessGrants(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [loadAccessGrants]);
+
+  const refreshAccessGrants = useCallback(
+    async (
+      updatedGrant: AccessGrantRecord,
+      action: AccessGrantTransitionAction
+    ) => {
+      setState((currentState) =>
+        currentState.status === "ready"
+          ? {
+              status: "ready",
+              grants: currentState.grants.map((grant) =>
+                grant.id === updatedGrant.id ? updatedGrant : grant
+              )
+            }
+          : currentState
+      );
+      setRefreshState({ status: "loading" });
+
+      try {
+        const grants = await fetchAccessGrants();
+        setState({ status: "ready", grants });
+        setRefreshState({
+          status: "success",
+          message: `Access Grants refreshed after ${transitionPastTense(
+            action
+          )} status update.`
+        });
+      } catch (error: unknown) {
+        setRefreshState({
+          status: "error",
+          message: accessGrantErrorMessage(error)
+        });
+      }
+    },
+    []
+  );
 
   const filteredGrants = useMemo(() => {
     if (state.status !== "ready") {
@@ -184,9 +297,12 @@ export function AccessGrantsWorkflow() {
             <div className="state-message compact success-state">
               <strong>Access Grants loaded</strong>
               <p>
-                These records declare governed access. Runtime enforcement happens only through explicit policies and runtime decisions.
+                {
+                  "Transition actions update the governance record status. This does not by itself guarantee runtime blocking; runtime enforcement depends on policies and runtime decisions."
+                }
               </p>
             </div>
+            <AccessGrantRefreshMessage refreshState={refreshState} />
             <AccessGrantFilters
               statusFilter={statusFilter}
               subjectFilter={subjectFilter}
@@ -196,11 +312,41 @@ export function AccessGrantsWorkflow() {
               onTargetFilterChange={setTargetFilter}
             />
             <AccessGrantStatusSummary grants={state.grants} />
-            <AccessGrantTable grants={filteredGrants} />
+            <AccessGrantTable
+              grants={filteredGrants}
+              onTransitionComplete={refreshAccessGrants}
+            />
           </>
         ) : null}
       </section>
     </section>
+  );
+}
+
+function AccessGrantRefreshMessage({
+  refreshState
+}: {
+  refreshState: AccessGrantsRefreshState;
+}) {
+  if (refreshState.status === "idle") {
+    return null;
+  }
+
+  if (refreshState.status === "loading") {
+    return (
+      <p className="review-action-message" aria-live="polite">
+        Refreshing Access Grants after status update.
+      </p>
+    );
+  }
+
+  return (
+    <p
+      className={`review-action-message ${refreshState.status}`}
+      role={refreshState.status === "error" ? "alert" : undefined}
+    >
+      {refreshState.message}
+    </p>
   );
 }
 
@@ -301,7 +447,16 @@ function AccessGrantStatusSummary({ grants }: { grants: AccessGrantRecord[] }) {
   );
 }
 
-function AccessGrantTable({ grants }: { grants: AccessGrantRecord[] }) {
+function AccessGrantTable({
+  grants,
+  onTransitionComplete
+}: {
+  grants: AccessGrantRecord[];
+  onTransitionComplete: (
+    grant: AccessGrantRecord,
+    action: AccessGrantTransitionAction
+  ) => Promise<void> | void;
+}) {
   if (grants.length === 0) {
     return (
       <div className="state-message compact">
@@ -328,6 +483,7 @@ function AccessGrantTable({ grants }: { grants: AccessGrantRecord[] }) {
             <th>Safe Metadata</th>
             <th>Created</th>
             <th>Updated</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -372,10 +528,114 @@ function AccessGrantTable({ grants }: { grants: AccessGrantRecord[] }) {
               </td>
               <td>{formatTimestamp(grant.created_at)}</td>
               <td>{formatTimestamp(grant.updated_at)}</td>
+              <td>
+                <AccessGrantTransitionActions
+                  grant={grant}
+                  onTransitionComplete={onTransitionComplete}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function AccessGrantTransitionActions({
+  grant,
+  onTransitionComplete
+}: {
+  grant: AccessGrantRecord;
+  onTransitionComplete: (
+    grant: AccessGrantRecord,
+    action: AccessGrantTransitionAction
+  ) => Promise<void> | void;
+}) {
+  const [transitionNote, setTransitionNote] = useState("");
+  const [actionState, setActionState] = useState<AccessGrantActionState>({
+    status: "idle"
+  });
+  const actions = transitionActionsForStatus(grant.status);
+
+  if (actions.length === 0) {
+    return (
+      <span className="grant-transition-note">
+        Terminal governance status. No transition actions are available.
+      </span>
+    );
+  }
+
+  const loadingAction =
+    actionState.status === "loading" ? actionState.action : null;
+  const isLoading = loadingAction !== null;
+
+  async function handleTransition(action: AccessGrantTransitionAction) {
+    setActionState({ status: "loading", action });
+
+    try {
+      const updatedGrant = await transitionAccessGrant(
+        grant.id,
+        action,
+        transitionNote
+      );
+      await onTransitionComplete(updatedGrant, action);
+      setTransitionNote("");
+      setActionState({
+        status: "success",
+        message: `Access Grant ${transitionPastTense(action)}.`
+      });
+    } catch (error: unknown) {
+      setActionState({
+        status: "error",
+        message: accessGrantTransitionErrorMessage(error)
+      });
+    }
+  }
+
+  return (
+    <div className="grant-transition-actions">
+      <label className="grant-transition-field">
+        <span>Transition note</span>
+        <input
+          type="text"
+          value={transitionNote}
+          onChange={(event) => setTransitionNote(event.target.value)}
+          placeholder="Optional governance note"
+          disabled={isLoading}
+        />
+      </label>
+      <div
+        className="grant-transition-buttons"
+        aria-label="Access Grant transition actions"
+      >
+        {actions.map((action) => (
+          <button
+            key={action}
+            className={`table-action-button grant-action-${action}`}
+            type="button"
+            disabled={isLoading}
+            onClick={() => void handleTransition(action)}
+          >
+            {loadingAction === action
+              ? `${formatValue(action)}...`
+              : formatValue(action)}
+          </button>
+        ))}
+      </div>
+      <p className="grant-transition-help">
+        Updates the governance record status only.
+      </p>
+      {actionState.status === "success" ? (
+        <p className="approval-action-status success" aria-live="polite">
+          {actionState.message}
+        </p>
+      ) : null}
+      {actionState.status === "error" ? (
+        <p className="approval-action-status error" role="alert">
+          {actionState.message}
+        </p>
+      ) : null}
     </div>
   );
 }

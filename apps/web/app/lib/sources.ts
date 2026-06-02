@@ -1,4 +1,4 @@
-import { fetchApiArray, fetchApiJson } from "./api";
+import { fetchApiArray, fetchApiJson, postApiJson } from "./api";
 
 export type SourceMetadataValue = string | number | boolean | null;
 export type SourceMetadata = Record<string, SourceMetadataValue>;
@@ -68,6 +68,12 @@ export type AccessGrantRecord = {
   updated_at: string;
 };
 
+export type AccessGrantTransitionAction =
+  | "suspend"
+  | "revoke"
+  | "reactivate"
+  | "expire";
+
 export function fetchSources(signal?: AbortSignal): Promise<SourceRecord[]> {
   return fetchApiArray<SourceRecord>("/sources", {
     errorLabel: "GET /sources",
@@ -95,4 +101,22 @@ export function fetchAccessGrants(
     errorLabel: "GET /access-grants",
     signal
   });
+}
+
+export function transitionAccessGrant(
+  accessGrantId: string,
+  action: AccessGrantTransitionAction,
+  transitionNote?: string,
+  signal?: AbortSignal
+): Promise<AccessGrantRecord> {
+  const trimmedNote = transitionNote?.trim();
+
+  return postApiJson<AccessGrantRecord>(
+    `/access-grants/${encodeURIComponent(accessGrantId)}/${action}`,
+    {
+      body: trimmedNote ? { transition_note: trimmedNote } : {},
+      errorLabel: `POST /access-grants/{access_grant_id}/${action}`,
+      signal
+    }
+  );
 }
