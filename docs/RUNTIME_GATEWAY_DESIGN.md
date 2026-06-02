@@ -241,6 +241,23 @@ wrapper around arbitrary local tool functions, stable request ID generation,
 conservative retry behavior, idempotency expectations, and blocked results for
 non-allow decisions.
 
+## LangGraph Adapter Boundary
+
+The focused LangGraph adapter boundary is documented in
+`docs/LANGGRAPH_ADAPTER_DESIGN.md`.
+
+That design keeps the Runtime Gateway contract explicit:
+
+- LangGraph or the application wrapper calls AGCP before a governed tool or
+  external action.
+- AGCP returns `decision` and `proceed`.
+- The LangGraph caller enforces the response by executing, stopping, branching,
+  or pausing.
+- AGCP records runtime decisions and evidence, but does not execute LangGraph
+  tools or own graph state.
+- The adapter uses Service Actor API key auth and scoped permissions for
+  `runtime:decision`, `runtime:resume`, and optional `telemetry:write`.
+
 ## Runtime Flow
 
 1. Agent requests action.

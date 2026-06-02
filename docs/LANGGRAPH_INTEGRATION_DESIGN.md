@@ -6,6 +6,10 @@ Design proposal only. A dependency-free adapter spike exists as example code in
 `docs/examples/langgraph_adapter_spike.py`, but no production LangGraph
 integration code or LangGraph dependency exists yet.
 
+For the focused adapter boundary, minimal helper shape, Service Actor auth
+expectations, enforcement responsibility, and HumanApproval resume behavior, see
+`docs/LANGGRAPH_ADAPTER_DESIGN.md`.
+
 This document describes how LangGraph agents could integrate with the Agent
 Governance Control Plane (AGCP). AGCP remains a governance and evidence control
 plane. It should not become a LangGraph replacement, graph runner, workflow

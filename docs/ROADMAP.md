@@ -130,6 +130,13 @@ records. Runtime Gateway now evaluates active PolicyVersion snapshots where
 available and falls back to unversioned Policy/PolicyRule rows for Policies
 without an active version. Review UI has not been implemented.
 
+LangGraph integration now has a focused adapter boundary design in
+`docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
+call the Runtime Gateway, how `proceed` enforcement remains the caller's
+responsibility, how HumanApproval resume should preserve request identity, and
+how Service Actor scoped API keys should be used. It is design-only and does
+not create a production adapter package.
+
 The next phase should deepen workflows instead of simply adding more models.
 The main product risk is model sprawl without review, approval, evidence, and
 policy workflows that help users answer what an Agent is allowed to use, why it
@@ -259,6 +266,7 @@ Completed capabilities:
 - Generic runtime adapter example with retry, idempotency, and resume handling.
 - Runtime Gateway enforcement mode design.
 - LangGraph integration design.
+- LangGraph adapter boundary design.
 - Dependency-free LangGraph adapter spike.
 
 Important limitations:
@@ -450,6 +458,7 @@ References:
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
+- `docs/LANGGRAPH_ADAPTER_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_ROTATION_DESIGN.md`
@@ -514,6 +523,8 @@ Planned capabilities:
   policy references, Evidence Bundle links, and inventory changes.
 - Policy versioning and rule change review workflow hardening.
 - LangGraph integration package only if requested after the spike is proven.
+- Minimal dependency-free adapter helper prototype after the boundary design is
+  validated with fake tool tests.
 - Additional runtime/framework integrations.
 - Integration Hub follow-through into adapter packages only after stronger auth,
   caller enforcement responsibilities, and packaging boundaries are designed.

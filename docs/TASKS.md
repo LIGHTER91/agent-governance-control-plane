@@ -127,6 +127,7 @@ References:
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
+- `docs/LANGGRAPH_ADAPTER_DESIGN.md`
 - `docs/LANGGRAPH_INTEGRATION_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
@@ -168,6 +169,8 @@ Recommended order:
     after the backend read models need it.
 17. Turn Integration Hub guidance into focused adapter packages only after
     stronger auth, caller enforcement, and packaging boundaries are designed.
+18. Prototype a minimal dependency-free LangGraph adapter helper with fake tool
+    tests before adding any LangGraph dependency.
 
 ## Backlog
 
@@ -195,6 +198,8 @@ Recommended order:
       after the backend read models need it.
 - [ ] Turn Integration Hub guidance into focused adapter packages only after
       stronger auth, caller enforcement, and packaging boundaries are designed.
+- [ ] Prototype a minimal dependency-free LangGraph adapter helper with fake
+      tool tests before adding any LangGraph dependency.
 - [ ] Use Access Grants as optional policy context without replacing
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
@@ -319,6 +324,7 @@ credentials.
 - [x] Add Runtime Gateway resume OpenAPI examples.
 - [x] Update generic runtime adapter example with resume flow.
 - [x] Add LangGraph integration design.
+- [x] Add LangGraph adapter boundary design.
 - [x] Add dependency-free LangGraph adapter spike.
 - [x] Add identity, authentication, actor model, and RBAC design.
 - [x] Add local `ActorContext` development actor abstraction.
