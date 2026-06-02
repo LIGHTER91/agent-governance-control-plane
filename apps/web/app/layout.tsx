@@ -9,6 +9,7 @@ const navItems = [
   { label: "Access & Data", href: "/access-data" },
   { label: "Policies", href: "/policies" },
   { label: "Runtime Gateway", href: "/runtime-gateway" },
+  { label: "Integration Hub", href: "/integrations" },
   { label: "Human Approvals", href: "/human-approvals" },
   { label: "Evidence", href: "/evidence" },
   { label: "Audit", href: "/audit" },

@@ -54,12 +54,13 @@ runtime and telemetry endpoints can require service authentication. AGCP does
 not execute tools; runtime enforcement depends on wrappers or adapters calling
 AGCP and honoring `proceed`. Minimal RBAC exists for HumanApproval review
 actions and Evidence Bundle export. The frontend now exposes the core read-only
-governance views, Runtime activity, pending HumanApproval review actions, and
-an Agent Governance Profile UI.
+governance views, Runtime activity, pending HumanApproval review actions, an
+Agent Governance Profile UI, and an Integration Hub page for runtime connection
+guidance.
 Full user authentication, OIDC/SAML, team membership resolution, enterprise
-auth-backed frontend workflows, notifications, production deployment, service
-actor admin workflows, API key rotation implementation, and enterprise
-integrations are intentionally not implemented yet.
+auth-backed frontend workflows, notifications, production deployment, mutating
+service actor admin workflows, API key rotation implementation, and adapter
+packages for enterprise integrations are intentionally not implemented yet.
 
 ## Implemented Capabilities
 
@@ -149,6 +150,9 @@ integrations are intentionally not implemented yet.
 - DB-backed service actor endpoint/action scope and fine-grained rule
   persistence. Registry-backed actors use these persisted scopes and rules when
   the registry feature flag is enabled; config auth remains the default path.
+- Service Actor admin read APIs for listing service actors, key status
+  metadata, scopes, and fine-grained scope rules when
+  `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
 - Next.js dashboard shell.
 - Read-only frontend Agent list page backed by `GET /agents`.
 - Read-only frontend Agent detail page backed by
@@ -167,6 +171,9 @@ integrations are intentionally not implemented yet.
   actions shown only for pending approvals.
 - Read-only frontend Evidence Bundle page backed by
   `GET /agents/{agent_id}/evidence-bundle`.
+- Frontend Integration Hub page for Custom Runtime Gateway API, LangGraph,
+  n8n, Dataiku, MCP, and generic webhook/API connection guidance, with optional
+  read-only Service Actor registry summary metadata.
 
 ## V0 Governance Flow
 
@@ -231,6 +238,18 @@ and linked human approvals. Fields that are not persisted for a record are
 returned as `null` instead of being inferred from fake data.
 Older or shared `tool_call_requested` records without a persisted runtime mode
 therefore return `mode = null`.
+
+Service Actors:
+
+- `GET /service-actors`
+- `GET /service-actors/{service_actor_id}`
+- `GET /service-actors/{service_actor_id}/api-keys`
+- `GET /service-actors/{service_actor_id}/scopes`
+- `GET /service-actors/{service_actor_id}/scope-rules`
+
+Service Actor registry admin read APIs are available only when
+`AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`. API key responses include safe key
+metadata such as key ID and status, not plaintext key material.
 
 Inventory:
 
@@ -385,7 +404,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Team membership or organization-unit ownership resolution.
 - DB-backed service actor registry auth is available behind a disabled feature
   flag, with internal hashed-key and scope/rule config seeding helpers. Admin
-  workflows and public registry APIs are not complete.
+  read APIs exist, but mutating admin workflows are not complete.
 - API key rotation implementation and persistent API key management.
 - Owner-based service actor restrictions.
 - Team or organization-unit based Evidence Bundle access checks.
@@ -398,6 +417,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Evidence Bundle PDF/download/signature actions in the UI.
 - Human approval notifications.
 - Production SDKs or framework adapters.
+- Runtime Integration Hub adapter packages or workflow nodes for LangGraph,
+  n8n, Dataiku, MCP, or generic webhook integrations.
 - Docker Compose or production deployment.
 - Policy versioning and review implementation, plus Runtime Gateway telemetry
   mode on the runtime decision endpoint.
@@ -434,8 +455,10 @@ Near-term recommended work:
 13. Implement service actor registry admin management workflow.
 14. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-15. Add deeper separation-of-duties checks for HumanApproval review.
-16. Add broad filtering and pagination for Runtime and Agent activity only
+15. Turn Integration Hub guidance into focused adapter packages only after
+    stronger auth, caller enforcement, and packaging boundaries are designed.
+16. Add deeper separation-of-duties checks for HumanApproval review.
+17. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

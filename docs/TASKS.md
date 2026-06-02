@@ -99,7 +99,10 @@ Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
 and Runtime activity pages, a Human Approvals page with pending review actions,
 and a read-only Evidence Bundle page backed by
-`GET /agents/{agent_id}/evidence-bundle`, but no login/auth UI, no role-aware
+`GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
+that explains Custom Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and
+generic webhook/API connection patterns without making AGCP execute tools or
+replace orchestrators, but no login/auth UI, no role-aware
 frontend behavior, no Agent edit form, no dedicated inventory or
 PolicyCheckStep management UI, no broad activity filtering or pagination, and
 no Evidence Bundle PDF/download/signature actions.
@@ -163,6 +166,8 @@ Recommended order:
 15. Add deeper separation-of-duties checks for HumanApproval review.
 16. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
+17. Turn Integration Hub guidance into focused adapter packages only after
+    stronger auth, caller enforcement, and packaging boundaries are designed.
 
 ## Backlog
 
@@ -188,6 +193,8 @@ Recommended order:
 - [ ] Add frontend auth and role-aware UI.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
+- [ ] Turn Integration Hub guidance into focused adapter packages only after
+      stronger auth, caller enforcement, and packaging boundaries are designed.
 - [ ] Use Access Grants as optional policy context without replacing
       PolicyDecision records.
 - [ ] Implement Permission domain model only if AccessGrant target semantics
@@ -347,6 +354,7 @@ credentials.
 - [x] Add Agent activity/timeline frontend section.
 - [x] Add HumanApproval review actions UI for pending approvals.
 - [x] Validate HumanApproval review actions frontend behavior.
+- [x] Add Integration Hub product surface for runtime connection patterns.
 - [x] Add successful Evidence Bundle export audit event.
 - [x] Add denied Evidence Bundle export audit event for known Agents.
 - [x] Add direct user owner access for Evidence Bundle export.

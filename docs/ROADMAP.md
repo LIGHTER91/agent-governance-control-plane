@@ -38,9 +38,13 @@ Human Approvals page with pending review actions, and an Evidence Bundle page
 backed by the backend Evidence Bundle export API. The Evidence page now loads
 bundles only by manual user action, explains the evidence chain, shows safe
 export warnings and metadata, and downloads the bounded JSON artifact returned
-by the backend. It does not have login, role-aware views, Agent edit forms,
+by the backend. The frontend also has an Integration Hub page for Custom
+Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
+connection guidance, with optional read-only Service Actor registry summary
+metadata when registry admin APIs are enabled. It does not have login,
+role-aware views, Agent edit forms,
 broad activity filtering or pagination, Evidence Bundle PDF/signature actions,
-or enterprise-auth-backed review workflows.
+runtime adapter packages, or enterprise-auth-backed review workflows.
 
 AGCP is now closer to a true governance control plane than a runtime decision
 logger: the backend can register Agents, inventory governed Capabilities,
@@ -74,8 +78,9 @@ and JSON download action, but JSON remains the canonical bounded export. The
 Access & Data workflow and Evidence workflow do not certify legal compliance.
 Full user authentication,
 OIDC/SAML/JWT, team or organization-unit resolution, production service actor
-administration, API key rotation endpoints, notifications, deployment
-hardening, and operational runbooks are still missing.
+administration mutations, API key rotation endpoints, runtime adapter
+packages, notifications, deployment hardening, and operational runbooks are
+still missing.
 
 Contextual runtime governance now has a design path for future decisions that
 need Agent, Action, Source, data classification, ModelAsset, provider,
@@ -336,6 +341,9 @@ Completed foundation:
   auth still reads scopes and rules from environment settings.
 - `AGCP_REQUIRE_SERVICE_AUTH=true` rejects missing service keys on runtime and
   telemetry integration endpoints.
+- Read-only Service Actor registry admin APIs for service actors, key status
+  metadata, scopes, and fine-grained scope rules when the registry feature flag
+  is enabled.
 - Minimal HumanApproval review RBAC for approve, reject, and cancel actions.
 - Minimal Evidence Bundle export RBAC for `auditor`, `platform_admin`, and
   direct user owners.
@@ -359,6 +367,9 @@ Completed foundation:
 - Evidence Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`,
   with manual JSON loading, human-readable evidence chain summary, safe export
   warnings, and bounded JSON download.
+- Integration Hub page for Custom Runtime Gateway API, LangGraph, n8n, Dataiku,
+  MCP, and generic webhook/API connection guidance, with clear copy that AGCP
+  governs decisions and evidence but does not execute tools.
 - Agent-scoped Access Grant reads through `GET /agents/{agent_id}/access-grants`,
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
@@ -474,6 +485,9 @@ Planned capabilities:
 - Agent Governance Profile frontend UI. Completed.
 - Policy management UI. Completed for Policy lifecycle and constrained
   PolicyRule condition editing.
+- Integration Hub page. Completed as a frontend product surface for runtime
+  connection patterns, Service Actor expectations, setup snippets, and
+  non-orchestrator boundaries.
 - Policy versioning and review UI after the backend version lifecycle exists.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
@@ -501,6 +515,8 @@ Planned capabilities:
 - Policy versioning and rule change review workflow hardening.
 - LangGraph integration package only if requested after the spike is proven.
 - Additional runtime/framework integrations.
+- Integration Hub follow-through into adapter packages only after stronger auth,
+  caller enforcement responsibilities, and packaging boundaries are designed.
 - Compliance framework mapping support for evidence workflows, without claiming
   automatic compliance.
 
@@ -513,6 +529,6 @@ and the Agent Governance Profile. It is not ready for production enforcement:
 config-based auth remains the default, registry-backed service actor auth is
 feature-flagged, HumanApproval and Evidence Bundle RBAC are minimal, user
 authentication does not exist, Access Grants are not enforced in runtime policy
-evaluation, API key rotation is design-only, several management surfaces are
-backend-only, and deployment, observability, and operational controls are still
-missing.
+evaluation, API key rotation is design-only, Integration Hub is guidance rather
+than adapter packaging, several management surfaces are backend-only, and
+deployment, observability, and operational controls are still missing.
