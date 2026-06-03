@@ -99,27 +99,49 @@ $env:AGCP_SERVICE_ACTOR_SCOPE_RULES = '{"service:langgraph-local":{"environments
 uv run uvicorn agent_governance_api.main:app --reload
 ```
 
-In another shell, provide an existing local Agent ID and run the validation. The
-API key is read from the environment and is never printed by the script:
+In another shell, seed bounded local demo records through the local AGCP API.
+Dry-run is the default and writes nothing:
+
+```powershell
+cd apps/api
+uv run python examples/langgraph_helper/seed_demo_data.py
+```
+
+Apply mode creates or updates only these local demo records:
+
+- one Agent named `Local demo LangGraph helper agent`;
+- one active Policy named `Local demo LangGraph helper policy`;
+- three PolicyRules for `langgraph_helper_allow`, `langgraph_helper_deny`, and
+  `langgraph_helper_review`.
+
+```powershell
+uv run python examples/langgraph_helper/seed_demo_data.py --apply
+```
+
+The seed output prints `AGCP_LANGGRAPH_HELPER_AGENT_ID` and a fresh
+`AGCP_LANGGRAPH_HELPER_RUN_ID` to use for live validation. It does not create,
+store, or print API keys.
+
+Then run the live validation. The API key is read from the environment and is
+never printed by the script:
 
 ```powershell
 cd apps/api
 $env:AGCP_SERVICE_ACTOR_API_KEY = "<same-local-random-secret>"
-$env:AGCP_LANGGRAPH_HELPER_AGENT_ID = "<existing-agent-uuid>"
-$env:AGCP_LANGGRAPH_HELPER_RUN_ID = "<new-or-existing-run-uuid>"
+$env:AGCP_LANGGRAPH_HELPER_AGENT_ID = "<agent-uuid-from-seed-output>"
+$env:AGCP_LANGGRAPH_HELPER_RUN_ID = "<run-uuid-from-seed-output>"
 $env:AGCP_LANGGRAPH_HELPER_BASE_URL = "http://127.0.0.1:8000"
 $env:AGCP_LANGGRAPH_HELPER_MODE = "simulation"
-uv run python examples/langgraph_helper/validate_local_gateway.py --live
-```
-
-Live output reports the actual decisions from your local policies. To validate
-specific allow, deny, or human-review outcomes, configure local PolicyRules for
-the tool names `langgraph_helper_allow`, `langgraph_helper_deny`, and
-`langgraph_helper_review`, then run:
-
-```powershell
 uv run python examples/langgraph_helper/validate_local_gateway.py --live --scenarios allow,deny,review
 ```
+
+Live output reports the actual decisions from your local policies:
+
+- `langgraph_helper_allow` should return `allow` and execute the caller-owned
+  fake tool.
+- `langgraph_helper_deny` should return `deny` and not execute the fake tool.
+- `langgraph_helper_review` should return `require_human_review` and not
+  execute the fake tool.
 
 Live resume validation is skipped unless you provide IDs from a real
 HumanApproval flow:
@@ -134,6 +156,10 @@ $env:AGCP_LANGGRAPH_HELPER_ACTION_REF = "<original-action-ref>"
 uv run python examples/langgraph_helper/validate_local_gateway.py --live
 ```
 
-The script intentionally does not create Agents, Policies, PolicyRules, or
-HumanApprovals. It validates the helper boundary against the local gateway while
-keeping setup and caller-side enforcement explicit.
+The validation script intentionally does not create Agents, Policies,
+PolicyRules, or HumanApprovals. It validates the helper boundary against the
+local gateway while keeping setup and caller-side enforcement explicit.
+
+The seed script intentionally creates only local demo Agent and Policy records.
+It is not production provisioning, it does not create credentials, and it does
+not make AGCP execute tools.
