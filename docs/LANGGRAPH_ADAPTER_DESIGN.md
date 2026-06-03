@@ -494,7 +494,8 @@ action by default.
 - `docs/examples/langgraph_adapter_spike.py` demonstrates a dependency-free
   wrapper spike.
 - `apps/api/examples/langgraph_helper/` contains the dependency-free helper
-  prototype with fake-tool tests and no LangGraph dependency.
+  prototype with fake-tool tests, local Runtime Gateway validation guidance,
+  and no LangGraph dependency.
 - `docs/RUNTIME_GATEWAY_DESIGN.md` describes the Runtime Gateway contract.
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md` describes resume semantics after
   HumanApproval.
@@ -504,7 +505,7 @@ action by default.
 
 ## Recommended Follow-up Issue
 
-Validate the helper against a local Runtime Gateway with Service Actor auth
-enabled, then decide whether a production LangGraph adapter package is needed.
-That follow-up should define failure policy defaults, packaging boundaries, and
-LangGraph-specific state integration before adding any LangGraph dependency.
+Decide whether a production LangGraph adapter package is needed after local
+Runtime Gateway validation with Service Actor auth. That follow-up should define
+failure policy defaults, packaging boundaries, and LangGraph-specific state
+integration before adding any LangGraph dependency.
