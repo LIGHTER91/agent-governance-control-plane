@@ -192,6 +192,66 @@ $env:AGCP_LANGGRAPH_HELPER_ACTION_REF = "<original-action-ref>"
 uv run python examples/langgraph_helper/validate_local_gateway.py --live
 ```
 
+For a local HumanApproval resume demo, first trigger only the review scenario
+and ask the script to print the non-secret resume context:
+
+```powershell
+uv run python examples/langgraph_helper/validate_local_gateway.py --live --scenarios review --resume-guide
+```
+
+The guide prints the original request id, tool name, HumanApproval id,
+PolicyDecision id, action ref, and a proposed resume id. These are local demo
+identifiers, not credentials, but do not paste real local output into committed
+docs or tickets.
+
+Next, approve the HumanApproval through an existing backend, UI, or API flow
+that uses a reviewer or platform_admin actor. The Runtime Gateway service
+actor API key is intentionally not a reviewer credential. If your local API is
+not configured with a reviewer/platform_admin approval path, this approval step
+remains manual setup and the resume check will continue to pause instead of
+returning `proceed=true`.
+
+After approval, keep the printed resume env vars in the shell and run only the
+resume check:
+
+```powershell
+uv run python examples/langgraph_helper/validate_local_gateway.py --live --resume-only
+```
+
+Expected approved resume output:
+
+```text
+resume=live decision=allow proceed=true branch=allowed human_approval_status=approved
+Resume helper did not execute a tool; caller-owned code must execute only after branch=allowed.
+```
+
+If the HumanApproval is still pending, rejected, cancelled, or expired, the
+resume endpoint returns a non-allowed branch and the caller must keep the local
+tool paused or stopped.
+
+### Known-good resume transcript shape
+
+This is the redacted shape of the local resume path after the review
+HumanApproval is approved. It is a demo transcript, not production adapter
+certification.
+
+```text
+LangGraph helper local validation (live)
+scenario=review decision=require_human_review proceed=false branch=requires_review tool_executed=false policy_decision_id=<review-policy-decision-id> human_approval_id=<human-approval-id>
+Resume validation setup for the review decision:
+Approve the HumanApproval through an existing reviewer/platform_admin backend or UI flow, then set these non-secret local env vars:
+$env:AGCP_LANGGRAPH_HELPER_RESUME_ID = "<resume-id>"
+$env:AGCP_LANGGRAPH_HELPER_ORIGINAL_REQUEST_ID = "<original-request-id>"
+$env:AGCP_LANGGRAPH_HELPER_RESUME_TOOL_NAME = "langgraph_helper_review"
+$env:AGCP_LANGGRAPH_HELPER_HUMAN_APPROVAL_ID = "<human-approval-id>"
+$env:AGCP_LANGGRAPH_HELPER_POLICY_DECISION_ID = "<review-policy-decision-id>"
+$env:AGCP_LANGGRAPH_HELPER_ACTION_REF = "local-validation-review"
+uv run python examples/langgraph_helper/validate_local_gateway.py --live --resume-only
+
+resume=live decision=allow proceed=true branch=allowed human_approval_status=approved
+Resume helper did not execute a tool; caller-owned code must execute only after branch=allowed.
+```
+
 The validation script intentionally does not create Agents, Policies,
 PolicyRules, or HumanApprovals. It validates the helper boundary against the
 local gateway while keeping setup and caller-side enforcement explicit.

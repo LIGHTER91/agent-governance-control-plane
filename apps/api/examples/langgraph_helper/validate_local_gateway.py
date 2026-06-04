@@ -38,6 +38,14 @@ SCENARIO_DECISIONS = {
     "deny": ("deny", False, None),
     "review": ("require_human_review", False, DEFAULT_HUMAN_APPROVAL_ID),
 }
+LIVE_RESUME_ENV_NAMES = (
+    "AGCP_LANGGRAPH_HELPER_RESUME_ID",
+    "AGCP_LANGGRAPH_HELPER_ORIGINAL_REQUEST_ID",
+    "AGCP_LANGGRAPH_HELPER_RESUME_TOOL_NAME",
+    "AGCP_LANGGRAPH_HELPER_HUMAN_APPROVAL_ID",
+    "AGCP_LANGGRAPH_HELPER_POLICY_DECISION_ID",
+    "AGCP_LANGGRAPH_HELPER_ACTION_REF",
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +66,9 @@ class ValidationConfig:
 @dataclass(frozen=True)
 class ScenarioRecord:
     scenario: str
+    request_id: str
+    tool_name: str
+    action_ref: str
     decision: str
     proceed: bool
     branch: str
@@ -108,8 +119,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
+            if args.resume_only:
+                resume_record = maybe_run_live_resume_validation(os.environ, config)
+                if resume_record is None:
+                    _print_missing_resume_env_message()
+                    return 2
+                _print_resume_record(resume_record, live=True)
+                _print_resume_caller_boundary()
+                return 0
+
             records = run_live_decision_validation(config)
             _print_records(records, live=True)
+            if args.resume_guide:
+                _print_resume_guide(records)
             resume_record = maybe_run_live_resume_validation(os.environ, config)
             if resume_record is None:
                 print(
@@ -118,11 +140,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             else:
                 _print_resume_record(resume_record, live=True)
+                _print_resume_caller_boundary()
             return 0
 
         records, resume_record = run_dry_run_validation(config)
         _print_records(records, live=False)
+        if args.resume_guide:
+            _print_resume_guide(records)
         _print_resume_record(resume_record, live=False)
+        _print_resume_caller_boundary()
         return 0
     except AGCPHelperError as exc:
         print(f"Validation failed: {exc}", file=sys.stderr)
@@ -187,15 +213,7 @@ def maybe_run_live_resume_validation(
     environ: Mapping[str, str],
     config: ValidationConfig,
 ) -> ResumeRecord | None:
-    required_names = (
-        "AGCP_LANGGRAPH_HELPER_RESUME_ID",
-        "AGCP_LANGGRAPH_HELPER_ORIGINAL_REQUEST_ID",
-        "AGCP_LANGGRAPH_HELPER_RESUME_TOOL_NAME",
-        "AGCP_LANGGRAPH_HELPER_HUMAN_APPROVAL_ID",
-        "AGCP_LANGGRAPH_HELPER_POLICY_DECISION_ID",
-        "AGCP_LANGGRAPH_HELPER_ACTION_REF",
-    )
-    if any(not environ.get(name) for name in required_names):
+    if any(not environ.get(name) for name in LIVE_RESUME_ENV_NAMES):
         return None
 
     client = AGCPClient(
@@ -228,6 +246,9 @@ def _run_scenario(
     scenario: str,
 ) -> ScenarioRecord:
     tool_calls: list[str] = []
+    request_id = _request_id(scenario)
+    tool_name = f"langgraph_helper_{scenario}"
+    action_ref = f"local-validation-{scenario}"
 
     def fake_tool(action_ref: str) -> dict[str, str]:
         tool_calls.append(action_ref)
@@ -238,9 +259,9 @@ def _run_scenario(
         tool=fake_tool,
         agent_id=config.agent_id,
         run_id=config.run_id,
-        request_id=_request_id(scenario),
+        request_id=request_id,
         correlation_id="langgraph-helper-local-validation",
-        tool_name=f"langgraph_helper_{scenario}",
+        tool_name=tool_name,
         action_summary=f"Validate local LangGraph helper {scenario} scenario.",
         mode=config.mode,
         action_type="local_validation",
@@ -248,10 +269,13 @@ def _run_scenario(
         environment="development",
         risk_level="low",
         metadata={"langgraph_node": "local_validation"},
-        tool_args=(f"local-validation-{scenario}",),
+        tool_args=(action_ref,),
     )
     return _scenario_record(
         scenario=scenario,
+        request_id=request_id,
+        tool_name=tool_name,
+        action_ref=action_ref,
         result=result,
         tool_call_count=len(tool_calls),
     )
@@ -260,6 +284,9 @@ def _run_scenario(
 def _scenario_record(
     *,
     scenario: str,
+    request_id: str,
+    tool_name: str,
+    action_ref: str,
     result: GovernedToolResult,
     tool_call_count: int,
 ) -> ScenarioRecord:
@@ -272,6 +299,9 @@ def _scenario_record(
 
     return ScenarioRecord(
         scenario=scenario,
+        request_id=request_id,
+        tool_name=tool_name,
+        action_ref=action_ref,
         decision=result.decision.decision,
         proceed=result.decision.proceed,
         branch=result.branch,
@@ -350,6 +380,38 @@ def _parse_scenarios(raw_value: str) -> tuple[str, ...]:
     return scenarios or ("allow", "deny", "review")
 
 
+def _resume_env_lines(record: ScenarioRecord) -> tuple[str, ...]:
+    if record.branch != "requires_review":
+        raise AGCPHelperError("Resume guide requires a require_human_review record.")
+    if record.human_approval_id is None or record.policy_decision_id is None:
+        raise AGCPHelperError("Review record did not include resume identifiers.")
+
+    resume_id = f"{record.request_id}:resume:001"
+    return (
+        f'$env:AGCP_LANGGRAPH_HELPER_RESUME_ID = "{resume_id}"',
+        f'$env:AGCP_LANGGRAPH_HELPER_ORIGINAL_REQUEST_ID = "{record.request_id}"',
+        f'$env:AGCP_LANGGRAPH_HELPER_RESUME_TOOL_NAME = "{record.tool_name}"',
+        (
+            "$env:AGCP_LANGGRAPH_HELPER_HUMAN_APPROVAL_ID = "
+            f'"{record.human_approval_id}"'
+        ),
+        (
+            "$env:AGCP_LANGGRAPH_HELPER_POLICY_DECISION_ID = "
+            f'"{record.policy_decision_id}"'
+        ),
+        f'$env:AGCP_LANGGRAPH_HELPER_ACTION_REF = "{record.action_ref}"',
+    )
+
+
+def _review_record_for_resume_guide(
+    records: Sequence[ScenarioRecord],
+) -> ScenarioRecord | None:
+    for record in records:
+        if record.branch == "requires_review":
+            return record
+    return None
+
+
 def _print_records(records: Sequence[ScenarioRecord], *, live: bool) -> None:
     mode_label = "live" if live else "dry-run"
     print(f"LangGraph helper local validation ({mode_label})")
@@ -365,6 +427,28 @@ def _print_records(records: Sequence[ScenarioRecord], *, live: bool) -> None:
         )
 
 
+def _print_resume_guide(records: Sequence[ScenarioRecord]) -> None:
+    review_record = _review_record_for_resume_guide(records)
+    if review_record is None:
+        print(
+            "Resume guide skipped; include the review scenario to create a "
+            "HumanApproval resume context."
+        )
+        return
+
+    print("Resume validation setup for the review decision:")
+    print(
+        "Approve the HumanApproval through an existing reviewer/platform_admin "
+        "backend or UI flow, then set these non-secret local env vars:"
+    )
+    for line in _resume_env_lines(review_record):
+        print(line)
+    print(
+        "uv run python examples/langgraph_helper/validate_local_gateway.py "
+        "--live --resume-only"
+    )
+
+
 def _print_resume_record(record: ResumeRecord, *, live: bool) -> None:
     mode_label = "live" if live else "dry-run"
     proceed = str(record.proceed).lower()
@@ -372,6 +456,21 @@ def _print_resume_record(record: ResumeRecord, *, live: bool) -> None:
         f"resume={mode_label} decision={record.decision} proceed={proceed} "
         f"branch={record.branch} "
         f"human_approval_status={record.human_approval_status}"
+    )
+
+
+def _print_resume_caller_boundary() -> None:
+    print(
+        "Resume helper did not execute a tool; caller-owned code must execute "
+        "only after branch=allowed."
+    )
+
+
+def _print_missing_resume_env_message() -> None:
+    print(
+        "Live resume validation requires resume env vars from a review decision. "
+        "Run with --live --scenarios review --resume-guide first.",
+        file=sys.stderr,
     )
 
 
@@ -391,6 +490,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--scenarios",
         default="allow,deny,review",
         help="Comma-separated scenarios to run: allow, deny, review.",
+    )
+    parser.add_argument(
+        "--resume-guide",
+        action="store_true",
+        help=(
+            "Print non-secret env vars for resuming a review decision after a "
+            "HumanApproval is approved."
+        ),
+    )
+    parser.add_argument(
+        "--resume-only",
+        action="store_true",
+        help="Skip decision scenarios and call the resume endpoint using env vars.",
     )
     return parser
 

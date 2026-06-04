@@ -82,6 +82,26 @@ def test_main_dry_run_does_not_print_api_key(monkeypatch, capsys) -> None:
     assert "test-service-actor-key" not in captured.err
 
 
+def test_main_dry_run_resume_guide_prints_non_secret_resume_env(
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_API_KEY", "test-service-actor-key")
+
+    exit_code = validation.main(["--scenarios", "review", "--resume-guide"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Resume validation setup for the review decision:" in captured.out
+    assert "AGCP_LANGGRAPH_HELPER_RESUME_ID" in captured.out
+    assert "AGCP_LANGGRAPH_HELPER_ORIGINAL_REQUEST_ID" in captured.out
+    assert "AGCP_LANGGRAPH_HELPER_HUMAN_APPROVAL_ID" in captured.out
+    assert "AGCP_LANGGRAPH_HELPER_POLICY_DECISION_ID" in captured.out
+    assert "AGCP_SERVICE_ACTOR_API_KEY" not in captured.out
+    assert "test-service-actor-key" not in captured.out
+    assert "test-service-actor-key" not in captured.err
+
+
 def test_main_live_requires_api_key_without_printing_secret(
     monkeypatch, capsys
 ) -> None:
@@ -93,6 +113,23 @@ def test_main_live_requires_api_key_without_printing_secret(
     assert exit_code == 2
     assert "requires AGCP_SERVICE_ACTOR_API_KEY" in captured.err
     assert "X-AGCP-API-Key" not in captured.err
+
+
+def test_main_live_resume_only_requires_resume_env_without_printing_secret(
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setenv("AGCP_SERVICE_ACTOR_API_KEY", "test-service-actor-key")
+    for name in validation.LIVE_RESUME_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+
+    exit_code = validation.main(["--live", "--resume-only"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "requires resume env vars" in captured.err
+    assert "test-service-actor-key" not in captured.out
+    assert "test-service-actor-key" not in captured.err
 
 
 def test_load_config_uses_environment_without_defaulting_to_live_secrets(
