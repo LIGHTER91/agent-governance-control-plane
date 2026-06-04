@@ -89,13 +89,18 @@ cd apps/api
 $env:AGCP_RUNTIME_ENFORCEMENT_ENABLED = "true"
 $env:AGCP_REQUIRE_SERVICE_AUTH = "true"
 $env:AGCP_SERVICE_ACTOR_API_KEY = "<set-a-local-random-secret>"
-$digestBytes = [System.Security.Cryptography.SHA256]::HashData(
-  [System.Text.Encoding]::UTF8.GetBytes($env:AGCP_SERVICE_ACTOR_API_KEY)
-)
+$sha = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $digestBytes = $sha.ComputeHash(
+    [System.Text.Encoding]::UTF8.GetBytes($env:AGCP_SERVICE_ACTOR_API_KEY)
+  )
+} finally {
+  $sha.Dispose()
+}
 $digest = [System.BitConverter]::ToString($digestBytes).Replace("-", "").ToLower()
 $env:AGCP_SERVICE_ACTOR_API_KEYS = "service:langgraph-local=sha256:$digest"
 $env:AGCP_SERVICE_ACTOR_SCOPES = "service:langgraph-local=runtime:decision,runtime:resume"
-$env:AGCP_SERVICE_ACTOR_SCOPE_RULES = '{"service:langgraph-local":{"environments":["development"],"runtime_modes":["simulation","enforcement"],"tool_names":["*"]}}'
+$env:AGCP_SERVICE_ACTOR_SCOPE_RULES = '{"service:langgraph-local":{"agent_ids":["*"],"environments":["development"],"runtime_modes":["simulation","enforcement"],"tool_names":["*"]}}'
 uv run uvicorn agent_governance_api.main:app --reload
 ```
 
@@ -142,6 +147,37 @@ Live output reports the actual decisions from your local policies:
 - `langgraph_helper_deny` should return `deny` and not execute the fake tool.
 - `langgraph_helper_review` should return `require_human_review` and not
   execute the fake tool.
+
+### Known-good local transcript
+
+This transcript was captured from a local, throwaway AGCP API run. IDs are
+redacted, and the Service Actor API key was supplied through the environment
+and was never printed.
+
+```text
+LangGraph helper demo seed applied
+base_url=http://127.0.0.1:8000
+agent=Local demo LangGraph helper agent id=<agent-id> status=created
+policy=Local demo LangGraph helper policy id=<policy-id> status=created
+policy_rule=Local demo LangGraph helper allow rule id=<allow-rule-id> status=created
+policy_rule=Local demo LangGraph helper deny rule id=<deny-rule-id> status=created
+policy_rule=Local demo LangGraph helper review rule id=<review-rule-id> status=created
+Use these values for live validation:
+$env:AGCP_LANGGRAPH_HELPER_AGENT_ID = "<agent-id>"
+$env:AGCP_LANGGRAPH_HELPER_RUN_ID = "<run-id>"
+$env:AGCP_LANGGRAPH_HELPER_MODE = "simulation"
+uv run python examples/langgraph_helper/validate_local_gateway.py --live --scenarios allow,deny,review
+
+LangGraph helper local validation (live)
+scenario=allow decision=allow proceed=true branch=allowed tool_executed=true policy_decision_id=<allow-policy-decision-id> human_approval_id=None
+scenario=deny decision=deny proceed=false branch=denied tool_executed=false policy_decision_id=<deny-policy-decision-id> human_approval_id=None
+scenario=review decision=require_human_review proceed=false branch=requires_review tool_executed=false policy_decision_id=<review-policy-decision-id> human_approval_id=<human-approval-id>
+Live resume validation skipped; set resume env vars after creating and approving a HumanApproval.
+```
+
+The transcript proves the integration boundary: AGCP returns the decision and
+records governance evidence, while the caller-owned fake tool runs only when
+`proceed=true`.
 
 Live resume validation is skipped unless you provide IDs from a real
 HumanApproval flow:
