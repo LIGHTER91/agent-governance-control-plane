@@ -342,6 +342,62 @@ from `apps/api`. After startup, `GET /health` should return:
 {"status":"ok","service":"Agent Governance Control Plane API","environment":"development"}
 ```
 
+Run a local full-stack demo with real backend data:
+
+```powershell
+# 1. From the repository root, start local PostgreSQL 16.
+docker compose -f docker-compose.dev.yml up -d postgres
+
+# 2. Configure the API to use the local Docker database.
+cd apps/api
+$env:AGCP_DATABASE_URL = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
+
+# 3. Apply migrations.
+uv run alembic upgrade head
+
+# 4. Seed safe local demo records.
+uv run python scripts/seed_full_stack_demo.py --apply
+
+# 5. Start the backend and leave it running in this terminal.
+uv run uvicorn --app-dir src agent_governance_api.main:app --reload
+
+# 6. In a second terminal from the repository root, start the frontend.
+cd apps/web
+npm install
+npm run dev
+
+# 7. Open the real backend-backed Agent list.
+# http://localhost:3000/agents
+```
+
+On bash-like shells, use `export AGCP_DATABASE_URL="..."` instead of the
+PowerShell `$env:` assignment. The Compose password is a local development
+credential only and is not production configuration.
+
+The seed command creates local-only demo records for one Agent, one active
+Policy and PolicyRule, one runtime TraceEvent, one PolicyDecision, one pending
+HumanApproval, and related AuditLogs. It does not create secrets, raw prompts,
+source contents, credentials, or personal data. The frontend pages keep calling
+the backend; no demo data is hardcoded in the web app.
+
+Troubleshooting:
+
+- `ModuleNotFoundError: agent_governance_api`: run uvicorn from `apps/api` with
+  `uv run uvicorn --app-dir src agent_governance_api.main:app --reload`.
+- Docker not running: start Docker Desktop, then rerun
+  `docker compose -f docker-compose.dev.yml up -d postgres`.
+- Port `5432` already in use: stop the existing local PostgreSQL process, or
+  change the host port in `docker-compose.dev.yml` and update
+  `AGCP_DATABASE_URL` to match.
+- Alembic connection timeout: check
+  `docker compose -f docker-compose.dev.yml ps`, confirm the database is
+  healthy, and verify `AGCP_DATABASE_URL` includes `postgres:postgres`.
+- CORS or browser proxy errors: keep the web app on `http://localhost:3000` or
+  add its origin to `AGCP_CORS_ALLOWED_ORIGINS`.
+- Empty Agent, Activity, HumanApproval, or Evidence pages: run
+  `uv run python scripts/seed_full_stack_demo.py --apply` against the same DB
+  used by the backend, then refresh `/agents`.
+
 Run backend tests:
 
 ```bash

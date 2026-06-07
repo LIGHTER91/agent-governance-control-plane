@@ -23,6 +23,73 @@ The API uses a `src` layout, so `--app-dir src` is required when running from
 {"status":"ok","service":"Agent Governance Control Plane API","environment":"development"}
 ```
 
+Local browser requests from the web dashboard are allowed for
+`http://localhost:3000` and `http://127.0.0.1:3000` by default. Override the
+comma-separated allowlist with `AGCP_CORS_ALLOWED_ORIGINS` when the frontend
+runs from another origin:
+
+```powershell
+$env:AGCP_CORS_ALLOWED_ORIGINS = "http://localhost:3000,http://127.0.0.1:3001"
+```
+
+Start local development PostgreSQL from the repository root:
+
+```powershell
+docker compose -f docker-compose.dev.yml up -d postgres
+```
+
+Configure the API shell to use that local database:
+
+```powershell
+$env:AGCP_DATABASE_URL = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
+```
+
+The Compose database uses the same local database name, user, password, and
+PostgreSQL 16 image as CI. The `postgres` password is for local development
+only and is not production deployment guidance.
+
+Run database migrations:
+
+```bash
+uv run alembic upgrade head
+```
+
+Seed local full-stack demo data:
+
+```bash
+uv run python scripts/seed_full_stack_demo.py --apply
+```
+
+Without `--apply`, the seed command is a dry run. The applied seed creates
+local-only records for one Agent, one active Policy and PolicyRule, one
+AgentRunRecord, one TraceEventRecord, one PolicyDecision, one pending
+HumanApproval, and related AuditLogs. This gives the frontend real backend data
+for the Agent list, Agent detail page, Human Approvals page, Activity timeline,
+and Evidence Bundle page. The seed is deterministic and safe to rerun; existing
+demo records are reused by ID.
+
+The demo seed does not create secrets, API keys, credentials, raw prompts, raw
+source contents, raw runtime payloads, or personal data. It is local/dev data
+only and is not production provisioning.
+
+Troubleshooting:
+
+- `ModuleNotFoundError: agent_governance_api`: include `--app-dir src` in the
+  uvicorn command when running from `apps/api`.
+- Docker not running: start Docker Desktop, then rerun
+  `docker compose -f docker-compose.dev.yml up -d postgres` from the repository
+  root.
+- Port `5432` already in use: stop the existing local PostgreSQL service, or
+  change the Compose host port and update `AGCP_DATABASE_URL` to match.
+- Alembic connection timeout: verify
+  `docker compose -f docker-compose.dev.yml ps` shows a healthy `postgres`
+  service and confirm `AGCP_DATABASE_URL` includes `postgres:postgres`.
+- Empty frontend views: rerun
+  `uv run python scripts/seed_full_stack_demo.py --apply` against the backend
+  database and refresh `/agents`.
+- Browser CORS errors: keep the frontend on the default local origins or update
+  `AGCP_CORS_ALLOWED_ORIGINS`.
+
 Run tests:
 
 ```bash
@@ -353,24 +420,26 @@ Suggested rollout:
 
 ## Database migrations
 
-Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`.
+Set the PostgreSQL connection URL with `AGCP_DATABASE_URL`. For the local
+Docker Compose database, include the local `postgres` password.
 
 PowerShell example:
-
-```powershell
-$env:AGCP_DATABASE_URL = "postgresql+psycopg://postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
-```
-
-If your local PostgreSQL requires a password, include it in the URL:
 
 ```powershell
 $env:AGCP_DATABASE_URL = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
 ```
 
+If you run a separate local PostgreSQL without a password, omit the password
+portion:
+
+```powershell
+$env:AGCP_DATABASE_URL = "postgresql+psycopg://postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
+```
+
 Bash example:
 
 ```bash
-export AGCP_DATABASE_URL="postgresql+psycopg://postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
+export AGCP_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5432/agent_governance_control_plane?connect_timeout=5"
 ```
 
 Run migrations:
