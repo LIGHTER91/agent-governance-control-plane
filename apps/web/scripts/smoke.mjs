@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+﻿import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +40,21 @@ const files = [
 const source = (
   await Promise.all(files.map((file) => readFile(join(root, file), "utf8")))
 ).join("\n");
+
+const studioFiles = [
+  "app/agcp-studio/AGCPStudio.tsx"
+];
+
+const studioEntries = await Promise.all(
+  studioFiles.map(async (file) => ({
+    file,
+    source: await readFile(join(root, file), "utf8")
+  }))
+);
+const studioSource = studioEntries.map((entry) => entry.source).join("\n");
+const agcpStudioSource =
+  studioEntries.find((entry) => entry.file.endsWith("AGCPStudio.tsx"))?.source ??
+  "";
 
 const requiredText = [
   "Agents",
@@ -366,8 +381,140 @@ runAgentGovernanceProfileFixtureSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
 runAccessGrantWorkflowFixtureSmoke();
+runAGCPStudioFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
+
+function runAGCPStudioFixtureSmoke() {
+  const expectedStudioText = [
+    "AGCP",
+    "CONTROL PLANE",
+    "AI Systems",
+    "Policies",
+    "Reviews",
+    "Evidence",
+    "Risk",
+    "Data",
+    "Models",
+    "Vendors",
+    "Monitoring",
+    "Integrations",
+    "Admin",
+    "Save draft",
+    "Run simulation",
+    "Submit review",
+    "Approve",
+    "Reject",
+    "Code DSL",
+    "WHEN",
+    "CHECK",
+    "THEN",
+    "PROVE",
+    "PolicyRule",
+    "PolicyCheckStep",
+    "HumanApproval",
+    "EvidenceBundle",
+    "Review status",
+    "Submit for review",
+    "AGCP decides and records. External runtimes execute.",
+    "Evidence Vault",
+    "Audit Timeline",
+    "Data Governance",
+    "Classification",
+    "Personal data",
+    "Sensitive data",
+    "Allowed Purposes",
+    "Prohibited Purposes",
+    "Review status",
+    "DPIA reference"
+  ];
+
+  const viewCases = [
+    ['case "command"', "CommandView"],
+    ['case "systems"', "AISystemsView"],
+    ['case "policies"', "PolicyStudioView"],
+    ['case "reviews"', "ReviewsView"],
+    ['case "evidence"', "EvidenceView"],
+    ['case "risk"', "RiskView"],
+    ['case "data"', "DataView"],
+    ['case "models"', "ModelsView"],
+    ['case "vendors"', "VendorsView"],
+    ['case "monitoring"', "MonitoringView"],
+    ['case "integrations"', "IntegrationsView"],
+    ['case "admin"', "AdminView"]
+  ];
+
+  const expectedPolicyDslPieces = [
+    "policy external_action_control",
+    "production_systems",
+    "system.environment",
+    '"production"',
+    "action.risk",
+    '"high"',
+    '"critical"',
+    "target.boundary",
+    '"external"',
+    "access_grant.status",
+    '"active"',
+    "target.approval",
+    '"approved"',
+    "require_review",
+    '"governance"',
+    "prove",
+    "decision",
+    "checks",
+    "reviewer",
+    "evidence_bundle"
+  ];
+
+  for (const text of expectedStudioText) {
+    if (!studioSource.includes(text)) {
+      throw new Error(`AGCP Studio fixture missing: ${text}`);
+    }
+  }
+
+  for (const text of expectedPolicyDslPieces) {
+    if (!studioSource.includes(text)) {
+      throw new Error(`Controlled Policy Studio DSL missing: ${text}`);
+    }
+  }
+
+  for (const [caseText, componentName] of viewCases) {
+    if (!agcpStudioSource.includes(caseText)) {
+      throw new Error(`Missing AGCP Studio view case: ${caseText}`);
+    }
+
+    if (!agcpStudioSource.includes(`<${componentName} />`)) {
+      throw new Error(`Missing AGCP Studio view render: ${componentName}`);
+    }
+  }
+
+  for (const action of ["Save draft", "Run simulation", "Submit for review"]) {
+    if (!studioSource.includes(action)) {
+      throw new Error(`Policy Studio missing review-safe action: ${action}`);
+    }
+  }
+
+  for (const text of [
+    "mockup",
+    "frontend",
+    "final product",
+    "roadmap",
+    "advanced module",
+    "compliance score",
+    "AI Act compliant",
+    "ISO 42001 certified",
+    "fully compliant",
+    "production-ready",
+    "Publish"
+  ]) {
+    const haystack = text === "Publish" ? studioSource : studioSource.toLowerCase();
+    const needle = text === "Publish" ? text : text.toLowerCase();
+    if (haystack.includes(needle)) {
+      throw new Error(`Forbidden AGCP Studio text found: ${text}`);
+    }
+  }
+}
 
 function runActivityTimelineFixtureSmoke() {
   const traceEventId = "11111111-1111-4111-8111-111111111111";
