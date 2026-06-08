@@ -33,6 +33,9 @@ Still unresolved:
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
 
+Active PolicyVersion rollout details for #68 are tracked in
+`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`.
+
 AGCP remains a governance and evidence control plane. It is not an
 orchestrator, workflow engine, enterprise GRC suite, policy simulation engine,
 or legal compliance certification system.
@@ -281,10 +284,11 @@ Evidence should not expose raw prompts, source contents, credentials, runtime
 payloads, or unsafe snapshot metadata. It should not become a full policy diff
 viewer.
 
-Telemetry migration remains a #68 concern. Runtime Gateway can reference
-PolicyVersion snapshots today, but telemetry and historical PolicyDecision
-records need a migration/backfill plan before active-version telemetry can be
-treated as complete.
+Telemetry migration remains a #68 concern and is detailed in
+`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`. Runtime Gateway can reference
+PolicyVersion snapshots today, but telemetry decisions still use the
+unversioned path and historical PolicyDecision records remain nullable unless a
+future explicit backfill task is designed.
 
 ## Non-goals
 
@@ -313,9 +317,9 @@ Recommended next sequence:
 3. Use this refreshed #56 design to narrow review workflow work around
    draft-version semantics, Submit for review, approval, activation, and
    rollback-copy.
-4. Complete #68 before exposing activation or Publish semantics:
-   active-version rollout validation, telemetry migration, historical backfill,
-   and single-active-version guardrails must be clear.
+4. Complete #68 follow-ups before exposing activation or Publish semantics:
+   telemetry must use the same active-version loader, historical backfill must
+   be decided, and single-active-version guardrails must be hardened.
 5. Implement a backend Policy Review Workflow only after #56 and #68 decisions
    are settled.
 6. Wire Policy Studio Submit for review to the backend review lifecycle.
@@ -361,8 +365,9 @@ Still unresolved:
 - Submit for review is not wired;
 - formal review request object semantics are undecided;
 - DSL source storage/versioning is undecided;
-- telemetry migration and historical backfill remain #68 work;
-- single-active-version hardening remains #68 work;
+- telemetry migration and historical backfill remain #68 implementation
+  follow-ups;
+- single-active-version hardening remains a #68 implementation follow-up;
 - no review inbox, diff UI, reviewer assignment, or role-aware policy review
   workflow exists.
 

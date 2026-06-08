@@ -91,7 +91,13 @@ Runtime Gateway now evaluates active PolicyVersion snapshots where available,
 including versioned PolicyRule conditions and versioned PolicyCheckStep
 snapshots for metadata pre-check selection, while preserving unversioned
 fallback for Policies without an active PolicyVersion. Telemetry policy
-evaluation remains on the existing unversioned path.
+evaluation remains on the existing unversioned path. The active PolicyVersion
+rollout and telemetry migration plan is documented in
+`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: new Runtime Gateway decisions can
+store `policy_version_id`, telemetry decisions remain unversioned today,
+historical PolicyDecisions remain nullable, and the single-active-version
+invariant still needs a database-level hardening task before activation is
+exposed as product workflow.
 The frontend has a minimal dashboard shell, a read-only Agent list page backed
 by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -136,6 +142,7 @@ References:
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
+- `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
@@ -163,9 +170,10 @@ Recommended order:
 3. Use the refreshed #56 design to narrow the remaining policy review workflow
    contract: draft-version Save draft semantics, review request shape, approval
    versus activation, rollback-copy UX, and frontend Submit for review wiring.
-4. Complete and validate #68 active PolicyVersion rollout, telemetry migration,
-   historical backfill, and single-active-version guidance before activation,
-   Publish, or runtime source-of-truth semantics.
+4. Implement #68 follow-ups from `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`:
+   migrate telemetry to the active-version runtime loader, decide historical
+   PolicyDecision backfill, and add a database-level single-active-version
+   guard before activation, Publish, or runtime source-of-truth semantics.
 5. Then implement backend Policy Review Workflow APIs and wire the frontend
    Submit for review action to those APIs without adding a direct Publish
    button.
@@ -216,8 +224,12 @@ Recommended order:
 - [ ] Implement the narrowed #56 policy review workflow contract:
       draft-version Save draft behavior, review request semantics, explicit
       approval versus activation, and frontend Submit for review wiring.
-- [ ] Harden active PolicyVersion rollout, historical PolicyDecision backfill,
-      telemetry migration, single-active-version guardrails, and operational
+- [ ] Migrate telemetry ingestion to the active-version runtime loader while
+      preserving unversioned fallback, idempotency, and HumanApproval behavior.
+- [ ] Decide whether historical PolicyDecision backfill is needed; if so,
+      implement it as an explicit audited/admin migration path, not automatic
+      runtime behavior.
+- [ ] Add a database-level single-active PolicyVersion guard and cleanup
       guidance before any activation or Publish semantics.
 - [ ] Implement backend Policy Review Workflow APIs after #56 and #68 are
       settled, then wire the frontend Submit for review action.
@@ -420,6 +432,7 @@ credentials.
       governance design.
 - [x] Add Policy Studio issue alignment and roadmap cleanup for #58, #76, #56,
       #68, #57, #74, #61, and #50.
+- [x] Add active PolicyVersion rollout and telemetry migration plan for #68.
 
 ## Blocked
 

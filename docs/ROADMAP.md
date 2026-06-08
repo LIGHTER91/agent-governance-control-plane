@@ -144,9 +144,14 @@ most of the guided authoring goals from #58, while #76 should remain open or
 partial until a formal controlled DSL design document defines grammar,
 operators, storage/versioning, and diff behavior. #56 should now focus on the
 remaining backend review workflow contract rather than broad versioning
-foundation work. Active PolicyVersion rollout planning in #68 must be completed
-before any activation, Publish, telemetry-migration, or single-active-version
-semantics are exposed as product workflow.
+foundation work. Active PolicyVersion rollout planning is documented in
+`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: Runtime Gateway already uses active
+PolicyVersion snapshots with unversioned fallback, telemetry still uses the
+unversioned path, historical PolicyDecisions remain nullable/unversioned, and
+the single-active-version invariant is application-level only. #68
+implementation follow-ups should land before any activation, Publish,
+telemetry-migration, or single-active-version semantics are exposed as product
+workflow.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -428,9 +433,10 @@ Recommended next work:
 - Use the refreshed #56 policy versioning and review guardrails to define
   draft-version Save draft behavior and review request semantics before wiring
   the frontend Submit for review action.
-- Harden #68 rollout, backfill, telemetry migration, and single-active-version
-  guidance before exposing activation, Publish, or runtime source-of-truth
-  semantics.
+- Implement #68 follow-ups before exposing activation, Publish, or runtime
+  source-of-truth semantics: migrate telemetry to the active-version runtime
+  loader, decide historical PolicyDecision backfill, and add a database-level
+  single-active-version guard.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
@@ -486,6 +492,7 @@ References:
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
+- `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
 - `docs/LANGGRAPH_ADAPTER_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
@@ -528,8 +535,8 @@ Planned capabilities:
 - Integration Hub page. Completed as a frontend product surface for runtime
   connection patterns, Service Actor expectations, setup snippets, and
   non-orchestrator boundaries.
-- Policy versioning and review UI after #56 guardrails and #68 rollout
-  decisions are complete.
+- Policy versioning and review UI after #56 guardrails and #68 telemetry,
+  backfill, and single-active-version decisions are complete.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.
