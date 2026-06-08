@@ -104,20 +104,28 @@ formal DSL design document exists.
 
 ### #56 Policy versioning and review guardrails
 
-Status: design exists and minimal backend foundation exists, but it should
-remain the next backend milestone before enabling Submit for review.
+Status: partially superseded by implementation, but not complete as a product
+review workflow.
 
 Why it matters now:
 
 - The Policy Studio can make PolicyRule edits easier and more powerful.
 - Direct edits to active Policies or PolicyRules can affect future runtime
   decisions.
-- Review/version guardrails must define what gets snapshotted, who reviews,
-  how activation works, and what audit events are produced before the frontend
-  enables review actions.
+- Backend `PolicyVersion` persistence, lifecycle APIs, audit events,
+  Runtime Gateway active-version evaluation, and Evidence Bundle references
+  already exist.
+- Save draft still writes through existing Policy/PolicyRule APIs instead of a
+  clearly isolated draft-version workflow.
+- Submit for review remains disabled and formal review request semantics are
+  undecided.
+- Review/version guardrails must still define draft-version save behavior,
+  review request shape, approval versus activation semantics, rollback-copy UX,
+  and frontend wiring.
 
-Recommended next step: complete or refresh #56 as the authoritative review
-workflow contract before wiring Submit for review in the UI.
+Recommended next step: use
+`docs/POLICY_VERSIONING_REVIEW_DESIGN.md` as the narrowed #56 review workflow
+contract before wiring Submit for review in the UI.
 
 ### #68 Active PolicyVersion rollout and telemetry migration
 
@@ -198,9 +206,10 @@ Current relationship to Policy Studio:
    editing and PolicyCheckStep authoring.
 2. Keep #76 open or mark partial until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
-3. Complete or refresh #56 before wiring backend/frontend Policy review
-   workflow actions.
-4. Complete and validate #68 before any real activation/publish semantics.
+3. Use the refreshed #56 design to implement draft-version Save draft behavior,
+   review request semantics, and frontend Submit for review wiring.
+4. Complete and validate #68 before any real activation, Publish, telemetry
+   migration, or runtime source-of-truth semantics.
 5. Then implement backend Policy Review Workflow APIs and only after that wire
    Submit for review in the frontend.
 

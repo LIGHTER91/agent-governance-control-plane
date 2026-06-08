@@ -124,26 +124,29 @@ can now explicitly match safe CheckResult outcome summaries with deterministic
 decisions. The PolicyCheckStep authoring model is documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
-Policy versioning and review guardrails are now designed in
-`docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend `PolicyVersion`
-aggregate now snapshots Policy fields, associated PolicyRules, and associated
-PolicyCheckSteps with draft, review, approval, activation, supersession,
-archive, and rollback-copy APIs. PolicyDecision records can now optionally
-reference the active PolicyVersion for the selected Policy, and Evidence Bundle
-renders safe PolicyVersion summaries on PolicyDecision and linked CheckResult
-records. Runtime Gateway now evaluates active PolicyVersion snapshots where
-available and falls back to unversioned Policy/PolicyRule rows for Policies
-without an active version. Review UI has not been implemented. The next backend
-milestone should refresh or complete the review guardrail contract before the
-frontend enables Submit for review.
+Policy versioning and review guardrails are now partially implemented and
+re-scoped in `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend
+`PolicyVersion` aggregate snapshots Policy fields, associated PolicyRules, and
+associated PolicyCheckSteps with draft, review, approval, activation,
+supersession, archive, and rollback-copy APIs. PolicyDecision records can
+optionally reference the active PolicyVersion for the selected Policy, and
+Evidence Bundle renders safe PolicyVersion summaries on PolicyDecision and
+linked CheckResult records. Runtime Gateway evaluates active PolicyVersion
+snapshots where available and falls back to unversioned Policy/PolicyRule rows
+for Policies without an active version. #56 remains needed but narrowed:
+Policy Studio Save draft still uses existing Policy/PolicyRule write APIs,
+Submit for review is disabled, formal review request semantics are undecided,
+and review UI/inbox/diff behavior has not been implemented.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
 most of the guided authoring goals from #58, while #76 should remain open or
 partial until a formal controlled DSL design document defines grammar,
-operators, storage/versioning, and diff behavior. Active PolicyVersion rollout
-planning in #68 should be completed before any real activation or Publish
-semantics are exposed.
+operators, storage/versioning, and diff behavior. #56 should now focus on the
+remaining backend review workflow contract rather than broad versioning
+foundation work. Active PolicyVersion rollout planning in #68 must be completed
+before any activation, Publish, telemetry-migration, or single-active-version
+semantics are exposed as product workflow.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -422,10 +425,12 @@ Recommended next work:
 - Keep #76 open or partial until the controlled DSL has a formal design
   document covering grammar, storage/versioning, diffs, and unsupported-field
   behavior.
-- Complete or refresh #56 policy versioning and review guardrails before
-  wiring the frontend Submit for review action.
+- Use the refreshed #56 policy versioning and review guardrails to define
+  draft-version Save draft behavior and review request semantics before wiring
+  the frontend Submit for review action.
 - Harden #68 rollout, backfill, telemetry migration, and single-active-version
-  guidance before exposing activation or Publish semantics.
+  guidance before exposing activation, Publish, or runtime source-of-truth
+  semantics.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing

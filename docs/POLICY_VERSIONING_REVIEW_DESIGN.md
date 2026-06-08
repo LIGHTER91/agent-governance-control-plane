@@ -2,11 +2,36 @@
 
 ## Status
 
-Initial backend foundation implemented. AGCP now has a minimal `PolicyVersion`
-aggregate snapshot table, lifecycle APIs, append-only audit events for review
-and activation guardrails, PolicyDecision version references, and Runtime
-Gateway active-version evaluation with unversioned fallback. Frontend review UI
-and the deterministic policy evaluator semantics are unchanged.
+Issue #56 is partially superseded by implementation, but it is not complete as
+a product workflow.
+
+Already implemented:
+
+- a backend `PolicyVersion` aggregate with version numbers and lifecycle state;
+- snapshots of Policy fields, associated PolicyRules, and associated
+  PolicyCheckSteps;
+- lifecycle APIs for create, submit for review, approve, reject, activate,
+  archive, and rollback-copy;
+- append-only audit events for PolicyVersion lifecycle changes;
+- `PolicyDecision.policy_version_id`;
+- safe PolicyVersion summaries in Evidence Bundle output;
+- Runtime Gateway active PolicyVersion snapshot evaluation with unversioned
+  fallback;
+- an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
+  local validation, deterministic `PolicyRule.condition` JSON compilation, no
+  Publish button, and disabled Submit for review.
+
+Still unresolved:
+
+- formal review request semantics for policy authoring;
+- frontend Submit for review wiring;
+- whether draft saves should write to draft PolicyVersions instead of mutable
+  Policy and PolicyRule rows;
+- single-active-version hardening beyond application logic;
+- telemetry migration to active PolicyVersion snapshots;
+- historical PolicyDecision backfill guidance;
+- whether and how Policy Studio DSL source should be stored with version
+  snapshots.
 
 AGCP remains a governance and evidence control plane. It is not an
 orchestrator, workflow engine, enterprise GRC suite, policy simulation engine,
@@ -14,367 +39,334 @@ or legal compliance certification system.
 
 ## Critical Assessment
 
-Policy and PolicyRule editing is now materially riskier than it was in the
-early V0 policy model. PolicyRules can match contextual runtime fields,
-resolved inventory facts, and safe `check_*` CheckResult outcome summaries.
-PolicyCheckSteps can also declare evidence that Runtime Gateway may collect
-behind an explicit feature flag. These are useful governance capabilities, but
-they mean an edit to a rule or check declaration can affect future Runtime
-Gateway decisions for production Agents.
+Policy and PolicyRule editing became riskier once rules could match contextual
+runtime fields, resolved inventory facts, and safe `check_*` CheckResult
+outcome summaries. PolicyCheckSteps can also declare metadata checks that
+Runtime Gateway may execute behind an explicit feature flag. These capabilities
+help AGCP explain and govern runtime decisions, but they also mean an edit to a
+condition or check declaration can change future production decisions.
 
-Direct active edits are risky because a small condition change can silently
-broaden an allow rule, suppress a human-review escalation, make a deny rule
-miss, or point check evidence at the wrong target. A well-intentioned operator
-could also update a rule for a test case and accidentally change behavior for
-all production Agents. Without versioning, review, and activation history,
-auditors cannot easily answer which exact rule version produced a
-PolicyDecision, who reviewed the change, when it became active, or how to roll
-back safely.
+Direct active edits are risky because a small condition change can broaden an
+allow rule, suppress a human-review escalation, make a deny rule miss, or
+change which evidence is collected for review. Without immutable versions and
+review history, reviewers cannot reliably answer which configuration produced
+a decision, who reviewed it, when it became active, or how to return to a known
+configuration.
 
-AGCP should not overbuild enterprise change management in V1. Full separation
-of duties, complex approval chains, release calendars, evidence attestations,
-legal sign-off, and enterprise GRC synchronization depend on real identity,
-roles, teams, and operational process that AGCP does not have yet. V1 should be
-lightweight: immutable activated versions, draft-next-version editing,
-review/approval state, activation and rollback semantics, and append-only audit
-events.
+AGCP should still avoid overbuilding enterprise GRC workflows in V1. Full
+separation of duties, complex approval chains, release calendars, legal
+attestation, and external GRC synchronization depend on identity, team, and
+operational models that AGCP does not yet have. The right V1 is a narrow
+foundation: draft, review, approval, explicit activation, immutable active
+snapshots, rollback-copy, audit, and evidence references.
 
-This differs from full enterprise GRC workflows. The goal is not to certify
-that a policy is legally correct or production-ready. The goal is to make
-policy changes reviewable, reversible, and attributable before broader policy
-authoring UI expands.
+The Runtime Gateway source of truth must be handled carefully. Active-version
+evaluation improves auditability only if fallback behavior and deterministic
+rule precedence are preserved. It should not introduce a generic policy engine,
+policy simulation engine, hidden AccessGrant enforcement, or a new DSL runtime.
 
-## Problem Statement
+## Current Backend State
 
-Current Policy, PolicyRule, and PolicyCheckStep records can be updated in place.
-That is convenient for early development but unsafe for governed production
-use. AGCP needs a small versioning and review model so active runtime policy
-behavior is not changed casually.
+The backend currently uses a bounded aggregate model:
 
-The model should answer:
+- `Policy` remains the logical policy container.
+- `PolicyRule` remains the editable unversioned rule record and existing API
+  contract.
+- `PolicyCheckStep` remains the authored metadata-check declaration.
+- `PolicyVersion` is the versioned review and activation unit.
 
-- Which Policy and PolicyRule version was active for a decision?
-- Who created or edited the draft?
-- What changed?
-- Who reviewed or approved it?
-- When was it activated?
-- What version did it supersede?
-- How can an operator roll back to a known approved version?
+`PolicyVersion` snapshots:
 
-## Objects Affected
+- safe Policy fields;
+- associated PolicyRules, including deterministic condition JSON;
+- associated PolicyCheckSteps, including deterministic metadata-check
+  configuration.
 
-### Policy
+`PolicyVersionStatus` currently includes:
 
-Policy versioning should capture lifecycle metadata for the policy container:
-name, description, status, review state, and the set of rule versions intended
-to activate together.
+- `draft`;
+- `under_review`;
+- `approved`;
+- `rejected`;
+- `active`;
+- `superseded`;
+- `archived`.
 
-### PolicyRule
+Lifecycle APIs currently exist for:
 
-PolicyRule versioning is the highest priority because rule conditions directly
-influence `allow`, `deny`, `require_human_review`, or `not_applicable`
-decisions. Rule condition changes should produce a new draft version rather
-than mutating an active version in place.
+- create version from a Policy;
+- list Policy versions;
+- get one PolicyVersion;
+- submit for review;
+- approve;
+- reject;
+- activate;
+- archive;
+- rollback-copy.
 
-### PolicyCheckStep
-
-PolicyCheckStep versioning is important because check declarations affect what
-evidence is collected and which CheckResults may become explicit policy
-context. A step change should be reviewed with the related rule version.
-
-### CheckTool Status
-
-CheckTool status changes can affect check execution availability, but they are
-closer to platform administration than policy authoring. V1 can keep CheckTool
-status audit-only and revisit versioning once external check adapters exist.
-
-## Minimal Lifecycle
-
-Recommended V1 version lifecycle:
-
-- `draft`: editable candidate version;
-- `under_review`: submitted for review and no longer casually edited;
-- `approved`: reviewed and eligible for activation;
-- `active`: currently used by Runtime Gateway policy evaluation;
-- `disabled`: intentionally unavailable for runtime evaluation;
-- `archived`: retained for history and possible rollback reference.
-
-Existing Policy statuses can continue to exist while version records introduce
-review state. A migration path can later collapse or align these states if the
-implementation proves simpler, but the design should distinguish:
-
-- the lifecycle of the logical Policy record;
-- the lifecycle of a specific version of policy/rule/check-step content.
-
-## Versioning Model
-
-Recommended V1 records:
-
-- `PolicyVersion`;
-- `PolicyRuleVersion`;
-- `PolicyCheckStepVersion`.
-
-Implementation note: issue #65 intentionally starts with a bounded
-`PolicyVersion` aggregate rather than three independently activated version
-tables. The aggregate snapshots Policy fields, associated PolicyRules, and
-associated PolicyCheckSteps together so the review/activation unit is explicit
-without introducing granular runtime version references before Runtime Gateway
-versioned evaluation is designed.
-
-Each version should include:
-
-- stable parent ID, such as `policy_id`, `policy_rule_id`, or
-  `policy_check_step_id`;
-- monotonically increasing `version_number`;
-- `status`;
-- immutable snapshot of the versioned fields;
-- `change_summary`;
-- `created_by_actor_type`;
-- `created_by_actor_id`;
-- `updated_by_actor_type`;
-- `updated_by_actor_id`;
-- `review_requested_by_actor_type`;
-- `review_requested_by_actor_id`;
-- `reviewed_by_actor_type`;
-- `reviewed_by_actor_id`;
-- `review_note`;
-- `created_at`;
-- `updated_at`;
-- `submitted_at`;
-- `approved_at`;
-- `rejected_at`;
-- `activated_at`;
-- `superseded_at`;
-- `archived_at`;
-- safe metadata only.
-
-Activated versions should be immutable. If a change is needed, AGCP should
-create a new draft version from the active version or from a selected previous
-approved version. This prevents historical PolicyDecisions from pointing at
-mutable rule content.
-
-## Review Semantics
-
-V1 should support a simple review loop:
-
-1. A policy author creates a draft version or creates a draft from the current
-   active version.
-2. The author supplies a required change summary.
-3. The author submits the draft for review.
-4. A reviewer approves or rejects the version.
-5. An approved version can be activated.
-6. A rejected version returns to `draft` or becomes `archived`, depending on
-   the implementation's simpler path.
-
-Review should use `ActorContext` for actor attribution. Before full user auth,
-this is still local and limited, but the data model should be ready for real
-user identity later.
-
-### HumanApproval Reuse
-
-Policy review resembles HumanApproval but should not immediately reuse the
-runtime HumanApproval object as-is.
-
-Reasons:
-
-- runtime HumanApproval is tied to one policy decision or action;
-- policy review concerns authoring changes and activation;
-- policy review may need diff summaries, version snapshots, and rollback
-  references;
-- policy review should not be confused with approval of a single runtime
-  exception.
-
-V1 can either create a separate lightweight `PolicyReview` concept later or
-link policy version review actions to HumanApproval only after the semantics
-are designed. Until then, audit events plus version review fields are enough.
-
-## Activation Semantics
-
-Only approved versions should become active.
-
-Activating a new version should:
-
-- mark the new version `active`;
-- set `activated_at`;
-- supersede any previous active version for the same logical Policy or
-  PolicyRule;
-- set `superseded_at` on the old active version;
-- append audit records for activation and supersession.
-
-Runtime Gateway should evaluate only active versions once versioned evaluation
-is implemented.
-
-Rollback should be explicit:
-
-- either reactivate a previous approved version;
-- or create a new draft copied from a previous approved version, review it, and
-  activate it.
-
-The safer default is copy-to-draft because it preserves review state and avoids
-surprising reactivation without a fresh audit trail.
-
-## Audit And Evidence
-
-Suggested audit events:
+Current audit events include:
 
 - `policy_version_created`;
-- `policy_version_updated`;
 - `policy_version_submitted_for_review`;
 - `policy_version_approved`;
 - `policy_version_rejected`;
 - `policy_version_activated`;
 - `policy_version_superseded`;
 - `policy_version_archived`;
-- `policy_rule_version_created`;
-- `policy_rule_version_updated`;
-- `policy_rule_version_submitted_for_review`;
-- `policy_rule_version_approved`;
-- `policy_rule_version_rejected`;
-- `policy_rule_version_activated`;
-- `policy_rule_version_superseded`;
-- `policy_rule_version_archived`;
-- `policy_check_step_version_created`;
-- `policy_check_step_version_updated`;
-- `policy_check_step_version_submitted_for_review`;
-- `policy_check_step_version_approved`;
-- `policy_check_step_version_rejected`;
-- `policy_check_step_version_activated`;
-- `policy_check_step_version_superseded`;
-- `policy_check_step_version_archived`.
+- `policy_version_rollback_copy_created`.
 
-Audit metadata should include safe IDs, version numbers, status transitions,
-actor references, and short change summaries. It should not include raw
-runtime payloads, source content, prompts, credentials, scanner payloads,
-secrets, or full unredacted policy condition blobs if those conditions may
-contain operationally sensitive details.
+Activation currently supersedes other active versions for the same Policy in
+application logic. A database-level single-active-version invariant is still a
+#68 hardening question.
 
-Evidence Bundle now shows compact PolicyVersion references when
-PolicyDecision records have `policy_version_id`:
+Runtime Gateway now prefers active PolicyVersion snapshots where available and
+falls back to current unversioned Policy/PolicyRule rows when no active version
+exists for a Policy. The active snapshot adapter preserves the existing
+deterministic evaluator shape and rule precedence:
 
-- PolicyVersion ID and version number relevant to each PolicyDecision;
-- PolicyVersion references on CheckResult summaries through linked
-  PolicyDecisions;
-- PolicyCheckStepVersion references for CheckResults produced by authored
-  checks later;
-- activation and review audit events relevant to those versions;
-- safe change summaries when useful.
+- deny;
+- require_human_review;
+- allow;
+- not_applicable.
 
-Evidence Bundle should not become a full policy diff viewer.
+Telemetry policy evaluation still needs explicit migration planning before the
+platform can claim one consistent active-version runtime source of truth.
 
-## Runtime Implications
+## Current Frontend State
 
-Runtime Gateway now prefers active PolicyVersion snapshots for runtime policy
-evaluation. For each Policy, the runtime rule loader uses the active
-PolicyVersion when one exists and falls back to current unversioned
-Policy/PolicyRule rows only when no active version exists for that Policy.
-The snapshot adapter emits the same deterministic `PolicyEvaluationRule` shape
-as the unversioned adapter, so precedence and matching remain:
+The Policy Studio frontend already solves part of the #56 product guardrail
+surface:
 
-- deny > require_human_review > allow > not_applicable;
-- deterministic field matching;
-- contextual field matching;
-- `check_*` outcome matching;
-- any-overlap `source_ids` behavior;
-- no DSL or nested boolean logic.
+- it replaces raw CRUD forms with an IDE-like authoring surface;
+- it supports Blocks and Code DSL modes;
+- it organizes authoring around `WHEN -> CHECK -> THEN -> PROVE`;
+- it compiles to deterministic `PolicyRule.condition` JSON;
+- unsupported DSL lines block saving;
+- local validation is clearly not runtime simulation;
+- static templates are authoring helpers, not backend records;
+- Submit for review is disabled;
+- there is no direct Publish action.
 
-PolicyDecision stores optional `policy_version_id` for decisions produced from
-active PolicyVersion snapshots. Runtime Gateway metadata pre-check execution,
-when enabled, uses versioned PolicyCheckStep snapshots for matched versioned
-rules and keeps unversioned PolicyCheckStep fallback behavior for policies
-without active versions.
+The frontend does not yet solve the backend/domain review workflow:
 
-Future behavior:
+- Save draft still uses existing Policy and PolicyRule create/update APIs;
+- editing an active Policy can still patch the current unversioned rows;
+- Submit for review is not wired to backend lifecycle APIs;
+- there is no policy review queue, reviewer assignment, diff view, or
+  role-aware review UI;
+- the inspector review status is informational and should not be treated as a
+  complete review workflow.
 
-- PolicyDecision stores `policy_rule_version_id` later when granular rule
-  versioning exists.
-- CheckResults generated from authored PolicyCheckSteps can store
-  `policy_check_step_version_id` in safe metadata or a typed field.
-- Runtime activity and Evidence Bundle can expose version references as
-  technical evidence.
+This means the frontend has lowered authoring risk, but it has not eliminated
+the core active-edit risk.
 
-Existing unversioned policy evaluation should continue until the versioning
-foundation is fully migrated outside Runtime Gateway, such as telemetry
-ingestion and future adapters.
+## What #56 Already Has
 
-## UI Implications
+#56 already has a meaningful backend foundation:
 
-Future Policy UI should avoid direct editing of active versions. Recommended
-patterns:
+- `PolicyVersion` persistence;
+- version lifecycle statuses;
+- safe aggregate snapshots;
+- audit events;
+- rollback-copy semantics;
+- approval separated from activation;
+- active-version Runtime Gateway evaluation with fallback;
+- optional `policy_version_id` references on PolicyDecision and Evidence
+  Bundle summaries.
 
-- show a warning when viewing or attempting to edit active policy content;
-- offer "create draft from active";
-- require a change summary before review submission;
-- show a compact diff summary for Policy, PolicyRule, and PolicyCheckStep
-  changes;
-- allow submit for review;
-- allow approve or reject for authorized reviewers;
-- allow activate only after approval;
-- show the currently active version and previous versions;
-- support rollback by copying a previous approved version into a new draft.
+#56 also benefits from frontend guardrails:
 
-The UI should not present policy review as legal certification. Approval means
-the organization accepted the governance configuration, not that data use is
-legally certified or automatically compliant.
+- controlled authoring instead of arbitrary JSON as the main workflow;
+- local validation before save;
+- disabled Submit for review;
+- no Publish action;
+- no fake production simulation or compliance score.
 
-## V1 Recommendation
+## What #56 Still Lacks
 
-Keep V1 small:
+The remaining work is narrower than the original broad design issue:
 
-1. Finish this design. Done when this document is merged.
-2. Add immutable version tables for Policy, PolicyRule, and PolicyCheckStep.
-3. Add a minimal API for draft creation, submit for review, approve, reject,
-   activate, archive, and copy-from-version.
-4. Update Runtime Gateway evaluation to use active versions.
-5. Store policy/rule version references on PolicyDecision.
-6. Add Evidence Bundle references to policy/rule/check-step versions.
-7. Add frontend guardrails for draft, review, activation, and rollback.
+- define whether Policy Studio Save draft should create/update draft
+  PolicyVersions instead of patching live Policy/PolicyRule rows;
+- define formal review request semantics;
+- decide whether review should use only PolicyVersion review fields and audit
+  events or add a dedicated `PolicyReviewRequest`;
+- avoid reusing runtime `HumanApproval` as-is for policy authoring review;
+- define whether DSL source is stored in snapshots, stored only as safe UI
+  metadata, or regenerated from compiled JSON;
+- document that compiled deterministic condition JSON is the runtime source of
+  truth for V1;
+- confirm PolicyCheckSteps remain snapshotted inside the aggregate
+  PolicyVersion for V1;
+- harden or document the single-active-version invariant;
+- decide historical PolicyDecision backfill behavior;
+- complete telemetry migration planning in #68;
+- define rollback-copy UX and API expectations;
+- wire frontend Submit for review only after the review contract is agreed.
 
-Avoid broad workflow engines, complex RBAC frameworks, external GRC sync, and
-policy simulation until the core version lifecycle is proven.
+## Proposed V1 Model
+
+The current aggregate `PolicyVersion` model is the right minimal V1 foundation.
+It should remain the review and activation unit until there is strong evidence
+that independently activated PolicyRuleVersion or PolicyCheckStepVersion tables
+are needed.
+
+V1 source-of-truth rules:
+
+- active runtime evaluation uses immutable active PolicyVersion snapshots where
+  available;
+- unversioned Policy/PolicyRule rows remain fallback and editing compatibility
+  records until migration is complete;
+- compiled deterministic `PolicyRule.condition` JSON is the runtime source of
+  truth;
+- Policy Studio DSL source is an authoring representation, not a runtime
+  language;
+- if DSL source is stored later, it should be safe display metadata and should
+  never replace compiled condition JSON;
+- PolicyCheckSteps are versioned through `check_step_snapshots` in the
+  aggregate PolicyVersion.
+
+Recommended product semantics:
+
+- Save draft should eventually create or update draft PolicyVersion content,
+  not directly mutate active runtime configuration.
+- Submit for review should create a review state or review request; it should
+  not publish or activate anything.
+- Approval should make a version eligible for activation; it should not
+  automatically activate the version.
+- Activation should be explicit and audited.
+- Activating a version supersedes the currently active version for the same
+  Policy.
+- Rollback should be non-destructive: create a new draft copy from an approved,
+  active, or superseded version.
+- Runtime and evidence should record `policy_version_id` where available.
+- The UI should not expose a direct Publish button before review and
+  activation semantics are fully designed.
+
+## Review Request Choice
+
+Runtime `HumanApproval` should not be reused directly for PolicyVersion review
+in V1.
+
+Reasons:
+
+- HumanApproval is tied to one runtime action or PolicyDecision;
+- policy review is about authoring and activation of governance configuration;
+- policy review needs version snapshots, diffs, review notes, activation
+  references, and rollback history;
+- reusing HumanApproval would blur runtime exception approval with policy
+  lifecycle approval.
+
+Recommended V1 path:
+
+- keep the existing PolicyVersion review fields and audit events for the
+  minimal lifecycle;
+- add a dedicated lightweight `PolicyReviewRequest` only if a review inbox,
+  reviewer assignment, or multi-step review queue becomes necessary;
+- do not claim policy approval is legal certification.
+
+## Evidence And Telemetry
+
+Evidence should continue to include safe PolicyVersion summaries instead of
+full raw snapshots. Safe summaries can include:
+
+- `policy_version_id`;
+- `policy_id`;
+- `version_number`;
+- `status`;
+- `activated_at`;
+- safe `change_summary`.
+
+Evidence should not expose raw prompts, source contents, credentials, runtime
+payloads, or unsafe snapshot metadata. It should not become a full policy diff
+viewer.
+
+Telemetry migration remains a #68 concern. Runtime Gateway can reference
+PolicyVersion snapshots today, but telemetry and historical PolicyDecision
+records need a migration/backfill plan before active-version telemetry can be
+treated as complete.
 
 ## Non-goals
 
-- No frontend UI in this issue.
-- No enterprise GRC workflow engine.
-- No OIDC/SAML/JWT design or implementation in this issue.
-- No team or organization-unit resolver in this issue.
-- No policy simulation in this issue.
-- No automatic compliance scoring.
+- No backend review endpoints in this design cleanup task.
+- No migrations in this design cleanup task.
+- No frontend Publish button.
+- No fake review status.
+- No policy simulation engine.
+- No generic runtime DSL.
+- No change to deterministic evaluator precedence.
+- No enterprise GRC workflow.
+- No OIDC/SAML/JWT.
 - No legal compliance certification claims.
-- No generic DSL or nested boolean language.
-- No change to policy evaluator precedence or matching semantics.
+- No compliance scores.
 
-## Migration Path
+## Implementation Sequence
 
-Recommended staged implementation:
+Recommended next sequence:
 
-1. Design policy versioning and review guardrails.
-2. Add version persistence for Policy, PolicyRule, and PolicyCheckStep.
-3. Add version lifecycle API and audit events.
-4. Update PolicyDecision to store active policy and rule version references.
-5. Update Runtime Gateway evaluation to read active versions. Implemented for
-   Runtime Gateway with unversioned fallback.
-6. Include version references in Evidence Bundle and Runtime activity.
-7. Add UI guardrails for draft creation, review, approval, activation, and
-   rollback.
-8. Add policy simulation only after active-version evaluation is stable.
-9. Add richer separation-of-duties rules after real user auth and roles exist.
+1. Treat #58 as implemented if the current Policy Studio V1 satisfies the
+   product acceptance bar; split remaining direct no-code block editing and
+   PolicyCheckStep authoring into narrower follow-ups.
+2. Keep #76 open or partial until `docs/POLICY_STUDIO_DSL_DESIGN.md` defines
+   grammar, operators, supported fields, storage/versioning, diffs, and
+   unsupported-line behavior.
+3. Use this refreshed #56 design to narrow review workflow work around
+   draft-version semantics, Submit for review, approval, activation, and
+   rollback-copy.
+4. Complete #68 before exposing activation or Publish semantics:
+   active-version rollout validation, telemetry migration, historical backfill,
+   and single-active-version guardrails must be clear.
+5. Implement a backend Policy Review Workflow only after #56 and #68 decisions
+   are settled.
+6. Wire Policy Studio Submit for review to the backend review lifecycle.
+7. Add review inbox, diff UI, role-aware review actions, and separation of
+   duties later, after identity and RBAC are stronger.
 
-## Open Questions
+## Risks
 
-- Should V1 version Policy as a bundle of rules, or version Policy and
-  PolicyRule independently first?
-- Should PolicyCheckStep versions activate with their linked PolicyRule
-  version, or have an independent activation lifecycle?
-- Should activation require a different actor than approval before real RBAC
-  exists?
-- Should rejected versions return to `draft` or become immutable rejected
-  records that must be copied into a new draft?
-- How much of a PolicyRule condition should be included in audit metadata
-  versus only Evidence Bundle or API reads?
-- Should rollback reactivate previous approved versions directly, or always
-  create a new draft copied from a previous version?
-- How should version references be backfilled for historical PolicyDecision
-  records created before versioning?
-- What minimum review workflow is useful before OIDC/SAML/JWT and team
-  membership resolution exist?
+- If Save draft continues to patch active Policy/PolicyRule rows, the UI may
+  look safe while runtime behavior can still change immediately.
+- If activation is exposed before #68 is settled, AGCP may have inconsistent
+  runtime and telemetry sources of truth.
+- If DSL source is treated as runtime source of truth too early, AGCP risks
+  introducing an unsupported policy language.
+- If HumanApproval is reused for policy authoring review, runtime exception
+  approvals and policy lifecycle approvals may become confusing.
+- If evidence exports include full snapshots, they may expose unsafe metadata
+  or operational details.
+- If AGCP uses Publish wording too early, users may infer production or legal
+  certification semantics that do not exist.
+
+## GitHub Issue #56 Comment-Ready Summary
+
+Current repo state partially supersedes #56 but does not close it as a product
+workflow.
+
+Implemented:
+
+- backend `PolicyVersion` aggregate snapshots for Policy, PolicyRule, and
+  PolicyCheckStep configuration;
+- lifecycle statuses and APIs for draft, review, approval, activation,
+  archive, and rollback-copy;
+- lifecycle audit events;
+- active PolicyVersion Runtime Gateway evaluation with unversioned fallback;
+- `PolicyDecision.policy_version_id` and safe Evidence Bundle summaries;
+- frontend Policy Studio guardrails with Blocks/DSL, local validation,
+  disabled Submit for review, and no Publish button.
+
+Still unresolved:
+
+- Save draft still writes through existing Policy/PolicyRule APIs rather than
+  a clearly isolated draft-version workflow;
+- Submit for review is not wired;
+- formal review request object semantics are undecided;
+- DSL source storage/versioning is undecided;
+- telemetry migration and historical backfill remain #68 work;
+- single-active-version hardening remains #68 work;
+- no review inbox, diff UI, reviewer assignment, or role-aware policy review
+  workflow exists.
+
+Recommended next implementation issue: define and implement the PolicyVersion
+draft/review workflow contract for Policy Studio, but only after #68 clarifies
+activation, telemetry migration, and single-active-version guardrails if that
+work includes activation semantics.

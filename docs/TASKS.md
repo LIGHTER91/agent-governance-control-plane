@@ -113,7 +113,11 @@ deterministic frontend compilation to supported `PolicyRule.condition` JSON,
 local validation, generated JSON preview, unsupported-DSL save blocking, and
 Save draft through existing APIs. Templates are static helpers, not backend
 records. Local validation is not runtime simulation. Submit for review remains
-disabled, and there is no Publish action.
+disabled, and there is no Publish action. This satisfies much of the Policy
+Studio authoring surface, but it does not close #56 as a review workflow:
+Save draft still writes through existing Policy/PolicyRule APIs, formal review
+request semantics are undecided, and activation/telemetry semantics remain #68
+work.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -156,12 +160,15 @@ Recommended order:
    no-code block editing and PolicyCheckStep authoring.
 2. Keep #76 open or mark partially implemented until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
-3. Complete or refresh #56 policy versioning and review guardrails before
-   wiring backend/frontend Submit for review behavior.
+3. Use the refreshed #56 design to narrow the remaining policy review workflow
+   contract: draft-version Save draft semantics, review request shape, approval
+   versus activation, rollback-copy UX, and frontend Submit for review wiring.
 4. Complete and validate #68 active PolicyVersion rollout, telemetry migration,
-   and single-active-version guidance before activation or Publish semantics.
+   historical backfill, and single-active-version guidance before activation,
+   Publish, or runtime source-of-truth semantics.
 5. Then implement backend Policy Review Workflow APIs and wire the frontend
-   Submit for review action to those APIs.
+   Submit for review action to those APIs without adding a direct Publish
+   button.
 6. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
 7. Use Access Grants as optional policy context without replacing
@@ -206,8 +213,9 @@ Recommended order:
 - [ ] Add formal controlled Policy Studio DSL design document for #76,
       including grammar, supported fields/operators, compile targets,
       versioning/storage, diffs, and unsupported-field handling.
-- [ ] Complete or refresh policy versioning and review guardrails before
-      enabling Submit for review in the frontend.
+- [ ] Implement the narrowed #56 policy review workflow contract:
+      draft-version Save draft behavior, review request semantics, explicit
+      approval versus activation, and frontend Submit for review wiring.
 - [ ] Harden active PolicyVersion rollout, historical PolicyDecision backfill,
       telemetry migration, single-active-version guardrails, and operational
       guidance before any activation or Publish semantics.
@@ -300,7 +308,7 @@ credentials.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
 - [x] Add deterministic CheckResult outcome matching for explicit PolicyRule
       conditions.
-- [x] Design policy versioning and review guardrails.
+- [x] Add initial policy versioning and review guardrails foundation.
 - [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [x] Wire optional Runtime Gateway metadata pre-check execution to authored
