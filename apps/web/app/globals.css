@@ -164,10 +164,38 @@ a {
   padding: 22px;
 }
 
+.dashboard-intro {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-intro strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.dashboard-intro p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
 .status-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.dashboard-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.dashboard-alert {
+  margin-bottom: 18px;
 }
 
 .status-card,
@@ -197,6 +225,14 @@ a {
   font-size: 14px;
   line-height: 1.55;
   margin: 0;
+}
+
+.metric-value {
+  color: var(--text) !important;
+  font-size: 30px !important;
+  font-weight: 750;
+  line-height: 1.1 !important;
+  margin: 12px 0 !important;
 }
 
 .status-label {
@@ -248,6 +284,24 @@ a {
 
 .work-item {
   padding: 18px;
+}
+
+.route-card {
+  display: grid;
+  gap: 10px;
+}
+
+.route-card:hover,
+.route-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+.route-card span {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .placeholder-panel {
@@ -2043,6 +2097,7 @@ a {
 
 @media (max-width: 1100px) {
   .status-grid,
+  .dashboard-metrics,
   .work-grid,
     .runtime-grid,
     .detail-summary-grid,
@@ -2142,6 +2197,7 @@ a {
   }
 
   .status-grid,
+  .dashboard-metrics,
   .work-grid,
     .runtime-grid,
     .detail-summary-grid,

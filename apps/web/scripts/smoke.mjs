@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const files = [
   "app/layout.tsx",
   "app/page.tsx",
+  "app/home-dashboard.tsx",
   "app/agents/page.tsx",
   "app/agents/agents-list.tsx",
   "app/agents/[agentId]/page.tsx",
@@ -37,26 +38,25 @@ const files = [
   "app/settings/page.tsx"
 ];
 
-const source = (
-  await Promise.all(files.map((file) => readFile(join(root, file), "utf8")))
-).join("\n");
-
-const studioFiles = [
-  "app/agcp-studio/AGCPStudio.tsx"
-];
-
-const studioEntries = await Promise.all(
-  studioFiles.map(async (file) => ({
+const fileEntries = await Promise.all(
+  files.map(async (file) => ({
     file,
     source: await readFile(join(root, file), "utf8")
   }))
 );
-const studioSource = studioEntries.map((entry) => entry.source).join("\n");
-const agcpStudioSource =
-  studioEntries.find((entry) => entry.file.endsWith("AGCPStudio.tsx"))?.source ??
-  "";
+const sourceByFile = new Map(
+  fileEntries.map((entry) => [entry.file, entry.source])
+);
+const source = fileEntries.map((entry) => entry.source).join("\n");
 
 const requiredText = [
+  "Product Dashboard",
+  "Backend data unavailable",
+  "Registered Agents",
+  "Pending Human Approvals",
+  "Connected Routes",
+  "Dashboard summaries below use existing endpoints only",
+  "invented production metrics",
   "Agents",
   "Policies",
   "Access & Data",
@@ -375,143 +375,56 @@ for (const text of forbiddenText) {
   }
 }
 
+runRootDashboardSmoke();
 runActivityTimelineFixtureSmoke();
 runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
 runAccessGrantWorkflowFixtureSmoke();
-runAGCPStudioFixtureSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
-function runAGCPStudioFixtureSmoke() {
-  const expectedStudioText = [
-    "AGCP",
-    "CONTROL PLANE",
-    "AI Systems",
-    "Policies",
-    "Reviews",
-    "Evidence",
-    "Risk",
-    "Data",
-    "Models",
-    "Vendors",
-    "Monitoring",
-    "Integrations",
-    "Admin",
-    "Save draft",
-    "Run simulation",
-    "Submit review",
-    "Approve",
-    "Reject",
-    "Code DSL",
-    "WHEN",
-    "CHECK",
-    "THEN",
-    "PROVE",
-    "PolicyRule",
-    "PolicyCheckStep",
-    "HumanApproval",
-    "EvidenceBundle",
-    "Review status",
-    "Submit for review",
-    "AGCP decides and records. External runtimes execute.",
-    "Evidence Vault",
-    "Audit Timeline",
-    "Data Governance",
-    "Classification",
-    "Personal data",
-    "Sensitive data",
-    "Allowed Purposes",
-    "Prohibited Purposes",
-    "Review status",
-    "DPIA reference"
+function runRootDashboardSmoke() {
+  const rootRequiredText = [
+    "HomeDashboard",
+    "Product Dashboard",
+    "Backend API",
+    "Registered Agents",
+    "Pending Human Approvals",
+    "Connected Routes",
+    'href: "/agents"',
+    'href: "/human-approvals"',
+    'href: "/evidence"',
+    'href: "/audit"',
+    'href: "/policies"',
+    'href: "/settings"',
+    "fetchAgents",
+    "fetchHumanApprovals",
+    "NEXT_PUBLIC_AGCP_API_BASE_URL"
   ];
 
-  const viewCases = [
-    ['case "command"', "CommandView"],
-    ['case "systems"', "AISystemsView"],
-    ['case "policies"', "PolicyStudioView"],
-    ['case "reviews"', "ReviewsView"],
-    ['case "evidence"', "EvidenceView"],
-    ['case "risk"', "RiskView"],
-    ['case "data"', "DataView"],
-    ['case "models"', "ModelsView"],
-    ['case "vendors"', "VendorsView"],
-    ['case "monitoring"', "MonitoringView"],
-    ['case "integrations"', "IntegrationsView"],
-    ['case "admin"', "AdminView"]
-  ];
-
-  const expectedPolicyDslPieces = [
-    "policy external_action_control",
-    "production_systems",
-    "system.environment",
-    '"production"',
-    "action.risk",
-    '"high"',
-    '"critical"',
-    "target.boundary",
-    '"external"',
-    "access_grant.status",
-    '"active"',
-    "target.approval",
-    '"approved"',
-    "require_review",
-    '"governance"',
-    "prove",
-    "decision",
-    "checks",
-    "reviewer",
-    "evidence_bundle"
-  ];
-
-  for (const text of expectedStudioText) {
-    if (!studioSource.includes(text)) {
-      throw new Error(`AGCP Studio fixture missing: ${text}`);
+  for (const text of rootRequiredText) {
+    if (!source.includes(text)) {
+      throw new Error(`Root dashboard smoke check missing: ${text}`);
     }
   }
 
-  for (const text of expectedPolicyDslPieces) {
-    if (!studioSource.includes(text)) {
-      throw new Error(`Controlled Policy Studio DSL missing: ${text}`);
-    }
-  }
-
-  for (const [caseText, componentName] of viewCases) {
-    if (!agcpStudioSource.includes(caseText)) {
-      throw new Error(`Missing AGCP Studio view case: ${caseText}`);
-    }
-
-    if (!agcpStudioSource.includes(`<${componentName} />`)) {
-      throw new Error(`Missing AGCP Studio view render: ${componentName}`);
-    }
-  }
-
-  for (const action of ["Save draft", "Run simulation", "Submit for review"]) {
-    if (!studioSource.includes(action)) {
-      throw new Error(`Policy Studio missing review-safe action: ${action}`);
-    }
-  }
+  const rootSource = [
+    sourceByFile.get("app/page.tsx") ?? "",
+    sourceByFile.get("app/home-dashboard.tsx") ?? "",
+    sourceByFile.get("app/layout.tsx") ?? ""
+  ].join("\n");
 
   for (const text of [
-    "mockup",
-    "frontend",
-    "final product",
-    "roadmap",
-    "advanced module",
+    "AGCPStudio",
     "compliance score",
     "AI Act compliant",
     "ISO 42001 certified",
-    "fully compliant",
-    "production-ready",
-    "Publish"
+    "fully compliant"
   ]) {
-    const haystack = text === "Publish" ? studioSource : studioSource.toLowerCase();
-    const needle = text === "Publish" ? text : text.toLowerCase();
-    if (haystack.includes(needle)) {
-      throw new Error(`Forbidden AGCP Studio text found: ${text}`);
+    if (rootSource.toLowerCase().includes(text.toLowerCase())) {
+      throw new Error(`Root dashboard contains disconnected or unsafe text: ${text}`);
     }
   }
 }

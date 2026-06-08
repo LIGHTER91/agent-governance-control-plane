@@ -2,8 +2,12 @@
 
 Minimal Next.js dashboard shell for the Agent Governance Control Plane.
 
-The shell is intentionally minimal. The Agents page and Agent detail page read
-from the backend Agent Registry API, Agent activity API, and HumanApproval API.
+The shell is intentionally minimal. The root dashboard is the connected app
+entry point: it links to the real governance routes, reads Agent and
+HumanApproval summary data from existing backend endpoints, and shows an
+explicit unavailable state instead of synthetic metrics when the backend cannot
+be reached. The Agents page and Agent detail page read from the backend Agent
+Registry API, Agent activity API, and HumanApproval API.
 The Access & Data page reads Access Grants, Source inventory records, and
 Source Data Usage Profiles for governance review workflows. It can transition
 Access Grant statuses through explicit backend lifecycle endpoints while keeping
@@ -88,19 +92,20 @@ If this variable is not set, the web app defaults to:
 http://127.0.0.1:8000
 ```
 
-The backend API must be running for the Agent list, Agent detail page, Agent
-activity timeline, Access & Data page, Human Approvals list, and Evidence
-Bundle viewer to show data. Depending on your local browser and API setup, CORS
-configuration or a Next.js proxy may be needed before browser requests to the
-backend succeed. Agent activity requires a backend actor with `reviewer`,
-`auditor`, or `platform_admin` role. Evidence Bundle export also requires a
-backend actor with `auditor` or `platform_admin` role, or direct user owner
-access when the backend allows it. Loading or downloading Evidence Bundle JSON
-is a manual action and uses the backend export endpoint, preserving backend
-export audit behavior. The Access & Data page treats Access Grants as declared
-governance records, not IAM credentials. Access Grant transition actions update
-the governance record status only; this does not by itself guarantee runtime
-blocking, because runtime enforcement depends on explicit policies.
+The backend API must be running for the root dashboard summary, Agent list,
+Agent detail page, Agent activity timeline, Access & Data page, Human Approvals
+list, and Evidence Bundle viewer to show data. Depending on your local browser
+and API setup, CORS configuration or a Next.js proxy may be needed before
+browser requests to the backend succeed. Agent activity requires a backend actor
+with `reviewer`, `auditor`, or `platform_admin` role. Evidence Bundle export
+also requires a backend actor with `auditor` or `platform_admin` role, or direct
+user owner access when the backend allows it. Loading or downloading Evidence
+Bundle JSON is a manual action and uses the backend export endpoint, preserving
+backend export audit behavior. The Access & Data page treats Access Grants as
+declared governance records, not IAM credentials. Access Grant transition
+actions update the governance record status only; this does not by itself
+guarantee runtime blocking, because runtime enforcement depends on explicit
+policies.
 DataUsageProfile records remain governance metadata, not legal certification.
 The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
@@ -136,6 +141,10 @@ Open:
 ```text
 http://localhost:3000/agents
 ```
+
+You can also open `http://localhost:3000/` for the connected product dashboard
+entry point. It links to Agents, Human Approvals, Evidence, Audit, Policies,
+and Settings without embedding demo records in the frontend.
 
 The backend seed creates one local Agent, one active Policy and PolicyRule, one
 runtime event, one PolicyDecision, one pending HumanApproval, and related
