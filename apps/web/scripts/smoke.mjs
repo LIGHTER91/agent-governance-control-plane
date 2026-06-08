@@ -1,6 +1,7 @@
 ﻿import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -24,6 +25,14 @@ const files = [
   "app/access-data/access-grants-workflow.tsx",
   "app/access-data/sources-workflow.tsx",
   "app/policies/page.tsx",
+  "app/policies/policy-blocks-editor.tsx",
+  "app/policies/policy-code-editor.tsx",
+  "app/policies/policy-dsl.ts",
+  "app/policies/policy-editor.tsx",
+  "app/policies/policy-inspector.tsx",
+  "app/policies/policy-repository.tsx",
+  "app/policies/policy-studio.tsx",
+  "app/policies/policy-templates.tsx",
   "app/policies/policies-manager.tsx",
   "app/integrations/page.tsx",
   "app/integrations/integration-hub.tsx",
@@ -137,37 +146,56 @@ const requiredText = [
   "Training",
   "External model usage",
   "related_source_access_grants",
-  "Policy Governance",
   "GET /policies",
   "POST /policies",
   "PATCH /policies/{policy_id}",
   "GET /policies/{policy_id}/rules",
   "POST /policy-rules",
   "PATCH /policy-rules/{rule_id}",
-  "Policy lifecycle and constrained rule editing",
-  "PolicyRules define executable conditions",
+  "Policy Studio",
+  "Search policies",
+  "Templates",
+  "New policy",
+  "policy structure",
+  "WHEN",
+  "CHECK",
+  "THEN",
+  "PROVE",
+  "Blocks",
+  "Code DSL",
+  "Compiles to",
+  "Validate",
+  "Local validation only",
+  "Inspector",
+  "Compiled Output",
+  "Review Status",
+  "Save draft",
+  "Submit for review",
+  "PolicyRule condition reason is required",
+  "Generated deterministic condition JSON",
+  "Save draft is possible from this editor state",
+  "Save draft blocked",
+  "No PolicyRule selected; Save draft will create one",
+  "Save draft updates this rule only",
+  "deterministic PolicyRule condition JSON",
+  "Compiled locally from editor state",
+  "Backend simulation unavailable; this is local validation only",
+  "No backend simulation endpoint wired",
+  "Confidential Data Vectorization Guard",
+  "External Model Usage Guard",
   "Loading policies",
   "Unable to load policies",
   "No policies found",
-  "Create Policy",
-  "Edit selected Policy",
-  "PolicyRule conditions",
-  "Loading PolicyRules",
-  "Unable to load PolicyRules",
-  "No PolicyRules found",
-  "Create PolicyRule",
-  "Edit selected PolicyRule",
-  "CheckResults are evidence inputs, not legal certification",
-  "Changing PolicyRules can affect future Runtime Gateway decisions",
   "check_type",
   "check_outcome",
   "check_target_type",
   "check_target_id",
   "check_tool_id",
   "check_min_confidence",
-  "Deterministic condition JSON preview",
-  "Policy saved",
-  "No Policy fields changed",
+  "Compiled condition JSON",
+  "Draft saved through existing Policy and PolicyRule APIs",
+  "Unsupported DSL lines were ignored by the local compiler",
+  "unsupportedConditionFields",
   "draft",
   "active",
   "disabled",
@@ -376,6 +404,7 @@ runAgentGovernanceProfileFixtureSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
 runAccessGrantWorkflowFixtureSmoke();
+await runPolicyDslRoundTripSmoke();
 
 console.log("Dashboard shell smoke check passed.");
 
@@ -422,6 +451,243 @@ function runRootDashboardSmoke() {
     if (rootSource.toLowerCase().includes(text.toLowerCase())) {
       throw new Error(`Root dashboard contains disconnected or unsafe text: ${text}`);
     }
+  }
+}
+
+async function runPolicyDslRoundTripSmoke() {
+  const policyDsl = await loadPolicyDslModule();
+  const {
+    POLICY_TEMPLATES,
+    conditionToDsl,
+    parsePolicyDslToPolicyRule,
+    templateToDsl,
+    unsupportedConditionFields
+  } = policyDsl;
+
+  const roundTripCases = [
+    {
+      name: "allow",
+      condition: {
+        action_type: "read",
+        decision: "allow",
+        reason: "Allow verified action."
+      }
+    },
+    {
+      name: "deny",
+      condition: {
+        decision: "deny",
+        reason: "Deny unsafe external action.",
+        tool_name: "external_payments"
+      }
+    },
+    {
+      name: "require_human_review",
+      condition: {
+        decision: "require_human_review",
+        environment: "production",
+        reason: "Production external action requires review.",
+        risk_level: "high"
+      }
+    },
+    {
+      name: "not_applicable",
+      condition: {
+        decision: "not_applicable",
+        reason: "Policy does not apply to this request.",
+        purpose: "support_triage"
+      }
+    }
+  ];
+
+  for (const fixture of roundTripCases) {
+    const parsed = parsePolicyDslToPolicyRule(
+      conditionToDsl(`${fixture.name}_case`, fixture.condition)
+    );
+    assertSmoke(parsed.errors.length === 0, `${fixture.name} DSL had errors`);
+    assertSmoke(
+      parsed.unsupported.length === 0,
+      `${fixture.name} DSL produced unsupported lines`
+    );
+    assertJsonIncludes(
+      parsed.condition,
+      fixture.condition,
+      `${fixture.name} round-trip condition`
+    );
+  }
+
+  const missingReason = parsePolicyDslToPolicyRule(
+    [
+      "policy missing_reason {",
+      '  when tool.name == "external_payments"',
+      "  then deny()",
+      "  prove decision, checks, reviewer, evidence_bundle",
+      "}"
+    ].join("\n")
+  );
+  assertSmoke(
+    missingReason.condition === null,
+    "missing reason DSL should not compile"
+  );
+  assertSmoke(
+    missingReason.errors.includes("PolicyRule condition reason is required."),
+    "missing reason DSL did not report reason requirement"
+  );
+
+  const invalidConfidence = parsePolicyDslToPolicyRule(
+    [
+      "policy invalid_confidence {",
+      '  check check.min_confidence == 1.2 required',
+      '  then allow("Confidence threshold is valid.")',
+      "  prove decision, checks, reviewer, evidence_bundle",
+      "}"
+    ].join("\n")
+  );
+  assertSmoke(
+    invalidConfidence.condition === null,
+    "invalid check_min_confidence should not compile"
+  );
+  assertSmoke(
+    invalidConfidence.errors.includes(
+      "check_min_confidence must be a number between 0 and 1."
+    ),
+    "invalid check_min_confidence did not report threshold error"
+  );
+
+  const unsupported = parsePolicyDslToPolicyRule(
+    [
+      "policy unsupported_line {",
+      '  when tool.name == "send_email"',
+      '  inspect production_impact == "18 systems"',
+      '  then require_review("Review unsupported syntax.")',
+      "  prove decision, checks, reviewer, evidence_bundle",
+      "}"
+    ].join("\n")
+  );
+  assertSmoke(
+    unsupported.unsupported.includes('inspect production_impact == "18 systems"'),
+    "unsupported DSL syntax was not surfaced"
+  );
+  assertSmoke(
+    unsupported.warnings.includes(
+      "Unsupported DSL lines were ignored by the local compiler."
+    ),
+    "unsupported DSL syntax did not create a warning"
+  );
+
+  const emptyPolicy = parsePolicyDslToPolicyRule("");
+  assertSmoke(emptyPolicy.condition === null, "empty policy should not compile");
+  assertSmoke(
+    emptyPolicy.errors.includes("PolicyRule condition reason is required."),
+    "empty policy did not report missing reason"
+  );
+
+  for (const template of POLICY_TEMPLATES) {
+    const parsedTemplate = parsePolicyDslToPolicyRule(templateToDsl(template));
+    assertSmoke(
+      parsedTemplate.errors.length === 0,
+      `${template.name} template had DSL errors`
+    );
+    assertSmoke(
+      parsedTemplate.unsupported.length === 0,
+      `${template.name} template emitted unsupported DSL`
+    );
+    assertSmoke(
+      parsedTemplate.condition?.reason,
+      `${template.name} template did not compile a reason`
+    );
+  }
+
+  const confidentialTemplate = POLICY_TEMPLATES.find(
+    (template) => template.id === "confidential_vectorization_guard"
+  );
+  assertSmoke(
+    Boolean(confidentialTemplate),
+    "Confidential Data Vectorization Guard template missing"
+  );
+  assertJsonIncludes(
+    confidentialTemplate.condition,
+    {
+      access_grant_status: "active",
+      action_type: "vectorization",
+      data_usage_allowed_purpose: "vectorization",
+      data_usage_review_status: "approved",
+      decision: "require_human_review",
+      model_provider_type: "external",
+      model_type: "embedding",
+      source_data_classification: "confidential"
+    },
+    "confidential vectorization template"
+  );
+
+  const unsupportedFields = unsupportedConditionFields({
+    declared_data_classification: "confidential",
+    decision: "allow",
+    reason: "Supported fields only."
+  });
+  assertSmoke(
+    unsupportedFields.includes("declared_data_classification"),
+    "unsupported backend fields were not detected"
+  );
+
+  const policyStudioSource = fileEntries
+    .filter((entry) => entry.file.startsWith("app/policies/"))
+    .map((entry) => entry.source)
+    .join("\n");
+  assertSmoke(
+    !policyStudioSource.includes("Publish"),
+    "Policy Studio source contains a Publish action"
+  );
+  const normalizedPolicyStudioSource = policyStudioSource.toLowerCase();
+  for (const forbidden of [
+    "compliance score",
+    "affected agents",
+    "production simulation"
+  ]) {
+    assertSmoke(
+      !normalizedPolicyStudioSource.includes(forbidden),
+      `Policy Studio source contains forbidden product claim: ${forbidden}`
+    );
+  }
+}
+
+async function loadPolicyDslModule() {
+  const ts = await import("typescript");
+  const sourceText = sourceByFile.get("app/policies/policy-dsl.ts");
+  const transpiled = ts.transpileModule(sourceText, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020
+    }
+  });
+  const module = { exports: {} };
+  const context = {
+    exports: module.exports,
+    module,
+    require: (specifier) => {
+      throw new Error(`Unexpected runtime import in policy-dsl smoke: ${specifier}`);
+    }
+  };
+  vm.runInNewContext(transpiled.outputText, context, {
+    filename: "policy-dsl.ts"
+  });
+  return module.exports;
+}
+
+function assertJsonIncludes(actual, expected, label) {
+  assertSmoke(Boolean(actual), `${label} did not produce JSON`);
+  for (const [key, value] of Object.entries(expected)) {
+    assertSmoke(
+      JSON.stringify(actual[key]) === JSON.stringify(value),
+      `${label} missing ${key}=${JSON.stringify(value)}`
+    );
+  }
+}
+
+function assertSmoke(condition, message) {
+  if (!condition) {
+    throw new Error(message);
   }
 }
 

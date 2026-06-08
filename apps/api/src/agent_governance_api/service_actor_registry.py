@@ -9,6 +9,8 @@ from agent_governance_api.models import (
     ServiceActor,
     ServiceActorApiKey,
     ServiceActorApiKeyStatus,
+    ServiceActorScope,
+    ServiceActorScopeRule,
     ServiceActorStatus,
 )
 
@@ -87,6 +89,55 @@ def get_authenticatable_service_actor_api_key_by_hash(
         return None
 
     return api_key
+
+
+def get_service_actor_scope_values_by_actor_id(
+    session: Session,
+    actor_id: str,
+    *,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    if not is_service_actor_registry_enabled(settings):
+        return ()
+
+    return tuple(
+        session.scalars(
+            select(ServiceActorScope.scope)
+            .join(ServiceActor)
+            .where(ServiceActor.actor_id == actor_id)
+            .order_by(ServiceActorScope.scope)
+        ).all()
+    )
+
+
+def get_service_actor_scope_rules_by_actor_id(
+    session: Session,
+    actor_id: str,
+    *,
+    settings: Settings | None = None,
+) -> tuple[ServiceActorScopeRule, ...]:
+    if not is_service_actor_registry_enabled(settings):
+        return ()
+
+    return tuple(
+        session.scalars(
+            select(ServiceActorScopeRule)
+            .join(ServiceActor)
+            .where(ServiceActor.actor_id == actor_id)
+            .order_by(ServiceActorScopeRule.created_at, ServiceActorScopeRule.id)
+        ).all()
+    )
+
+
+def has_service_actor_scope_rules(
+    session: Session,
+    *,
+    settings: Settings | None = None,
+) -> bool:
+    if not is_service_actor_registry_enabled(settings):
+        return False
+
+    return session.scalar(select(ServiceActorScopeRule.id).limit(1)) is not None
 
 
 def is_service_actor_api_key_authenticatable(

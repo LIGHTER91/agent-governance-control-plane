@@ -1,4 +1,7 @@
+import subprocess
+import sys
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -34,6 +37,8 @@ from agent_governance_api.models import (
     TraceEventRecord,
     TraceEventType,
 )
+
+API_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture()
@@ -199,3 +204,17 @@ def test_seed_full_stack_demo_records_do_not_include_unsafe_metadata_keys(
     ]
     metadata_text = repr(metadata_values).lower()
     assert not any(part in metadata_text for part in unsafe_parts)
+
+
+def test_seed_full_stack_demo_script_supports_direct_execution_help() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/seed_full_stack_demo.py", "--help"],
+        cwd=API_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Seed safe local-only demo data" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr

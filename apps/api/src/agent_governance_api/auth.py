@@ -16,6 +16,9 @@ from agent_governance_api.database import get_db_session
 from agent_governance_api.models import ActorType
 from agent_governance_api.service_actor_registry import (
     get_authenticatable_service_actor_api_key_by_hash,
+    get_service_actor_scope_rules_by_actor_id,
+    get_service_actor_scope_values_by_actor_id,
+    has_service_actor_scope_rules,
 )
 
 DEVELOPMENT_ACTOR_ID = "dev-placeholder"
@@ -39,6 +42,7 @@ class ActorContext:
     actor_type: ActorType
     actor_id: str
     roles: tuple[str, ...] = field(default_factory=tuple)
+    service_actor_auth_source: str | None = None
 
 
 def get_current_actor() -> ActorContext:
@@ -112,6 +116,7 @@ def service_actor_from_api_key(
                 actor_type=ActorType.SERVICE,
                 actor_id=configured_key.actor_id,
                 roles=_service_actor_scopes(configured_key.actor_id, settings),
+                service_actor_auth_source="config",
             )
 
     return None
@@ -134,7 +139,12 @@ def _service_actor_from_registry_key_hash(
     return ActorContext(
         actor_type=ActorType.SERVICE,
         actor_id=api_key.service_actor.actor_id,
-        roles=_service_actor_scopes(api_key.service_actor.actor_id, settings),
+        roles=get_service_actor_scope_values_by_actor_id(
+            session,
+            api_key.service_actor.actor_id,
+            settings=settings,
+        ),
+        service_actor_auth_source="registry",
     )
 
 
@@ -190,6 +200,7 @@ def require_service_actor_fine_grained_scope(
     runtime_mode: object | None = None,
     tool_name: str | None = None,
     settings: Settings | None = None,
+    session: Session | None = None,
 ) -> None:
     """Narrow service actor endpoint scopes by Agent and request context.
 
@@ -201,13 +212,32 @@ def require_service_actor_fine_grained_scope(
         return
 
     settings = settings or get_settings()
-    actor_rules = tuple(
-        rule
-        for rule in settings.service_actor_scope_rules
-        if rule.actor_id == actor.actor_id
-    )
+    if _uses_registry_service_actor_auth(actor, settings):
+        actor_rules = (
+            get_service_actor_scope_rules_by_actor_id(
+                session,
+                actor.actor_id,
+                settings=settings,
+            )
+            if session is not None
+            else ()
+        )
+        strict_rules_required = settings.require_service_auth or (
+            session is not None
+            and has_service_actor_scope_rules(session, settings=settings)
+        )
+    else:
+        actor_rules = tuple(
+            rule
+            for rule in settings.service_actor_scope_rules
+            if rule.actor_id == actor.actor_id
+        )
+        strict_rules_required = settings.require_service_auth or bool(
+            settings.service_actor_scope_rules
+        )
+
     if not actor_rules:
-        if settings.require_service_auth or settings.service_actor_scope_rules:
+        if strict_rules_required:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Service actor requires a fine-grained scope rule.",
@@ -257,7 +287,17 @@ def _service_actor_scopes(actor_id: str, settings: Settings) -> tuple[str, ...]:
     return ()
 
 
-def _values_allow(values: tuple[str, ...], requested_value: str) -> bool:
+def _uses_registry_service_actor_auth(actor: ActorContext, settings: Settings) -> bool:
+    return (
+        settings.service_actor_registry_enabled
+        and actor.service_actor_auth_source == "registry"
+    )
+
+
+def _values_allow(
+    values: tuple[str, ...] | list[str],
+    requested_value: str,
+) -> bool:
     return SERVICE_ACTOR_FINE_GRAINED_WILDCARD in values or requested_value in values
 
 

@@ -21,7 +21,13 @@ manually loads filtered Evidence Bundle JSON for a single Agent, explains the
 human-readable evidence chain, and lets reviewers download the bounded JSON
 artifact returned by the backend. The Runtime Gateway
 page is a static read-only overview of runtime modes, endpoints, configuration
-flags, and current limitations. The Integration Hub page explains Custom
+flags, and current limitations. The Policies page is an IDE-style Policy Studio:
+it reads existing Policy and PolicyRule records, offers block and Code DSL
+authoring modes, and compiles local editor state back to deterministic
+PolicyRule condition JSON before calling the existing Policy APIs. Its Validate
+action is local parser/compile validation, not production simulation. Review and
+publish workflows remain constrained by backend lifecycle support. The
+Integration Hub page explains Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
 connection patterns without turning AGCP into an orchestrator. It can show a
 read-only Service Actor registry and API key status summary when the backend
@@ -79,6 +85,12 @@ GET /service-actors
 GET /service-actors/{service_actor_id}/api-keys
 GET /service-actors/{service_actor_id}/scopes
 GET /service-actors/{service_actor_id}/scope-rules
+GET /policies
+POST /policies
+PATCH /policies/{policy_id}
+GET /policies/{policy_id}/rules
+POST /policy-rules
+PATCH /policy-rules/{rule_id}
 ```
 
 Configure the backend base URL with:
@@ -111,6 +123,14 @@ DataUsageProfile records remain governance metadata, not legal certification.
 The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
 states that runtime callers, not AGCP, execute tools and honor `proceed`.
+The Policy Studio uses the existing Policy and PolicyRule APIs. Code DSL and
+block editing are frontend authoring surfaces that compile to deterministic
+PolicyRule condition JSON. Local validation checks parser support, required
+fields, unsupported DSL syntax, selected Policy/PolicyRule state, and generated
+JSON shape; it does not simulate runtime impact or claim production enforcement
+coverage. Built-in templates are static authoring helpers, not backend records,
+and they never save automatically. Submit for review is not wired yet, and the
+UI intentionally has no direct Publish action.
 
 ## Local Full-Stack Demo
 
@@ -226,7 +246,8 @@ npm run build
 - Integration Hub does not implement adapter packages, execute tools, create or
   rotate API keys, or verify that a caller is enforcing Runtime Gateway
   decisions.
-- No Policy CRUD.
+- Policy Studio supports Policy/PolicyRule draft saving through existing APIs,
+  but Submit for review is not wired to a frontend lifecycle action yet.
 - No PDF or signed Evidence Bundle export in the UI.
 - Runtime Gateway page is read-only and does not call runtime endpoints.
 - No charts or metrics.

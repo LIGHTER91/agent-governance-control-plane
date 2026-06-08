@@ -24,6 +24,39 @@ def test_database_url_comes_from_environment(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_cors_allowed_origins_include_local_web_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_CORS_ALLOWED_ORIGINS", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.cors_allowed_origins == (
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        )
+    finally:
+        get_settings.cache_clear()
+
+
+def test_cors_allowed_origins_can_be_loaded_from_environment(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv(
+        "AGCP_CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000, http://127.0.0.1:3001/, http://localhost:3000",
+    )
+
+    try:
+        settings = get_settings()
+
+        assert settings.cors_allowed_origins == (
+            "http://localhost:3000",
+            "http://127.0.0.1:3001",
+        )
+    finally:
+        get_settings.cache_clear()
+
+
 def test_runtime_enforcement_is_disabled_by_default(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.delenv("AGCP_RUNTIME_ENFORCEMENT_ENABLED", raising=False)

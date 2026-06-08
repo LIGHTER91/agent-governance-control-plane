@@ -9,6 +9,10 @@ DEFAULT_DATABASE_URL = (
     "postgresql+psycopg://postgres@127.0.0.1:5432/"
     "agent_governance_control_plane?connect_timeout=5"
 )
+DEFAULT_CORS_ALLOWED_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
 SERVICE_ACTOR_API_KEY_HASH_PREFIX = "sha256:"
 SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH = 64
 SUPPORTED_SERVICE_ACTOR_SCOPES = frozenset(
@@ -76,6 +80,7 @@ class Settings(BaseModel):
     environment: str = Field(default="development")
     log_level: str = Field(default="INFO")
     database_url: str = Field(default=DEFAULT_DATABASE_URL)
+    cors_allowed_origins: tuple[str, ...] = Field(default=DEFAULT_CORS_ALLOWED_ORIGINS)
     runtime_enforcement_enabled: bool = Field(default=False)
     runtime_metadata_pre_checks_enabled: bool = Field(default=False)
     runtime_failure_default: RuntimeFailureDefault = Field(
@@ -100,6 +105,10 @@ def get_settings() -> Settings:
         environment=getenv("AGCP_ENVIRONMENT", "development"),
         log_level=getenv("AGCP_LOG_LEVEL", "INFO"),
         database_url=getenv("AGCP_DATABASE_URL", DEFAULT_DATABASE_URL),
+        cors_allowed_origins=_get_csv_env(
+            "AGCP_CORS_ALLOWED_ORIGINS",
+            default=DEFAULT_CORS_ALLOWED_ORIGINS,
+        ),
         runtime_enforcement_enabled=_get_bool_env(
             "AGCP_RUNTIME_ENFORCEMENT_ENABLED",
             default=False,
@@ -130,6 +139,19 @@ def get_settings() -> Settings:
             default=False,
         ),
     )
+
+
+def _get_csv_env(name: str, *, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw_value = getenv(name)
+    if raw_value is None:
+        return default
+
+    values = tuple(
+        dict.fromkeys(
+            value.strip().rstrip("/") for value in raw_value.split(",") if value.strip()
+        )
+    )
+    return values
 
 
 def _get_bool_env(name: str, *, default: bool) -> bool:

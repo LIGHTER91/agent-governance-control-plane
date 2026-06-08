@@ -34,7 +34,7 @@ export function HumanApprovalActions({
   if (approval.status !== "pending") {
     return (
       <span className="approval-action-note">
-        Only pending HumanApprovals can be reviewed from this UI.
+        Completed HumanApprovals are read-only in this UI.
       </span>
     );
   }
@@ -136,19 +136,21 @@ export function actionPastTense(action: HumanApprovalAction) {
 function humanApprovalActionError(error: unknown) {
   if (error instanceof ApiRequestError) {
     if (error.status === 403) {
-      return "This actor is not allowed to perform this HumanApproval action.";
+      return "RBAC denied: the current actor is not allowed to perform this HumanApproval action.";
     }
 
     if (error.status === 404) {
-      return "HumanApproval not found.";
+      return "HumanApproval not found. Refresh the list and confirm the record still exists.";
     }
 
     if (error.status === 400 || error.status === 409 || error.status === 422) {
-      return "Only pending HumanApprovals can transition.";
+      return "Invalid transition: this HumanApproval may already be reviewed or is no longer pending.";
     }
   }
 
-  return error instanceof Error
-    ? error.message
-    : "Unable to update HumanApproval.";
+  if (error instanceof TypeError) {
+    return "Backend unavailable: the HumanApproval action request could not reach the API.";
+  }
+
+  return error instanceof Error ? error.message : "Unable to update HumanApproval.";
 }

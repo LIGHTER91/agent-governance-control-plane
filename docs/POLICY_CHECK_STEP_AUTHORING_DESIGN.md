@@ -9,9 +9,10 @@ endpoints, OpenAPI examples, audit events for create/update/status changes, and
 Runtime Gateway execution of active authored steps when
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
 
-This document and implementation do not add frontend UI, PolicyRule evaluation
-changes, scanner integrations, external tool execution, or CheckResult-driven
-enforcement.
+This document and implementation do not add frontend UI, scanner integrations,
+external tool execution, or automatic CheckResult-driven enforcement. PolicyRule
+evaluation now supports explicit deterministic `check_*` matching fields so
+CheckResults can be used as policy context only when a rule opts in.
 
 AGCP already has `CheckTool` and `CheckResult` persistence, metadata-only
 check helpers, optional Runtime Gateway metadata pre-check execution behind
@@ -180,9 +181,10 @@ Suggested values:
 - `ignore_if_unavailable`;
 - `record_only`.
 
-V1 should persist and expose this intent but should not automatically change
-Runtime Gateway decisions until PolicyRule evaluation explicitly supports check
-outcome matching.
+V1 persists and exposes this intent but does not automatically change Runtime
+Gateway decisions. PolicyRule evaluation can now explicitly match check outcome
+context, so failure behavior remains evidence intent unless a rule chooses to
+match the recorded CheckResult.
 
 ### Confidence Threshold
 
@@ -330,7 +332,7 @@ PolicyCheckSteps:
 ]
 ```
 
-Future PolicyRules can explicitly match check outcome context, for example:
+PolicyRules can explicitly match check outcome context, for example:
 
 ```json
 {
@@ -343,8 +345,11 @@ Future PolicyRules can explicitly match check outcome context, for example:
 }
 ```
 
-The exact check outcome condition shape should be designed before
-implementation. It must stay deterministic and explicit.
+The implemented check outcome condition shape is deterministic and explicit:
+`check_type`, `check_outcome`, `check_target_type`, `check_target_id`,
+`check_tool_id`, and `check_min_confidence`. A rule with any `check_*` field
+matches when at least one CheckResult for the current decision satisfies all
+specified check fields.
 
 ## Execution Model
 
@@ -368,7 +373,7 @@ Recommended staged approach:
      safe PolicyCheckStep reference metadata where available.
    - Do not directly alter `decision` or `proceed`.
 
-4. Later add explicit check outcome matching.
+4. Add explicit check outcome matching. Implemented.
    - CheckResults become additional deterministic context only when PolicyRules
      explicitly match check outcome fields.
    - No hidden default deny.
@@ -472,7 +477,7 @@ workflow log or policy authoring UI.
 - Do not execute scanners or external tools from PolicyCheckSteps.
 - Do not make PolicyCheckStep `failure_behavior` directly change runtime
   `decision` or `proceed`.
-- Do not change PolicyRule evaluation in this implementation slice.
+- Do not add generic or nested PolicyRule expressions.
 - Do not add frontend UI.
 - Do not add external scanners.
 - Do not execute tools.
@@ -502,8 +507,8 @@ Recommended staged implementation:
 6. Update Runtime Gateway optional pre-check execution to run only authored
    active steps behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
    Implemented.
-7. Add deterministic check outcome context only after the policy evaluator
-   contract is designed.
+7. Add deterministic check outcome context. Implemented with explicit
+   PolicyRule `check_*` fields.
 8. Add guided Policy UI support only after versioning, review, and simulation
    semantics are designed.
 9. Consider external checker adapters only after async execution, safety, and

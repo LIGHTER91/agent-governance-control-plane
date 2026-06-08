@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent_governance_api.access_grants import router as access_grants_router
@@ -27,6 +28,14 @@ settings = get_settings()
 configure_logging(settings.log_level)
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+if settings.cors_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 app.include_router(access_grants_router)
 app.include_router(agents_router)
 app.include_router(capabilities_router)

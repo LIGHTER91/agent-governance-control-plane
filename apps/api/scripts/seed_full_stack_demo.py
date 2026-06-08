@@ -1,11 +1,18 @@
+import sys
 from argparse import ArgumentParser
+from pathlib import Path
 from sys import stderr
 
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+API_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = API_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-from agent_governance_api.database import create_database_engine
-from agent_governance_api.full_stack_demo_seed import (
+from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from agent_governance_api.database import create_database_engine  # noqa: E402
+from agent_governance_api.full_stack_demo_seed import (  # noqa: E402
     format_full_stack_demo_seed_result,
     seed_full_stack_demo,
 )
