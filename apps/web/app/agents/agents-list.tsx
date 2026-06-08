@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  AGCPBadge,
+  AGCPDataTable,
+  AGCPEmptyState,
+  AGCPErrorState,
+  AGCPPanel,
+  AGCPSectionHeader
+} from "../agcp-studio/primitives";
 import { AgentRecord, fetchAgents, getApiBaseUrl } from "../lib/agents";
 
 type AgentsState =
@@ -34,6 +42,37 @@ function ownerDisplay(agent: AgentRecord) {
   return agent.owner_name || agent.owner_id;
 }
 
+function badgeTone(value: string | null | undefined) {
+  if (value === "active" || value === "approved" || value === "low") {
+    return "ok";
+  }
+
+  if (
+    value === "pending" ||
+    value === "medium" ||
+    value === "staging" ||
+    value === "development"
+  ) {
+    return "warn";
+  }
+
+  if (
+    value === "disabled" ||
+    value === "archived" ||
+    value === "high" ||
+    value === "critical" ||
+    value === "production"
+  ) {
+    return "danger";
+  }
+
+  return "info";
+}
+
+function environmentCount(agents: AgentRecord[], environment: string) {
+  return agents.filter((agent) => agent.environment === environment).length;
+}
+
 export function AgentsList() {
   const [state, setState] = useState<AgentsState>({ status: "loading" });
 
@@ -63,86 +102,114 @@ export function AgentsList() {
 
   if (state.status === "loading") {
     return (
-      <section className="data-panel" aria-live="polite">
-        <div className="state-message">
-          <strong>Loading agents</strong>
-          <p>Requesting registered agents from {getApiBaseUrl()}.</p>
-        </div>
-      </section>
+      <AGCPPanel>
+        <AGCPEmptyState title="Loading agents">
+          Requesting registered agents from {getApiBaseUrl()}.
+        </AGCPEmptyState>
+      </AGCPPanel>
     );
   }
 
   if (state.status === "error") {
     return (
-      <section className="data-panel" role="alert">
-        <div className="state-message error">
-          <strong>Unable to load agents</strong>
-          <p>{state.message}</p>
-          <p>
-            Check that the backend is running and that
-            NEXT_PUBLIC_AGCP_API_BASE_URL points to the API base URL.
-          </p>
-        </div>
-      </section>
+      <AGCPPanel>
+        <AGCPErrorState title="Unable to load agents">
+          {state.message} Check that the backend is running and that
+          NEXT_PUBLIC_AGCP_API_BASE_URL points to the API base URL.
+        </AGCPErrorState>
+      </AGCPPanel>
     );
   }
 
   if (state.agents.length === 0) {
     return (
-      <section className="data-panel">
-        <div className="state-message">
-          <strong>No agents registered</strong>
-          <p>
-            Once agents are created through the backend API, they will appear
-            here with ownership, environment, status, risk level, and framework
-            metadata.
-          </p>
-        </div>
-      </section>
+      <AGCPPanel>
+        <AGCPEmptyState title="No agents registered">
+          Once agents are created through the backend API, they will appear here
+          with ownership, environment, status, risk level, and framework
+          metadata.
+        </AGCPEmptyState>
+      </AGCPPanel>
     );
   }
 
   return (
-    <section className="data-panel" aria-label="Registered agents">
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column} scope="col">
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {state.agents.map((agent) => (
-              <tr key={agent.id}>
-                <td>
-                  <Link
-                    className="row-link"
-                    href={`/agents/${encodeURIComponent(agent.id)}`}
-                  >
-                    {agent.name}
-                  </Link>
-                </td>
-                <td>{ownerDisplay(agent)}</td>
-                <td>{formatValue(agent.owner_type)}</td>
-                <td>{formatValue(agent.environment)}</td>
-                <td>
-                  <span className="table-pill">{formatValue(agent.status)}</span>
-                </td>
-                <td>
-                  <span className={`table-pill risk-${agent.risk_level}`}>
-                    {formatValue(agent.risk_level)}
-                  </span>
-                </td>
-                <td>{formatValue(agent.framework)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <AGCPPanel className="agcp-agent-registry" aria-label="Registered agents">
+      <AGCPSectionHeader
+        eyebrow="connected registry"
+        title="Registered agents"
+        description="Live records from GET /agents. The frontend does not inject demo agents or synthetic metrics."
+        meta={<AGCPBadge tone="purple">{state.agents.length} agents</AGCPBadge>}
+      />
+
+      <div className="agcp-registry-summary" aria-label="Agent registry summary">
+        <div>
+          <span>Total</span>
+          <strong>{state.agents.length}</strong>
+        </div>
+        <div>
+          <span>Production</span>
+          <strong>{environmentCount(state.agents, "production")}</strong>
+        </div>
+        <div>
+          <span>High or critical risk</span>
+          <strong>
+            {
+              state.agents.filter(
+                (agent) =>
+                  agent.risk_level === "high" || agent.risk_level === "critical"
+              ).length
+            }
+          </strong>
+        </div>
       </div>
-    </section>
+
+      <AGCPDataTable>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column} scope="col">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {state.agents.map((agent) => (
+            <tr key={agent.id}>
+              <td>
+                <Link
+                  className="agcp-primary-link"
+                  href={`/agents/${encodeURIComponent(agent.id)}`}
+                >
+                  {agent.name}
+                </Link>
+                <div className="agcp-id">{agent.id}</div>
+              </td>
+              <td>{ownerDisplay(agent)}</td>
+              <td>
+                <AGCPBadge tone="muted">{formatValue(agent.owner_type)}</AGCPBadge>
+              </td>
+              <td>
+                <AGCPBadge tone={badgeTone(agent.environment)}>
+                  {formatValue(agent.environment)}
+                </AGCPBadge>
+              </td>
+              <td>
+                <AGCPBadge tone={badgeTone(agent.status)}>
+                  {formatValue(agent.status)}
+                </AGCPBadge>
+              </td>
+              <td>
+                <AGCPBadge tone={badgeTone(agent.risk_level)}>
+                  {formatValue(agent.risk_level)}
+                </AGCPBadge>
+              </td>
+              <td>{formatValue(agent.framework)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </AGCPDataTable>
+    </AGCPPanel>
   );
 }

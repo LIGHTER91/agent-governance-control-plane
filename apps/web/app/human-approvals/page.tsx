@@ -7,9 +7,9 @@ export default function HumanApprovalsPage() {
         <p className="eyebrow">Human Oversight</p>
         <h2>Human Approvals</h2>
         <p>
-          Read-only approval records from the backend API, shown with requester
-          and reviewer actor fields, status, policy decision linkage, and review
-          timestamps.
+          Review HumanApproval records from the backend API as a governance
+          queue. This page keeps reviewer, requester, policy decision, status,
+          and timestamp context visible without inventing approval records.
         </p>
       </section>
 

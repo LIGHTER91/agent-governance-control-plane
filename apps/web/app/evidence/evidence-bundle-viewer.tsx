@@ -1,6 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import {
+  AGCPBadge,
+  AGCPEmptyState,
+  AGCPErrorState,
+  AGCPPanel,
+  AGCPSectionHeader
+} from "../agcp-studio/primitives";
 import { ApiRequestError, getApiBaseUrl } from "../lib/api";
 import {
   EvidenceAccessGrant,
@@ -159,9 +166,15 @@ export function EvidenceBundleViewer() {
   }
 
   return (
-    <>
-      <section className="lookup-panel" aria-label="Evidence Bundle lookup">
-        <form className="lookup-form" onSubmit={handleSubmit}>
+    <div className="agcp-evidence-workspace">
+      <AGCPPanel aria-label="Evidence Bundle lookup">
+        <AGCPSectionHeader
+          eyebrow="manual export"
+          title="Evidence Bundle lookup"
+          description={`Requests GET /agents/{agent_id}/evidence-bundle from ${getApiBaseUrl()} only after this manual action.`}
+          meta={<AGCPBadge tone="ok">canonical JSON</AGCPBadge>}
+        />
+        <form className="agcp-evidence-lookup" onSubmit={handleSubmit}>
           <label htmlFor="evidence-agent-id">
             <span>agent_id</span>
             <input
@@ -179,34 +192,31 @@ export function EvidenceBundleViewer() {
               : "Load Evidence Bundle"}
           </button>
         </form>
-        <p>
-          Requests `GET /agents/{"{agent_id}"}/evidence-bundle` from{" "}
-          {getApiBaseUrl()} only after this manual action.
-        </p>
-      </section>
+      </AGCPPanel>
 
       {state.status === "idle" ? (
-        <section className="state-message evidence-state">
-          <strong>No Evidence Bundle loaded</strong>
-          <p>
+        <AGCPPanel>
+          <AGCPEmptyState title="No Evidence Bundle loaded">
             Enter an Agent ID to review the bounded JSON evidence package and
             download the canonical artifact returned by the backend.
-          </p>
-        </section>
+          </AGCPEmptyState>
+        </AGCPPanel>
       ) : null}
 
       {state.status === "loading" ? (
-        <section className="state-message evidence-state" aria-live="polite">
-          <strong>Loading Evidence Bundle</strong>
-          <p>Requesting evidence for agent_id {state.agentId}.</p>
-        </section>
+        <AGCPPanel aria-live="polite">
+          <AGCPEmptyState title="Loading Evidence Bundle">
+            Requesting evidence for agent_id {state.agentId}.
+          </AGCPEmptyState>
+        </AGCPPanel>
       ) : null}
 
       {state.status === "error" ? (
-        <section className="state-message error evidence-state" role="alert">
-          <strong>Unable to load Evidence Bundle</strong>
-          <p>{state.message}</p>
-        </section>
+        <AGCPPanel>
+          <AGCPErrorState title="Unable to load Evidence Bundle">
+            {state.message}
+          </AGCPErrorState>
+        </AGCPPanel>
       ) : null}
 
       {state.status === "ready" ? (
@@ -216,7 +226,7 @@ export function EvidenceBundleViewer() {
           exportedAt={state.exportedAt}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -233,7 +243,7 @@ function EvidenceBundleSections({
   const counts = evidenceCounts(bundle, policyVersions.length);
 
   return (
-    <div className="evidence-layout">
+    <div className="evidence-layout agcp-evidence-workspace">
       <ExportWarnings />
       <ExportMetadataSection
         agentId={agentId}
@@ -399,22 +409,20 @@ function CanonicalJsonSection({
 
   return (
     <section className="evidence-section">
-      <header className="evidence-section-header evidence-action-header">
-        <div>
-          <h3>canonical_json_export</h3>
-          <p>
-            Raw JSON remains the canonical Evidence Bundle artifact returned by
-            the backend.
-          </p>
-        </div>
-        <button
-          className="secondary-action"
-          type="button"
-          onClick={() => downloadEvidenceBundle(agentId, bundle, exportedAt)}
-        >
-          Download Evidence Bundle JSON
-        </button>
-      </header>
+      <AGCPSectionHeader
+        eyebrow="artifact"
+        title="canonical_json_export"
+        description="Raw JSON remains the canonical Evidence Bundle artifact returned by the backend."
+        actions={
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={() => downloadEvidenceBundle(agentId, bundle, exportedAt)}
+          >
+            Download Evidence Bundle JSON
+          </button>
+        }
+      />
       <pre className="evidence-json-block">{jsonText}</pre>
     </section>
   );
@@ -1047,19 +1055,19 @@ function AuditLogsSection({ auditLogs }: { auditLogs: EvidenceAuditLog[] }) {
 
 function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
-    <header className="evidence-section-header">
-      <h3>{title}</h3>
-      <span>{count}</span>
-    </header>
+    <AGCPSectionHeader
+      eyebrow="evidence"
+      title={title}
+      meta={<AGCPBadge tone={count > 0 ? "purple" : "muted"}>{count}</AGCPBadge>}
+    />
   );
 }
 
 function EmptySection() {
   return (
-    <div className="state-message compact">
-      <strong>No records in this section</strong>
-      <p>The backend returned an empty list for this evidence category.</p>
-    </div>
+    <AGCPEmptyState title="No records in this section">
+      The backend returned an empty list for this evidence category.
+    </AGCPEmptyState>
   );
 }
 

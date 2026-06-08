@@ -1,7 +1,14 @@
 // @ts-nocheck
 "use client";
 
-import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { fetchAgents } from "../lib/agents";
+import { fetchHumanApprovals, transitionHumanApproval } from "../lib/human-approvals";
+import { fetchPolicies } from "../lib/policies";
+import { fetchAccessGrants, fetchSources } from "../lib/sources";
+import { fetchRuntimeToolCallActivity } from "../lib/runtime";
 
 /* ─── DESIGN TOKENS ─── */
 const CSS = `
@@ -228,6 +235,7 @@ const CSS = `
     transition: all .13s; color: var(--text-muted);
     font-size: 12.5px; font-weight: 500; margin-bottom: 1px;
     border: 1px solid transparent; position: relative; user-select: none;
+    text-decoration: none;
   }
   .nav-item:hover { background: rgba(255,255,255,.04); color: #bcbcd4; }
   .nav-item.active {
@@ -1244,14 +1252,272 @@ const CodeToken = ({ cls, text }) => {
   return <span className={classMap[cls] || "code-content"}>{text}</span>;
 };
 
+const initialStudioData = {
+  loading: true,
+  errors: [],
+  agents: [],
+  approvals: [],
+  policies: [],
+  sources: [],
+  accessGrants: [],
+  runtimeActivity: []
+};
+
+const formatLabel = (value) => {
+  if (!value) return "not set";
+  return String(value).replaceAll("_", " ");
+};
+
+const riskClass = (level) => {
+  if (level === "critical" || level === "high" || level === "restricted") return "danger";
+  if (level === "medium" || level === "confidential") return "warn";
+  if (level === "low" || level === "public") return "ok";
+  return "info";
+};
+
+const statusClass = (status) => {
+  if (status === "active" || status === "approved" || status === "allow") return "ok";
+  if (status === "deny" || status === "rejected" || status === "cancelled") return "danger";
+  if (status === "pending" || status === "require_human_review" || status === "draft") return "warn";
+  return "info";
+};
+
+const compactCount = (value) => new Intl.NumberFormat("en", {
+  notation: value >= 1000 ? "compact" : "standard",
+  maximumFractionDigits: 1
+}).format(value);
+
+const relativeTime = (value) => {
+  if (!value) return "time not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+function useAGCPStudioData() {
+  const [data, setData] = useState(initialStudioData);
+
+  const load = useCallback(async (signal) => {
+    setData((current) => ({ ...current, loading: true, errors: [] }));
+
+    const requests = await Promise.allSettled([
+      fetchAgents(signal),
+      fetchHumanApprovals("all", signal),
+      fetchPolicies(signal),
+      fetchSources(signal),
+      fetchAccessGrants(signal),
+      fetchRuntimeToolCallActivity(signal)
+    ]);
+
+    if (signal?.aborted) return;
+
+    const labels = [
+      "GET /agents",
+      "GET /human-approvals",
+      "GET /policies",
+      "GET /sources",
+      "GET /access-grants",
+      "GET /runtime/tool-calls/activity"
+    ];
+
+    const values = requests.map((result) =>
+      result.status === "fulfilled" ? result.value : []
+    );
+    const errors = requests.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [`${labels[index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`]
+        : []
+    );
+
+    setData({
+      loading: false,
+      errors,
+      agents: values[0],
+      approvals: values[1],
+      policies: values[2],
+      sources: values[3],
+      accessGrants: values[4],
+      runtimeActivity: values[5]
+    });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  return { ...data, reload: () => load() };
+}
+
+function buildStudioKpis(data) {
+  const pendingApprovals = data.approvals.filter((approval) => approval.status === "pending").length;
+  const decisions = data.runtimeActivity.filter((item) => item.type === "tool_call_decision").length;
+  const reviewOrDenied = data.runtimeActivity.filter((item) =>
+    item.decision === "deny" || item.decision === "require_human_review"
+  ).length;
+
+  return [
+    { label: "SYSTEMS", value: data.loading ? "..." : compactCount(data.agents.length), delta: "from GET /agents", cls: "purple" },
+    { label: "DECISIONS", value: data.loading ? "..." : compactCount(decisions), delta: "runtime activity", cls: "info" },
+    { label: "OPEN REVIEWS", value: data.loading ? "..." : compactCount(pendingApprovals), delta: "pending approvals", cls: "warn" },
+    { label: "POLICIES", value: data.loading ? "..." : compactCount(data.policies.length), delta: "policy records", cls: "ok" },
+    { label: "ATTENTION", value: data.loading ? "..." : compactCount(reviewOrDenied), delta: "deny or review", cls: "danger" }
+  ];
+}
+
+function buildStudioInbox(data) {
+  const pending = data.approvals.filter((approval) => approval.status === "pending");
+
+  if (data.loading) {
+    return [{
+      badge: "gap",
+      badgeLbl: "Loading",
+      title: "Loading backend decision inbox",
+      sub: "GET /human-approvals",
+      desc: "AGCP Studio is requesting pending HumanApproval records from the backend.",
+      agent: "loading",
+      policy: "loading",
+      since: "loading"
+    }];
+  }
+
+  if (data.errors.length > 0 && pending.length === 0) {
+    return [{
+      badge: "blocked",
+      badgeLbl: "API",
+      title: "Backend data unavailable",
+      sub: "Check API configuration",
+      desc: data.errors.join(" | "),
+      agent: "not loaded",
+      policy: "not loaded",
+      since: "now"
+    }];
+  }
+
+  if (pending.length === 0) {
+    return [{
+      badge: "review",
+      badgeLbl: "Clear",
+      title: "No pending HumanApprovals",
+      sub: "Review queue is empty",
+      desc: "The backend returned no pending HumanApproval records. This is a real empty state, not demo data.",
+      agent: "none pending",
+      policy: "not applicable",
+      since: "now"
+    }];
+  }
+
+  return pending.slice(0, 3).map((approval) => ({
+    badge: "review",
+    badgeLbl: "Review",
+    title: `Approval ${approval.id.slice(0, 8)} pending`,
+    sub: `${approval.requested_by_actor_type} · ${relativeTime(approval.created_at)}`,
+    desc: approval.reason || "A backend governance flow requested human review before the caller can resume.",
+    agent: approval.agent_id,
+    policy: approval.policy_decision_id || "policy decision not linked",
+    since: relativeTime(approval.created_at),
+    approval
+  }));
+}
+
+function buildStudioFlowNodes(data) {
+  const pendingApprovals = data.approvals.filter((approval) => approval.status === "pending").length;
+  const decisions = data.runtimeActivity.filter((item) => item.type === "tool_call_decision").length;
+  const sources = data.sources.length;
+  const activePolicies = data.policies.filter((policy) => policy.status === "active").length;
+
+  return {
+    top: [
+      { dot: "#6d5ce8", label: "System", sub: "registered agents", status: "ok", statusLbl: compactCount(data.agents.length), action: "View systems", detail: { source: "GET /agents", agents: String(data.agents.length), environments: [...new Set(data.agents.map((agent) => agent.environment))].join(", ") || "none" } },
+      { dot: "#f59040", label: "Action", sub: "runtime requests", status: pendingApprovals > 0 ? "warn" : "ok", statusLbl: compactCount(decisions), action: "Browse activity", detail: { source: "GET /runtime/tool-calls/activity", decisions: String(decisions), pending_reviews: String(pendingApprovals) } },
+      { dot: "#36b8f6", label: "Target", sub: "sources / grants", status: "info", statusLbl: compactCount(sources), action: "View data", detail: { sources: String(sources), access_grants: String(data.accessGrants.length), source: "GET /sources" } }
+    ],
+    bottom: [
+      { dot: "#f03f5a", label: "Decision", sub: pendingApprovals > 0 ? "review required" : "no pending reviews", status: pendingApprovals > 0 ? "danger" : "ok", statusLbl: compactCount(pendingApprovals), action: "Open inbox", detail: { pending: String(pendingApprovals), total_approvals: String(data.approvals.length), source: "GET /human-approvals" } },
+      { dot: "#a892f8", label: "Policy", sub: "rules + lifecycle", status: activePolicies > 0 ? "ok" : "warn", statusLbl: compactCount(activePolicies), action: "Edit policies", detail: { active: String(activePolicies), total: String(data.policies.length), source: "GET /policies" } },
+      { dot: "#2dd891", label: "Evidence", sub: "manual export", status: "ok", statusLbl: "JSON", action: "View vault", detail: { canonical: "bounded JSON", trigger: "manual user action", route: "/evidence" } }
+    ]
+  };
+}
+
+function agentToSystem(agent, data) {
+  const openReviews = data.approvals.filter(
+    (approval) => approval.agent_id === agent.id && approval.status === "pending"
+  ).length;
+  const recentDecisions = data.runtimeActivity
+    .filter((item) => item.agent_id === agent.id)
+    .slice(0, 5)
+    .map((item) => ({
+      id: item.id,
+      ts: relativeTime(item.timestamp),
+      action: item.tool_name || item.type,
+      result: item.decision || "recorded"
+    }));
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    owner: agent.owner_name || agent.owner_id,
+    env: agent.environment,
+    status: agent.status,
+    risk: agent.risk_level,
+    riskCls: riskClass(agent.risk_level),
+    coverage: data.policies.length > 0 ? `${data.policies.length} policy records` : "no policies returned",
+    openReviews,
+    capabilities: [],
+    dataSources: [],
+    models: agent.framework ? [agent.framework] : [],
+    policies: data.policies.filter((policy) => policy.status === "active").map((policy) => policy.name),
+    recentDecisions,
+    evidence: "manual"
+  };
+}
+
+function approvalToReview(approval, agents) {
+  const agent = agents.find((item) => item.id === approval.agent_id);
+  return {
+    id: approval.id,
+    raw: approval,
+    tab: approval.status === "pending" ? "mine" : "completed",
+    system: agent?.name || approval.agent_id,
+    risk: agent?.risk_level || "medium",
+    riskCls: riskClass(agent?.risk_level || "medium"),
+    due: approval.expires_at ? relativeTime(approval.expires_at) : "no expiry",
+    dueCls: approval.expires_at ? "warn" : "info",
+    action: approval.reason || `HumanApproval ${approval.id.slice(0, 8)}`,
+    policy: approval.policy_decision_id || "policy decision not linked",
+    reviewerGroup: "backend RBAC",
+    why: approval.reason || "The Runtime Gateway or telemetry flow requested human oversight.",
+    decision: `status=${approval.status}; approval_id=${approval.id}`,
+    checks: [
+      { result: approval.status, cls: statusClass(approval.status), label: "Backend HumanApproval status" },
+      { result: approval.policy_decision_id ? "linked" : "not linked", cls: approval.policy_decision_id ? "ok" : "warn", label: "PolicyDecision reference" }
+    ],
+    separationWarning: false,
+    evidence: approval.policy_decision_id || approval.id,
+    note: approval.decision_note
+  };
+}
+
 /* ─── COMMAND VIEW ─── */
-const CommandView = () => {
+const CommandView = ({ data }) => {
   const [activeInbox, setActiveInbox] = useState(0);
   const [activeMapNode, setActiveMapNode] = useState(null); // [5]
   const [bcMode, setBcMode] = useState("blocks"); // [3] blocks | code
   const [studioMode, setStudioMode] = useState("policies"); // [4] policies | templates
 
-  const selectedNode = activeMapNode !== null ? [...FLOW_NODES_TOP, ...FLOW_NODES_BOT][activeMapNode] : null;
+  const inbox = buildStudioInbox(data);
+  const kpis = buildStudioKpis(data);
+  const flowNodes = buildStudioFlowNodes(data);
+  const selectedNode = activeMapNode !== null ? [...flowNodes.top, ...flowNodes.bottom][activeMapNode] : null;
+  const activeInboxItem = inbox[Math.min(activeInbox, inbox.length - 1)] || inbox[0];
 
   return (
     <div className="content">
@@ -1272,10 +1538,14 @@ const CommandView = () => {
             <div className="inbox-hero-title">Decision Inbox</div>
             <div className="inbox-hero-sub">Items requiring your attention</div>
           </div>
-          <span className="inbox-count-chip">3 pending</span>
+          <span className="inbox-count-chip">
+            {data.loading
+              ? "loading"
+              : `${data.approvals.filter((approval) => approval.status === "pending").length} pending`}
+          </span>
         </div>
         <div className="inbox-hero-body">
-          {INBOX.map((item, i) => (
+          {inbox.map((item, i) => (
             <div
               key={i}
               className={`inbox-item-hero ${activeInbox === i ? "selected" : ""}`}
@@ -1314,7 +1584,7 @@ const CommandView = () => {
             <div className="flow-container">
               {/* Top row */}
               <div className="flow-row" style={{ gap: 6 }}>
-                {FLOW_NODES_TOP.map((n, i) => (
+                {flowNodes.top.map((n, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", flex: 1 }}>
                     <div
                       className={`flow-node ${activeMapNode === i ? "fn-active" : ""}`}
@@ -1344,7 +1614,7 @@ const CommandView = () => {
 
               {/* Bottom row */}
               <div className="flow-row" style={{ gap: 6 }}>
-                {FLOW_NODES_BOT.map((n, i) => (
+                {flowNodes.bottom.map((n, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", flex: 1 }}>
                     <div
                       className={`flow-node ${activeMapNode === 3 + i ? "fn-active" : ""} ${i === 0 ? "fn-active" : ""}`}
@@ -1463,13 +1733,13 @@ const CommandView = () => {
           <div className="active-decision-card">
             <div className="adc-head">
               <div className="adc-dot" />
-              <div className="adc-title">{INBOX[activeInbox].title}</div>
+              <div className="adc-title">{activeInboxItem.title}</div>
             </div>
             <div className="adc-body">
-              <div className="adc-desc">{INBOX[activeInbox].desc}</div>
-              <div className="adc-meta-row"><span className="adc-meta-key">Agent</span><span className="adc-meta-val">{INBOX[activeInbox].agent}</span></div>
-              <div className="adc-meta-row"><span className="adc-meta-key">Policy</span><span className="adc-meta-val">{INBOX[activeInbox].policy}</span></div>
-              <div className="adc-meta-row"><span className="adc-meta-key">Since</span><span className="adc-meta-val">{INBOX[activeInbox].since}</span></div>
+              <div className="adc-desc">{activeInboxItem.desc}</div>
+              <div className="adc-meta-row"><span className="adc-meta-key">Agent</span><span className="adc-meta-val">{activeInboxItem.agent}</span></div>
+              <div className="adc-meta-row"><span className="adc-meta-key">Policy</span><span className="adc-meta-val">{activeInboxItem.policy}</span></div>
+              <div className="adc-meta-row"><span className="adc-meta-key">Since</span><span className="adc-meta-val">{activeInboxItem.since}</span></div>
               <div className="adc-buttons">
                 <button className="btn-primary" style={{ flex: 1, fontSize: 11, padding: "7px 10px" }}>Open full review</button>
               </div>
@@ -1484,7 +1754,7 @@ const CommandView = () => {
 
       {/* [1] KPIs — compact strip après l'opérationnel */}
       <div className="kpi-strip">
-        {KPIS.map(k => (
+        {kpis.map(k => (
           <div key={k.label} className={`kpi-card ${k.cls}`}>
             <div className="kpi-label">
               {k.label}
@@ -2746,10 +3016,18 @@ const Pill = ({ label, color = "#9898bb", bg = "rgba(255,255,255,.05)", border =
 );
 
 /* ─── AI SYSTEMS VIEW ─── */
-const AISystemsView = () => {
-  const [selected, setSelected] = useState(AI_SYSTEMS[0]);
+const AISystemsView = ({ data }) => {
+  const systems = data.agents.map((agent) => agentToSystem(agent, data));
+  const [selectedId, setSelectedId] = useState(systems[0]?.id || null);
   const [envFilter, setEnvFilter] = useState("all");
-  const filtered = envFilter === "all" ? AI_SYSTEMS : AI_SYSTEMS.filter(s => s.env === envFilter);
+  const filtered = envFilter === "all" ? systems : systems.filter(s => s.env === envFilter);
+  const selected = systems.find((system) => system.id === selectedId) || filtered[0] || systems[0] || null;
+
+  useEffect(() => {
+    if (!selectedId && systems[0]) {
+      setSelectedId(systems[0].id);
+    }
+  }, [selectedId, systems]);
 
   return (
     <div className="content" style={{ padding: 0, display: "flex", height: "calc(100vh - 48px)", overflow: "hidden" }}>
@@ -2766,8 +3044,13 @@ const AISystemsView = () => {
           </div>
         </div>
         <div style={{ flex: 1, overflow: "auto", padding: "6px 8px" }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: "20px 10px", fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>
+              {data.loading ? "Loading Agents from GET /agents" : "No Agents returned by the backend"}
+            </div>
+          )}
           {filtered.map(sys => (
-            <div key={sys.id} onClick={() => setSelected(sys)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === sys.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === sys.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
+            <div key={sys.id} onClick={() => setSelectedId(sys.id)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === sys.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === sys.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: sys.status === "active" ? "var(--green)" : "var(--orange)", flexShrink: 0, boxShadow: sys.status === "active" ? "0 0 6px rgba(45,216,145,.5)" : "none" }} />
                 <span style={{ fontWeight: 600, fontSize: 12.5, color: "var(--text)", flex: 1, fontFamily: "var(--mono)" }}>{sys.name}</span>
@@ -2797,9 +3080,9 @@ const AISystemsView = () => {
               </div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selected.owner} · {selected.env} environment · Policy coverage: {selected.coverage}</div>
             </div>
-            <button style={{ background: "linear-gradient(135deg, #5c4ed4, #7c6df0)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 10px rgba(92,78,212,.35)" }}>
+            <a href={`/agents/${encodeURIComponent(selected.id)}`} style={{ background: "linear-gradient(135deg, #5c4ed4, #7c6df0)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 10px rgba(92,78,212,.35)", textDecoration: "none" }}>
               Open governance profile
-            </button>
+            </a>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -2857,11 +3140,46 @@ const AISystemsView = () => {
 };
 
 /* ─── REVIEWS VIEW ─── */
-const ReviewsView = () => {
+const ReviewsView = ({ data }) => {
   const [tab, setTab] = useState("mine");
-  const [selected, setSelected] = useState(REVIEWS[0]);
+  const reviews = data.approvals.map((approval) => approvalToReview(approval, data.agents));
+  const [selectedId, setSelectedId] = useState(reviews[0]?.id || null);
+  const [decisionNote, setDecisionNote] = useState("");
+  const [actionState, setActionState] = useState(null);
   const tabs = ["mine", "waiting", "escalated", "completed"];
-  const filtered = REVIEWS.filter(r => r.tab === tab);
+  const filtered = reviews.filter(r => {
+    if (tab === "mine") return r.raw.status === "pending";
+    if (tab === "completed") return r.raw.status !== "pending";
+    return false;
+  });
+  const selected = reviews.find((review) => review.id === selectedId) || filtered[0] || reviews[0] || null;
+
+  useEffect(() => {
+    if (!selectedId && reviews[0]) {
+      setSelectedId(reviews[0].id);
+    }
+  }, [selectedId, reviews]);
+
+  async function handleReviewAction(action) {
+    if (!selected) return;
+    setActionState({ status: "loading", message: `${action} in progress` });
+
+    try {
+      await transitionHumanApproval(
+        selected.id,
+        action,
+        action === "cancel" ? undefined : decisionNote
+      );
+      setDecisionNote("");
+      setActionState({ status: "success", message: `HumanApproval ${action} completed. Refreshing from backend.` });
+      await data.reload();
+    } catch (error) {
+      setActionState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to update HumanApproval."
+      });
+    }
+  }
 
   return (
     <div className="content" style={{ padding: 0, display: "flex", height: "calc(100vh - 48px)", overflow: "hidden" }}>
@@ -2871,9 +3189,9 @@ const ReviewsView = () => {
           <div style={{ fontSize: 14, fontWeight: 700, color: "#eeeef8", marginBottom: 10 }}>Review Inbox</div>
           <div style={{ display: "flex", gap: 3 }}>
             {tabs.map(t => (
-              <button key={t} onClick={() => { setTab(t); const first = REVIEWS.find(r => r.tab === t); if (first) setSelected(first); }} style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "4px 8px", borderRadius: 4, cursor: "pointer", border: "1px solid var(--border)", background: tab === t ? "var(--purple-dim)" : "transparent", color: tab === t ? "var(--purple-lt)" : "var(--text-muted)", textTransform: "capitalize" }}>
+              <button key={t} onClick={() => { setTab(t); const first = reviews.find(r => (t === "mine" ? r.raw.status === "pending" : t === "completed" ? r.raw.status !== "pending" : false)); if (first) setSelectedId(first.id); }} style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "4px 8px", borderRadius: 4, cursor: "pointer", border: "1px solid var(--border)", background: tab === t ? "var(--purple-dim)" : "transparent", color: tab === t ? "var(--purple-lt)" : "var(--text-muted)", textTransform: "capitalize" }}>
                 {t.replace("-", " ")}
-                {t === "mine" && <span style={{ marginLeft: 4, background: "var(--orange)", color: "#fff", borderRadius: 10, fontSize: 8, padding: "0 4px", fontWeight: 700 }}>2</span>}
+                {t === "mine" && <span style={{ marginLeft: 4, background: "var(--orange)", color: "#fff", borderRadius: 10, fontSize: 8, padding: "0 4px", fontWeight: 700 }}>{reviews.filter(r => r.raw.status === "pending").length}</span>}
               </button>
             ))}
           </div>
@@ -2881,7 +3199,7 @@ const ReviewsView = () => {
         <div style={{ flex: 1, overflow: "auto", padding: "6px 8px" }}>
           {filtered.length === 0 && <div style={{ padding: "20px 10px", fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>No items in this queue</div>}
           {filtered.map(r => (
-            <div key={r.id} onClick={() => setSelected(r)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === r.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === r.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
+            <div key={r.id} onClick={() => setSelectedId(r.id)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === r.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === r.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
                 <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-muted)" }}>{r.system}</span>
                 <RiskBadge level={r.risk} cls={r.riskCls} />
@@ -2935,12 +3253,20 @@ const ReviewsView = () => {
             {selected.note && <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>{selected.note}</div>}
           </PanelBox>
 
-          {selected.tab !== "completed" && (
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <button style={{ background: "linear-gradient(135deg, #5c4ed4, #7c6df0)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "9px 18px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(92,78,212,.35)", flex: 1.5 }}>Approve</button>
-              <button style={{ background: "var(--red-dim)", color: "var(--red)", border: "1px solid var(--red-brd)", borderRadius: "var(--radius-sm)", padding: "9px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", flex: 1 }}>Reject</button>
-              <button style={{ background: "transparent", color: "var(--text-dim)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", flex: 1 }}>Request info</button>
-              <button style={{ background: "transparent", color: "var(--text-dim)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", flex: 1 }}>Reassign</button>
+          {actionState && (
+            <div style={{ background: actionState.status === "error" ? "var(--red-dim)" : "var(--green-dim)", border: `1px solid ${actionState.status === "error" ? "var(--red-brd)" : "var(--green-brd)"}`, borderRadius: "var(--radius)", padding: "9px 12px", marginBottom: 8, fontSize: 11, color: actionState.status === "error" ? "var(--red)" : "var(--green)" }}>
+              {actionState.message}
+            </div>
+          )}
+
+          {selected.raw.status === "pending" && (
+            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+              <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Optional decision note for approve or reject" rows={2} style={{ background: "var(--bg-card)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 10px", fontFamily: "var(--mono)", fontSize: 11, resize: "vertical" }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => void handleReviewAction("approve")} style={{ background: "linear-gradient(135deg, #5c4ed4, #7c6df0)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "9px 18px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(92,78,212,.35)", flex: 1.5 }}>Approve</button>
+                <button onClick={() => void handleReviewAction("reject")} style={{ background: "var(--red-dim)", color: "var(--red)", border: "1px solid var(--red-brd)", borderRadius: "var(--radius-sm)", padding: "9px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", flex: 1 }}>Reject</button>
+                <button onClick={() => void handleReviewAction("cancel")} style={{ background: "transparent", color: "var(--text-dim)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", flex: 1 }}>Cancel</button>
+              </div>
             </div>
           )}
         </div>
@@ -2950,9 +3276,32 @@ const ReviewsView = () => {
 };
 
 /* ─── EVIDENCE VIEW ─── */
-const EvidenceView = () => {
-  const [selected, setSelected] = useState(EVIDENCE[0]);
+const EvidenceView = ({ data }) => {
+  const evidenceItems = data.agents.map((agent) => ({
+    id: agent.id,
+    pkg: `agent-${agent.id.slice(0, 8)}`,
+    status: "manual",
+    statusCls: "info",
+    action: "Evidence Bundle JSON available by Agent ID",
+    system: agent.name,
+    date: relativeTime(agent.updated_at),
+    policy: "loaded from bundle on demand",
+    reviewer: "backend RBAC",
+    decision: "ON DEMAND",
+    timeline: [
+      { step: "Agent", ts: relativeTime(agent.created_at), detail: `Registered Agent ${agent.name}` },
+      { step: "Export", ts: "manual", detail: "Open /evidence to load GET /agents/{agent_id}/evidence-bundle." }
+    ]
+  }));
+  const [selectedId, setSelectedId] = useState(evidenceItems[0]?.id || null);
+  const selected = evidenceItems.find((item) => item.id === selectedId) || evidenceItems[0] || null;
   const timelineColors = ["var(--purple-lt)", "var(--sky)", "var(--orange)", "var(--green)", "var(--text-dim)", "var(--green)"];
+
+  useEffect(() => {
+    if (!selectedId && evidenceItems[0]) {
+      setSelectedId(evidenceItems[0].id);
+    }
+  }, [selectedId, evidenceItems]);
 
   return (
     <div className="content" style={{ padding: 0, display: "flex", height: "calc(100vh - 48px)", overflow: "hidden" }}>
@@ -2963,8 +3312,13 @@ const EvidenceView = () => {
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Auditable decision packages</div>
         </div>
         <div style={{ flex: 1, overflow: "auto", padding: "6px 8px" }}>
-          {EVIDENCE.map(ev => (
-            <div key={ev.id} onClick={() => setSelected(ev)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === ev.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === ev.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
+          {evidenceItems.length === 0 && (
+            <div style={{ padding: "20px 10px", fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>
+              {data.loading ? "Loading Agents for Evidence Bundle lookup" : "No Agents returned by the backend"}
+            </div>
+          )}
+          {evidenceItems.map(ev => (
+            <div key={ev.id} onClick={() => setSelectedId(ev.id)} style={{ padding: "10px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === ev.id ? "var(--purple-brd)" : "transparent"}`, background: selected?.id === ev.id ? "var(--purple-dim)" : "transparent", transition: "all .12s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                 <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--purple-lt)", fontWeight: 700 }}>{ev.pkg}</span>
                 <StatusBadge label={ev.status} cls={ev.statusCls} />
@@ -2985,9 +3339,7 @@ const EvidenceView = () => {
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selected.system} · Policy: {selected.policy} · Reviewer: {selected.reviewer}</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <button style={{ fontFamily: "var(--mono)", fontSize: 10.5, padding: "7px 13px", borderRadius: "var(--radius-sm)", cursor: "pointer", border: "1px solid var(--border)", background: "transparent", color: "var(--text-dim)" }}>Export JSON</button>
-              <button style={{ fontFamily: "var(--mono)", fontSize: 10.5, padding: "7px 13px", borderRadius: "var(--radius-sm)", cursor: "pointer", border: "1px solid var(--border)", background: "transparent", color: "var(--text-dim)" }}>Export report</button>
-              <button style={{ fontFamily: "var(--mono)", fontSize: 10.5, padding: "7px 13px", borderRadius: "var(--radius-sm)", cursor: "pointer", border: "1px solid var(--purple-brd)", background: "var(--purple-dim)", color: "var(--purple-lt)" }}>Copy link</button>
+              <a href={`/evidence?agent_id=${encodeURIComponent(selected.id)}`} style={{ fontFamily: "var(--mono)", fontSize: 10.5, padding: "7px 13px", borderRadius: "var(--radius-sm)", cursor: "pointer", border: "1px solid var(--purple-brd)", background: "var(--purple-dim)", color: "var(--purple-lt)", textDecoration: "none" }}>Open evidence page</a>
             </div>
           </div>
 
@@ -3086,8 +3438,36 @@ const RiskView = () => {
 };
 
 /* ─── DATA VIEW ─── */
-const DataView = () => {
-  const [selected, setSelected] = useState(DATA_SOURCES[0]);
+const DataView = ({ data }) => {
+  const sources = data.sources.map((source) => ({
+    id: source.id,
+    name: source.name,
+    classification: formatLabel(source.metadata?.data_classification || source.risk_level),
+    personal: Boolean(source.metadata?.contains_personal_data),
+    sensitive: Boolean(source.metadata?.contains_sensitive_data),
+    reviewStatus: formatLabel(source.metadata?.review_status || source.status),
+    dpia: source.metadata?.dpia_reference || null,
+    owner: source.owner_name || source.owner_id,
+    status: source.status,
+    purpose: [],
+    prohibited: [],
+    retention: "available on Source/Data Usage page",
+    systems: data.accessGrants
+      .filter((grant) => grant.target_type === "source" && grant.target_id === source.id)
+      .map((grant) => {
+        const agent = data.agents.find((item) => item.id === grant.subject_id);
+        return agent?.name || grant.subject_id;
+      }),
+    policies: data.policies.map((policy) => policy.name)
+  }));
+  const [selectedId, setSelectedId] = useState(sources[0]?.id || null);
+  const selected = sources.find((source) => source.id === selectedId) || sources[0] || null;
+
+  useEffect(() => {
+    if (!selectedId && sources[0]) {
+      setSelectedId(sources[0].id);
+    }
+  }, [selectedId, sources]);
 
   return (
     <div className="content" style={{ padding: 0, display: "flex", height: "calc(100vh - 48px)", overflow: "hidden" }}>
@@ -3097,8 +3477,13 @@ const DataView = () => {
           <div style={{ display: "grid", gridTemplateColumns: "160px 120px 60px 60px 120px 90px", gap: 0, padding: "8px 14px", borderBottom: "1px solid var(--border)", fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-muted)", letterSpacing: ".07em", textTransform: "uppercase" }}>
             <span>Source</span><span>Classification</span><span>Personal</span><span>Sensitive</span><span>Review status</span><span>DPIA</span>
           </div>
-          {DATA_SOURCES.map(ds => (
-            <div key={ds.id} onClick={() => setSelected(ds)} style={{ display: "grid", gridTemplateColumns: "160px 120px 60px 60px 120px 90px", gap: 0, padding: "11px 14px", borderBottom: "1px solid var(--border2)", cursor: "pointer", background: selected?.id === ds.id ? "rgba(124,109,240,.04)" : "transparent", transition: "background .12s", alignItems: "center" }}>
+          {sources.length === 0 && (
+            <div style={{ padding: "18px 14px", fontSize: 11, color: "var(--text-muted)" }}>
+              {data.loading ? "Loading Sources from GET /sources" : "No Sources returned by the backend"}
+            </div>
+          )}
+          {sources.map(ds => (
+            <div key={ds.id} onClick={() => setSelectedId(ds.id)} style={{ display: "grid", gridTemplateColumns: "160px 120px 60px 60px 120px 90px", gap: 0, padding: "11px 14px", borderBottom: "1px solid var(--border2)", cursor: "pointer", background: selected?.id === ds.id ? "rgba(124,109,240,.04)" : "transparent", transition: "background .12s", alignItems: "center" }}>
               <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{ds.name}</span>
               <span><RiskBadge level={ds.classification} cls={ds.classification === "Restricted" ? "danger" : ds.classification === "Confidential" ? "warn" : ds.classification === "Unclassified" ? "info" : "ok"} /></span>
               <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: ds.personal ? "var(--red)" : "var(--text-muted)" }}>{ds.personal ? "Yes" : "No"}</span>
@@ -3273,12 +3658,33 @@ const MiniBar = ({ values, color }) => {
   );
 };
 
-const MonitoringView = () => (
+const MonitoringView = ({ data }) => {
+  const decisionCount = data.runtimeActivity.filter((item) => item.type === "tool_call_decision").length;
+  const deniedCount = data.runtimeActivity.filter((item) => item.decision === "deny").length;
+  const reviewCount = data.runtimeActivity.filter((item) => item.decision === "require_human_review").length;
+  const allowedCount = data.runtimeActivity.filter((item) => item.decision === "allow").length;
+  const signals = [
+    { label: "Runtime records", value: compactCount(data.runtimeActivity.length), cls: "info", trend: [0, 0, data.runtimeActivity.length || 1], delta: "GET /runtime/tool-calls/activity" },
+    { label: "Decisions", value: compactCount(decisionCount), cls: "purple", trend: [0, decisionCount || 1, decisionCount || 1], delta: "tool call decisions" },
+    { label: "Allowed", value: compactCount(allowedCount), cls: "ok", trend: [0, allowedCount || 1, allowedCount || 1], delta: "decision=allow" },
+    { label: "Review", value: compactCount(reviewCount), cls: "warn", trend: [0, reviewCount || 1, reviewCount || 1], delta: "requires review" },
+    { label: "Denied", value: compactCount(deniedCount), cls: "danger", trend: [0, deniedCount || 1, deniedCount || 1], delta: "decision=deny" }
+  ];
+  const events = data.runtimeActivity.slice(0, 12).map((item) => ({
+    ts: relativeTime(item.timestamp),
+    type: item.decision || item.type,
+    cls: statusClass(item.decision || item.type),
+    action: item.tool_name || item.request_id || item.type,
+    system: data.agents.find((agent) => agent.id === item.agent_id)?.name || item.agent_id,
+    policy: item.policy_decision_id || "policy decision not linked"
+  }));
+
+  return (
   <div className="content">
     <SectionHeader title="Monitoring" sub="Governance signals from active AI systems — decisions, denials, gaps, and policy events" />
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
-      {MONITORING_SIGNALS.map(s => (
+      {signals.map(s => (
         <div key={s.label} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px 14px", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${s.cls === "ok" ? "var(--green)" : s.cls === "danger" ? "var(--red)" : s.cls === "info" ? "var(--sky)" : "var(--orange)"}, transparent)` }} />
           <div style={{ fontSize: 9.5, color: "var(--text-muted)", fontFamily: "var(--mono)", letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 6 }}>{s.label}</div>
@@ -3290,8 +3696,13 @@ const MonitoringView = () => (
     </div>
 
     <PanelBox title="Recent Governance Events" accent="var(--text-dim)">
-      {MONITORING_EVENTS.map((ev, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "50px 130px 1fr 160px 200px", gap: 10, padding: "8px 0", borderBottom: i < MONITORING_EVENTS.length - 1 ? "1px solid var(--border2)" : "none", alignItems: "center" }}>
+      {events.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+          {data.loading ? "Loading Runtime activity" : "No Runtime activity records returned by the backend."}
+        </div>
+      )}
+      {events.map((ev, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "50px 130px 1fr 160px 200px", gap: 10, padding: "8px 0", borderBottom: i < events.length - 1 ? "1px solid var(--border2)" : "none", alignItems: "center" }}>
           <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-faint)" }}>{ev.ts}</span>
           <RiskBadge level={ev.type.replace("_", " ")} cls={ev.cls} />
           <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text)" }}>{ev.action}</span>
@@ -3301,7 +3712,8 @@ const MonitoringView = () => (
       ))}
     </PanelBox>
   </div>
-);
+  );
+};
 
 /* ─── INTEGRATIONS VIEW ─── */
 const IntegrationsView = () => (
@@ -3426,34 +3838,835 @@ const AdminView = () => {
   );
 };
 
+const AGCP_ROUTE_VIEW_BY_PATH = [
+  { path: "/", view: "command", label: "Command Center" },
+  { path: "/agents", view: "systems", label: "AI Systems" },
+  { path: "/human-approvals", view: "reviews", label: "Human Reviews" },
+  { path: "/evidence", view: "evidence", label: "Evidence" },
+  { path: "/audit", view: "monitoring", label: "Audit" },
+  { path: "/policies", view: "policies", label: "Policies" },
+  { path: "/access-data", view: "data", label: "Data Governance" },
+  { path: "/integrations", view: "integrations", label: "Integrations" },
+  { path: "/runtime-gateway", view: "monitoring", label: "Runtime Gateway" },
+  { path: "/settings", view: "admin", label: "Settings" }
+];
+
+const getRouteView = (pathname) => {
+  const match = AGCP_ROUTE_VIEW_BY_PATH
+    .filter((route) => pathname === route.path || (route.path !== "/" && pathname.startsWith(`${route.path}/`)))
+    .sort((left, right) => right.path.length - left.path.length)[0];
+
+  return match || AGCP_ROUTE_VIEW_BY_PATH[0];
+};
+
+const AGCP_CONNECTED_CSS = `
+  .agcp-connected-content {
+    min-height: 0;
+  }
+
+  .agcp-connected-content .page-header {
+    margin-bottom: 16px;
+    max-width: 980px;
+  }
+
+  .agcp-connected-content .eyebrow {
+    color: var(--purple-lt);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+
+  .agcp-connected-content .page-header h2 {
+    color: #eeeef8;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.015em;
+    line-height: 1.15;
+    margin: 0;
+  }
+
+  .agcp-connected-content .page-header p:not(.eyebrow) {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.65;
+    margin: 8px 0 0;
+    max-width: 860px;
+  }
+
+  .agcp-connected-content .data-panel,
+  .agcp-connected-content .placeholder-panel,
+  .agcp-connected-content .detail-card,
+  .agcp-connected-content .evidence-section,
+  .agcp-connected-content .lookup-panel,
+  .agcp-connected-content .policy-boundary,
+  .agcp-connected-content .policy-form-panel,
+  .agcp-connected-content .integration-boundary,
+  .agcp-connected-content .profile-section {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: none;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  .agcp-connected-content .policy-boundary,
+  .agcp-connected-content .placeholder-panel,
+  .agcp-connected-content .evidence-section,
+  .agcp-connected-content .lookup-panel,
+  .agcp-connected-content .detail-card {
+    padding: 16px;
+  }
+
+  .agcp-connected-content .policy-boundary p,
+  .agcp-connected-content .placeholder-panel p,
+  .agcp-connected-content .state-message p,
+  .agcp-connected-content .work-item p,
+  .agcp-connected-content .detail-card p,
+  .agcp-connected-content .evidence-section p {
+    color: var(--text-muted);
+  }
+
+  .agcp-connected-content .section-title,
+  .agcp-connected-content .detail-card-header strong,
+  .agcp-connected-content .evidence-section-header h3,
+  .agcp-connected-content .evidence-section h3,
+  .agcp-connected-content .policy-boundary strong,
+  .agcp-connected-content .placeholder-panel h3 {
+    color: #eeeef8;
+    font-size: 13px;
+    letter-spacing: .02em;
+  }
+
+  .agcp-connected-content .state-message {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    padding: 16px;
+  }
+
+  .agcp-connected-content .state-message strong {
+    color: #eeeef8;
+  }
+
+  .agcp-connected-content .state-message.error,
+  .agcp-connected-content .review-action-message.error,
+  .agcp-connected-content .approval-action-status.error {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .agcp-connected-content .review-action-message.success,
+  .agcp-connected-content .approval-action-status.success,
+  .agcp-connected-content .success-state {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .agcp-connected-content .filter-bar,
+  .agcp-connected-content .lookup-form,
+  .agcp-connected-content .policy-form-header {
+    background: var(--bg-panel2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agcp-connected-content input,
+  .agcp-connected-content select,
+  .agcp-connected-content textarea {
+    background: rgba(255,255,255,.035);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+  }
+
+  .agcp-connected-content .data-table {
+    color: var(--text-dim);
+    min-width: 920px;
+  }
+
+  .agcp-connected-content .data-table th,
+  .agcp-connected-content .data-table td {
+    border-bottom: 1px solid var(--border2);
+  }
+
+  .agcp-connected-content .data-table th {
+    background: var(--bg-panel2);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+  }
+
+  .agcp-connected-content .data-table tr:hover td {
+    background: rgba(124,109,240,.045);
+  }
+
+  .agcp-connected-content .row-link,
+  .agcp-connected-content .secondary-action {
+    color: var(--purple-lt);
+  }
+
+  .agcp-connected-content .secondary-action,
+  .agcp-connected-content .table-action-button,
+  .agcp-connected-content button {
+    border-radius: var(--radius-sm);
+  }
+
+  .agcp-connected-content .secondary-action,
+  .agcp-connected-content .table-action-button {
+    border: 1px solid var(--purple-brd);
+    background: var(--purple-dim);
+    color: var(--purple-lt);
+  }
+
+  .agcp-connected-content .table-action-button.reject,
+  .agcp-connected-content .table-action-button.cancel,
+  .agcp-connected-content .grant-action-revoke,
+  .agcp-connected-content .grant-action-expire {
+    border-color: var(--red-brd);
+    background: var(--red-dim);
+    color: var(--red);
+  }
+
+  .agcp-connected-content .table-action-button.approve,
+  .agcp-connected-content .grant-action-reactivate {
+    border-color: var(--green-brd);
+    background: var(--green-dim);
+    color: var(--green);
+  }
+
+  .agcp-connected-content .table-pill,
+  .agcp-connected-content .status-label,
+  .agcp-connected-content .activity-severity {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255,255,255,.045);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .04em;
+  }
+
+  .agcp-connected-content .risk-high,
+  .agcp-connected-content .risk-critical,
+  .agcp-connected-content .approval-rejected,
+  .agcp-connected-content .decision-deny {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .agcp-connected-content .risk-medium,
+  .agcp-connected-content .approval-pending,
+  .agcp-connected-content .decision-require_human_review {
+    background: var(--orange-dim);
+    border-color: var(--orange-brd);
+    color: var(--orange);
+  }
+
+  .agcp-connected-content .risk-low,
+  .agcp-connected-content .approval-approved,
+  .agcp-connected-content .decision-allow {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .agcp-connected-content .id-cell,
+  .agcp-connected-content .metadata-block,
+  .agcp-connected-content .evidence-json-block {
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+
+  .agcp-connected-content .metadata-block,
+  .agcp-connected-content .evidence-json-block {
+    background: #090912;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+  }
+
+  .agcp-connected-content .detail-summary-grid,
+  .agcp-connected-content .detail-count-grid,
+  .agcp-connected-content .status-grid,
+  .agcp-connected-content .evidence-count-grid,
+  .agcp-connected-content .integration-status-grid {
+    gap: 12px;
+  }
+
+  .agcp-connected-content .work-item,
+  .agcp-connected-content .status-card,
+  .agcp-connected-content .evidence-reference-group {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: none;
+  }
+
+  .agcp-connected-content .placeholder-list li {
+    background: rgba(255,255,255,.025);
+    border-color: var(--border2);
+    color: var(--text-dim);
+  }
+
+  .agcp-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .agcp-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(124,109,240,.045), transparent 34%);
+    pointer-events: none;
+  }
+
+  .agcp-section-header {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border2);
+    display: flex;
+    gap: 14px;
+    justify-content: space-between;
+    padding: 14px 16px;
+    position: relative;
+  }
+
+  .agcp-section-header h3 {
+    color: #eeeef8;
+    font-size: 13px;
+    letter-spacing: .02em;
+    margin: 2px 0 0;
+  }
+
+  .agcp-section-header p {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 5px 0 0;
+    max-width: 760px;
+  }
+
+  .agcp-eyebrow {
+    color: var(--purple-lt);
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .agcp-section-actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .agcp-badge {
+    align-items: center;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-dim);
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    gap: 5px;
+    letter-spacing: .05em;
+    line-height: 1;
+    min-height: 22px;
+    padding: 5px 8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .agcp-badge.ok {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .agcp-badge.warn {
+    background: var(--orange-dim);
+    border-color: var(--orange-brd);
+    color: var(--orange);
+  }
+
+  .agcp-badge.danger {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .agcp-badge.info {
+    background: var(--sky-dim);
+    border-color: var(--sky-brd);
+    color: var(--sky);
+  }
+
+  .agcp-badge.purple {
+    background: var(--purple-dim);
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+  }
+
+  .agcp-badge.muted {
+    color: var(--text-muted);
+  }
+
+  .agcp-state {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    margin: 14px;
+    padding: 14px;
+  }
+
+  .agcp-state strong {
+    color: #eeeef8;
+    display: block;
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+
+  .agcp-state p {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .agcp-state.error {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+  }
+
+  .agcp-state.error strong,
+  .agcp-state.error p {
+    color: var(--red);
+  }
+
+  .agcp-table-wrap {
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .agcp-data-table {
+    border-collapse: collapse;
+    color: var(--text-dim);
+    min-width: 880px;
+    width: 100%;
+  }
+
+  .agcp-data-table th,
+  .agcp-data-table td {
+    border-bottom: 1px solid var(--border2);
+    font-size: 12px;
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .agcp-data-table th {
+    background: rgba(255,255,255,.025);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .agcp-data-table tr:hover td {
+    background: rgba(124,109,240,.045);
+  }
+
+  .agcp-data-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .agcp-primary-link {
+    color: #eeeef8;
+    display: inline-flex;
+    font-weight: 700;
+    margin-bottom: 3px;
+    text-decoration: none;
+  }
+
+  .agcp-primary-link:hover {
+    color: var(--purple-lt);
+  }
+
+  .agcp-muted {
+    color: var(--text-muted);
+  }
+
+  .agcp-id {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    word-break: break-all;
+  }
+
+  .agcp-meta-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    margin: 14px;
+  }
+
+  .agcp-meta-grid > div {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+
+  .agcp-meta-grid dt {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .09em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .agcp-meta-grid dd {
+    color: #eeeef8;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .agcp-meta-grid .tone-ok { color: var(--green); }
+  .agcp-meta-grid .tone-warn { color: var(--orange); }
+  .agcp-meta-grid .tone-danger { color: var(--red); }
+  .agcp-meta-grid .tone-info { color: var(--sky); }
+  .agcp-meta-grid .tone-purple { color: var(--purple-lt); }
+
+  .agcp-registry-summary {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    padding: 14px;
+  }
+
+  .agcp-registry-summary > div {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+
+  .agcp-registry-summary span {
+    color: var(--text-muted);
+    display: block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .agcp-registry-summary strong {
+    color: #eeeef8;
+    display: block;
+    font-size: 22px;
+    margin-top: 5px;
+  }
+
+  .agcp-review-list,
+  .agcp-card-grid {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .agcp-review-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    display: grid;
+    gap: 10px;
+    padding: 13px;
+  }
+
+  .agcp-review-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .agcp-review-title {
+    color: #eeeef8;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .agcp-review-meta {
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    gap: 8px;
+  }
+
+  .agcp-review-filter {
+    padding: 12px 14px;
+  }
+
+  .agcp-review-filter label {
+    max-width: 240px;
+  }
+
+  .agcp-approval-details {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    margin: 0;
+  }
+
+  .agcp-approval-details > div {
+    background: rgba(10,10,20,.38);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 9px;
+  }
+
+  .agcp-approval-details dt {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .08em;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+
+  .agcp-approval-details dd {
+    color: var(--text-dim);
+    font-size: 11.5px;
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .agcp-agent-hero {
+    background: linear-gradient(135deg, rgba(124,109,240,.14), rgba(54,184,246,.045) 45%, rgba(255,255,255,.015));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+    margin-bottom: 16px;
+    padding: 18px;
+  }
+
+  .agcp-agent-hero h2 {
+    color: #eeeef8;
+    font-size: 26px;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    margin: 6px 0;
+  }
+
+  .agcp-agent-hero p {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .agcp-agent-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .agcp-owner-card {
+    background: rgba(10,10,20,.5);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+
+  .agcp-owner-card span {
+    color: var(--text-muted);
+    display: block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .09em;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+
+  .agcp-owner-card strong {
+    color: #eeeef8;
+    display: block;
+    font-size: 15px;
+  }
+
+  .agcp-owner-card p {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  .agcp-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 14px;
+  }
+
+  .agcp-timeline-item {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .agcp-timeline-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .agcp-timeline-marker {
+    background: var(--purple-lt);
+    border-radius: 999px;
+    box-shadow: var(--glow-purple);
+    height: 7px;
+    margin: 16px auto 0;
+    width: 7px;
+  }
+
+  .agcp-timeline-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+
+  .agcp-timeline-head {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .agcp-timeline-head time {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .agcp-timeline-card strong {
+    color: #eeeef8;
+    font-size: 13px;
+  }
+
+  .agcp-timeline-body p {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 5px 0 0;
+  }
+
+  .agcp-evidence-workspace {
+    display: grid;
+    gap: 14px;
+  }
+
+  .agcp-evidence-lookup {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px;
+  }
+
+  .agcp-evidence-lookup label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .agcp-evidence-lookup label span {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+  }
+
+  .agcp-evidence-lookup button {
+    align-self: end;
+    background: linear-gradient(135deg, #5c4ed4, #7c6df0);
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    cursor: pointer;
+    font-weight: 700;
+    min-height: 40px;
+    padding: 0 14px;
+  }
+
+  @media (max-width: 900px) {
+    .agcp-agent-hero,
+    .agcp-evidence-lookup {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .nav-item.disabled {
+    cursor: default;
+    opacity: .55;
+  }
+
+  .nav-item.disabled:hover {
+    background: transparent;
+    color: var(--text-muted);
+  }
+`;
+
 /* ─── EXTENDED SIDEBAR ─── */
-const ExtendedSidebar = ({ active, onNav }) => {
+const ExtendedSidebar = ({ active, onNav, data }) => {
+  const pendingApprovals = data.pendingApprovals ?? data.approvals?.filter((approval) => approval.status === "pending").length ?? 0;
   const sections = [
     {
       label: "Core",
       items: [
-        { id: "command",   label: "Command",    icon: "grid",    badge: null, orange: true },
-        { id: "systems",   label: "AI Systems", icon: "box",     badge: null },
-        { id: "policies",  label: "Policies",   icon: "shield",  badge: null },
-        { id: "reviews",   label: "Reviews",    icon: "star",    badge: 7 },
-        { id: "evidence",  label: "Evidence",   icon: "archive", badge: null },
+        { id: "command",   label: "Command",    icon: "grid",    badge: pendingApprovals, orange: true, href: "/" },
+        { id: "systems",   label: "AI Systems", icon: "box",     badge: null, href: "/agents" },
+        { id: "policies",  label: "Policies",   icon: "shield",  badge: null, href: "/policies" },
+        { id: "reviews",   label: "Reviews",    icon: "star",    badge: pendingApprovals, href: "/human-approvals" },
+        { id: "evidence",  label: "Evidence",   icon: "archive", badge: null, href: "/evidence" },
       ]
     },
     {
       label: "Governance",
       items: [
-        { id: "risk",        label: "Risk",       icon: "alert",   badge: null },
-        { id: "data",        label: "Data",       icon: "db",      badge: null },
-        { id: "models",      label: "Models",     icon: "cpu",     badge: null },
-        { id: "vendors",     label: "Vendors",    icon: "store",   badge: null },
-        { id: "monitoring",  label: "Monitoring", icon: "monitor", badge: null },
+        { id: "risk",        label: "Risk",       icon: "alert",   badge: null, disabled: true },
+        { id: "data",        label: "Data",       icon: "db",      badge: null, href: "/access-data" },
+        { id: "models",      label: "Models",     icon: "cpu",     badge: null, disabled: true },
+        { id: "vendors",     label: "Vendors",    icon: "store",   badge: null, disabled: true },
+        { id: "monitoring",  label: "Monitoring", icon: "monitor", badge: null, href: "/audit" },
       ]
     },
     {
       label: "Platform",
       items: [
-        { id: "integrations", label: "Integrations", icon: "plug",     badge: null },
-        { id: "admin",        label: "Admin",         icon: "settings", badge: null },
+        { id: "integrations", label: "Integrations", icon: "plug",     badge: null, href: "/integrations" },
+        { id: "admin",        label: "Admin",         icon: "settings", badge: null, href: "/settings" },
       ]
     }
   ];
@@ -3478,22 +4691,43 @@ const ExtendedSidebar = ({ active, onNav }) => {
         {sections.map(sec => (
           <div key={sec.label}>
             <div className="nav-section-label">{sec.label}</div>
-            {sec.items.map(n => (
-              <div
-                key={n.id}
-                className={`nav-item ${active === n.id ? "active" : ""}`}
-                onClick={() => onNav(n.id)}
-              >
-                <Icon name={n.icon} size={14} />
-                <span>{n.label}</span>
-                {n.orange
-                  ? <span className="nav-badge-orange">3</span>
-                  : n.badge
-                  ? <span className="nav-badge">{n.badge}</span>
-                  : null
-                }
-              </div>
-            ))}
+            {sec.items.map(n => {
+              const content = (
+                <>
+                  <Icon name={n.icon} size={14} />
+                  <span>{n.label}</span>
+                  {n.orange
+                    ? <span className="nav-badge-orange">{pendingApprovals}</span>
+                    : n.badge
+                    ? <span className="nav-badge">{n.badge}</span>
+                    : null
+                  }
+                </>
+              );
+
+              return n.href ? (
+                <Link key={n.id} href={n.href} className={`nav-item ${active === n.id ? "active" : ""}`}>
+                  {content}
+                </Link>
+              ) : n.disabled ? (
+                <div
+                  key={n.id}
+                  className={`nav-item disabled ${active === n.id ? "active" : ""}`}
+                  aria-disabled="true"
+                  title="Not connected yet"
+                >
+                  {content}
+                </div>
+              ) : (
+                <div
+                  key={n.id}
+                  className={`nav-item ${active === n.id ? "active" : ""}`}
+                  onClick={() => onNav(n.id)}
+                >
+                  {content}
+                </div>
+              );
+            })}
           </div>
         ))}
       </nav>
@@ -3510,7 +4744,7 @@ const ExtendedSidebar = ({ active, onNav }) => {
 };
 
 /* ─── EXTENDED TOPBAR ─── */
-const ExtendedTopbar = ({ view, mode, setMode, theme, setTheme }) => {
+const ExtendedTopbar = ({ view, title, mode, setMode, theme, setTheme }) => {
   const breadcrumbs = {
     command: "Command Center", systems: "AI Systems", policies: "Policy Studio",
     reviews: "Reviews", evidence: "Evidence", risk: "Risk Register",
@@ -3518,90 +4752,90 @@ const ExtendedTopbar = ({ view, mode, setMode, theme, setTheme }) => {
     monitoring: "Monitoring", integrations: "Integrations", admin: "Admin",
   };
 
-  const isStudio = view === "policies";
   return (
     <div className="topbar">
       <div className="breadcrumb">
         <span>AGCP</span>
         <span className="bc-sep">›</span>
-        <span className="active">{breadcrumbs[view] || view}</span>
-        {isStudio && <><span className="bc-sep">›</span><span style={{ color: "var(--text-dim)" }}>external_action_control</span></>}
+        <span className="active">{title || breadcrumbs[view] || view}</span>
       </div>
 
-      {isStudio ? (
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 12 }}>
-            <span className="chip chip-draft" style={{ fontSize: 9.5, padding: "2px 7px" }}>draft</span>
-            <span className="chip chip-unsaved" style={{ fontSize: 9.5, padding: "2px 7px" }}>unsaved</span>
-          </div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-            <button className="btn-secondary" style={{ padding: "5px 12px", fontSize: 11 }}>Run simulation</button>
-            <button className="btn-primary" style={{ padding: "5px 12px", fontSize: 11 }}>Submit review</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mode-switcher">
-            <button className={`mode-btn ${mode === "live" ? "on" : ""}`} onClick={() => setMode("live")}>Live</button>
-            <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>Simulation</button>
-          </div>
-          <div className="topbar-actions">
-            <button className="icon-btn"><Icon name="search" size={13} /></button>
-            <button className="icon-btn">
-              <Icon name="bell" size={13} />
-              <span className="notif-dot" />
-            </button>
-            <button className="icon-btn"><Icon name="settings" size={13} /></button>
-          </div>
-          <button className="theme-toggle" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ marginLeft: 4 }}>
-            {theme === "dark" ? "☀ Light" : "☾ Dark"}
-          </button>
-          <button className="new-policy-btn" style={{ marginLeft: 7 }}>
-            <Icon name="plus" size={12} />
-            New policy
-          </button>
-        </>
-      )}
+      <div className="mode-switcher">
+        <button className={`mode-btn ${mode === "live" ? "on" : ""}`} onClick={() => setMode("live")}>Live</button>
+        <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>Simulation</button>
+      </div>
+      <div className="topbar-actions">
+        <button className="icon-btn" aria-label="Search"><Icon name="search" size={13} /></button>
+        <Link className="icon-btn" href="/human-approvals" aria-label="Human approvals">
+          <Icon name="bell" size={13} />
+          <span className="notif-dot" />
+        </Link>
+        <Link className="icon-btn" href="/settings" aria-label="Settings"><Icon name="settings" size={13} /></Link>
+      </div>
+      <button className="theme-toggle" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ marginLeft: 4 }}>
+        {theme === "dark" ? "☀ Light" : "☾ Dark"}
+      </button>
+      <Link className="new-policy-btn" href="/policies" style={{ marginLeft: 7 }}>
+        <Icon name="plus" size={12} />
+        Policies
+      </Link>
     </div>
   );
 };
 
-/* ─── ROOT ─── */
-export function AGCPStudio() {
-  const [view, setView] = useState("command");
+export function AGCPStudioDashboard() {
+  const studioData = useAGCPStudioData();
+
+  return <CommandView data={studioData} />;
+}
+
+export function AGCPStudioShell({ children }) {
   const [mode, setMode] = useState("live");
   const [theme, setTheme] = useState("dark");
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const pathname = usePathname() || "/";
+  const routeView = getRouteView(pathname);
 
-  const renderView = () => {
-    switch (view) {
-      case "command":      return <CommandView />;
-      case "systems":      return <AISystemsView />;
-      case "policies":     return <PolicyStudioView />;
-      case "reviews":      return <ReviewsView />;
-      case "evidence":     return <EvidenceView />;
-      case "risk":         return <RiskView />;
-      case "data":         return <DataView />;
-      case "models":       return <ModelsView />;
-      case "vendors":      return <VendorsView />;
-      case "monitoring":   return <MonitoringView />;
-      case "integrations": return <IntegrationsView />;
-      case "admin":        return <AdminView />;
-      default:             return <CommandView />;
-    }
-  };
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchHumanApprovals("all", controller.signal)
+      .then((approvals) => {
+        setPendingApprovals(approvals.filter((approval) => approval.status === "pending").length);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setPendingApprovals(0);
+        }
+      });
+
+    return () => controller.abort();
+  }, [pathname]);
+
+  const shellData = { pendingApprovals, approvals: [] };
 
   return (
     <>
       <style>{CSS}</style>
       <style>{CSS_STUDIO}</style>
+      <style>{AGCP_CONNECTED_CSS}</style>
       <div className="shell" data-theme={theme}>
-        <ExtendedSidebar active={view} onNav={setView} />
+        <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} />
         <div className="main">
-          <ExtendedTopbar view={view} mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} />
-          {renderView()}
+          <ExtendedTopbar view={routeView.view} title={routeView.label} mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} />
+          {pathname === "/" ? children : <main className="content agcp-connected-content">{children}</main>}
         </div>
       </div>
     </>
+  );
+}
+
+/* ─── ROOT ─── */
+export function AGCPStudio() {
+  return (
+    <AGCPStudioShell>
+      <AGCPStudioDashboard />
+    </AGCPStudioShell>
   );
 }
 

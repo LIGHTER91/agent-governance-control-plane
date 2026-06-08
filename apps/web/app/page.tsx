@@ -1,5 +1,5 @@
-import { HomeDashboard } from "./home-dashboard";
+import { AGCPStudioDashboard } from "./agcp-studio/AGCPStudio";
 
 export default function HomePage() {
-  return <HomeDashboard />;
+  return <AGCPStudioDashboard />;
 }

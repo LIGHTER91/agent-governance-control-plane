@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  AGCPBadge,
+  AGCPEmptyState,
+  AGCPErrorState,
+  AGCPMetaGrid,
+  AGCPPanel,
+  AGCPSectionHeader,
+  AGCPTimelineItem
+} from "../../agcp-studio/primitives";
 import { ApiRequestError, getApiBaseUrl } from "../../lib/api";
 import type {
   AgentActivityItem,
@@ -15,15 +24,8 @@ import {
   fetchAgentGovernanceProfile
 } from "../../lib/agents";
 import { EvidenceBundle, fetchEvidenceBundle } from "../../lib/evidence";
-import {
-  HumanApprovalActions,
-  actionPastTense
-} from "../../human-approvals/human-approval-actions";
 import { fetchAgentHumanApprovals } from "../../lib/human-approvals";
-import type {
-  HumanApprovalAction,
-  HumanApprovalRecord
-} from "../../lib/human-approvals";
+import type { HumanApprovalRecord } from "../../lib/human-approvals";
 
 type AgentDetailState =
   | { status: "loading" }
@@ -44,11 +46,6 @@ type ActivityState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; items: AgentActivityItem[] };
-
-type ReviewActionMessage =
-  | { status: "success"; message: string }
-  | { status: "error"; message: string }
-  | null;
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -127,6 +124,30 @@ function ownerDisplay(agent: AgentRecord) {
   return agent.owner_name || agent.owner_id;
 }
 
+function badgeTone(value: string | null | undefined) {
+  if (value === "active" || value === "approved" || value === "allow" || value === "low") {
+    return "ok";
+  }
+
+  if (value === "pending" || value === "require_human_review" || value === "medium") {
+    return "warn";
+  }
+
+  if (
+    value === "disabled" ||
+    value === "archived" ||
+    value === "deny" ||
+    value === "rejected" ||
+    value === "cancelled" ||
+    value === "high" ||
+    value === "critical"
+  ) {
+    return "danger";
+  }
+
+  return "info";
+}
+
 export function AgentDetail({ agentId }: { agentId: string }) {
   const [state, setState] = useState<AgentDetailState>({ status: "loading" });
   const [activityState, setActivityState] = useState<ActivityState>({
@@ -135,8 +156,6 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   const [evidenceState, setEvidenceState] = useState<EvidenceState>({
     status: "idle"
   });
-  const [reviewActionMessage, setReviewActionMessage] =
-    useState<ReviewActionMessage>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -144,7 +163,6 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     setState({ status: "loading" });
     setActivityState({ status: "loading" });
     setEvidenceState({ status: "idle" });
-    setReviewActionMessage(null);
 
     Promise.all([
       fetchAgentGovernanceProfile(agentId, controller.signal),
@@ -201,67 +219,25 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     }
   }
 
-  async function handleApprovalActionCompleted(
-    approval: HumanApprovalRecord,
-    action: HumanApprovalAction
-  ) {
-    setReviewActionMessage({
-      status: "success",
-      message: `HumanApproval ${approval.id} ${actionPastTense(
-        action
-      )}. Refreshing Agent governance records.`
-    });
-
-    try {
-      const [profile, humanApprovals, activityItems] = await Promise.all([
-        fetchAgentGovernanceProfile(agentId),
-        fetchAgentHumanApprovals(agentId),
-        fetchAgentActivity(agentId)
-      ]);
-
-      setState((currentState) =>
-        currentState.status === "ready"
-          ? { ...currentState, profile, humanApprovals }
-          : currentState
-      );
-      setActivityState({ status: "ready", items: activityItems });
-    } catch (error: unknown) {
-      setReviewActionMessage({
-        status: "error",
-        message:
-          error instanceof Error
-            ? `HumanApproval action succeeded, but refresh failed: ${error.message}`
-            : "HumanApproval action succeeded, but refresh failed."
-      });
-    }
-  }
-
   if (state.status === "loading") {
     return (
-      <section className="data-panel" aria-live="polite">
-        <div className="state-message">
-          <strong>Loading Agent detail</strong>
-          <p>
-            Requesting `GET /agents/{"{agent_id}"}/governance-profile` and
-            related HumanApproval records from {getApiBaseUrl()}.
-          </p>
-        </div>
-      </section>
+      <AGCPPanel aria-live="polite">
+        <AGCPEmptyState title="Loading Agent detail">
+          Requesting `GET /agents/{"{agent_id}"}/governance-profile` and
+          related HumanApproval records from {getApiBaseUrl()}.
+        </AGCPEmptyState>
+      </AGCPPanel>
     );
   }
 
   if (state.status === "error") {
     return (
-      <section className="data-panel" role="alert">
-        <div className="state-message error">
-          <strong>Unable to load Agent detail</strong>
-          <p>{state.message}</p>
-          <p>
-            Check that the backend is running and that
-            NEXT_PUBLIC_AGCP_API_BASE_URL points to the API base URL.
-          </p>
-        </div>
-      </section>
+      <AGCPPanel>
+        <AGCPErrorState title="Unable to load Agent detail">
+          {state.message} Check that the backend is running and that
+          NEXT_PUBLIC_AGCP_API_BASE_URL points to the API base URL.
+        </AGCPErrorState>
+      </AGCPPanel>
     );
   }
 
@@ -270,11 +246,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       <AgentHeader agent={state.profile.agent} />
       <AgentGovernanceProfileSection profile={state.profile} />
       <ActivityTimelineSection activityState={activityState} />
-      <HumanApprovalsSection
-        actionMessage={reviewActionMessage}
-        humanApprovals={state.humanApprovals}
-        onActionCompleted={handleApprovalActionCompleted}
-      />
+      <HumanApprovalsSection humanApprovals={state.humanApprovals} />
       <EvidenceAccessSection
         evidenceHint={state.profile.evidence_bundle}
         evidenceState={evidenceState}
@@ -347,7 +319,7 @@ function ActivityTimelineSection({
         ) : null}
 
         {activityState.status === "ready" && sortedItems.length > 0 ? (
-          <ol className="activity-list">
+          <ol className="agcp-timeline">
             {sortedItems.map((item) => (
               <ActivityTimelineItem item={item} key={`${item.type}-${item.id}`} />
             ))}
@@ -364,17 +336,12 @@ function ActivityTimelineItem({ item }: { item: AgentActivityItem }) {
   const metadataEntries = activityMetadataEntries(item);
 
   return (
-    <li className="activity-item">
-      <div className="activity-item-header">
-        <div className="activity-badges">
-          <span className="table-pill">{formatValue(item.type)}</span>
-          <span className={`activity-severity severity-${severity}`}>
-            {formatValue(severity)}
-          </span>
-        </div>
-        <time dateTime={item.timestamp}>{formatTimestamp(item.timestamp)}</time>
-      </div>
-      <strong>{item.title}</strong>
+    <AGCPTimelineItem
+      badge={formatValue(item.type)}
+      tone={badgeTone(severity)}
+      title={item.title}
+      timestamp={formatTimestamp(item.timestamp)}
+    >
       <p>{item.summary || "No summary provided."}</p>
       {relatedIds.length > 0 || metadataEntries.length > 0 ? (
         <div className="activity-technical">
@@ -407,7 +374,7 @@ function ActivityTimelineItem({ item }: { item: AgentActivityItem }) {
           ) : null}
         </div>
       ) : null}
-    </li>
+    </AGCPTimelineItem>
   );
 }
 
@@ -446,14 +413,32 @@ function formatMetadataValue(value: AgentActivityMetadataValue) {
 
 function AgentHeader({ agent }: { agent: AgentRecord }) {
   return (
-    <section className="page-header">
-      <p className="eyebrow">Agent Registry</p>
-      <h2>{agent.name}</h2>
-      <p>
-        Product-oriented governance overview for one registered Agent, including
-        ownership, lifecycle state, risk classification, human oversight, and
-        evidence access.
-      </p>
+    <section className="agcp-agent-hero">
+      <div>
+        <span className="agcp-eyebrow">Agent Registry</span>
+        <h2>{agent.name}</h2>
+        <div className="agcp-agent-hero-badges">
+          <AGCPBadge tone={badgeTone(agent.status)}>
+            {formatValue(agent.status)}
+          </AGCPBadge>
+          <AGCPBadge tone={badgeTone(agent.risk_level)}>
+            {formatValue(agent.risk_level)} risk
+          </AGCPBadge>
+          <AGCPBadge tone={badgeTone(agent.environment)}>
+            {formatValue(agent.environment)}
+          </AGCPBadge>
+          <AGCPBadge tone="info">{formatValue(agent.framework)}</AGCPBadge>
+        </div>
+        <p>
+          Product governance overview for ownership, lifecycle state, risk
+          classification, human oversight, activity, and evidence access.
+        </p>
+      </div>
+      <aside className="agcp-owner-card">
+        <span>Owner</span>
+        <strong>{ownerDisplay(agent)}</strong>
+        <p>{agent.owner_id}</p>
+      </aside>
     </section>
   );
 }
@@ -530,19 +515,19 @@ function AgentGovernanceProfileSection({
   return (
     <>
       <h3 className="section-title">Agent Governance Profile</h3>
-      <section className="evidence-section">
-        <header className="evidence-section-header">
-          <h3>Agent overview</h3>
-          <span>GET /agents/{"{agent_id}"}/governance-profile</span>
-        </header>
-        <dl className="evidence-fields agent-detail-fields">
-          {overviewFields.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{plainValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
+      <AGCPPanel>
+        <AGCPSectionHeader
+          eyebrow="governance profile"
+          title="Agent overview"
+          description="Connected profile from GET /agents/{agent_id}/governance-profile."
+          meta={<AGCPBadge tone="purple">backend record</AGCPBadge>}
+        />
+        <AGCPMetaGrid
+          items={overviewFields.map(([label, value]) => ({
+            label: String(label),
+            value: plainValue(value)
+          }))}
+        />
         <details className="profile-technical-details">
           <summary>Agent technical reference</summary>
           <dl className="activity-related">
@@ -554,7 +539,7 @@ function AgentGovernanceProfileSection({
             ))}
           </dl>
         </details>
-      </section>
+      </AGCPPanel>
 
       <section
         className="detail-summary-grid profile-summary-grid"
@@ -669,7 +654,7 @@ function ProfileRecentActivitySummary({
             </p>
           </div>
         ) : (
-          <ol className="activity-list profile-activity-list">
+          <ol className="agcp-timeline profile-activity-list">
             {profile.recent_activity.items.map((item) => (
               <ActivityTimelineItem item={item} key={`${item.type}-${item.id}`} />
             ))}
@@ -801,38 +786,26 @@ function PolicyTechnicalReferences({
 }
 
 function HumanApprovalsSection({
-  actionMessage,
-  humanApprovals,
-  onActionCompleted
+  humanApprovals
 }: {
-  actionMessage: ReviewActionMessage;
   humanApprovals: HumanApprovalRecord[];
-  onActionCompleted: (
-    approval: HumanApprovalRecord,
-    action: HumanApprovalAction
-  ) => Promise<void> | void;
 }) {
   return (
     <>
       <h3 className="section-title">Human approvals</h3>
-      <section className="data-panel" aria-label="Agent Human Approvals">
-        {actionMessage ? (
-          <div
-            className={`review-action-message ${actionMessage.status}`}
-            role={actionMessage.status === "error" ? "alert" : undefined}
-          >
-            {actionMessage.message}
-          </div>
-        ) : null}
+      <AGCPPanel aria-label="Agent Human Approvals">
+        <AGCPSectionHeader
+          eyebrow="human oversight"
+          title="Linked HumanApproval records"
+          description="Read-only review context from the backend. Runtime continuation remains outside this page."
+          meta={<AGCPBadge tone="purple">{humanApprovals.length} records</AGCPBadge>}
+        />
         {humanApprovals.length === 0 ? (
-          <div className="state-message">
-            <strong>No HumanApproval records for this Agent</strong>
-            <p>
-              Pending, approved, rejected, cancelled, or expired review records
-              will appear here after backend governance flows request human
-              oversight.
-            </p>
-          </div>
+          <AGCPEmptyState title="No HumanApproval records for this Agent">
+            Pending, approved, rejected, cancelled, or expired review records
+            will appear here after backend governance flows request human
+            oversight.
+          </AGCPEmptyState>
         ) : (
           <div className="table-scroll">
             <table className="data-table agent-approvals-table">
@@ -846,7 +819,6 @@ function HumanApprovalsSection({
                   <th>Created</th>
                   <th>Reviewed</th>
                   <th>Expires</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -873,19 +845,13 @@ function HumanApprovalsSection({
                     <td>{formatTimestamp(approval.created_at)}</td>
                     <td>{formatTimestamp(approval.reviewed_at)}</td>
                     <td>{formatTimestamp(approval.expires_at)}</td>
-                    <td>
-                      <HumanApprovalActions
-                        approval={approval}
-                        onCompleted={onActionCompleted}
-                      />
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
+      </AGCPPanel>
     </>
   );
 }

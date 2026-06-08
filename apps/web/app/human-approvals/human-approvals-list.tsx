@@ -1,17 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getApiBaseUrl } from "../lib/api";
 import {
-  HumanApprovalActions,
-  actionPastTense
-} from "./human-approval-actions";
+  AGCPBadge,
+  AGCPEmptyState,
+  AGCPErrorState,
+  AGCPPanel,
+  AGCPSectionHeader
+} from "../agcp-studio/primitives";
+import { getApiBaseUrl } from "../lib/api";
 import {
   HUMAN_APPROVAL_STATUSES,
   fetchHumanApprovals
 } from "../lib/human-approvals";
 import type {
-  HumanApprovalAction,
   HumanApprovalRecord,
   HumanApprovalStatusFilter
 } from "../lib/human-approvals";
@@ -20,11 +22,6 @@ type HumanApprovalsState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; approvals: HumanApprovalRecord[] };
-
-type ReviewActionMessage =
-  | { status: "success"; message: string }
-  | { status: "error"; message: string }
-  | null;
 
 const columns = [
   "ID",
@@ -37,8 +34,7 @@ const columns = [
   "Reviewer ID",
   "Created",
   "Reviewed",
-  "Expires",
-  "Actions"
+  "Expires"
 ];
 
 function formatValue(value: string | null | undefined) {
@@ -74,14 +70,28 @@ function emptyMessage(statusFilter: HumanApprovalStatusFilter) {
   return `No ${formatValue(statusFilter).toLowerCase()} human approvals found`;
 }
 
+function statusTone(status: string) {
+  if (status === "approved") {
+    return "ok";
+  }
+
+  if (status === "pending") {
+    return "warn";
+  }
+
+  if (status === "rejected" || status === "cancelled" || status === "expired") {
+    return "danger";
+  }
+
+  return "info";
+}
+
 export function HumanApprovalsList() {
   const [statusFilter, setStatusFilter] =
     useState<HumanApprovalStatusFilter>("all");
   const [state, setState] = useState<HumanApprovalsState>({
     status: "loading"
   });
-  const [reviewActionMessage, setReviewActionMessage] =
-    useState<ReviewActionMessage>(null);
 
   const loadHumanApprovals = useCallback(
     async (signal?: AbortSignal) => {
@@ -115,22 +125,20 @@ export function HumanApprovalsList() {
     };
   }, [loadHumanApprovals]);
 
-  async function handleActionCompleted(
-    approval: HumanApprovalRecord,
-    action: HumanApprovalAction
-  ) {
-    setReviewActionMessage({
-      status: "success",
-      message: `HumanApproval ${approval.id} ${actionPastTense(
-        action
-      )}. Refreshing the review queue.`
-    });
-    await loadHumanApprovals();
-  }
-
   return (
-    <section className="data-panel" aria-label="Human approvals">
-      <div className="filter-bar">
+    <AGCPPanel aria-label="Human approvals">
+      <AGCPSectionHeader
+        eyebrow="review queue"
+        title="HumanApproval records"
+        description="Live records from GET /human-approvals. This view is styled as a governance review queue and does not inject fake approvals."
+        meta={
+          state.status === "ready" ? (
+            <AGCPBadge tone="purple">{state.approvals.length} visible</AGCPBadge>
+          ) : null
+        }
+      />
+
+      <div className="filter-bar agcp-review-filter">
         <label htmlFor="human-approval-status-filter">
           <span>Status</span>
           <select
@@ -150,90 +158,85 @@ export function HumanApprovalsList() {
         </label>
       </div>
 
-      {reviewActionMessage ? (
-        <div
-          className={`review-action-message ${reviewActionMessage.status}`}
-          role={reviewActionMessage.status === "error" ? "alert" : undefined}
-        >
-          {reviewActionMessage.message}
-        </div>
-      ) : null}
-
       {state.status === "loading" ? (
-        <div className="state-message" aria-live="polite">
-          <strong>Loading human approvals</strong>
-          <p>Requesting HumanApproval records from {getApiBaseUrl()}.</p>
-        </div>
+        <AGCPEmptyState title="Loading human approvals">
+          Requesting HumanApproval records from {getApiBaseUrl()}.
+        </AGCPEmptyState>
       ) : null}
 
       {state.status === "error" ? (
-        <div className="state-message error" role="alert">
-          <strong>Unable to load human approvals</strong>
-          <p>{state.message}</p>
-          <p>
-            Check that the backend is running, the current actor can read Human
-            Approvals, and NEXT_PUBLIC_AGCP_API_BASE_URL points to the API base
-            URL.
-          </p>
-        </div>
+        <AGCPErrorState title="Unable to load human approvals">
+          {state.message} Check that the backend is running, the current actor
+          can read Human Approvals, and NEXT_PUBLIC_AGCP_API_BASE_URL points to
+          the API base URL.
+        </AGCPErrorState>
       ) : null}
 
       {state.status === "ready" && state.approvals.length === 0 ? (
-        <div className="state-message">
-          <strong>{emptyMessage(statusFilter)}</strong>
-          <p>
-            Matching HumanApproval records will appear here after backend
-            governance flows request or resolve human review.
-          </p>
-        </div>
+        <AGCPEmptyState title={emptyMessage(statusFilter)}>
+          Matching HumanApproval records will appear here after backend
+          governance flows request or resolve human review.
+        </AGCPEmptyState>
       ) : null}
 
       {state.status === "ready" && state.approvals.length > 0 ? (
-        <div className="table-scroll">
-          <table className="data-table human-approvals-table">
-            <thead>
-              <tr>
-                {columns.map((column) => (
-                  <th key={column} scope="col">
-                    {column}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {state.approvals.map((approval) => (
-                <tr key={approval.id}>
-                  <td className="id-cell">{approval.id}</td>
-                  <td className="id-cell">{approval.agent_id}</td>
-                  <td className="id-cell">
-                    {formatValue(approval.policy_decision_id)}
-                  </td>
-                  <td>
-                    <span className={`table-pill approval-${approval.status}`}>
-                      {formatValue(approval.status)}
-                    </span>
-                  </td>
-                  <td>{formatValue(approval.requested_by_actor_type)}</td>
-                  <td className="id-cell">{approval.requested_by_actor_id}</td>
-                  <td>{formatValue(approval.reviewed_by_actor_type)}</td>
-                  <td className="id-cell">
-                    {formatValue(approval.reviewed_by_actor_id)}
-                  </td>
-                  <td>{formatTimestamp(approval.created_at)}</td>
-                  <td>{formatTimestamp(approval.reviewed_at)}</td>
-                  <td>{formatTimestamp(approval.expires_at)}</td>
-                  <td>
-                    <HumanApprovalActions
-                      approval={approval}
-                      onCompleted={handleActionCompleted}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="agcp-review-list">
+          {state.approvals.map((approval) => (
+            <article className="agcp-review-card" key={approval.id}>
+              <div className="agcp-review-head">
+                <div>
+                  <div className="agcp-review-title">
+                    Approval {approval.id.slice(0, 8)}
+                  </div>
+                  <div className="agcp-review-meta">
+                    <span>agent {approval.agent_id}</span>
+                    <span>created {formatTimestamp(approval.created_at)}</span>
+                  </div>
+                </div>
+                <AGCPBadge tone={statusTone(approval.status)}>
+                  {formatValue(approval.status)}
+                </AGCPBadge>
+              </div>
+
+              <p className="agcp-muted">
+                {approval.reason ||
+                  "No reason was persisted with this HumanApproval record."}
+              </p>
+
+              <dl className="agcp-approval-details">
+                {columns.map((column) => {
+                  const valueByColumn: Record<string, string> = {
+                    ID: approval.id,
+                    "Agent ID": approval.agent_id,
+                    "Policy Decision ID": formatValue(
+                      approval.policy_decision_id
+                    ),
+                    Status: formatValue(approval.status),
+                    "Requester Type": formatValue(
+                      approval.requested_by_actor_type
+                    ),
+                    "Requester ID": approval.requested_by_actor_id,
+                    "Reviewer Type": formatValue(
+                      approval.reviewed_by_actor_type
+                    ),
+                    "Reviewer ID": formatValue(approval.reviewed_by_actor_id),
+                    Created: formatTimestamp(approval.created_at),
+                    Reviewed: formatTimestamp(approval.reviewed_at),
+                    Expires: formatTimestamp(approval.expires_at)
+                  };
+
+                  return (
+                    <div key={column}>
+                      <dt>{column}</dt>
+                      <dd>{valueByColumn[column]}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            </article>
+          ))}
         </div>
       ) : null}
-    </section>
+    </AGCPPanel>
   );
 }

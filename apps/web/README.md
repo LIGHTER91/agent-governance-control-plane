@@ -1,22 +1,25 @@
-# AGCP Web Dashboard
+# AGCP Web App
 
-Minimal Next.js dashboard shell for the Agent Governance Control Plane.
+Next.js product frontend for the Agent Governance Control Plane.
 
-The shell is intentionally minimal. The root dashboard is the connected app
-entry point: it links to the real governance routes, reads Agent and
-HumanApproval summary data from existing backend endpoints, and shows an
-explicit unavailable state instead of synthetic metrics when the backend cannot
-be reached. The Agents page and Agent detail page read from the backend Agent
-Registry API, Agent activity API, and HumanApproval API.
+The shared product chrome uses the AGCP Studio visual shell: dark control-plane
+sidebar, compact topbar, dense panels, badges, and bounded review/export
+surfaces. The connected Agent, Agent detail, Human Approvals, and Evidence
+pages use the same AGCP Studio visual language instead of a generic CRUD shell.
+The root dashboard is the connected app entry point: it links to the real
+governance routes, reads Agent and HumanApproval summary data from existing
+backend endpoints, and shows an explicit unavailable state instead of synthetic
+metrics when the backend cannot be reached. The Agents page and Agent detail
+page read from the backend Agent Registry API, Agent activity API, and
+HumanApproval API.
 The Access & Data page reads Access Grants, Source inventory records, and
 Source Data Usage Profiles for governance review workflows. It can transition
 Access Grant statuses through explicit backend lifecycle endpoints while keeping
 grants as declarative governance records. The Human Approvals page reads from
-the backend HumanApproval API and lets pending
-HumanApprovals be approved, rejected, or cancelled through the existing review
-endpoints. The Evidence page manually loads filtered Evidence Bundle JSON for a
-single Agent, explains the human-readable evidence chain, and lets reviewers
-download the bounded JSON artifact returned by the backend. The Runtime Gateway
+the backend HumanApproval API as a governance review queue. The Evidence page
+manually loads filtered Evidence Bundle JSON for a single Agent, explains the
+human-readable evidence chain, and lets reviewers download the bounded JSON
+artifact returned by the backend. The Runtime Gateway
 page is a static read-only overview of runtime modes, endpoints, configuration
 flags, and current limitations. The Integration Hub page explains Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
@@ -55,7 +58,8 @@ http://localhost:3000
 
 ## Backend API Configuration
 
-The implemented read-only pages call:
+The shared AGCP Studio shell is rendered across the main app routes. The
+implemented connected pages call:
 
 ```text
 GET /agents
@@ -75,9 +79,6 @@ GET /service-actors
 GET /service-actors/{service_actor_id}/api-keys
 GET /service-actors/{service_actor_id}/scopes
 GET /service-actors/{service_actor_id}/scope-rules
-POST /human-approvals/{approval_id}/approve
-POST /human-approvals/{approval_id}/reject
-POST /human-approvals/{approval_id}/cancel
 ```
 
 Configure the backend base URL with:
@@ -144,7 +145,8 @@ http://localhost:3000/agents
 
 You can also open `http://localhost:3000/` for the connected product dashboard
 entry point. It links to Agents, Human Approvals, Evidence, Audit, Policies,
-and Settings without embedding demo records in the frontend.
+and Settings inside the same AGCP Studio shell without embedding demo records
+in the frontend.
 
 The backend seed creates one local Agent, one active Policy and PolicyRule, one
 runtime event, one PolicyDecision, one pending HumanApproval, and related
@@ -215,7 +217,7 @@ npm run build
 - Access & Data Source Data Usage workflow is read-only.
 - Access Grant status transition actions are available, but they are not
   role-aware and do not create IAM permissions or runtime enforcement.
-- Human Approvals actions are available only for pending records.
+- Human Approvals is a read-oriented review queue in the current UI.
 - Evidence Bundle viewer is manual JSON review and download only; PDF export,
   cryptographic signing, and external GRC/SIEM integrations are not implemented.
 - No create, edit, or delete Agent forms.
