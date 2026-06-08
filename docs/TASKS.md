@@ -106,6 +106,14 @@ replace orchestrators, but no login/auth UI, no role-aware
 frontend behavior, no Agent edit form, no dedicated inventory or
 PolicyCheckStep management UI, no broad activity filtering or pagination, and
 no Evidence Bundle PDF/download/signature actions.
+The `/policies` route is now an IDE-style Policy Studio rather than a raw
+Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
+static templates, Blocks and Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`,
+deterministic frontend compilation to supported `PolicyRule.condition` JSON,
+local validation, generated JSON preview, unsupported-DSL save blocking, and
+Save draft through existing APIs. Templates are static helpers, not backend
+records. Local validation is not runtime simulation. Submit for review remains
+disabled, and there is no Publish action.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -124,6 +132,7 @@ References:
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
+- `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -142,34 +151,42 @@ References:
 
 Recommended order:
 
-1. Harden rollout, backfill, and operational guidance for active PolicyVersion
-   evaluation now that Runtime Gateway has active snapshot evaluation with
-   unversioned fallback.
-2. Add guided PolicyCheckStep UI support only after versioning, review, and
+1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
+   product acceptance bar; otherwise create narrower follow-ups for direct
+   no-code block editing and PolicyCheckStep authoring.
+2. Keep #76 open or mark partially implemented until a formal
+   `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
+3. Complete or refresh #56 policy versioning and review guardrails before
+   wiring backend/frontend Submit for review behavior.
+4. Complete and validate #68 active PolicyVersion rollout, telemetry migration,
+   and single-active-version guidance before activation or Publish semantics.
+5. Then implement backend Policy Review Workflow APIs and wire the frontend
+   Submit for review action to those APIs.
+6. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
-3. Use Access Grants as optional policy context without replacing
+7. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-4. Add focused AccessGrant and inventory review workflows only where they
+8. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-5. Add Permission domain model only if AccessGrant target semantics prove
+9. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-6. Add frontend auth and role-aware UI later.
-7. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-8. Add OpenAPI examples for `GET /human-approvals` if missing.
-9. Design team and organization-unit ownership resolution for Evidence Bundle
+10. Add frontend auth and role-aware UI later.
+11. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+12. Add OpenAPI examples for `GET /human-approvals` if missing.
+13. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-10. Add owner-based service actor scopes design.
-11. Add safe denied-scope audit events.
-12. Add admin management for persisted service actor scope and rule records.
-13. Implement service actor API key rotation and admin workflows after registry
+14. Add owner-based service actor scopes design.
+15. Add safe denied-scope audit events.
+16. Add admin management for persisted service actor scope and rule records.
+17. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-14. Add tests for overriding the Actor dependency with a non-development actor.
-15. Add deeper separation-of-duties checks for HumanApproval review.
-16. Add broad filtering and pagination for Runtime and Agent activity only
+18. Add tests for overriding the Actor dependency with a non-development actor.
+19. Add deeper separation-of-duties checks for HumanApproval review.
+20. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
-17. Turn Integration Hub guidance into focused adapter packages only after
+21. Turn Integration Hub guidance into focused adapter packages only after
     stronger auth, caller enforcement, and packaging boundaries are designed.
-18. Prototype a minimal dependency-free LangGraph adapter helper with fake tool
+22. Prototype a minimal dependency-free LangGraph adapter helper with fake tool
     tests before adding any LangGraph dependency.
 
 ## Backlog
@@ -184,10 +201,18 @@ Recommended order:
 - [ ] Design team and organization-unit ownership resolution for Evidence
       Bundle export.
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
-- [x] Add Policy management UI for Policy lifecycle and constrained
-      PolicyRule condition editing.
+- [x] Add IDE-style Policy Studio V1 for guided Policy/PolicyRule authoring
+      without raw JSON as the main workflow.
+- [ ] Add formal controlled Policy Studio DSL design document for #76,
+      including grammar, supported fields/operators, compile targets,
+      versioning/storage, diffs, and unsupported-field handling.
+- [ ] Complete or refresh policy versioning and review guardrails before
+      enabling Submit for review in the frontend.
 - [ ] Harden active PolicyVersion rollout, historical PolicyDecision backfill,
-      and operational guidance.
+      telemetry migration, single-active-version guardrails, and operational
+      guidance before any activation or Publish semantics.
+- [ ] Implement backend Policy Review Workflow APIs after #56 and #68 are
+      settled, then wire the frontend Submit for review action.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
@@ -385,6 +410,8 @@ credentials.
 - [x] Add safe CheckResult summaries to Evidence Bundle export.
 - [x] Add optional contextual runtime request fields from the contextual runtime
       governance design.
+- [x] Add Policy Studio issue alignment and roadmap cleanup for #58, #76, #56,
+      #68, #57, #74, #61, and #50.
 
 ## Blocked
 

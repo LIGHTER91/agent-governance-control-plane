@@ -164,8 +164,10 @@ packages for enterprise integrations are intentionally not implemented yet.
   environment, risk level, Access Grant summary, recent activity,
   HumanApproval summary, Evidence Bundle availability, inventory/access
   details, and compact technical policy/rule references.
-- Frontend Policies page for Policy lifecycle records and constrained
-  PolicyRule condition editing, including explicit `check_*` outcome fields.
+- Frontend Policy Studio IDE for Policy and PolicyRule authoring, including
+  repository navigation, static templates, Blocks and Code DSL modes,
+  deterministic local validation, explicit `check_*` outcome fields, Save draft
+  through existing APIs, no Publish action, and no fake production simulation.
 - Read-only frontend Runtime Gateway overview and activity pages.
 - Frontend Human Approvals page backed by `GET /human-approvals`, with review
   actions shown only for pending approvals.
@@ -475,9 +477,10 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Production SDKs or framework adapters.
 - Runtime Integration Hub adapter packages or workflow nodes for LangGraph,
   n8n, Dataiku, MCP, or generic webhook integrations.
-- Docker Compose or production deployment.
-- Policy versioning and review implementation, plus Runtime Gateway telemetry
-  mode on the runtime decision endpoint.
+- Production deployment.
+- Frontend Policy Studio Submit for review workflow and activation semantics;
+  these remain intentionally disabled until review guardrails and active-version
+  rollout decisions are complete.
 - Pre-check failure behavior enforcement, scanner execution, or automatic
   CheckResult-driven policy decisions.
 - Retention policies.
@@ -489,32 +492,38 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term recommended work:
 
-1. Implement lightweight Policy, PolicyRule, and PolicyCheckStep versioning and
-   review lifecycle support from `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`.
-2. Add active policy/rule/check-step version references to PolicyDecision,
-   CheckResult evidence, and Evidence Bundle before expanding authoring UI.
-3. Add guided PolicyCheckStep UI support only after versioning, review, and
+1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
+   product acceptance bar.
+2. Keep #76 open or partial until a formal controlled Policy Studio DSL design
+   document exists.
+3. Complete or refresh #56 policy versioning and review guardrails before
+   wiring Submit for review.
+4. Complete and validate #68 active PolicyVersion rollout, telemetry migration,
+   and single-active-version guidance before activation or Publish semantics.
+5. Then implement backend Policy Review Workflow APIs and wire frontend Submit
+   for review to those APIs.
+6. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
-4. Use Access Grants as optional policy context without replacing
+7. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-5. Add focused AccessGrant and inventory workflows only where they support
+8. Add focused AccessGrant and inventory workflows only where they support
    review, approval, or evidence collection.
-6. Implement Permission domain model only if AccessGrant target semantics prove
+9. Implement Permission domain model only if AccessGrant target semantics prove
    insufficient.
-7. Add frontend auth and role-aware UI.
-8. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-9. Add OpenAPI examples for `GET /human-approvals` if missing.
-10. Design team and organization-unit ownership resolution for Evidence Bundle
+10. Add frontend auth and role-aware UI.
+11. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+12. Add OpenAPI examples for `GET /human-approvals` if missing.
+13. Design team and organization-unit ownership resolution for Evidence Bundle
    export.
-11. Add owner-based service actor scopes design.
-12. Add safe audit events for denied service actor scope checks.
-13. Implement service actor registry admin management workflow.
-14. Implement service actor API key rotation and admin workflows after registry
+14. Add owner-based service actor scopes design.
+15. Add safe audit events for denied service actor scope checks.
+16. Implement service actor registry admin management workflow.
+17. Implement service actor API key rotation and admin workflows after registry
     import/management behavior is designed.
-15. Turn Integration Hub guidance into focused adapter packages only after
+18. Turn Integration Hub guidance into focused adapter packages only after
     stronger auth, caller enforcement, and packaging boundaries are designed.
-16. Add deeper separation-of-duties checks for HumanApproval review.
-17. Add broad filtering and pagination for Runtime and Agent activity only
+19. Add deeper separation-of-duties checks for HumanApproval review.
+20. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
 
 ## Repository Map

@@ -65,12 +65,17 @@ and links to Agent profiles, Evidence Bundle lookup, and Source/Data Usage
 review. Source Data Usage Profiles now have a read-only review UI for
 classification, personal/sensitive data flags, allowed and prohibited purposes,
 processing constraints, review status, DPIA references, safe metadata, and
-Source-targeting Access Grants. Policy and PolicyRule management now have a
-minimal frontend page for lifecycle records and constrained deterministic
-condition editing, including explicit `check_*` outcome fields. Access Grants
-are inventory declarations only; they are not enforced by runtime policy
-evaluation yet. Evidence Bundle export
-includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
+Source-targeting Access Grants. Policy and PolicyRule management now have an
+IDE-style Policy Studio frontend surface. The Studio uses a repository sidebar,
+static authoring templates, Blocks and Code DSL modes, a
+`WHEN -> CHECK -> THEN -> PROVE` structure, local validation, deterministic
+compilation to supported `PolicyRule.condition` fields, an inspector, and Save
+draft through the existing Policy and PolicyRule APIs. Unsupported DSL lines
+block saving. Templates are static helpers, not backend records. Local
+validation is not runtime simulation. Submit for review is still disabled, and
+there is no direct Publish action. Access Grants are inventory declarations
+only; they are not enforced by runtime policy evaluation yet. Evidence Bundle
+export includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
 remains a bounded JSON review export rather than a full data catalog or
 UI-oriented profile. The frontend Evidence page adds a review-friendly summary
@@ -128,7 +133,17 @@ reference the active PolicyVersion for the selected Policy, and Evidence Bundle
 renders safe PolicyVersion summaries on PolicyDecision and linked CheckResult
 records. Runtime Gateway now evaluates active PolicyVersion snapshots where
 available and falls back to unversioned Policy/PolicyRule rows for Policies
-without an active version. Review UI has not been implemented.
+without an active version. Review UI has not been implemented. The next backend
+milestone should refresh or complete the review guardrail contract before the
+frontend enables Submit for review.
+
+Policy Studio issue alignment is tracked in
+`docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
+most of the guided authoring goals from #58, while #76 should remain open or
+partial until a formal controlled DSL design document defines grammar,
+operators, storage/versioning, and diff behavior. Active PolicyVersion rollout
+planning in #68 should be completed before any real activation or Publish
+semantics are exposed.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -382,8 +397,9 @@ Completed foundation:
   sorted newest first with `status` and `target_type` filters.
 - Policy management API for auditable Policy lifecycle records.
 - PolicyRule management API for deterministic rule conditions.
-- Policy frontend for Policy lifecycle records and constrained PolicyRule
-  condition editing, including safe CheckResult outcome match fields.
+- Policy Studio frontend for Policy and PolicyRule authoring with static
+  templates, Blocks and Code DSL modes, deterministic local validation,
+  unsupported-DSL save blocking, and Save draft through existing APIs.
 - Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
   Source, and ModelAsset references, and safe Data Usage Profile summaries for
   granted Sources.
@@ -400,9 +416,16 @@ Completed foundation:
 
 Recommended next work:
 
-- Harden rollout, backfill, and operational guidance for active PolicyVersion
-  evaluation now that Runtime Gateway can evaluate active snapshots with
-  unversioned fallback.
+- Close or mark #58 implemented if the current Policy Studio V1 satisfies the
+  product acceptance bar; keep narrower follow-ups for direct no-code block
+  editing and PolicyCheckStep authoring.
+- Keep #76 open or partial until the controlled DSL has a formal design
+  document covering grammar, storage/versioning, diffs, and unsupported-field
+  behavior.
+- Complete or refresh #56 policy versioning and review guardrails before
+  wiring the frontend Submit for review action.
+- Harden #68 rollout, backfill, telemetry migration, and single-active-version
+  guidance before exposing activation or Publish semantics.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
@@ -458,6 +481,7 @@ References:
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
+- `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
 - `docs/LANGGRAPH_ADAPTER_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
@@ -492,12 +516,15 @@ Planned capabilities:
   download.
 - Agent Governance Profile backend endpoint. Completed.
 - Agent Governance Profile frontend UI. Completed.
-- Policy management UI. Completed for Policy lifecycle and constrained
-  PolicyRule condition editing.
+- Policy Studio IDE. Completed as a frontend authoring surface with
+  repository-style Policy/PolicyRule navigation, static templates, Blocks and
+  Code DSL modes, deterministic condition JSON compilation, local validation,
+  and Save draft through existing APIs.
 - Integration Hub page. Completed as a frontend product surface for runtime
   connection patterns, Service Actor expectations, setup snippets, and
   non-orchestrator boundaries.
-- Policy versioning and review UI after the backend version lifecycle exists.
+- Policy versioning and review UI after #56 guardrails and #68 rollout
+  decisions are complete.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

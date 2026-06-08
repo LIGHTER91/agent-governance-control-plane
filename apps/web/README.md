@@ -132,6 +132,14 @@ coverage. Built-in templates are static authoring helpers, not backend records,
 and they never save automatically. Submit for review is not wired yet, and the
 UI intentionally has no direct Publish action.
 
+Policy Studio backlog alignment is tracked in
+`docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the
+V1 guided authoring goal from #58. The controlled DSL from #76 exists as a
+frontend implementation layer, but a formal DSL design document is still a
+recommended follow-up. Backend review workflow work should wait for the #56
+versioning/review guardrail contract and #68 active PolicyVersion rollout
+decisions before enabling Submit for review or any activation semantics.
+
 ## Local Full-Stack Demo
 
 The frontend does not include hardcoded demo records. To run the dashboard
