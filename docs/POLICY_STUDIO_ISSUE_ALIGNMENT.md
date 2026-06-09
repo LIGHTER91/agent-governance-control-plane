@@ -136,15 +136,15 @@ Why it matters:
 - Runtime Gateway can evaluate active PolicyVersion snapshots with unversioned
   fallback, as documented in `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`, but
   rollout/backfill and telemetry migration questions remain.
-- Telemetry policy evaluation path and historical PolicyDecision backfill need
-  an explicit migration decision.
+- Telemetry policy evaluation now uses the same active-version loader as
+  Runtime Gateway, while historical PolicyDecision backfill still needs an
+  explicit migration decision.
 - The project still needs a decided single-active-version guard strategy before
   activation is presented as product-ready.
 
-Recommended next step: implement the #68 follow-ups: migrate telemetry to the
-same active-version loader, decide historical backfill, add a database-level
-single-active-version guard, then define activation UI semantics. Do not add
-Publish before this is settled.
+Recommended next step: implement the remaining #68 follow-ups: decide
+historical backfill, add a database-level single-active-version guard, then
+define activation UI semantics. Do not add Publish before this is settled.
 
 ### #57 Product UI rebuild
 
@@ -210,8 +210,8 @@ Current relationship to Policy Studio:
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
 3. Use the refreshed #56 design to implement draft-version Save draft behavior,
    review request semantics, and frontend Submit for review wiring.
-4. Complete #68 implementation follow-ups before any real activation, Publish,
-   telemetry migration, or runtime source-of-truth semantics.
+4. Complete remaining #68 implementation follow-ups before any real activation,
+   Publish, historical backfill, or runtime source-of-truth semantics.
 5. Then implement backend Policy Review Workflow APIs and only after that wire
    Submit for review in the frontend.
 

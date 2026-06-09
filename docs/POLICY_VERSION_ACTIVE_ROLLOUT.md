@@ -2,9 +2,9 @@
 
 ## Status
 
-Issue #68 is a rollout and migration planning issue. It should remain
-documentation-first until the remaining behavior changes are split into narrow
-implementation tasks.
+Issue #68 started as a rollout and migration planning issue. Runtime Gateway
+and telemetry now use the same active PolicyVersion evaluation loader, while
+historical backfill and database hardening remain follow-up tasks.
 
 Current state:
 
@@ -14,8 +14,12 @@ Current state:
   Policies without an active PolicyVersion.
 - Runtime Gateway stores `policy_version_id` on new PolicyDecision records when
   the selected rule came from an active PolicyVersion snapshot.
-- Telemetry ingestion still evaluates unversioned active Policy/PolicyRule
-  rows.
+- Telemetry ingestion now uses the same active PolicyVersion evaluation loader
+  as Runtime Gateway.
+- Telemetry stores `policy_version_id` on new PolicyDecision records when the
+  selected rule came from an active PolicyVersion snapshot.
+- Telemetry falls back to unversioned active Policy/PolicyRule rows when no
+  active PolicyVersion exists for a Policy.
 - Historical PolicyDecision records are not backfilled.
 - The single-active-version invariant is enforced by lifecycle application
   logic and defensive runtime selection, not by a database constraint.
@@ -32,10 +36,10 @@ explainable when it can point to the exact reviewed Policy, PolicyRule, and
 PolicyCheckStep configuration that was active at decision time.
 
 Changing the runtime source of truth is still risky. AGCP has two ingestion
-paths today: Runtime Gateway decisions and telemetry events. If only Runtime
-Gateway uses active PolicyVersions, operators can observe different
-policy-version behavior depending on which endpoint a runtime integration uses.
-That is acceptable as a transitional state only when it is clearly documented.
+paths today: Runtime Gateway decisions and telemetry events. They now share the
+same policy evaluation loader, which reduces source-of-truth drift, but the
+rollout is not fully complete until historical records and single-active
+database guarantees are handled.
 
 Fallback behavior must be preserved. Existing local demos, tests, and early
 integrations still rely on unversioned Policy/PolicyRule rows. Removing
@@ -74,14 +78,17 @@ behavior.
 
 ### Telemetry
 
-`POST /telemetry/events` currently uses the legacy unversioned source of truth:
+`POST /telemetry/events` now uses the same mixed source of truth as Runtime
+Gateway:
 
-- active Policy rows;
-- associated PolicyRule rows;
-- no PolicyVersion snapshots.
+- active PolicyVersion snapshots are preferred per Policy;
+- unversioned active Policy/PolicyRule rows are used for Policies without an
+  active PolicyVersion;
+- non-active PolicyVersions are ignored;
+- new versioned telemetry decisions store `policy_version_id`.
 
-The Runtime Gateway endpoint rejects `mode = telemetry` and directs callers to
-`POST /telemetry/events`, so telemetry migration must be planned explicitly.
+The Runtime Gateway endpoint still rejects `mode = telemetry` and directs
+callers to `POST /telemetry/events`; the endpoint contract did not change.
 
 ## What PolicyVersion Snapshots Contain
 
@@ -143,12 +150,13 @@ Current behavior:
 - Runtime Gateway decisions produced from active PolicyVersion snapshots store
   the selected PolicyVersion ID.
 - Runtime Gateway fallback decisions store `policy_version_id = null`.
-- Telemetry decisions store `policy_version_id = null` because telemetry still
-  uses the unversioned evaluator path.
+- Telemetry decisions produced from active PolicyVersion snapshots store the
+  selected PolicyVersion ID.
+- Telemetry fallback decisions store `policy_version_id = null`.
 - Historical PolicyDecision records remain nullable and should continue to be
   readable.
 
-This is correct for the current mixed rollout state. It must be clearly
+This is correct for the current rollout state. Version references must be
 presented in evidence and activity surfaces as optional context, not as proof
 that every historical decision was versioned.
 
@@ -225,7 +233,7 @@ when `policy_version_id` is null.
 
 ## Target Behavior
 
-The target runtime/evidence behavior is:
+The target runtime/evidence behavior is now partially reached:
 
 - Runtime Gateway and telemetry use the same policy evaluation loader.
 - Active PolicyVersion snapshots are preferred where available.
@@ -237,22 +245,27 @@ The target runtime/evidence behavior is:
 - Historical decisions remain readable with nullable version references.
 - Evidence exports include safe version summaries when available and honest
   unversioned states otherwise.
+
+Remaining target behavior:
+
 - A database guard prevents multiple active PolicyVersions for the same Policy.
+- Historical backfill, if needed, is explicit and conservative.
 - Frontend Submit for review and any activation workflow are only enabled after
-  these semantics are implemented and validated.
+  the remaining semantics are implemented and validated.
 
 ## Rollout Sequence
 
 Recommended sequence:
 
-1. Keep unversioned fallback behavior.
+1. Keep unversioned fallback behavior. Implemented.
 2. Treat Runtime Gateway active-version evaluation as implemented and validated
    by targeted backend tests.
 3. Document current mixed behavior clearly in roadmap and evidence docs.
-4. Add a dedicated telemetry migration task that replaces
-   `load_active_policy_evaluation_rules` in telemetry ingestion with the same
-   runtime policy evaluation config used by Runtime Gateway.
-5. Add tests proving telemetry:
+   Implemented.
+4. Replace `load_active_policy_evaluation_rules` in telemetry ingestion with
+   the same runtime policy evaluation config used by Runtime Gateway.
+   Implemented.
+5. Add tests proving telemetry. Implemented for:
    - uses active PolicyVersion snapshots when present;
    - ignores draft, under_review, approved, rejected, superseded, and archived
      versions;
@@ -273,11 +286,9 @@ Recommended sequence:
 
 Recommended next implementation issues:
 
-1. Migrate telemetry ingestion to `load_runtime_policy_evaluation_config` while
-   preserving fallback, idempotency, and HumanApproval behavior.
-2. Add a database-level single-active PolicyVersion guard and migration tests.
-3. Decide and document whether historical PolicyDecision backfill is required.
-4. Implement PolicyVersion-backed Save draft and Submit for review semantics
+1. Add a database-level single-active PolicyVersion guard and migration tests.
+2. Decide and document whether historical PolicyDecision backfill is required.
+3. Implement PolicyVersion-backed Save draft and Submit for review semantics
    after telemetry and single-active behavior are settled.
 
 ## Non-goals
@@ -290,5 +301,4 @@ Recommended next implementation issues:
 - No legal compliance certification claims.
 - No orchestration or tool execution.
 - No broad enterprise GRC workflow.
-- No migrations in this planning pass.
-
+- No migrations in this telemetry-loader migration task.

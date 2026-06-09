@@ -28,7 +28,6 @@ Still unresolved:
 - whether draft saves should write to draft PolicyVersions instead of mutable
   Policy and PolicyRule rows;
 - single-active-version hardening beyond application logic;
-- telemetry migration to active PolicyVersion snapshots;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
@@ -284,11 +283,11 @@ Evidence should not expose raw prompts, source contents, credentials, runtime
 payloads, or unsafe snapshot metadata. It should not become a full policy diff
 viewer.
 
-Telemetry migration remains a #68 concern and is detailed in
-`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`. Runtime Gateway can reference
-PolicyVersion snapshots today, but telemetry decisions still use the
-unversioned path and historical PolicyDecision records remain nullable unless a
-future explicit backfill task is designed.
+Telemetry rollout details are tracked in
+`docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`. Runtime Gateway and telemetry can now
+reference active PolicyVersion snapshots for new decisions, but historical
+PolicyDecision records remain nullable unless a future explicit backfill task
+is designed.
 
 ## Non-goals
 
@@ -318,8 +317,8 @@ Recommended next sequence:
    draft-version semantics, Submit for review, approval, activation, and
    rollback-copy.
 4. Complete #68 follow-ups before exposing activation or Publish semantics:
-   telemetry must use the same active-version loader, historical backfill must
-   be decided, and single-active-version guardrails must be hardened.
+   historical backfill must be decided and single-active-version guardrails
+   must be hardened.
 5. Implement a backend Policy Review Workflow only after #56 and #68 decisions
    are settled.
 6. Wire Policy Studio Submit for review to the backend review lifecycle.
@@ -365,13 +364,12 @@ Still unresolved:
 - Submit for review is not wired;
 - formal review request object semantics are undecided;
 - DSL source storage/versioning is undecided;
-- telemetry migration and historical backfill remain #68 implementation
-  follow-ups;
+- historical backfill remains a #68 implementation follow-up;
 - single-active-version hardening remains a #68 implementation follow-up;
 - no review inbox, diff UI, reviewer assignment, or role-aware policy review
   workflow exists.
 
 Recommended next implementation issue: define and implement the PolicyVersion
 draft/review workflow contract for Policy Studio, but only after #68 clarifies
-activation, telemetry migration, and single-active-version guardrails if that
+activation, historical backfill, and single-active-version guardrails if that
 work includes activation semantics.

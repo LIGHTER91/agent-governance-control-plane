@@ -146,11 +146,11 @@ operators, storage/versioning, and diff behavior. #56 should now focus on the
 remaining backend review workflow contract rather than broad versioning
 foundation work. Active PolicyVersion rollout planning is documented in
 `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: Runtime Gateway already uses active
-PolicyVersion snapshots with unversioned fallback, telemetry still uses the
-unversioned path, historical PolicyDecisions remain nullable/unversioned, and
-the single-active-version invariant is application-level only. #68
-implementation follow-ups should land before any activation, Publish,
-telemetry-migration, or single-active-version semantics are exposed as product
+PolicyVersion snapshots with unversioned fallback, telemetry now uses the same
+active-version loader, historical PolicyDecisions remain nullable/unversioned,
+and the single-active-version invariant is application-level only. Remaining
+#68 implementation follow-ups should land before any activation, Publish,
+historical-backfill, or single-active-version semantics are exposed as product
 workflow.
 
 LangGraph integration now has a focused adapter boundary design in
@@ -433,10 +433,9 @@ Recommended next work:
 - Use the refreshed #56 policy versioning and review guardrails to define
   draft-version Save draft behavior and review request semantics before wiring
   the frontend Submit for review action.
-- Implement #68 follow-ups before exposing activation, Publish, or runtime
-  source-of-truth semantics: migrate telemetry to the active-version runtime
-  loader, decide historical PolicyDecision backfill, and add a database-level
-  single-active-version guard.
+- Implement remaining #68 follow-ups before exposing activation, Publish, or
+  runtime source-of-truth semantics: decide historical PolicyDecision backfill
+  and add a database-level single-active-version guard.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing

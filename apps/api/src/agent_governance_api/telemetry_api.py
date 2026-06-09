@@ -30,7 +30,7 @@ from agent_governance_api.policy_decision_service import persist_policy_decision
 from agent_governance_api.policy_evaluator import evaluate_policy
 from agent_governance_api.policy_rule_adapter import (
     UnsupportedPolicyRuleConditionError,
-    load_active_policy_evaluation_rules,
+    load_runtime_policy_evaluation_config,
 )
 from agent_governance_api.telemetry import (
     TraceEvent,
@@ -191,13 +191,13 @@ def _evaluate_and_persist_policy_decision(
     tool_name: str | None,
     external_event_id: str,
 ) -> PolicyDecision:
-    rules = load_active_policy_evaluation_rules(session)
+    policy_evaluation_config = load_runtime_policy_evaluation_config(session)
     result = evaluate_policy(
         agent_context={"agent_id": payload.agent_id},
         action_context={"tool_name": tool_name},
         environment=agent.environment,
         risk_level=agent.risk_level,
-        rules=rules,
+        rules=policy_evaluation_config.rules,
     )
     return persist_policy_decision(
         session,

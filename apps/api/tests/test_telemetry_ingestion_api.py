@@ -34,6 +34,8 @@ from agent_governance_api.models import (
     PolicyDecisionValue,
     PolicyRule,
     PolicyStatus,
+    PolicyVersion,
+    PolicyVersionStatus,
     RiskLevel,
     TraceEventRecord,
     TraceEventType,
@@ -227,6 +229,126 @@ def test_tool_call_requested_with_allow_policy_creates_policy_decision(
     assert saved_decision.policy_id == policy_id
     assert saved_decision.rule_id == rule_id
     assert fetch_human_approvals(session_factory) == []
+
+
+def test_tool_call_requested_uses_active_policy_version_snapshot(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "Live mutable rule should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        rule_id=rule_id,
+        status=PolicyVersionStatus.ACTIVE,
+        condition={
+            "decision": "deny",
+            "reason": "Reviewed snapshot denies email.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    decision_body = response.json()["policy_decision"]
+    assert decision_body["decision"] == "deny"
+    assert decision_body["reason"] == "Reviewed snapshot denies email."
+    assert decision_body["policy_id"] == str(policy_id)
+    assert decision_body["policy_version_id"] == str(version_id)
+    assert decision_body["rule_id"] == str(rule_id)
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.decision is PolicyDecisionValue.DENY
+    assert saved_decision.policy_id == policy_id
+    assert saved_decision.policy_version_id == version_id
+    assert saved_decision.rule_id == rule_id
+    assert fetch_human_approvals(session_factory) == []
+
+
+def test_tool_call_requested_falls_back_to_unversioned_policy_without_active_version(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback rule is still used.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    decision_body = response.json()["policy_decision"]
+    assert decision_body["decision"] == "allow"
+    assert decision_body["reason"] == "Live fallback rule is still used."
+    assert decision_body["policy_id"] == str(policy_id)
+    assert decision_body["policy_version_id"] is None
+    assert decision_body["rule_id"] == str(rule_id)
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.policy_id == policy_id
+    assert saved_decision.policy_version_id is None
+    assert saved_decision.rule_id == rule_id
+    assert fetch_human_approvals(session_factory) == []
+
+
+@pytest.mark.parametrize(
+    "version_status",
+    [
+        PolicyVersionStatus.DRAFT,
+        PolicyVersionStatus.UNDER_REVIEW,
+        PolicyVersionStatus.APPROVED,
+        PolicyVersionStatus.REJECTED,
+        PolicyVersionStatus.SUPERSEDED,
+        PolicyVersionStatus.ARCHIVED,
+    ],
+)
+def test_tool_call_requested_ignores_non_active_policy_versions(
+    api_client: tuple[TestClient, SessionFactory],
+    version_status: PolicyVersionStatus,
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback rule is still used.",
+            "tool_name": "send_email",
+        },
+    )
+    create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        rule_id=rule_id,
+        status=version_status,
+        condition={
+            "decision": "deny",
+            "reason": "Inactive snapshot should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    decision_body = response.json()["policy_decision"]
+    assert decision_body["decision"] == "allow"
+    assert decision_body["reason"] == "Live fallback rule is still used."
+    assert decision_body["policy_id"] == str(policy_id)
+    assert decision_body["policy_version_id"] is None
+    assert decision_body["rule_id"] == str(rule_id)
 
 
 def test_trace_event_to_policy_decision_navigation_is_available(
@@ -559,6 +681,71 @@ def test_duplicate_review_event_returns_existing_approval(
     assert len(fetch_trace_events(session_factory)) == 1
     assert len(fetch_policy_decisions(session_factory)) == 1
     assert len(fetch_human_approvals(session_factory)) == 1
+    assert len(fetch_human_approval_audit_logs(session_factory)) == 1
+
+
+def test_duplicate_review_event_with_active_policy_version_keeps_idempotency(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    run_id = uuid4()
+    external_event_id = "vendor-versioned-review-event"
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "Live mutable rule should not be used.",
+            "tool_name": "send_email",
+        },
+    )
+    version_id = create_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        rule_id=rule_id,
+        status=PolicyVersionStatus.ACTIVE,
+        condition={
+            "decision": "require_human_review",
+            "reason": "Reviewed snapshot requires human review.",
+            "tool_name": "send_email",
+        },
+    )
+
+    first_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            run_id=run_id,
+            external_event_id=external_event_id,
+        ),
+    )
+    duplicate_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            run_id=run_id,
+            external_event_id=external_event_id,
+            summary="Retried event with changed body.",
+        ),
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == first_response.json()
+    first_body = first_response.json()
+    assert first_body["policy_decision"]["decision"] == "require_human_review"
+    assert first_body["policy_decision"]["policy_version_id"] == str(version_id)
+    assert first_body["human_approval_id"] is not None
+    assert len(fetch_trace_events(session_factory)) == 1
+    [saved_decision] = fetch_policy_decisions(session_factory)
+    assert saved_decision.policy_id == policy_id
+    assert saved_decision.policy_version_id == version_id
+    assert saved_decision.rule_id == rule_id
+    assert saved_decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
+    [approval] = fetch_human_approvals(session_factory)
+    assert approval.id == UUID(first_body["human_approval_id"])
+    assert approval.policy_decision_id == saved_decision.id
+    assert approval.status is HumanApprovalStatus.PENDING
     assert len(fetch_human_approval_audit_logs(session_factory)) == 1
 
 
@@ -939,6 +1126,52 @@ def create_policy_rule(
         session.add(rule)
         session.commit()
         return policy.id, rule.id
+
+
+def create_policy_version(
+    session_factory: SessionFactory,
+    *,
+    policy_id: UUID,
+    rule_id: UUID,
+    condition: dict[str, str],
+    status: PolicyVersionStatus,
+) -> UUID:
+    now = datetime.now(UTC)
+    with session_factory() as session:
+        policy = session.get(Policy, policy_id)
+        rule = session.get(PolicyRule, rule_id)
+        assert policy is not None
+        assert rule is not None
+        version = PolicyVersion(
+            policy_id=policy_id,
+            version_number=1,
+            status=status,
+            change_summary="Reviewed telemetry evaluation snapshot.",
+            policy_snapshot={
+                "id": str(policy.id),
+                "name": policy.name,
+                "description": policy.description,
+                "status": policy.status.value,
+            },
+            rule_snapshots=[
+                {
+                    "id": str(rule.id),
+                    "policy_id": str(policy_id),
+                    "name": rule.name,
+                    "description": rule.description,
+                    "condition": json.dumps(condition),
+                }
+            ],
+            check_step_snapshots=[],
+            created_by_actor_type=ActorType.DEVELOPMENT,
+            created_by_actor_id="dev-placeholder",
+            activated_at=now if status is PolicyVersionStatus.ACTIVE else None,
+            superseded_at=now if status is PolicyVersionStatus.SUPERSEDED else None,
+            archived_at=now if status is PolicyVersionStatus.ARCHIVED else None,
+        )
+        session.add(version)
+        session.commit()
+        return version.id
 
 
 def configure_service_actor_api_key(
