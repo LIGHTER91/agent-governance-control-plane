@@ -26,6 +26,10 @@ Current state:
 - The single-active-version invariant is enforced by activation API validation
   and a partial unique index on `policy_versions(policy_id)` where
   `status = 'active'`.
+- Approved PolicyVersion review requests can now be explicitly activated.
+  Approval alone still has no runtime effect.
+- If another active version exists, activation requires `replace_active=true`;
+  replacement supersedes the previous active version in the same transaction.
 
 AGCP remains a governance and evidence control plane. It does not execute
 tools, replace orchestrators, provide legal certification, or run a production
@@ -189,7 +193,10 @@ PolicyDecision remain unversioned.
 Current invariant:
 
 - application-level activation logic fails fast when another active version
-  already exists for the same Policy;
+  already exists for the same Policy unless the reviewed activation request
+  explicitly sets `replace_active=true`;
+- replacement marks the previous active version `superseded` before activating
+  the newly reviewed version;
 - runtime loading defensively selects one active version if multiple active
   versions exist in invalid pre-constraint data;
 - the database enforces unique `(policy_id, version_number)`;
@@ -256,7 +263,9 @@ Remaining target behavior:
   runtime.
 - Review approval and rejection record reviewer intent only; they do not
   activate a PolicyVersion.
-- Activation remains an explicit future workflow.
+- Activation is explicit through an approved PolicyVersion review request and
+  changes runtime policy evaluation for future Runtime Gateway and telemetry
+  decisions.
 
 ## Rollout Sequence
 
@@ -285,18 +294,17 @@ Recommended sequence:
 8. Policy Studio Save draft writes draft PolicyVersion snapshots. Implemented.
 9. Add Policy Studio Submit for review and a minimal Policy Reviews queue with
    no activation side effects. Implemented.
-10. Keep Publish out of the UI unless a later issue explicitly defines reviewed
-   activation semantics.
+10. Add explicit Activate approved version workflow for approved review
+    requests. Implemented.
+11. Keep Publish out of the UI.
 
 ## Implementation Follow-Ups
 
 Recommended next implementation issues:
 
 1. Decide and document whether historical PolicyDecision backfill is required.
-2. Define explicit PolicyVersion activation semantics without adding a direct
-   Publish shortcut.
-3. Add review diff, reviewer assignment, and rollback-copy UX only after the
-   activation contract is settled.
+2. Add review diff, reviewer assignment, and rollback-copy UX without changing
+   the explicit activation boundary.
 
 ## Non-goals
 
@@ -306,5 +314,5 @@ Recommended next implementation issues:
 - No legal compliance certification claims.
 - No orchestration or tool execution.
 - No broad enterprise GRC workflow.
-- No activation workflow beyond the single-active guard.
 - No review workflow side effects on runtime evaluation.
+- No direct Publish action or wording.

@@ -75,8 +75,11 @@ saving. Templates are static helpers, not backend records. Local validation is
 not runtime simulation. Draft versions do not affect runtime until explicit
 activation. Submit for review now creates a dedicated
 PolicyVersionReviewRequest for a saved draft snapshot; approval or rejection
-does not activate the version. There is no direct Publish action. Access Grants
-are inventory declarations
+does not activate the version. Approved review requests can be activated
+explicitly with Activate approved version; that runtime-changing step can
+supersede an existing active version only when replacement is explicitly
+requested. There is no direct Publish action. Access Grants are inventory
+declarations
 only; they are not enforced by runtime policy evaluation yet. Evidence Bundle
 export includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
@@ -140,8 +143,9 @@ for Policies without an active version. #56 remains needed but narrowed:
 Policy Studio Save draft now writes draft PolicyVersion snapshots, Submit for
 review creates a dedicated pending PolicyVersionReviewRequest for a saved draft
 snapshot, and approval or rejection has no runtime activation side effect.
-Explicit activation semantics, review diff and assignment behavior,
-rollback-copy UX, and historical backfill remain follow-ups.
+Explicit activation for approved review requests is implemented with
+`replace_active` handling. Review diff and assignment behavior, rollback-copy
+UX, and historical backfill remain follow-ups.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -155,7 +159,7 @@ PolicyVersion snapshots with unversioned fallback, telemetry now uses the same
 active-version loader, historical PolicyDecisions remain nullable/unversioned,
 and the single-active-version invariant is enforced by API validation plus a
 database-level partial unique index. Remaining #68 implementation follow-ups
-should land before any activation, Publish, or historical-backfill semantics
+should land before any publish-like or complete historical-backfill semantics
 are exposed as product workflow.
 
 LangGraph integration now has a focused adapter boundary design in
@@ -437,9 +441,10 @@ Recommended next work:
   document covering grammar, storage/versioning, diffs, and unsupported-field
   behavior.
 - Use the refreshed #56 policy versioning and review guardrails to define
-  explicit activation, review diff and assignment, and rollback-copy semantics.
-- Implement the remaining #68 follow-up before exposing activation, Publish, or
-  runtime source-of-truth semantics: decide historical PolicyDecision backfill.
+  review diff and assignment, and rollback-copy semantics.
+- Implement the remaining #68 follow-up before exposing publish-like or
+  complete historical source-of-truth semantics: decide historical
+  PolicyDecision backfill.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
@@ -540,8 +545,8 @@ Planned capabilities:
   non-orchestrator boundaries.
 - Policy versioning and review UI after #56 guardrails and #68 historical
   backfill decisions are complete. A minimal Submit for review and Policy
-  Reviews queue exists; explicit activation, diff, assignment, and
-  rollback-copy UX remain follow-ups.
+  Reviews queue exists, with explicit Activate approved version support.
+  Diff, assignment, and rollback-copy UX remain follow-ups.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

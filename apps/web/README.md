@@ -133,16 +133,20 @@ enforcement coverage. Built-in templates are static authoring helpers, not
 backend records, and they never save automatically. Draft versions do not
 affect runtime until explicit activation. Submit for review creates a dedicated
 pending PolicyVersionReviewRequest for a saved draft snapshot; approval or
-rejection records reviewer intent but does not activate the version. The UI
-intentionally has no direct Publish action.
+rejection records reviewer intent but does not activate the version. Approved
+review requests can be activated explicitly from the Policy Reviews queue with
+Activate approved version; activation changes future runtime policy evaluation
+and replacement of an existing active version requires explicit user intent.
+The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the
 V1 guided authoring goal from #58. The controlled DSL from #76 exists as a
 frontend implementation layer, but a formal DSL design document is still a
-recommended follow-up. Backend review workflow work should wait for the #56
-versioning/review guardrail contract and #68 active PolicyVersion rollout
-decisions before enabling any explicit activation semantics.
+recommended follow-up. Backend review workflow refinements should continue to
+follow the #56 versioning/review guardrail contract and #68 active
+PolicyVersion rollout decisions before adding rollback, diff, assignment, or
+publish-like semantics.
 
 ## Local Full-Stack Demo
 
@@ -260,7 +264,8 @@ npm run build
   decisions.
 - Policy Studio Save draft writes draft PolicyVersion snapshots; Submit for
   review is wired to a dedicated review request, but review approval does not
-  activate or publish the version.
+  activate or publish the version. Activation is a separate approved-review
+  action.
 - No PDF or signed Evidence Bundle export in the UI.
 - Runtime Gateway page is read-only and does not call runtime endpoints.
 - No charts or metrics.

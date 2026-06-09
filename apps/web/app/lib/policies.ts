@@ -263,6 +263,10 @@ export type PolicyVersionReviewDecisionPayload = {
   decision_note?: string | null;
 };
 
+export type PolicyVersionReviewActivationPayload = {
+  replace_active?: boolean;
+};
+
 export async function fetchPolicies(
   signal?: AbortSignal
 ): Promise<PolicyRecord[]> {
@@ -412,6 +416,21 @@ export async function decidePolicyVersionReviewRequest(
     {
       body: payload,
       errorLabel,
+      signal
+    }
+  );
+}
+
+export async function activatePolicyVersionReviewRequest(
+  reviewRequestId: string,
+  payload: PolicyVersionReviewActivationPayload = {},
+  signal?: AbortSignal
+): Promise<PolicyVersionRecord> {
+  return postApiJson<PolicyVersionRecord>(
+    `/policy-version-review-requests/${encodeURIComponent(reviewRequestId)}/activate`,
+    {
+      body: payload,
+      errorLabel: "POST /policy-version-review-requests/{review_request_id}/activate",
       signal
     }
   );

@@ -1,5 +1,7 @@
+import json
 from collections.abc import Callable, Iterator
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +12,12 @@ from sqlalchemy.pool import StaticPool
 from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
-from agent_governance_api.models import ActorType, AuditLog
+from agent_governance_api.models import (
+    ActorType,
+    AuditLog,
+    PolicyDecision,
+    PolicyVersion,
+)
 
 SessionFactory = Callable[[], Session]
 
@@ -283,13 +290,207 @@ def test_requester_cannot_review_own_policy_version_without_admin_role(
     )
 
 
-def create_policy(client: TestClient, *, name: str = "Email policy") -> str:
+def test_activation_fails_for_pending_or_rejected_review_request(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    pending_version = create_policy_version_draft(client, policy_id=policy_id)
+    pending_request = client.post(
+        f"/policy-versions/{pending_version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    pending_activation = client.post(
+        f"/policy-version-review-requests/{pending_request['id']}/activate",
+    )
+
+    rejected_version = create_policy_version_draft(client, policy_id=policy_id)
+    set_current_actor(development_actor())
+    rejected_request = client.post(
+        f"/policy-versions/{rejected_version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+    rejected = client.post(
+        f"/policy-version-review-requests/{rejected_request['id']}/reject",
+    )
+    rejected_activation = client.post(
+        f"/policy-version-review-requests/{rejected_request['id']}/activate",
+    )
+
+    assert pending_activation.status_code == 409
+    assert pending_activation.json()["detail"] == (
+        "Only approved PolicyVersion review requests can activate a version."
+    )
+    assert rejected.status_code == 200
+    assert rejected_activation.status_code == 409
+    assert rejected_activation.json()["detail"] == (
+        "Only approved PolicyVersion review requests can activate a version."
+    )
+
+
+def test_approved_review_activation_succeeds_without_auto_publish(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = create_and_approve_review_request(client, version)
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/activate",
+    )
+    refreshed_version = client.get(f"/policy-versions/{version['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == version["id"]
+    assert response.json()["status"] == "active"
+    assert response.json()["activated_at"] is not None
+    assert refreshed_version.status_code == 200
+    assert refreshed_version.json()["status"] == "active"
+    assert count_active_policy_versions(session_factory, policy_id) == 1
+
+    audit_logs = fetch_audit_logs(session_factory)
+    activated_audit = audit_logs[-1]
+    assert activated_audit.event_type == "policy_version_activated"
+    assert activated_audit.entity_type == "policy_version"
+    assert activated_audit.entity_id == version["id"]
+    assert activated_audit.metadata_["review_request_id"] == review_request["id"]
+    assert activated_audit.metadata_["review_status"] == "approved"
+    assert activated_audit.metadata_["replace_active"] is False
+    assert activated_audit.metadata_["superseded_policy_version_id"] is None
+
+
+def test_activation_with_existing_active_requires_explicit_replacement(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    first_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "allow", "reason": "First reviewed version."},
+    )
+    first_request = create_and_approve_review_request(client, first_version)
+    first_activation = client.post(
+        f"/policy-version-review-requests/{first_request['id']}/activate",
+    )
+    assert first_activation.status_code == 200
+
+    set_current_actor(development_actor())
+    second_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "deny", "reason": "Replacement reviewed version."},
+    )
+    second_request = create_and_approve_review_request(client, second_version)
+
+    blocked = client.post(
+        f"/policy-version-review-requests/{second_request['id']}/activate",
+    )
+    replacement = client.post(
+        f"/policy-version-review-requests/{second_request['id']}/activate",
+        json={"replace_active": True},
+    )
+
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"] == (
+        "Policy already has an active PolicyVersion. Set replace_active=true "
+        "to supersede it explicitly."
+    )
+    assert replacement.status_code == 200
+    assert replacement.json()["status"] == "active"
+    assert count_active_policy_versions(session_factory, policy_id) == 1
+
+    versions = fetch_policy_versions(session_factory, policy_id)
+    statuses_by_id = {str(version.id): version.status.value for version in versions}
+    assert statuses_by_id[first_version["id"]] == "superseded"
+    assert statuses_by_id[second_version["id"]] == "active"
+
+    audit_events = [log.event_type for log in fetch_audit_logs(session_factory)]
+    assert "policy_version_superseded" in audit_events
+    assert audit_events.count("policy_version_activated") == 2
+
+
+def test_activation_updates_runtime_and_telemetry_source_of_truth(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(client)
+    policy_id = create_policy(client, status="active")
+    create_policy_rule(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback allows email before activation.",
+            "tool_name": "send_email",
+        },
+    )
+    version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "deny",
+            "reason": "Activated reviewed version denies email.",
+            "tool_name": "send_email",
+        },
+    )
+    review_request = create_and_approve_review_request(client, version)
+
+    before_activation = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, request_id="before-activation"),
+    )
+    activation = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/activate",
+    )
+    runtime_after_activation = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id, request_id="after-activation"),
+    )
+    telemetry_after_activation = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(
+            agent_id,
+            external_event_id="telemetry-after-activation",
+        ),
+    )
+
+    assert before_activation.status_code == 201
+    assert before_activation.json()["decision"] == "allow"
+    assert activation.status_code == 200
+    assert runtime_after_activation.status_code == 201
+    assert runtime_after_activation.json()["decision"] == "deny"
+    assert telemetry_after_activation.status_code == 201
+    telemetry_decision = telemetry_after_activation.json()["policy_decision"]
+    assert telemetry_decision["decision"] == "deny"
+    assert telemetry_decision["policy_version_id"] == version["id"]
+
+    decisions = fetch_policy_decisions(session_factory)
+    assert decisions[0].policy_version_id is None
+    assert str(decisions[1].policy_version_id) == version["id"]
+    assert str(decisions[2].policy_version_id) == version["id"]
+    versioned_decisions = [
+        decision for decision in decisions if decision.policy_version_id is not None
+    ]
+    assert {str(decision.policy_version_id) for decision in versioned_decisions} == {
+        version["id"]
+    }
+
+
+def create_policy(
+    client: TestClient,
+    *,
+    name: str = "Email policy",
+    status: str = "draft",
+) -> str:
     response = client.post(
         "/policies",
         json={
             "name": name,
             "description": "Governed email policy.",
-            "status": "draft",
+            "status": status,
         },
     )
 
@@ -301,7 +502,13 @@ def create_policy_version_draft(
     client: TestClient,
     *,
     policy_id: str,
+    condition: dict[str, object] | None = None,
 ) -> dict[str, object]:
+    rule_condition = condition or {
+        "decision": "require_human_review",
+        "reason": "Email tool use requires review in this draft.",
+        "tool_name": "send_email",
+    }
     response = client.post(
         f"/policies/{policy_id}/versions/draft",
         json={
@@ -315,11 +522,7 @@ def create_policy_version_draft(
                 {
                     "name": "Studio email review rule",
                     "description": "Compiled from Policy Studio.",
-                    "condition": (
-                        '{"decision":"require_human_review",'
-                        '"reason":"Email tool use requires review in this draft.",'
-                        '"tool_name":"send_email"}'
-                    ),
+                    "condition": json.dumps(rule_condition),
                 }
             ],
         },
@@ -327,6 +530,45 @@ def create_policy_version_draft(
 
     assert response.status_code == 201
     return response.json()
+
+
+def create_policy_rule(
+    client: TestClient,
+    *,
+    policy_id: str,
+    condition: dict[str, object],
+) -> str:
+    response = client.post(
+        "/policy-rules",
+        json={
+            "policy_id": policy_id,
+            "name": "Live fallback rule",
+            "description": "Persisted live PolicyRule fallback.",
+            "condition": json.dumps(condition),
+        },
+    )
+
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def create_and_approve_review_request(
+    client: TestClient,
+    version: dict[str, object],
+) -> dict[str, object]:
+    set_current_actor(development_actor())
+    review_response = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    )
+    assert review_response.status_code == 201
+    review_request = review_response.json()
+    set_current_actor(reviewer_actor())
+    approve_response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/approve",
+        json={"decision_note": "Approved for explicit activation."},
+    )
+    assert approve_response.status_code == 200
+    return approve_response.json()
 
 
 def approve_and_activate_policy_version(
@@ -341,8 +583,72 @@ def approve_and_activate_policy_version(
     return response.json()
 
 
+def create_agent(client: TestClient) -> str:
+    response = client.post(
+        "/agents",
+        json={
+            "name": "Support assistant",
+            "description": "Routes support requests.",
+            "owner_type": "team",
+            "owner_id": "team:ai-platform",
+            "owner_name": "AI Platform",
+            "owner_contact_email": "owner@example.com",
+            "environment": "development",
+            "status": "active",
+            "risk_level": "low",
+            "framework": "LangGraph",
+        },
+    )
+
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def runtime_decision_payload(
+    agent_id: str,
+    *,
+    request_id: str,
+) -> dict[str, object]:
+    return {
+        "request_id": request_id,
+        "agent_id": agent_id,
+        "run_id": str(uuid4()),
+        "correlation_id": request_id,
+        "tool_name": "send_email",
+        "action_summary": "Send a support follow-up email.",
+        "metadata": {"ticket_category": "support"},
+        "mode": "simulation",
+    }
+
+
+def trace_event_payload(
+    agent_id: str,
+    *,
+    external_event_id: str,
+) -> dict[str, object]:
+    return {
+        "id": str(uuid4()),
+        "agent_id": agent_id,
+        "run_id": str(uuid4()),
+        "correlation_id": external_event_id,
+        "external_event_id": external_event_id,
+        "event_type": "tool_call_requested",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "summary": "Tool call requested.",
+        "metadata": {"tool_name": "send_email"},
+    }
+
+
 def set_current_actor(actor: ActorContext) -> None:
     app.dependency_overrides[get_current_actor] = lambda: actor
+
+
+def development_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.DEVELOPMENT,
+        actor_id="dev-placeholder",
+        roles=(),
+    )
 
 
 def reviewer_actor() -> ActorContext:
@@ -364,4 +670,39 @@ def auditor_actor() -> ActorContext:
 def fetch_audit_logs(session_factory: SessionFactory) -> list[AuditLog]:
     with session_factory() as session:
         statement = select(AuditLog).order_by(AuditLog.created_at, AuditLog.id)
+        return list(session.scalars(statement).all())
+
+
+def fetch_policy_versions(
+    session_factory: SessionFactory,
+    policy_id: str,
+) -> list[PolicyVersion]:
+    with session_factory() as session:
+        statement = (
+            select(PolicyVersion)
+            .where(PolicyVersion.policy_id == UUID(policy_id))
+            .order_by(PolicyVersion.version_number, PolicyVersion.id)
+        )
+        return list(session.scalars(statement).all())
+
+
+def count_active_policy_versions(
+    session_factory: SessionFactory,
+    policy_id: str,
+) -> int:
+    return sum(
+        1
+        for version in fetch_policy_versions(session_factory, policy_id)
+        if version.status.value == "active"
+    )
+
+
+def fetch_policy_decisions(
+    session_factory: SessionFactory,
+) -> list[PolicyDecision]:
+    with session_factory() as session:
+        statement = select(PolicyDecision).order_by(
+            PolicyDecision.created_at,
+            PolicyDecision.id,
+        )
         return list(session.scalars(statement).all())

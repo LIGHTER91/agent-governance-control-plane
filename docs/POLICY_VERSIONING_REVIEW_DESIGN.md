@@ -20,13 +20,14 @@ Already implemented:
 - Policy Studio Save draft creation/update of draft PolicyVersion snapshots;
 - a dedicated `PolicyVersionReviewRequest` workflow for draft-version review
   requests, approval, and rejection;
+- explicit activation of approved PolicyVersion review requests, with
+  `replace_active` required before superseding an existing active version;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
   Publish button, and backend-backed Submit for review.
 
 Still unresolved:
 
-- explicit activation workflow after review approval;
 - richer review diff and reviewer assignment workflow;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
@@ -106,6 +107,7 @@ Lifecycle APIs currently exist for:
 - create a pending review request for a draft PolicyVersion;
 - list PolicyVersion review requests;
 - approve or reject a pending PolicyVersion review request without activation;
+- activate an approved PolicyVersion review request explicitly;
 - submit for review;
 - approve;
 - reject;
@@ -124,11 +126,15 @@ Current audit events include:
 - `policy_version_approved`;
 - `policy_version_rejected`;
 - `policy_version_activated`;
+- `policy_version_superseded`;
 - `policy_version_archived`;
 - `policy_version_rollback_copy_created`.
 
-Activation now fails fast when another active version already exists for the
-same Policy. A database-level partial unique index also enforces one active
+Review-linked activation now fails fast when another active version already
+exists for the same Policy unless the caller explicitly sends
+`replace_active=true`. With replacement, the previous active version is marked
+`superseded` and the new approved review version becomes `active` in the same
+transaction. A database-level partial unique index also enforces one active
 PolicyVersion per Policy.
 
 Runtime Gateway now prefers active PolicyVersion snapshots where available and
@@ -162,13 +168,16 @@ surface:
 - existing Policy/PolicyRule APIs remain available for compatibility, but the
   user-facing Studio draft is now the version snapshot;
 - Submit for review creates a pending `PolicyVersionReviewRequest`;
-- the Reviews page includes a Policy Reviews queue for pending review requests;
+- the Reviews page includes a Policy Reviews queue for pending and approved
+  review requests;
+- approved review requests can be explicitly activated from that queue;
 - there is no direct Publish action.
 
-The frontend does not yet solve the backend/domain review workflow:
+The frontend does not yet solve the full backend/domain review workflow:
 
-- there is no activation flow after review approval;
 - there is no reviewer assignment, diff view, or richer role-aware review UI;
+- activation replacement is an explicit checkbox/action, not a full diff-based
+  release workflow;
 - the inspector review status is informational and should not be treated as a
   complete activation workflow.
 
@@ -211,7 +220,7 @@ The remaining work is narrower than the original broad design issue:
   PolicyVersion for V1;
 - decide historical PolicyDecision backfill behavior;
 - define rollback-copy UX and API expectations;
-- define explicit activation workflow after review approval;
+- refine explicit activation UX with policy diffs and assignment;
 - add richer review diff, reviewer assignment, and role-aware product UX later.
 
 ## Proposed V1 Model
@@ -244,14 +253,16 @@ Recommended product semantics:
   publish or activate anything.
 - Review approval records reviewer intent on the review request; it does not
   automatically activate the PolicyVersion.
-- Activation should be explicit and audited.
+- Activation is explicit and audited through an approved review request.
 - Activating a version fails if another active version already exists for the
-  same Policy.
+  same Policy unless `replace_active=true` is provided.
+- Replacement supersedes the previous active version in the same transaction
+  and writes a `policy_version_superseded` audit event.
 - Rollback should be non-destructive: create a new draft copy from an approved,
   active, or superseded version.
 - Runtime and evidence should record `policy_version_id` where available.
-- The UI should not expose a direct Publish button before review and
-  activation semantics are fully designed.
+- The UI should not expose a direct Publish button; runtime-changing
+  transitions should keep using explicit Activate approved version wording.
 
 ## Review Request Choice
 
@@ -300,8 +311,6 @@ is designed.
 
 ## Non-goals
 
-- No backend review endpoints in this design cleanup task.
-- No migrations in this design cleanup task.
 - No frontend Publish button.
 - No fake review status.
 - No policy simulation engine.
@@ -322,14 +331,13 @@ Recommended next sequence:
 2. Keep #76 open or partial until `docs/POLICY_STUDIO_DSL_DESIGN.md` defines
    grammar, operators, supported fields, storage/versioning, diffs, and
    unsupported-line behavior.
-3. Treat PolicyVersion-backed Save draft and Submit for review as implemented.
-   Narrow remaining #56 work around explicit activation, rollback-copy UX, and
-   review diff/assignment behavior.
-4. Complete #68 follow-ups before exposing activation or Publish semantics:
-   historical backfill must be decided and activation UI semantics must remain
-   separate from review approval.
-5. Implement explicit activation workflow only after #56 and #68 decisions are
-   settled.
+3. Treat PolicyVersion-backed Save draft, Submit for review, and explicit
+   reviewed activation as implemented.
+4. Complete remaining #68 follow-ups before adding richer activation product
+   semantics: historical backfill must be decided and activation UI semantics
+   must remain separate from review approval.
+5. Keep rollback-copy UX, review diffs, and reviewer assignment as focused
+   follow-ups.
 6. Add review diff UI, richer reviewer assignment, role-aware actions, and
    separation of
    duties later, after identity and RBAC are stronger.
@@ -339,8 +347,8 @@ Recommended next sequence:
 - If existing compatibility Policy/PolicyRule APIs remain directly editable,
   users may still bypass the Studio draft path unless later guardrails or
   role-aware product flows make the intended lifecycle clearer.
-- If activation is exposed before #68 is settled, AGCP may have inconsistent
-  runtime and telemetry sources of truth.
+- If activation UX grows before #68 backfill is settled, AGCP may overstate
+  historical version coverage.
 - If DSL source is treated as runtime source of truth too early, AGCP risks
   introducing an unsupported policy language.
 - If HumanApproval is reused for policy authoring review, runtime exception
@@ -368,15 +376,16 @@ Implemented:
   draft, backend-backed Submit for review, local validation, and no Publish
   button;
 - dedicated PolicyVersion review request queue with approve/reject actions.
+- explicit Activate approved version action for approved review requests, with
+  optional `replace_active` superseding of the previous active version.
 
 Still unresolved:
 
-- explicit activation workflow is not wired;
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
 - no diff UI, reviewer assignment, or richer role-aware policy review workflow
   exists.
 
-Recommended next implementation issue: define explicit activation semantics for
-approved PolicyVersion review requests, but only after historical backfill and
-runtime source-of-truth implications are explicitly scoped.
+Recommended next implementation issue: define historical PolicyDecision
+backfill expectations or add review diff/reviewer assignment UX. Do not add
+Publish wording or legal certification claims.

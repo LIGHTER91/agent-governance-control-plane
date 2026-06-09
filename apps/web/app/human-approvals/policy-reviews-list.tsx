@@ -11,6 +11,7 @@ import {
 import { getApiBaseUrl } from "../lib/api";
 import {
   PolicyVersionReviewRequestRecord,
+  activatePolicyVersionReviewRequest,
   decidePolicyVersionReviewRequest,
   fetchPolicyVersionReviewRequests
 } from "../lib/policies";
@@ -62,6 +63,9 @@ function statusTone(status: string) {
 export function PolicyReviewsList() {
   const [state, setState] = useState<PolicyReviewsState>({ status: "loading" });
   const [notesById, setNotesById] = useState<Record<string, string>>({});
+  const [replaceActiveById, setReplaceActiveById] = useState<
+    Record<string, boolean>
+  >({});
   const [actionState, setActionState] = useState<ActionState>({
     id: null,
     status: "idle",
@@ -72,7 +76,13 @@ export function PolicyReviewsList() {
     setState({ status: "loading" });
 
     try {
-      const requests = await fetchPolicyVersionReviewRequests("pending", signal);
+      const [pendingRequests, approvedRequests] = await Promise.all([
+        fetchPolicyVersionReviewRequests("pending", signal),
+        fetchPolicyVersionReviewRequests("approved", signal)
+      ]);
+      const requests = [...pendingRequests, ...approvedRequests].sort((left, right) =>
+        right.created_at.localeCompare(left.created_at)
+      );
       setState({ status: "ready", requests });
     } catch (error: unknown) {
       if (signal?.aborted) {
@@ -128,15 +138,46 @@ export function PolicyReviewsList() {
     }
   }
 
+  async function handleActivate(request: PolicyVersionReviewRequestRecord) {
+    setActionState({
+      id: request.id,
+      status: "submitting",
+      message: "Activating approved PolicyVersion review request"
+    });
+
+    try {
+      await activatePolicyVersionReviewRequest(request.id, {
+        replace_active: Boolean(replaceActiveById[request.id])
+      });
+      setActionState({
+        id: request.id,
+        status: "success",
+        message:
+          "Activate approved version saved. Activation changes runtime policy evaluation."
+      });
+      setReplaceActiveById((current) => ({ ...current, [request.id]: false }));
+      void loadPolicyReviews();
+    } catch (error: unknown) {
+      setActionState({
+        id: request.id,
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to activate approved PolicyVersion review request."
+      });
+    }
+  }
+
   return (
     <AGCPPanel aria-label="Policy reviews">
       <AGCPSectionHeader
         eyebrow="policy review queue"
         title="Policy Reviews"
-        description="Pending PolicyVersion review requests from GET /policy-version-review-requests. Approve or reject records for governance review only; approval does not activate runtime policy versions."
+        description="Pending and approved PolicyVersion review requests from GET /policy-version-review-requests. Approval does not activate automatically; Activate approved version is the explicit runtime-changing step."
         meta={
           state.status === "ready" ? (
-            <AGCPBadge tone="purple">{state.requests.length} pending</AGCPBadge>
+            <AGCPBadge tone="purple">{state.requests.length} open</AGCPBadge>
           ) : null
         }
       />
@@ -155,9 +196,10 @@ export function PolicyReviewsList() {
       ) : null}
 
       {state.status === "ready" && state.requests.length === 0 ? (
-        <AGCPEmptyState title="No pending Policy Reviews">
+        <AGCPEmptyState title="No open Policy Reviews">
           Draft PolicyVersion review requests will appear here after Policy
-          Studio users submit saved drafts for review.
+          Studio users submit saved drafts for review. Approved requests waiting
+          for explicit activation also remain visible here.
         </AGCPEmptyState>
       ) : null}
 
@@ -201,7 +243,11 @@ export function PolicyReviewsList() {
                 </div>
                 <div>
                   <dt>Runtime impact</dt>
-                  <dd>None until explicit PolicyVersion activation</dd>
+                  <dd>
+                    {request.status === "approved"
+                      ? "Activation changes runtime policy evaluation"
+                      : "None until explicit PolicyVersion activation"}
+                  </dd>
                 </div>
               </dl>
 
@@ -239,6 +285,46 @@ export function PolicyReviewsList() {
                       Reject
                     </button>
                   </div>
+                  {actionState.id === request.id &&
+                  actionState.status !== "idle" ? (
+                    <p className="review-action-message">{actionState.message}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {request.status === "approved" ? (
+                <div className="approval-actions">
+                  <label className="approval-note checkbox">
+                    <input
+                      checked={Boolean(replaceActiveById[request.id])}
+                      disabled={actionState.status === "submitting"}
+                      onChange={(event) =>
+                        setReplaceActiveById((current) => ({
+                          ...current,
+                          [request.id]: event.target.checked
+                        }))
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      This will replace the current active version if one exists.
+                    </span>
+                  </label>
+                  <div className="approval-action-buttons">
+                    <button
+                      className="table-action-button approve"
+                      disabled={actionState.status === "submitting"}
+                      onClick={() => void handleActivate(request)}
+                      type="button"
+                    >
+                      Activate approved version
+                    </button>
+                  </div>
+                  <p className="agcp-muted">
+                    Approval does not activate automatically. Activation changes
+                    runtime policy evaluation for future Runtime Gateway and
+                    telemetry decisions.
+                  </p>
                   {actionState.id === request.id &&
                   actionState.status !== "idle" ? (
                     <p className="review-action-message">{actionState.message}</p>

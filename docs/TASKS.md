@@ -122,10 +122,12 @@ helpers, not backend records. Local validation is not runtime simulation. Draft
 versions do not affect runtime until explicit activation. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft
 snapshot, and a minimal Policy Reviews queue can approve or reject that request
-without activating the version. There is no Publish action. This satisfies much
-of the Policy Studio authoring surface and the reduced #56 review-request step,
-but explicit activation semantics, review diff and assignment behavior,
-rollback-copy UX, and historical backfill remain follow-ups.
+without activating the version. Approved review requests can now be activated
+explicitly with Activate approved version; replacement of an existing active
+version requires explicit `replace_active` intent. There is no Publish action.
+This satisfies much of the Policy Studio authoring surface and the reduced #56
+review/activation path, but review diff and assignment behavior, rollback-copy
+UX, and historical backfill remain follow-ups.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -170,13 +172,13 @@ Recommended order:
 2. Keep #76 open or mark partially implemented until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
 3. Use the refreshed #56 design to narrow the remaining policy review workflow
-   contract: explicit activation, review diff and assignment behavior, and
-   rollback-copy UX.
+   contract: review diff and assignment behavior, and rollback-copy UX.
 4. Implement remaining #68 follow-ups from
    `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: decide historical PolicyDecision
-   backfill before activation, Publish, or runtime source-of-truth semantics.
-5. Then implement explicit activation workflow APIs without adding a direct
-   Publish button.
+   backfill before publish-like or complete historical source-of-truth
+   semantics.
+5. Keep any future activation refinements explicit and avoid direct Publish
+   wording.
 6. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
 7. Use Access Grants as optional policy context without replacing
@@ -222,13 +224,12 @@ Recommended order:
       including grammar, supported fields/operators, compile targets,
       versioning/storage, diffs, and unsupported-field handling.
 - [ ] Implement the remaining narrowed #56 policy review workflow contract:
-      explicit activation, rollback-copy UX, review diff, and reviewer
-      assignment.
+      rollback-copy UX, review diff, and reviewer assignment.
 - [ ] Decide whether historical PolicyDecision backfill is needed; if so,
       implement it as an explicit audited/admin migration path, not automatic
       runtime behavior.
-- [ ] Implement explicit PolicyVersion activation workflow APIs after #56 and
-      #68 remaining follow-ups are settled.
+- [ ] Add richer explicit activation UX only after review diff and assignment
+      behavior is designed.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
@@ -437,6 +438,8 @@ credentials.
       create/update APIs and no runtime activation side effects.
 - [x] Add backend-backed PolicyVersion Submit for review and a minimal Policy
       Reviews queue with no runtime activation side effects.
+- [x] Add explicit Activate approved version workflow for approved
+      PolicyVersion review requests with `replace_active` supersede handling.
 
 ## Blocked
 

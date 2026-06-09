@@ -27,6 +27,8 @@ from agent_governance_api.models import (
     PolicyVersionStatus,
 )
 from agent_governance_api.schemas import (
+    PolicyVersionRead,
+    PolicyVersionReviewActivationRequest,
     PolicyVersionReviewDecisionRequest,
     PolicyVersionReviewRequestCreate,
     PolicyVersionReviewRequestRead,
@@ -154,6 +156,94 @@ def reject_policy_version_review_request(
     )
 
 
+@router.post(
+    "/{review_request_id}/activate",
+    response_model=PolicyVersionRead,
+)
+def activate_approved_policy_version_review_request(
+    review_request_id: UUID,
+    payload: PolicyVersionReviewActivationRequest | None = None,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersion:
+    review_request = _get_policy_version_review_request_or_404(
+        session,
+        review_request_id,
+    )
+    _require_approved_review_request(review_request)
+    _require_policy_version_review_reviewer(actor)
+    version = _get_policy_version_or_404(session, review_request.policy_version_id)
+    _require_review_request_policy_match(review_request, version)
+    _require_activatable_policy_version(version)
+
+    replace_active = payload.replace_active if payload is not None else False
+    active_versions = _active_policy_versions_for_policy(session, version)
+    if len(active_versions) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Policy has multiple active PolicyVersions. Resolve duplicate "
+                "active versions before activating another."
+            ),
+        )
+
+    active_version = active_versions[0] if active_versions else None
+    if active_version is not None and not replace_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Policy already has an active PolicyVersion. Set "
+                "replace_active=true to supersede it explicitly."
+            ),
+        )
+
+    now = datetime.now(UTC)
+    superseded_version_id: str | None = None
+    if active_version is not None:
+        superseded_version_id = str(active_version.id)
+        previous_active_status = active_version.status
+        active_version.status = PolicyVersionStatus.SUPERSEDED
+        active_version.superseded_at = now
+        active_version.updated_at = now
+        _append_policy_version_lifecycle_audit(
+            session,
+            active_version,
+            event_type="policy_version_superseded",
+            summary="PolicyVersion superseded by explicit reviewed activation.",
+            actor=actor,
+            metadata={
+                "status_from": previous_active_status.value,
+                "status_to": active_version.status.value,
+                "replacement_policy_version_id": str(version.id),
+                "review_request_id": str(review_request.id),
+            },
+        )
+        session.flush()
+
+    previous_status = version.status
+    version.status = PolicyVersionStatus.ACTIVE
+    version.activated_at = now
+    version.updated_at = now
+    _append_policy_version_lifecycle_audit(
+        session,
+        version,
+        event_type="policy_version_activated",
+        summary="PolicyVersion activated from approved review request.",
+        actor=actor,
+        metadata={
+            "status_from": previous_status.value,
+            "status_to": version.status.value,
+            "review_request_id": str(review_request.id),
+            "review_status": review_request.status.value,
+            "replace_active": replace_active,
+            "superseded_policy_version_id": superseded_version_id,
+        },
+    )
+    session.commit()
+    session.refresh(version)
+    return version
+
+
 def _decide_policy_version_review_request(
     review_request_id: UUID,
     decision_status: PolicyVersionReviewRequestStatus,
@@ -261,6 +351,43 @@ def _require_pending_review_request(
     )
 
 
+def _require_approved_review_request(
+    review_request: PolicyVersionReviewRequest,
+) -> None:
+    if review_request.status is PolicyVersionReviewRequestStatus.APPROVED:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Only approved PolicyVersion review requests can activate a version.",
+    )
+
+
+def _require_review_request_policy_match(
+    review_request: PolicyVersionReviewRequest,
+    version: PolicyVersion,
+) -> None:
+    if review_request.policy_id == version.policy_id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="PolicyVersion review request does not match the reviewed Policy.",
+    )
+
+
+def _require_activatable_policy_version(version: PolicyVersion) -> None:
+    if version.status is PolicyVersionStatus.ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="PolicyVersion is already active.",
+        )
+    if version.status in {PolicyVersionStatus.DRAFT, PolicyVersionStatus.APPROVED}:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Only draft or approved PolicyVersions can be activated from review.",
+    )
+
+
 def _require_policy_version_review_reader(actor: ActorContext) -> None:
     if actor.actor_type is ActorType.SERVICE and not has_role(
         actor,
@@ -330,6 +457,52 @@ def _append_policy_version_review_audit(
             **dict(metadata or {}),
         },
     )
+
+
+def _append_policy_version_lifecycle_audit(
+    session: Session,
+    version: PolicyVersion,
+    *,
+    event_type: str,
+    summary: str,
+    actor: ActorContext,
+    metadata: dict[str, str | int | bool | None] | None = None,
+) -> None:
+    append_audit_log(
+        session,
+        event_type=event_type,
+        actor_type=actor.actor_type,
+        actor_id=actor.actor_id,
+        entity_type="policy_version",
+        entity_id=str(version.id),
+        summary=summary,
+        metadata={
+            "policy_id": str(version.policy_id),
+            "version_number": version.version_number,
+            "status": version.status.value,
+            **dict(metadata or {}),
+        },
+    )
+
+
+def _active_policy_versions_for_policy(
+    session: Session,
+    version: PolicyVersion,
+) -> list[PolicyVersion]:
+    statement = (
+        select(PolicyVersion)
+        .where(
+            PolicyVersion.policy_id == version.policy_id,
+            PolicyVersion.status == PolicyVersionStatus.ACTIVE,
+            PolicyVersion.id != version.id,
+        )
+        .order_by(
+            PolicyVersion.version_number,
+            PolicyVersion.activated_at,
+            PolicyVersion.id,
+        )
+    )
+    return list(session.scalars(statement).all())
 
 
 def _review_request_read(

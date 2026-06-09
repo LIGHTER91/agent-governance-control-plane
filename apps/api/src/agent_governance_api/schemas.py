@@ -1229,6 +1229,12 @@ class PolicyVersionReviewDecisionRequest(BaseModel):
         return value
 
 
+class PolicyVersionReviewActivationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    replace_active: bool = False
+
+
 class PolicyVersionReviewRequestRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
