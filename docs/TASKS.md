@@ -96,8 +96,8 @@ active PolicyVersion rollout and telemetry migration plan is documented in
 `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: new Runtime Gateway decisions can
 store `policy_version_id`, new telemetry decisions can store
 `policy_version_id` when an active version is used, historical PolicyDecisions
-remain nullable, and the single-active-version invariant still needs a
-database-level hardening task before activation is exposed as product workflow.
+remain nullable, and the single-active-version invariant is enforced by API
+validation plus a database-level partial unique index.
 The frontend has a minimal dashboard shell, a read-only Agent list page backed
 by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
@@ -117,13 +117,13 @@ Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
 static templates, Blocks and Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`,
 deterministic frontend compilation to supported `PolicyRule.condition` JSON,
 local validation, generated JSON preview, unsupported-DSL save blocking, and
-Save draft through existing APIs. Templates are static helpers, not backend
-records. Local validation is not runtime simulation. Submit for review remains
-disabled, and there is no Publish action. This satisfies much of the Policy
-Studio authoring surface, but it does not close #56 as a review workflow:
-Save draft still writes through existing Policy/PolicyRule APIs, formal review
-request semantics are undecided, and activation/telemetry semantics remain #68
-work.
+Save draft through draft `PolicyVersion` snapshots. Templates are static
+helpers, not backend records. Local validation is not runtime simulation. Draft
+versions do not affect runtime until explicit activation. Submit for review
+remains disabled, and there is no Publish action. This satisfies much of the
+Policy Studio authoring surface, but it does not close #56 as a review
+workflow: formal review request semantics are undecided, review UI/inbox/diff
+behavior is missing, and historical backfill remains a separate #68 follow-up.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -168,12 +168,11 @@ Recommended order:
 2. Keep #76 open or mark partially implemented until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
 3. Use the refreshed #56 design to narrow the remaining policy review workflow
-   contract: draft-version Save draft semantics, review request shape, approval
-   versus activation, rollback-copy UX, and frontend Submit for review wiring.
+   contract: review request shape, approval versus activation, rollback-copy
+   UX, and frontend Submit for review wiring.
 4. Implement remaining #68 follow-ups from
    `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: decide historical PolicyDecision
-   backfill and add a database-level single-active-version guard before
-   activation, Publish, or runtime source-of-truth semantics.
+   backfill before activation, Publish, or runtime source-of-truth semantics.
 5. Then implement backend Policy Review Workflow APIs and wire the frontend
    Submit for review action to those APIs without adding a direct Publish
    button.
@@ -222,13 +221,11 @@ Recommended order:
       including grammar, supported fields/operators, compile targets,
       versioning/storage, diffs, and unsupported-field handling.
 - [ ] Implement the narrowed #56 policy review workflow contract:
-      draft-version Save draft behavior, review request semantics, explicit
-      approval versus activation, and frontend Submit for review wiring.
+      review request semantics, explicit approval versus activation,
+      rollback-copy UX, and frontend Submit for review wiring.
 - [ ] Decide whether historical PolicyDecision backfill is needed; if so,
       implement it as an explicit audited/admin migration path, not automatic
       runtime behavior.
-- [ ] Add a database-level single-active PolicyVersion guard and cleanup
-      guidance before any activation or Publish semantics.
 - [ ] Implement backend Policy Review Workflow APIs after #56 and #68 are
       settled, then wire the frontend Submit for review action.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
@@ -433,6 +430,10 @@ credentials.
 - [x] Add active PolicyVersion rollout and telemetry migration plan for #68.
 - [x] Migrate telemetry ingestion to the active-version runtime loader while
       preserving unversioned fallback, idempotency, and HumanApproval behavior.
+- [x] Add a single-active PolicyVersion guard with API fail-fast behavior and a
+      database-level partial unique index.
+- [x] Add PolicyVersion-backed Policy Studio Save draft with draft snapshot
+      create/update APIs and no runtime activation side effects.
 
 ## Blocked
 

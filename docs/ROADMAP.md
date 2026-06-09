@@ -70,10 +70,11 @@ IDE-style Policy Studio frontend surface. The Studio uses a repository sidebar,
 static authoring templates, Blocks and Code DSL modes, a
 `WHEN -> CHECK -> THEN -> PROVE` structure, local validation, deterministic
 compilation to supported `PolicyRule.condition` fields, an inspector, and Save
-draft through the existing Policy and PolicyRule APIs. Unsupported DSL lines
-block saving. Templates are static helpers, not backend records. Local
-validation is not runtime simulation. Submit for review is still disabled, and
-there is no direct Publish action. Access Grants are inventory declarations
+draft through draft `PolicyVersion` snapshots. Unsupported DSL lines block
+saving. Templates are static helpers, not backend records. Local validation is
+not runtime simulation. Draft versions do not affect runtime until explicit
+activation. Submit for review is still disabled, and there is no direct Publish
+action. Access Grants are inventory declarations
 only; they are not enforced by runtime policy evaluation yet. Evidence Bundle
 export includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
@@ -128,15 +129,15 @@ Policy versioning and review guardrails are now partially implemented and
 re-scoped in `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend
 `PolicyVersion` aggregate snapshots Policy fields, associated PolicyRules, and
 associated PolicyCheckSteps with draft, review, approval, activation,
-supersession, archive, and rollback-copy APIs. PolicyDecision records can
+archive, and rollback-copy APIs. PolicyDecision records can
 optionally reference the active PolicyVersion for the selected Policy, and
 Evidence Bundle renders safe PolicyVersion summaries on PolicyDecision and
 linked CheckResult records. Runtime Gateway evaluates active PolicyVersion
 snapshots where available and falls back to unversioned Policy/PolicyRule rows
 for Policies without an active version. #56 remains needed but narrowed:
-Policy Studio Save draft still uses existing Policy/PolicyRule write APIs,
-Submit for review is disabled, formal review request semantics are undecided,
-and review UI/inbox/diff behavior has not been implemented.
+Policy Studio Save draft now writes draft PolicyVersion snapshots, Submit for
+review is disabled, formal review request semantics are undecided, and review
+UI/inbox/diff behavior has not been implemented.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -148,10 +149,10 @@ foundation work. Active PolicyVersion rollout planning is documented in
 `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: Runtime Gateway already uses active
 PolicyVersion snapshots with unversioned fallback, telemetry now uses the same
 active-version loader, historical PolicyDecisions remain nullable/unversioned,
-and the single-active-version invariant is application-level only. Remaining
-#68 implementation follow-ups should land before any activation, Publish,
-historical-backfill, or single-active-version semantics are exposed as product
-workflow.
+and the single-active-version invariant is enforced by API validation plus a
+database-level partial unique index. Remaining #68 implementation follow-ups
+should land before any activation, Publish, or historical-backfill semantics
+are exposed as product workflow.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -407,7 +408,8 @@ Completed foundation:
 - PolicyRule management API for deterministic rule conditions.
 - Policy Studio frontend for Policy and PolicyRule authoring with static
   templates, Blocks and Code DSL modes, deterministic local validation,
-  unsupported-DSL save blocking, and Save draft through existing APIs.
+  unsupported-DSL save blocking, and Save draft through draft PolicyVersion
+  snapshots.
 - Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
   Source, and ModelAsset references, and safe Data Usage Profile summaries for
   granted Sources.
@@ -431,11 +433,9 @@ Recommended next work:
   document covering grammar, storage/versioning, diffs, and unsupported-field
   behavior.
 - Use the refreshed #56 policy versioning and review guardrails to define
-  draft-version Save draft behavior and review request semantics before wiring
-  the frontend Submit for review action.
-- Implement remaining #68 follow-ups before exposing activation, Publish, or
-  runtime source-of-truth semantics: decide historical PolicyDecision backfill
-  and add a database-level single-active-version guard.
+  review request semantics before wiring the frontend Submit for review action.
+- Implement the remaining #68 follow-up before exposing activation, Publish, or
+  runtime source-of-truth semantics: decide historical PolicyDecision backfill.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
   simulation semantics have a safe implementation path.
 - Use Access Grants as optional policy context without replacing
@@ -530,12 +530,12 @@ Planned capabilities:
 - Policy Studio IDE. Completed as a frontend authoring surface with
   repository-style Policy/PolicyRule navigation, static templates, Blocks and
   Code DSL modes, deterministic condition JSON compilation, local validation,
-  and Save draft through existing APIs.
+  and Save draft through draft PolicyVersion snapshots.
 - Integration Hub page. Completed as a frontend product surface for runtime
   connection patterns, Service Actor expectations, setup snippets, and
   non-orchestrator boundaries.
-- Policy versioning and review UI after #56 guardrails and #68 telemetry,
-  backfill, and single-active-version decisions are complete.
+- Policy versioning and review UI after #56 guardrails and #68 historical
+  backfill decisions are complete.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

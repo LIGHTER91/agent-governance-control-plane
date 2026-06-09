@@ -351,6 +351,59 @@ def test_tool_call_requested_ignores_non_active_policy_versions(
     assert decision_body["rule_id"] == str(rule_id)
 
 
+def test_tool_call_requested_ignores_policy_version_draft_saved_from_editor(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback rule is still used.",
+            "tool_name": "send_email",
+        },
+    )
+
+    draft_response = client.post(
+        f"/policies/{policy_id}/versions/draft",
+        json={
+            "change_summary": "Policy Studio draft should not affect telemetry.",
+            "policy_snapshot": {
+                "name": "Draft telemetry guard",
+                "description": "Drafted in Policy Studio.",
+                "status": "active",
+            },
+            "rule_snapshots": [
+                {
+                    "id": str(rule_id),
+                    "name": "Draft telemetry deny rule",
+                    "description": "Compiled from Policy Studio.",
+                    "condition": json.dumps(
+                        {
+                            "decision": "deny",
+                            "reason": "Draft snapshot should not be used.",
+                            "tool_name": "send_email",
+                        }
+                    ),
+                }
+            ],
+        },
+    )
+    assert draft_response.status_code == 201
+    assert draft_response.json()["status"] == "draft"
+
+    response = client.post("/telemetry/events", json=trace_event_payload(agent_id))
+
+    assert response.status_code == 201
+    decision_body = response.json()["policy_decision"]
+    assert decision_body["decision"] == "allow"
+    assert decision_body["reason"] == "Live fallback rule is still used."
+    assert decision_body["policy_id"] == str(policy_id)
+    assert decision_body["policy_version_id"] is None
+    assert decision_body["rule_id"] == str(rule_id)
+
+
 def test_trace_event_to_policy_decision_navigation_is_available(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

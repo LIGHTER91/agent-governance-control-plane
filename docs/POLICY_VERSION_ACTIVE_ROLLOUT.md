@@ -3,8 +3,10 @@
 ## Status
 
 Issue #68 started as a rollout and migration planning issue. Runtime Gateway
-and telemetry now use the same active PolicyVersion evaluation loader, while
-historical backfill and database hardening remain follow-up tasks.
+and telemetry now use the same active PolicyVersion evaluation loader, and the
+single-active-version invariant is enforced in application code plus a
+database-level partial unique index. Historical backfill remains a follow-up
+task.
 
 Current state:
 
@@ -21,8 +23,9 @@ Current state:
 - Telemetry falls back to unversioned active Policy/PolicyRule rows when no
   active PolicyVersion exists for a Policy.
 - Historical PolicyDecision records are not backfilled.
-- The single-active-version invariant is enforced by lifecycle application
-  logic and defensive runtime selection, not by a database constraint.
+- The single-active-version invariant is enforced by activation API validation
+  and a partial unique index on `policy_versions(policy_id)` where
+  `status = 'active'`.
 
 AGCP remains a governance and evidence control plane. It does not execute
 tools, replace orchestrators, provide legal certification, or run a production
@@ -37,9 +40,9 @@ PolicyCheckStep configuration that was active at decision time.
 
 Changing the runtime source of truth is still risky. AGCP has two ingestion
 paths today: Runtime Gateway decisions and telemetry events. They now share the
-same policy evaluation loader, which reduces source-of-truth drift, but the
-rollout is not fully complete until historical records and single-active
-database guarantees are handled.
+same policy evaluation loader, which reduces source-of-truth drift. The rollout
+is not fully complete until historical records and backfill expectations are
+handled.
 
 Fallback behavior must be preserved. Existing local demos, tests, and early
 integrations still rely on unversioned Policy/PolicyRule rows. Removing
@@ -69,9 +72,9 @@ result is recorded safely for evidence.
 - unversioned active Policy/PolicyRule rows are used for Policies without an
   active PolicyVersion;
 - non-active PolicyVersions are ignored;
-- if multiple active PolicyVersions exist for one Policy, the runtime loader
-  defensively selects the latest by version number, activation timestamp, and
-  ID.
+- the single-active-version guard should prevent multiple active
+  PolicyVersions for one Policy, but the runtime loader remains deterministic
+  if invalid pre-constraint data is present.
 
 This path is not feature-flagged today. It is the current Runtime Gateway
 behavior.
@@ -185,25 +188,22 @@ PolicyDecision remain unversioned.
 
 Current invariant:
 
-- application-level activation logic supersedes active versions for the same
-  Policy before marking the approved version active;
+- application-level activation logic fails fast when another active version
+  already exists for the same Policy;
 - runtime loading defensively selects one active version if multiple active
-  versions exist;
-- the database only enforces unique `(policy_id, version_number)`;
-- there is no database-level unique constraint for one active PolicyVersion per
-  Policy.
+  versions exist in invalid pre-constraint data;
+- the database enforces unique `(policy_id, version_number)`;
+- the database also enforces one active PolicyVersion per Policy with the
+  `uq_policy_versions_one_active_per_policy` partial unique index.
 
-Recommended target:
+Migration behavior:
 
-- add a PostgreSQL partial unique index on `policy_id` where `status = 'active'`;
-- add migration tests for the constraint shape;
-- add transition tests proving activation remains transactional;
-- include cleanup guidance for any accidental multiple-active rows before the
-  constraint is introduced.
-
-This should be implemented as a dedicated backend hardening task before
-activation is exposed as product workflow. It does not need to be added in this
-planning pass because it is a migration and behavior-hardening change.
+- the migration creates a unique partial index on `policy_id` where
+  `status = 'active'`;
+- deployments with duplicate active PolicyVersions for one Policy must resolve
+  those duplicates before applying the migration;
+- the migration does not silently pick a winner, supersede, archive, or delete
+  existing records.
 
 ## Historical PolicyDecision Strategy
 
@@ -248,8 +248,9 @@ The target runtime/evidence behavior is now partially reached:
 
 Remaining target behavior:
 
-- A database guard prevents multiple active PolicyVersions for the same Policy.
 - Historical backfill, if needed, is explicit and conservative.
+- Policy Studio Save draft writes draft PolicyVersion snapshots and does not
+  affect runtime until activation.
 - Frontend Submit for review and any activation workflow are only enabled after
   the remaining semantics are implemented and validated.
 
@@ -273,23 +274,23 @@ Recommended sequence:
    - persists `policy_version_id` for versioned decisions;
    - keeps idempotency and HumanApproval creation behavior unchanged.
 6. Add a dedicated single-active-version hardening task with a PostgreSQL
-   partial unique index and cleanup guidance.
+   partial unique index and cleanup guidance. Implemented.
 7. Decide whether historical backfill is needed. If yes, implement it as an
    explicit administrative migration/report path, not as automatic runtime
    behavior.
-8. Only after the above, implement Policy Studio Submit for review and review
+8. Policy Studio Save draft writes draft PolicyVersion snapshots. Implemented.
+9. Only after the above, implement Policy Studio Submit for review and review
    workflow wiring.
-9. Keep Publish out of the UI unless a later issue explicitly defines reviewed
+10. Keep Publish out of the UI unless a later issue explicitly defines reviewed
    activation semantics.
 
 ## Implementation Follow-Ups
 
 Recommended next implementation issues:
 
-1. Add a database-level single-active PolicyVersion guard and migration tests.
-2. Decide and document whether historical PolicyDecision backfill is required.
-3. Implement PolicyVersion-backed Save draft and Submit for review semantics
-   after telemetry and single-active behavior are settled.
+1. Decide and document whether historical PolicyDecision backfill is required.
+2. Define and implement PolicyVersion Submit for review semantics without
+   adding Publish or activation shortcuts.
 
 ## Non-goals
 
@@ -301,4 +302,4 @@ Recommended next implementation issues:
 - No legal compliance certification claims.
 - No orchestration or tool execution.
 - No broad enterprise GRC workflow.
-- No migrations in this telemetry-loader migration task.
+- No review or activation workflow beyond the single-active guard.

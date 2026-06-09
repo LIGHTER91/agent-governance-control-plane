@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -1463,6 +1464,13 @@ class PolicyVersion(Base):
             "policy_id",
             "version_number",
             name="uq_policy_versions_policy_version_number",
+        ),
+        Index(
+            "uq_policy_versions_one_active_per_policy",
+            "policy_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
         ),
     )
 

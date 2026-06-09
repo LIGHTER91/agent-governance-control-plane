@@ -5,14 +5,15 @@ import { ApiRequestError } from "../lib/api";
 import {
   PolicyPayload,
   PolicyRecord,
-  PolicyRulePayload,
   PolicyRuleRecord,
+  PolicyVersionDraftPayload,
+  PolicyVersionRecord,
   createPolicy,
-  createPolicyRule,
+  createPolicyVersionDraft,
   fetchPolicies,
+  fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
-  updatePolicy,
-  updatePolicyRule
+  updatePolicyVersionDraft
 } from "../lib/policies";
 import {
   POLICY_TEMPLATES,
@@ -46,6 +47,12 @@ type RulesState =
   | { status: "error"; message: string }
   | { status: "ready"; rules: PolicyRuleRecord[] };
 
+type VersionsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; versions: PolicyVersionRecord[] };
+
 type SaveState = {
   status: "idle" | "saving" | "success" | "error";
   message: string;
@@ -60,8 +67,14 @@ export function PolicyStudio() {
     status: "loading"
   });
   const [rulesState, setRulesState] = useState<RulesState>({ status: "idle" });
+  const [versionsState, setVersionsState] = useState<VersionsState>({
+    status: "idle"
+  });
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [draftVersion, setDraftVersion] = useState<PolicyVersionRecord | null>(
+    null
+  );
   const [repositoryMode, setRepositoryMode] = useState<"policies" | "templates">(
     "policies"
   );
@@ -95,6 +108,24 @@ export function PolicyStudio() {
 
     return rulesState.rules.find((rule) => rule.id === selectedRuleId) || null;
   }, [rulesState, selectedRuleId]);
+
+  const latestDraftVersion = useMemo(() => {
+    if (versionsState.status !== "ready") {
+      return null;
+    }
+
+    return (
+      [...versionsState.versions]
+        .filter((version) => version.status === "draft")
+        .sort((left, right) => right.version_number - left.version_number)[0] ||
+      null
+    );
+  }, [versionsState]);
+
+  const selectedDraftVersion =
+    draftVersion && draftVersion.policy_id === selectedPolicyId
+      ? draftVersion
+      : latestDraftVersion;
 
   const parsed = useMemo(() => parsePolicyDslToPolicyRule(dsl), [dsl]);
   const selectedRuleCondition = useMemo(
@@ -132,9 +163,11 @@ export function PolicyStudio() {
         rulesState,
         saveDisabledReason,
         saveState,
+        selectedDraftVersion,
         selectedPolicy,
         selectedRule,
-        selectedRuleUnsupportedFields
+        selectedRuleUnsupportedFields,
+        versionsState
       })
     ],
     [
@@ -143,9 +176,11 @@ export function PolicyStudio() {
       rulesState,
       saveDisabledReason,
       saveState,
+      selectedDraftVersion,
       selectedPolicy,
       selectedRule,
       selectedRuleUnsupportedFields,
+      versionsState,
       validationRun
     ]
   );
@@ -218,6 +253,34 @@ export function PolicyStudio() {
     []
   );
 
+  const loadVersions = useCallback(
+    async (policy: PolicyRecord, signal?: AbortSignal) => {
+      setVersionsState({ status: "loading" });
+
+      try {
+        const versions = await fetchPolicyVersionsForPolicy(policy.id, signal);
+        setVersionsState({ status: "ready", versions });
+        const latestDraft =
+          [...versions]
+            .filter((version) => version.status === "draft")
+            .sort((left, right) => right.version_number - left.version_number)[0] ||
+          null;
+        setDraftVersion(latestDraft);
+      } catch (error: unknown) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        setVersionsState({
+          status: "error",
+          message: errorMessage(error, "Unable to load PolicyVersion records.")
+        });
+        setDraftVersion(null);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     const controller = new AbortController();
     void loadPolicies(controller.signal);
@@ -227,17 +290,21 @@ export function PolicyStudio() {
   useEffect(() => {
     if (!selectedPolicy) {
       setRulesState({ status: "idle" });
+      setVersionsState({ status: "idle" });
+      setDraftVersion(null);
       return;
     }
 
     const controller = new AbortController();
     void loadRules(selectedPolicy, controller.signal);
+    void loadVersions(selectedPolicy, controller.signal);
     return () => controller.abort();
-  }, [loadRules, selectedPolicy]);
+  }, [loadRules, loadVersions, selectedPolicy]);
 
   function handleSelectPolicy(policy: PolicyRecord) {
     setSelectedPolicyId(policy.id);
     setSelectedRuleId(null);
+    setDraftVersion(null);
     setSaveState({ status: "idle", message: "Loading selected Policy rules" });
     setRepositoryMode("policies");
   }
@@ -245,6 +312,8 @@ export function PolicyStudio() {
   function handleNewPolicy() {
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
+    setDraftVersion(null);
+    setVersionsState({ status: "idle" });
     setDsl(conditionToDsl("new_policy", defaultCondition()));
     setSaveState({
       status: "idle",
@@ -255,6 +324,8 @@ export function PolicyStudio() {
   function handleUseTemplate(template: PolicyTemplate) {
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
+    setDraftVersion(null);
+    setVersionsState({ status: "idle" });
     setDsl(templateToDsl(template));
     setEditorMode("blocks");
     setSaveState({
@@ -331,23 +402,40 @@ export function PolicyStudio() {
     setSaveState({ status: "saving", message: "Saving draft" });
 
     try {
-      const policy = await savePolicyDraft(selectedPolicy, parsedForSave.policyName);
-      const savedRule = await saveRuleDraft(
+      const policy = await ensurePolicyDraft(selectedPolicy, parsedForSave.policyName);
+      const versionToUpdate =
+        selectedDraftVersion?.policy_id === policy.id &&
+        selectedDraftVersion.status === "draft"
+          ? selectedDraftVersion
+          : null;
+      const draftPayload = buildPolicyVersionDraftPayload({
+        condition: parsedForSave.condition,
+        draftVersion: versionToUpdate,
+        localNote,
         policy,
-        selectedRule,
-        parsedForSave.ruleName,
-        parsedForSave.condition
-      );
+        policyName: parsedForSave.policyName,
+        rule: selectedRule,
+        ruleName: parsedForSave.ruleName
+      });
+      const savedVersion = versionToUpdate
+        ? await updatePolicyVersionDraft(versionToUpdate.id, draftPayload)
+        : await createPolicyVersionDraft(policy.id, draftPayload);
 
+      setDraftVersion(savedVersion);
       setSelectedPolicyId(policy.id);
-      setSelectedRuleId(savedRule.id);
-      setDsl(conditionToDsl(policy.name, parseRuleCondition(savedRule)));
+      setDsl(
+        conditionToDsl(
+          String(savedVersion.policy_snapshot.name || policy.name),
+          parseRuleSnapshotCondition(savedVersion)
+        )
+      );
       setSaveState({
         status: "success",
-        message: "Draft saved through existing Policy and PolicyRule APIs."
+        message: `Draft PolicyVersion v${savedVersion.version_number} saved. It is not active and does not affect runtime until explicitly activated.`
       });
       void loadPolicies();
       void loadRules(policy);
+      void loadVersions(policy);
     } catch (error: unknown) {
       setSaveState({
         status: "error",
@@ -356,46 +444,21 @@ export function PolicyStudio() {
     }
   }
 
-  async function savePolicyDraft(
+  async function ensurePolicyDraft(
     policy: PolicyRecord | null,
     policyName: string
   ) {
+    if (policy) {
+      return policy;
+    }
+
     const payload: PolicyPayload = {
-      description:
-        policy?.description ||
-        "Policy Studio draft compiled to deterministic PolicyRule JSON.",
-      name: policy?.name || titleFromSlug(policyName),
-      status: policy?.status || "draft"
+      description: "Policy Studio draft container for PolicyVersion snapshots.",
+      name: titleFromSlug(policyName),
+      status: "draft"
     };
 
-    return policy
-      ? updatePolicy(policy.id, payload)
-      : createPolicy({
-          ...payload,
-          status: "draft"
-        });
-  }
-
-  async function saveRuleDraft(
-    policy: PolicyRecord,
-    rule: PolicyRuleRecord | null,
-    ruleName: string,
-    condition: PolicyCondition
-  ) {
-    const payload: PolicyRulePayload = {
-      condition: JSON.stringify(stableCondition(condition)),
-      description: "Compiled from Policy Studio DSL/block editor.",
-      name: rule?.name || ruleName,
-      policy_id: policy.id
-    };
-
-    return rule && rule.policy_id === policy.id
-      ? updatePolicyRule(rule.id, {
-          condition: payload.condition,
-          description: payload.description,
-          name: payload.name
-        })
-      : createPolicyRule(payload);
+    return createPolicy(payload);
   }
 
   return (
@@ -441,8 +504,10 @@ export function PolicyStudio() {
           onSaveDraft={handleSaveDraft}
           onValidate={handleValidate}
           parsed={parsed}
+          policyVersionsState={versionsState}
           saveDisabledReason={saveDisabledReason}
           saveState={saveState}
+          selectedDraftVersion={selectedDraftVersion}
           selectedPolicy={selectedPolicy}
           selectedRule={selectedRule}
           selectedRuleUnsupportedFields={selectedRuleUnsupportedFields}
@@ -464,17 +529,21 @@ function studioStateMessages({
   rulesState,
   saveDisabledReason,
   saveState,
+  selectedDraftVersion,
   selectedPolicy,
   selectedRule,
-  selectedRuleUnsupportedFields
+  selectedRuleUnsupportedFields,
+  versionsState
 }: {
   policiesState: PoliciesState;
   rulesState: RulesState;
   saveDisabledReason: string | null;
   saveState: SaveState;
+  selectedDraftVersion: PolicyVersionRecord | null;
   selectedPolicy: PolicyRecord | null;
   selectedRule: PolicyRuleRecord | null;
   selectedRuleUnsupportedFields: string[];
+  versionsState: VersionsState;
 }): Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }> {
   const messages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }> = [];
 
@@ -492,18 +561,32 @@ function studioStateMessages({
     });
   }
 
+  if (versionsState.status === "error") {
+    messages.push({
+      tone: "warn",
+      text: `Backend unavailable for GET /policies/{policy_id}/versions: ${versionsState.message}`
+    });
+  }
+
   messages.push({
     tone: selectedPolicy ? "info" : "warn",
     text: selectedPolicy
       ? `Selected Policy: ${selectedPolicy.id} (${selectedPolicy.status})`
-      : "No persisted Policy selected; Save draft will create a Policy"
+      : "No persisted Policy selected; Save draft will create a draft Policy container"
   });
   messages.push({
     tone: selectedRule ? "info" : "warn",
     text: selectedRule
-      ? `Selected PolicyRule: ${selectedRule.id}. Save draft updates this rule only.`
-      : "No PolicyRule selected; Save draft will create one for the selected Policy"
+      ? `Selected PolicyRule: ${selectedRule.id}. Save draft snapshots this source rule without patching it.`
+      : "No PolicyRule selected; Save draft will snapshot a generated rule id into a draft PolicyVersion"
   });
+
+  if (selectedDraftVersion) {
+    messages.push({
+      tone: "ok",
+      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active, not submitted for review)`
+    });
+  }
 
   if (rulesState.status === "ready" && rulesState.rules.length > 1) {
     messages.push({
@@ -515,7 +598,7 @@ function studioStateMessages({
   if (selectedPolicy?.status === "active") {
     messages.push({
       tone: "warn",
-      text: "Selected Policy is active. Save draft still uses existing edit APIs; review lifecycle activation is not wired from this UI."
+      text: "Selected Policy is active. Save draft creates a draft PolicyVersion; runtime still uses the active version or fallback until explicit activation."
     });
   }
 
@@ -540,6 +623,68 @@ function studioStateMessages({
   }
 
   return messages;
+}
+
+function buildPolicyVersionDraftPayload({
+  condition,
+  draftVersion,
+  localNote,
+  policy,
+  policyName,
+  rule,
+  ruleName
+}: {
+  condition: PolicyCondition;
+  draftVersion: PolicyVersionRecord | null;
+  localNote: string;
+  policy: PolicyRecord;
+  policyName: string;
+  rule: PolicyRuleRecord | null;
+  ruleName: string;
+}): PolicyVersionDraftPayload {
+  const compiledCondition = JSON.stringify(stableCondition(condition));
+  const summary = localNote.trim() || `Policy Studio draft for ${titleFromSlug(policyName)}.`;
+  const existingSnapshotRuleId =
+    typeof draftVersion?.rule_snapshots[0]?.id === "string"
+      ? draftVersion.rule_snapshots[0].id
+      : undefined;
+  const sourceRuleId =
+    rule && rule.policy_id === policy.id ? rule.id : existingSnapshotRuleId;
+  return {
+    change_summary: summary,
+    policy_snapshot: {
+      description: policy.description || "Policy Studio draft snapshot.",
+      name: titleFromSlug(policyName || policy.name),
+      status: policy.status
+    },
+    rule_snapshots: [
+      {
+        ...(sourceRuleId ? { id: sourceRuleId } : {}),
+        condition: compiledCondition,
+        description: "Compiled from Policy Studio DSL/block editor.",
+        name: ruleName || "policy_studio_rule"
+      }
+    ]
+  };
+}
+
+function parseRuleSnapshotCondition(version: PolicyVersionRecord) {
+  const snapshot = version.rule_snapshots[0] || {};
+  const condition = snapshot.condition;
+  if (typeof condition !== "string") {
+    return defaultCondition();
+  }
+
+  return parseRuleCondition({
+    condition,
+    created_at: version.created_at,
+    description:
+      typeof snapshot.description === "string" ? snapshot.description : null,
+    id: typeof snapshot.id === "string" ? snapshot.id : "snapshot-rule",
+    name: typeof snapshot.name === "string" ? snapshot.name : "snapshot_rule",
+    policy_id: version.policy_id,
+    updated_at: version.updated_at
+  });
 }
 
 function titleFromSlug(value: string) {

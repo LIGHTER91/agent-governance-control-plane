@@ -17,6 +17,7 @@ Already implemented:
 - safe PolicyVersion summaries in Evidence Bundle output;
 - Runtime Gateway active PolicyVersion snapshot evaluation with unversioned
   fallback;
+- Policy Studio Save draft creation/update of draft PolicyVersion snapshots;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
   Publish button, and disabled Submit for review.
@@ -25,9 +26,6 @@ Still unresolved:
 
 - formal review request semantics for policy authoring;
 - frontend Submit for review wiring;
-- whether draft saves should write to draft PolicyVersions instead of mutable
-  Policy and PolicyRule rows;
-- single-active-version hardening beyond application logic;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
@@ -97,8 +95,10 @@ The backend currently uses a bounded aggregate model:
 Lifecycle APIs currently exist for:
 
 - create version from a Policy;
+- create a draft PolicyVersion from a Policy Studio/editor snapshot;
 - list Policy versions;
 - get one PolicyVersion;
+- update an existing draft PolicyVersion from a Policy Studio/editor snapshot;
 - submit for review;
 - approve;
 - reject;
@@ -113,13 +113,12 @@ Current audit events include:
 - `policy_version_approved`;
 - `policy_version_rejected`;
 - `policy_version_activated`;
-- `policy_version_superseded`;
 - `policy_version_archived`;
 - `policy_version_rollback_copy_created`.
 
-Activation currently supersedes other active versions for the same Policy in
-application logic. A database-level single-active-version invariant is still a
-#68 hardening question.
+Activation now fails fast when another active version already exists for the
+same Policy. A database-level partial unique index also enforces one active
+PolicyVersion per Policy.
 
 Runtime Gateway now prefers active PolicyVersion snapshots where available and
 falls back to current unversioned Policy/PolicyRule rows when no active version
@@ -131,8 +130,9 @@ deterministic evaluator shape and rule precedence:
 - allow;
 - not_applicable.
 
-Telemetry policy evaluation still needs explicit migration planning before the
-platform can claim one consistent active-version runtime source of truth.
+Telemetry policy evaluation uses the same active-version loader as Runtime
+Gateway. Historical PolicyDecisions remain nullable/unversioned unless an
+explicit conservative backfill is designed later.
 
 ## Current Frontend State
 
@@ -146,13 +146,15 @@ surface:
 - unsupported DSL lines block saving;
 - local validation is clearly not runtime simulation;
 - static templates are authoring helpers, not backend records;
+- Save draft writes a draft `PolicyVersion` snapshot through the backend draft
+  version APIs;
+- existing Policy/PolicyRule APIs remain available for compatibility, but the
+  user-facing Studio draft is now the version snapshot;
 - Submit for review is disabled;
 - there is no direct Publish action.
 
 The frontend does not yet solve the backend/domain review workflow:
 
-- Save draft still uses existing Policy and PolicyRule create/update APIs;
-- editing an active Policy can still patch the current unversioned rows;
 - Submit for review is not wired to backend lifecycle APIs;
 - there is no policy review queue, reviewer assignment, diff view, or
   role-aware review UI;
@@ -188,8 +190,6 @@ the core active-edit risk.
 
 The remaining work is narrower than the original broad design issue:
 
-- define whether Policy Studio Save draft should create/update draft
-  PolicyVersions instead of patching live Policy/PolicyRule rows;
 - define formal review request semantics;
 - decide whether review should use only PolicyVersion review fields and audit
   events or add a dedicated `PolicyReviewRequest`;
@@ -200,9 +200,7 @@ The remaining work is narrower than the original broad design issue:
   truth for V1;
 - confirm PolicyCheckSteps remain snapshotted inside the aggregate
   PolicyVersion for V1;
-- harden or document the single-active-version invariant;
 - decide historical PolicyDecision backfill behavior;
-- complete telemetry migration planning in #68;
 - define rollback-copy UX and API expectations;
 - wire frontend Submit for review only after the review contract is agreed.
 
@@ -230,15 +228,15 @@ V1 source-of-truth rules:
 
 Recommended product semantics:
 
-- Save draft should eventually create or update draft PolicyVersion content,
-  not directly mutate active runtime configuration.
+- Save draft creates or updates draft PolicyVersion content and does not
+  activate, submit for review, or mutate active runtime configuration.
 - Submit for review should create a review state or review request; it should
   not publish or activate anything.
 - Approval should make a version eligible for activation; it should not
   automatically activate the version.
 - Activation should be explicit and audited.
-- Activating a version supersedes the currently active version for the same
-  Policy.
+- Activating a version fails if another active version already exists for the
+  same Policy.
 - Rollback should be non-destructive: create a new draft copy from an approved,
   active, or superseded version.
 - Runtime and evidence should record `policy_version_id` where available.
@@ -313,12 +311,11 @@ Recommended next sequence:
 2. Keep #76 open or partial until `docs/POLICY_STUDIO_DSL_DESIGN.md` defines
    grammar, operators, supported fields, storage/versioning, diffs, and
    unsupported-line behavior.
-3. Use this refreshed #56 design to narrow review workflow work around
-   draft-version semantics, Submit for review, approval, activation, and
-   rollback-copy.
+3. Use this refreshed #56 design to narrow review workflow work around Submit
+   for review, approval, activation, and rollback-copy.
 4. Complete #68 follow-ups before exposing activation or Publish semantics:
-   historical backfill must be decided and single-active-version guardrails
-   must be hardened.
+   historical backfill must be decided and activation UI semantics must remain
+   separate from review approval.
 5. Implement a backend Policy Review Workflow only after #56 and #68 decisions
    are settled.
 6. Wire Policy Studio Submit for review to the backend review lifecycle.
@@ -327,8 +324,9 @@ Recommended next sequence:
 
 ## Risks
 
-- If Save draft continues to patch active Policy/PolicyRule rows, the UI may
-  look safe while runtime behavior can still change immediately.
+- If existing compatibility Policy/PolicyRule APIs remain directly editable,
+  users may still bypass the Studio draft path unless later guardrails or
+  role-aware product flows make the intended lifecycle clearer.
 - If activation is exposed before #68 is settled, AGCP may have inconsistent
   runtime and telemetry sources of truth.
 - If DSL source is treated as runtime source of truth too early, AGCP risks
@@ -354,22 +352,19 @@ Implemented:
 - lifecycle audit events;
 - active PolicyVersion Runtime Gateway evaluation with unversioned fallback;
 - `PolicyDecision.policy_version_id` and safe Evidence Bundle summaries;
-- frontend Policy Studio guardrails with Blocks/DSL, local validation,
-  disabled Submit for review, and no Publish button.
+- frontend Policy Studio guardrails with Blocks/DSL, PolicyVersion-backed Save
+  draft, local validation, disabled Submit for review, and no Publish button.
 
 Still unresolved:
 
-- Save draft still writes through existing Policy/PolicyRule APIs rather than
-  a clearly isolated draft-version workflow;
 - Submit for review is not wired;
 - formal review request object semantics are undecided;
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
-- single-active-version hardening remains a #68 implementation follow-up;
 - no review inbox, diff UI, reviewer assignment, or role-aware policy review
   workflow exists.
 
 Recommended next implementation issue: define and implement the PolicyVersion
-draft/review workflow contract for Policy Studio, but only after #68 clarifies
-activation, historical backfill, and single-active-version guardrails if that
-work includes activation semantics.
+review workflow contract for Policy Studio, but only after historical backfill
+and activation semantics are explicitly scoped if that work includes
+activation.

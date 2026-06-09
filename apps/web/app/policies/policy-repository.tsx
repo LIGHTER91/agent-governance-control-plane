@@ -232,7 +232,7 @@ function PolicyRuleList({
   if (rulesState.rules.length === 0) {
     return (
       <div className="ps2-repo-state compact">
-        <span>No PolicyRules yet. Save draft creates one.</span>
+        <span>No PolicyRules yet. Save draft creates a draft PolicyVersion snapshot.</span>
       </div>
     );
   }

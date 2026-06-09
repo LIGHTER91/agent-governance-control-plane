@@ -123,14 +123,16 @@ DataUsageProfile records remain governance metadata, not legal certification.
 The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
 states that runtime callers, not AGCP, execute tools and honor `proceed`.
-The Policy Studio uses the existing Policy and PolicyRule APIs. Code DSL and
-block editing are frontend authoring surfaces that compile to deterministic
-PolicyRule condition JSON. Local validation checks parser support, required
-fields, unsupported DSL syntax, selected Policy/PolicyRule state, and generated
-JSON shape; it does not simulate runtime impact or claim production enforcement
-coverage. Built-in templates are static authoring helpers, not backend records,
-and they never save automatically. Submit for review is not wired yet, and the
-UI intentionally has no direct Publish action.
+The Policy Studio uses existing Policy APIs for the Policy container and saves
+editor output as draft PolicyVersion snapshots. Code DSL and block editing are
+frontend authoring surfaces that compile to deterministic PolicyRule condition
+JSON inside the version snapshot. Local validation checks parser support,
+required fields, unsupported DSL syntax, selected Policy/PolicyRule state, and
+generated JSON shape; it does not simulate runtime impact or claim production
+enforcement coverage. Built-in templates are static authoring helpers, not
+backend records, and they never save automatically. Draft versions do not
+affect runtime until explicit activation. Submit for review is not wired yet,
+and the UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the
@@ -254,8 +256,8 @@ npm run build
 - Integration Hub does not implement adapter packages, execute tools, create or
   rotate API keys, or verify that a caller is enforcing Runtime Gateway
   decisions.
-- Policy Studio supports Policy/PolicyRule draft saving through existing APIs,
-  but Submit for review is not wired to a frontend lifecycle action yet.
+- Policy Studio Save draft writes draft PolicyVersion snapshots; Submit for
+  review is not wired to a frontend lifecycle action yet.
 - No PDF or signed Evidence Bundle export in the UI.
 - Runtime Gateway page is read-only and does not call runtime endpoints.
 - No charts or metrics.

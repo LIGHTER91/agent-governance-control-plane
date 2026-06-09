@@ -1,6 +1,10 @@
 "use client";
 
-import { PolicyRecord, PolicyRuleRecord } from "../lib/policies";
+import {
+  PolicyRecord,
+  PolicyRuleRecord,
+  PolicyVersionRecord
+} from "../lib/policies";
 import {
   ParsedPolicyDsl,
   PolicyCondition,
@@ -16,8 +20,10 @@ export function PolicyInspector({
   onSaveDraft,
   onValidate,
   parsed,
+  policyVersionsState,
   saveDisabledReason,
   saveState,
+  selectedDraftVersion,
   selectedPolicy,
   selectedRule,
   selectedRuleUnsupportedFields
@@ -35,14 +41,24 @@ export function PolicyInspector({
   onSaveDraft: () => void;
   onValidate: () => void;
   parsed: ParsedPolicyDsl;
+  policyVersionsState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; versions: PolicyVersionRecord[] };
   saveDisabledReason: string | null;
   saveState: { status: "idle" | "saving" | "success" | "error"; message: string };
+  selectedDraftVersion: PolicyVersionRecord | null;
   selectedPolicy: PolicyRecord | null;
   selectedRule: PolicyRuleRecord | null;
   selectedRuleUnsupportedFields: string[];
 }) {
-  const reviewStatus = selectedPolicy?.status || "local_draft";
+  const reviewStatus = selectedDraftVersion?.status || selectedPolicy?.status || "local_draft";
   const humanApprovalRequired = compiled.decision === "require_human_review";
+  const versionCount =
+    policyVersionsState.status === "ready"
+      ? String(policyVersionsState.versions.length)
+      : policyVersionsState.status;
 
   return (
     <aside className="ps2-inspector" aria-label="Policy inspector">
@@ -140,6 +156,23 @@ export function PolicyInspector({
               value={selectedRule?.id || "Not persisted"}
             />
             <ReviewRow
+              label="Draft version id"
+              value={selectedDraftVersion?.id || "No draft PolicyVersion saved"}
+            />
+            <ReviewRow
+              label="Draft status"
+              value={
+                selectedDraftVersion
+                  ? `${selectedDraftVersion.status} / not active / not submitted`
+                  : "Local only"
+              }
+            />
+            <ReviewRow label="Known versions" value={versionCount} />
+            <ReviewRow
+              label="Runtime impact"
+              value="None until explicit PolicyVersion activation"
+            />
+            <ReviewRow
               label="Unsupported fields"
               value={
                 selectedRuleUnsupportedFields.length > 0
@@ -159,7 +192,7 @@ export function PolicyInspector({
           <textarea
             className="ps2-review-note"
             onChange={(event) => onChangeLocalNote(event.target.value)}
-            placeholder="Local review/version note. Not persisted yet."
+            placeholder="Draft change summary. Saved on PolicyVersion drafts only."
             rows={3}
             value={localNote}
           />

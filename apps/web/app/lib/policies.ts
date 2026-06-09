@@ -9,6 +9,18 @@ export const POLICY_STATUSES = [
 
 export type PolicyStatus = (typeof POLICY_STATUSES)[number];
 
+export const POLICY_VERSION_STATUSES = [
+  "draft",
+  "under_review",
+  "approved",
+  "rejected",
+  "active",
+  "superseded",
+  "archived"
+] as const;
+
+export type PolicyVersionStatus = (typeof POLICY_VERSION_STATUSES)[number];
+
 export const POLICY_RULE_DECISIONS = [
   "allow",
   "deny",
@@ -169,6 +181,53 @@ export type PolicyRulePayload = {
   condition: string;
 };
 
+export type PolicyVersionRecord = {
+  id: string;
+  policy_id: string;
+  source_version_id: string | null;
+  version_number: number;
+  status: PolicyVersionStatus;
+  change_summary: string;
+  policy_snapshot: Record<string, unknown>;
+  rule_snapshots: Array<Record<string, unknown>>;
+  check_step_snapshots: Array<Record<string, unknown>>;
+  created_by_actor_type: string;
+  created_by_actor_id: string;
+  review_requested_by_actor_type: string | null;
+  review_requested_by_actor_id: string | null;
+  reviewed_by_actor_type: string | null;
+  reviewed_by_actor_id: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
+  activated_at: string | null;
+  superseded_at: string | null;
+  archived_at: string | null;
+};
+
+export type PolicyVersionDraftPolicySnapshotPayload = {
+  name: string;
+  description: string | null;
+  status: PolicyStatus;
+};
+
+export type PolicyVersionDraftRuleSnapshotPayload = {
+  id?: string;
+  name: string;
+  description: string | null;
+  condition: string;
+};
+
+export type PolicyVersionDraftPayload = {
+  change_summary: string;
+  policy_snapshot?: PolicyVersionDraftPolicySnapshotPayload;
+  rule_snapshots: PolicyVersionDraftRuleSnapshotPayload[];
+  check_step_snapshots?: Array<Record<string, unknown>>;
+};
+
 export async function fetchPolicies(
   signal?: AbortSignal
 ): Promise<PolicyRecord[]> {
@@ -222,6 +281,49 @@ export async function fetchPolicyRulesForPolicy(
     `/policies/${encodeURIComponent(policyId)}/rules`,
     {
       errorLabel: "GET /policies/{policy_id}/rules",
+      signal
+    }
+  );
+}
+
+export async function fetchPolicyVersionsForPolicy(
+  policyId: string,
+  signal?: AbortSignal
+): Promise<PolicyVersionRecord[]> {
+  return fetchApiArray<PolicyVersionRecord>(
+    `/policies/${encodeURIComponent(policyId)}/versions`,
+    {
+      errorLabel: "GET /policies/{policy_id}/versions",
+      signal
+    }
+  );
+}
+
+export async function createPolicyVersionDraft(
+  policyId: string,
+  payload: PolicyVersionDraftPayload,
+  signal?: AbortSignal
+): Promise<PolicyVersionRecord> {
+  return postApiJson<PolicyVersionRecord>(
+    `/policies/${encodeURIComponent(policyId)}/versions/draft`,
+    {
+      body: payload,
+      errorLabel: "POST /policies/{policy_id}/versions/draft",
+      signal
+    }
+  );
+}
+
+export async function updatePolicyVersionDraft(
+  policyVersionId: string,
+  payload: PolicyVersionDraftPayload,
+  signal?: AbortSignal
+): Promise<PolicyVersionRecord> {
+  return patchApiJson<PolicyVersionRecord>(
+    `/policy-versions/${encodeURIComponent(policyVersionId)}/draft`,
+    {
+      body: payload,
+      errorLabel: "PATCH /policy-versions/{policy_version_id}/draft",
       signal
     }
   );

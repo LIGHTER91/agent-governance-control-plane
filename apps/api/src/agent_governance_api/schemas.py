@@ -1116,6 +1116,50 @@ class PolicyVersionCreate(BaseModel):
         return value
 
 
+class PolicyVersionDraftPolicySnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str | None = None
+    status: PolicyStatus
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyVersion draft policy name must be non-empty.")
+        return value
+
+
+class PolicyVersionDraftRuleSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID | None = None
+    name: str
+    description: str | None = None
+    condition: str
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyVersion draft rule name must be non-empty.")
+        return value
+
+    @field_validator("condition")
+    @classmethod
+    def reject_invalid_condition(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyVersion draft rule condition must be non-empty.")
+        return validate_policy_rule_condition(value)
+
+
+class PolicyVersionDraftPayload(PolicyVersionCreate):
+    policy_snapshot: PolicyVersionDraftPolicySnapshot | None = None
+    rule_snapshots: list[PolicyVersionDraftRuleSnapshot] = Field(min_length=1)
+    check_step_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class PolicyVersionReviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

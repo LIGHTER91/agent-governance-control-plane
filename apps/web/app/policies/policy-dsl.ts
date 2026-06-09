@@ -598,7 +598,7 @@ export function localValidationMessages(parsed: ParsedPolicyDsl) {
   });
   messages.push({
     tone: "info",
-    text: "No backend simulation endpoint wired; Save draft required before runtime policies can use this rule"
+    text: "No backend simulation endpoint wired; Save draft creates a draft PolicyVersion and does not affect runtime until activation"
   });
 
   return messages;

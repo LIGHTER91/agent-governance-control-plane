@@ -258,6 +258,60 @@ def test_runtime_ignores_policy_versions_that_are_not_active(
     assert policy_decision.rule_id == rule_id
 
 
+def test_runtime_ignores_policy_version_draft_saved_from_editor(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Live fallback rule is still used.",
+    )
+
+    draft_response = client.post(
+        f"/policies/{policy_id}/versions/draft",
+        json={
+            "change_summary": "Policy Studio draft should not affect runtime.",
+            "policy_snapshot": {
+                "name": "Draft runtime guard",
+                "description": "Drafted in Policy Studio.",
+                "status": "active",
+            },
+            "rule_snapshots": [
+                {
+                    "id": str(rule_id),
+                    "name": "Draft runtime deny rule",
+                    "description": "Compiled from Policy Studio.",
+                    "condition": json.dumps(
+                        {
+                            "decision": "deny",
+                            "reason": "Draft snapshot should not be used.",
+                            "tool_name": "send_email",
+                        }
+                    ),
+                }
+            ],
+        },
+    )
+    assert draft_response.status_code == 201
+    assert draft_response.json()["status"] == "draft"
+
+    response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "allow"
+    assert body["reason"] == "Live fallback rule is still used."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.policy_version_id is None
+    assert policy_decision.rule_id == rule_id
+
+
 def test_runtime_active_policy_version_preserves_decision_precedence(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

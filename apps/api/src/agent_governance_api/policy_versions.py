@@ -22,9 +22,11 @@ from agent_governance_api.models import (
     PolicyRule,
     PolicyVersion,
     PolicyVersionStatus,
+    reject_unsafe_snapshot_keys,
 )
 from agent_governance_api.schemas import (
     PolicyVersionCreate,
+    PolicyVersionDraftPayload,
     PolicyVersionRead,
     PolicyVersionReviewRequest,
 )
@@ -93,6 +95,56 @@ def create_policy_version(
     return version
 
 
+@policies_router.post(
+    "/{policy_id}/versions/draft",
+    response_model=PolicyVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_policy_version_draft(
+    policy_id: UUID,
+    payload: PolicyVersionDraftPayload,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersion:
+    policy = _get_policy_or_404(session, policy_id)
+    policy_snapshot, rule_snapshots, check_step_snapshots = (
+        _snapshots_from_draft_payload(session, policy, payload)
+    )
+    now = datetime.now(UTC)
+    version = PolicyVersion(
+        id=uuid4(),
+        policy_id=policy.id,
+        version_number=_next_version_number(session, policy.id),
+        status=PolicyVersionStatus.DRAFT,
+        change_summary=payload.change_summary,
+        policy_snapshot=policy_snapshot,
+        rule_snapshots=rule_snapshots,
+        check_step_snapshots=check_step_snapshots,
+        created_by_actor_type=actor.actor_type,
+        created_by_actor_id=actor.actor_id,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(version)
+    session.flush()
+    _append_policy_version_audit(
+        session,
+        version,
+        event_type="policy_version_created",
+        actor=actor,
+        summary="PolicyVersion draft created from editor snapshot.",
+        metadata={
+            "change_summary": _audit_text(payload.change_summary),
+            "snapshot_source": "policy_studio",
+            "rule_snapshot_count": len(rule_snapshots),
+            "check_step_snapshot_count": len(check_step_snapshots),
+        },
+    )
+    session.commit()
+    session.refresh(version)
+    return version
+
+
 @policies_router.get(
     "/{policy_id}/versions",
     response_model=list[PolicyVersionRead],
@@ -119,6 +171,51 @@ def get_policy_version(
     session: Session = Depends(get_db_session),
 ) -> PolicyVersion:
     return _get_policy_version_or_404(session, version_id)
+
+
+@router.patch(
+    "/{version_id}/draft",
+    response_model=PolicyVersionRead,
+)
+def update_policy_version_draft(
+    version_id: UUID,
+    payload: PolicyVersionDraftPayload,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersion:
+    version = _get_policy_version_or_404(session, version_id)
+    _require_status(
+        version,
+        {PolicyVersionStatus.DRAFT},
+        "Only draft policy versions can be updated.",
+    )
+    policy = _get_policy_or_404(session, version.policy_id)
+    policy_snapshot, rule_snapshots, check_step_snapshots = (
+        _snapshots_from_draft_payload(session, policy, payload)
+    )
+
+    now = datetime.now(UTC)
+    version.change_summary = payload.change_summary
+    version.policy_snapshot = policy_snapshot
+    version.rule_snapshots = rule_snapshots
+    version.check_step_snapshots = check_step_snapshots
+    version.updated_at = now
+    _append_policy_version_audit(
+        session,
+        version,
+        event_type="policy_version_draft_updated",
+        actor=actor,
+        summary="PolicyVersion draft updated from editor snapshot.",
+        metadata={
+            "change_summary": _audit_text(payload.change_summary),
+            "snapshot_source": "policy_studio",
+            "rule_snapshot_count": len(rule_snapshots),
+            "check_step_snapshot_count": len(check_step_snapshots),
+        },
+    )
+    session.commit()
+    session.refresh(version)
+    return version
 
 
 @router.post(
@@ -248,37 +345,9 @@ def activate_policy_version(
         {PolicyVersionStatus.APPROVED},
         "Only approved policy versions can be activated.",
     )
+    _require_no_other_active_policy_version(session, version)
 
     now = datetime.now(UTC)
-    active_versions = list(
-        session.scalars(
-            select(PolicyVersion)
-            .where(
-                PolicyVersion.policy_id == version.policy_id,
-                PolicyVersion.status == PolicyVersionStatus.ACTIVE,
-                PolicyVersion.id != version.id,
-            )
-            .order_by(PolicyVersion.version_number, PolicyVersion.id)
-        ).all()
-    )
-    for active_version in active_versions:
-        previous_status = active_version.status
-        active_version.status = PolicyVersionStatus.SUPERSEDED
-        active_version.superseded_at = now
-        active_version.updated_at = now
-        _append_policy_version_audit(
-            session,
-            active_version,
-            event_type="policy_version_superseded",
-            actor=actor,
-            summary="PolicyVersion superseded.",
-            metadata={
-                **_transition_metadata(previous_status, active_version.status),
-                "superseded_by_version_id": str(version.id),
-                "superseded_by_version_number": version.version_number,
-            },
-        )
-
     previous_status = version.status
     version.status = PolicyVersionStatus.ACTIVE
     version.activated_at = now
@@ -440,8 +509,100 @@ def _snapshot_policy(
         for rule in rules
     ]
 
-    steps_by_rule_id: defaultdict[UUID, list[PolicyCheckStep]] = defaultdict(list)
     rule_ids = [rule.id for rule in rules]
+    check_step_snapshots = _snapshot_check_steps_for_rule_ids(session, rule_ids)
+    policy_snapshot = {
+        "id": str(policy.id),
+        "name": policy.name,
+        "description": policy.description,
+        "status": policy.status.value,
+    }
+    return policy_snapshot, rule_snapshots, check_step_snapshots
+
+
+def _snapshots_from_draft_payload(
+    session: Session,
+    policy: Policy,
+    payload: PolicyVersionDraftPayload,
+) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]:
+    policy_payload = payload.policy_snapshot
+    policy_snapshot = {
+        "id": str(policy.id),
+        "name": policy_payload.name if policy_payload is not None else policy.name,
+        "description": policy_payload.description
+        if policy_payload is not None
+        else policy.description,
+        "status": (
+            policy_payload.status.value
+            if policy_payload is not None
+            else policy.status.value
+        ),
+    }
+
+    rule_snapshots: list[dict[str, object]] = []
+    rule_ids: list[UUID] = []
+    _require_rule_ids_belong_to_policy(
+        session,
+        policy.id,
+        [rule_payload.id for rule_payload in payload.rule_snapshots],
+    )
+    for rule_payload in payload.rule_snapshots:
+        rule_id = rule_payload.id or uuid4()
+        rule_ids.append(rule_id)
+        rule_snapshots.append(
+            {
+                "id": str(rule_id),
+                "policy_id": str(policy.id),
+                "name": rule_payload.name,
+                "description": rule_payload.description,
+                "condition": rule_payload.condition,
+            }
+        )
+
+    if payload.check_step_snapshots:
+        check_step_snapshots = deepcopy(payload.check_step_snapshots)
+        try:
+            reject_unsafe_snapshot_keys(
+                check_step_snapshots,
+                field_name="check_step_snapshots",
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
+    else:
+        check_step_snapshots = _snapshot_check_steps_for_rule_ids(session, rule_ids)
+
+    return policy_snapshot, rule_snapshots, check_step_snapshots
+
+
+def _require_rule_ids_belong_to_policy(
+    session: Session,
+    policy_id: UUID,
+    rule_ids: list[UUID | None],
+) -> None:
+    provided_rule_ids = [rule_id for rule_id in rule_ids if rule_id is not None]
+    if not provided_rule_ids:
+        return
+
+    statement = select(PolicyRule).where(PolicyRule.id.in_(provided_rule_ids))
+    for rule in session.scalars(statement).all():
+        if rule.policy_id != policy_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    "PolicyVersion draft rule snapshot id must belong to the "
+                    "target Policy."
+                ),
+            )
+
+
+def _snapshot_check_steps_for_rule_ids(
+    session: Session,
+    rule_ids: list[UUID],
+) -> list[dict[str, object]]:
+    steps_by_rule_id: defaultdict[UUID, list[PolicyCheckStep]] = defaultdict(list)
     if rule_ids:
         steps = list(
             session.scalars(
@@ -453,18 +614,11 @@ def _snapshot_policy(
         for step in steps:
             steps_by_rule_id[step.policy_rule_id].append(step)
 
-    check_step_snapshots = [
+    return [
         _snapshot_check_step(step)
-        for rule in rules
-        for step in steps_by_rule_id[rule.id]
+        for rule_id in rule_ids
+        for step in steps_by_rule_id[rule_id]
     ]
-    policy_snapshot = {
-        "id": str(policy.id),
-        "name": policy.name,
-        "description": policy.description,
-        "status": policy.status.value,
-    }
-    return policy_snapshot, rule_snapshots, check_step_snapshots
 
 
 def _snapshot_check_step(step: PolicyCheckStep) -> dict[str, object]:
@@ -493,6 +647,30 @@ def _require_status(
     if version.status in allowed_statuses:
         return
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+def _require_no_other_active_policy_version(
+    session: Session,
+    version: PolicyVersion,
+) -> None:
+    active_version = session.scalar(
+        select(PolicyVersion)
+        .where(
+            PolicyVersion.policy_id == version.policy_id,
+            PolicyVersion.status == PolicyVersionStatus.ACTIVE,
+            PolicyVersion.id != version.id,
+        )
+        .order_by(PolicyVersion.version_number, PolicyVersion.id)
+    )
+    if active_version is None:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "Policy already has an active PolicyVersion. Archive the active "
+            "version before activating another."
+        ),
+    )
 
 
 def _append_policy_version_audit(

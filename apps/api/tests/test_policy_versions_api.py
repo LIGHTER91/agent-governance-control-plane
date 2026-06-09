@@ -117,6 +117,176 @@ def test_create_policy_version_snapshots_policy_rules_and_check_steps(
     assert "runtime_metadata_pre_check" not in str(audit_log.metadata_)
 
 
+def test_create_policy_version_draft_from_editor_payload(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    rule_id = create_policy_rule(client, policy_id=policy_id)
+    step_id = create_policy_check_step(client, policy_rule_id=rule_id)
+
+    response = client.post(
+        f"/policies/{policy_id}/versions/draft",
+        json={
+            "change_summary": "Policy Studio draft save.",
+            "policy_snapshot": {
+                "name": "Policy Studio email guard",
+                "description": "Drafted in Policy Studio.",
+                "status": "draft",
+            },
+            "rule_snapshots": [
+                {
+                    "id": rule_id,
+                    "name": "Studio email deny rule",
+                    "description": "Compiled from Policy Studio.",
+                    "condition": (
+                        '{"decision":"deny",'
+                        '"reason":"Email tool use is blocked in this draft.",'
+                        '"tool_name":"send_email"}'
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["policy_id"] == policy_id
+    assert body["version_number"] == 1
+    assert body["status"] == "draft"
+    assert body["activated_at"] is None
+    assert body["policy_snapshot"] == {
+        "id": policy_id,
+        "name": "Policy Studio email guard",
+        "description": "Drafted in Policy Studio.",
+        "status": "draft",
+    }
+    assert body["rule_snapshots"] == [
+        {
+            "id": rule_id,
+            "policy_id": policy_id,
+            "name": "Studio email deny rule",
+            "description": "Compiled from Policy Studio.",
+            "condition": (
+                '{"decision":"deny",'
+                '"reason":"Email tool use is blocked in this draft.",'
+                '"tool_name":"send_email"}'
+            ),
+        }
+    ]
+    assert body["check_step_snapshots"] == [
+        {
+            "id": step_id,
+            "policy_rule_id": rule_id,
+            "check_tool_id": None,
+            "check_type": "data_usage_profile_status",
+            "target_selector": "source_ids",
+            "required": True,
+            "failure_behavior": "require_human_review",
+            "min_confidence": 0.8,
+            "status": "active",
+            "evidence_retention": "evidence_bundle",
+            "metadata": {"purpose": "runtime_metadata_pre_check"},
+        }
+    ]
+
+    audit_log = fetch_audit_logs(session_factory)[-1]
+    assert audit_log.event_type == "policy_version_created"
+    assert audit_log.metadata_ == {
+        "policy_id": policy_id,
+        "version_number": 1,
+        "status": "draft",
+        "change_summary": "Policy Studio draft save.",
+        "snapshot_source": "policy_studio",
+        "rule_snapshot_count": 1,
+        "check_step_snapshot_count": 1,
+    }
+
+
+def test_update_policy_version_draft_from_editor_payload(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    draft = create_policy_version_draft(client, policy_id=policy_id)
+
+    response = client.patch(
+        f"/policy-versions/{draft['id']}/draft",
+        json={
+            "change_summary": "Updated Policy Studio draft.",
+            "policy_snapshot": {
+                "name": "Updated email guard",
+                "description": "Updated in Policy Studio.",
+                "status": "draft",
+            },
+            "rule_snapshots": [
+                {
+                    "name": "Updated email rule",
+                    "description": "Compiled from updated editor state.",
+                    "condition": (
+                        '{"decision":"allow",'
+                        '"reason":"Email tool use is allowed in this draft.",'
+                        '"tool_name":"send_email"}'
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == draft["id"]
+    assert body["version_number"] == draft["version_number"]
+    assert body["status"] == "draft"
+    assert body["change_summary"] == "Updated Policy Studio draft."
+    assert body["policy_snapshot"]["name"] == "Updated email guard"
+    assert body["rule_snapshots"][0]["name"] == "Updated email rule"
+    assert body["rule_snapshots"][0]["policy_id"] == policy_id
+    assert UUID(body["rule_snapshots"][0]["id"])
+    assert body["activated_at"] is None
+
+    audit_log = fetch_audit_logs(session_factory)[-1]
+    assert audit_log.event_type == "policy_version_draft_updated"
+    assert audit_log.metadata_["snapshot_source"] == "policy_studio"
+    assert audit_log.metadata_["rule_snapshot_count"] == 1
+    assert audit_log.metadata_["check_step_snapshot_count"] == 0
+
+
+def test_update_non_draft_policy_version_fails(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    draft = create_policy_version_draft(client, policy_id=policy_id)
+    client.post(f"/policy-versions/{draft['id']}/submit-review")
+
+    response = client.patch(
+        f"/policy-versions/{draft['id']}/draft",
+        json=policy_version_draft_payload(),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Only draft policy versions can be updated."
+
+
+def test_policy_version_draft_rejects_rule_id_from_another_policy(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client, name="Email policy")
+    other_policy_id = create_policy(client, name="Payment policy")
+    other_rule_id = create_policy_rule(client, policy_id=other_policy_id)
+
+    payload = policy_version_draft_payload()
+    payload["rule_snapshots"][0]["id"] = other_rule_id
+    response = client.post(f"/policies/{policy_id}/versions/draft", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "PolicyVersion draft rule snapshot id must belong to the target Policy."
+    )
+
+
 def test_list_and_get_policy_versions(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -179,7 +349,7 @@ def test_policy_version_review_and_activation_lifecycle(
     ]
 
 
-def test_activating_policy_version_supersedes_existing_active_version(
+def test_activating_second_policy_version_for_same_policy_fails(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
     client, session_factory = api_client
@@ -195,18 +365,39 @@ def test_activating_policy_version_supersedes_existing_active_version(
     activated_second = client.post(f"/policy-versions/{second['id']}/activate")
     refreshed_first = client.get(f"/policy-versions/{first['id']}")
 
-    assert activated_second.status_code == 200
-    assert activated_second.json()["status"] == "active"
+    assert activated_second.status_code == 409
+    assert activated_second.json()["detail"] == (
+        "Policy already has an active PolicyVersion. Archive the active version "
+        "before activating another."
+    )
     assert refreshed_first.status_code == 200
-    assert refreshed_first.json()["status"] == "superseded"
-    assert refreshed_first.json()["superseded_at"] is not None
+    assert refreshed_first.json()["status"] == "active"
+    assert refreshed_first.json()["superseded_at"] is None
 
     event_types = [log.event_type for log in fetch_audit_logs(session_factory)]
-    assert "policy_version_superseded" in event_types
-    assert set(event_types[-2:]) == {
-        "policy_version_superseded",
-        "policy_version_activated",
-    }
+    assert "policy_version_superseded" not in event_types
+    assert event_types.count("policy_version_activated") == 1
+
+
+def test_active_policy_versions_for_different_policies_are_allowed(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    first_policy_id = create_policy(client, name="Email policy")
+    second_policy_id = create_policy(client, name="Payment policy")
+
+    first = approve_and_activate_policy_version(
+        client,
+        create_policy_version(client, policy_id=first_policy_id),
+    )
+    second = approve_and_activate_policy_version(
+        client,
+        create_policy_version(client, policy_id=second_policy_id),
+    )
+
+    assert first["status"] == "active"
+    assert second["status"] == "active"
+    assert first["policy_id"] != second["policy_id"]
 
 
 def test_policy_version_invalid_transitions_return_conflict(
@@ -335,13 +526,18 @@ def approve_and_activate_policy_version(
     return response.json()
 
 
-def create_policy(client: TestClient, *, name: str = "Email policy") -> str:
+def create_policy(
+    client: TestClient,
+    *,
+    name: str = "Email policy",
+    status: str = "draft",
+) -> str:
     response = client.post(
         "/policies",
         json={
             "name": name,
             "description": "Governed email policy.",
-            "status": "draft",
+            "status": status,
         },
     )
 
@@ -406,6 +602,46 @@ def create_policy_version(
 
     assert response.status_code == 201
     return response.json()
+
+
+def create_policy_version_draft(
+    client: TestClient,
+    *,
+    policy_id: str,
+    change_summary: str = "Policy Studio draft save.",
+) -> dict[str, object]:
+    response = client.post(
+        f"/policies/{policy_id}/versions/draft",
+        json=policy_version_draft_payload(change_summary=change_summary),
+    )
+
+    assert response.status_code == 201
+    return response.json()
+
+
+def policy_version_draft_payload(
+    *,
+    change_summary: str = "Policy Studio draft save.",
+) -> dict[str, object]:
+    return {
+        "change_summary": change_summary,
+        "policy_snapshot": {
+            "name": "Policy Studio email guard",
+            "description": "Drafted in Policy Studio.",
+            "status": "draft",
+        },
+        "rule_snapshots": [
+            {
+                "name": "Studio email review rule",
+                "description": "Compiled from Policy Studio.",
+                "condition": (
+                    '{"decision":"require_human_review",'
+                    '"reason":"Email tool use requires review in this draft.",'
+                    '"tool_name":"send_email"}'
+                ),
+            }
+        ],
+    }
 
 
 def fetch_audit_logs(session_factory: SessionFactory) -> list[AuditLog]:
