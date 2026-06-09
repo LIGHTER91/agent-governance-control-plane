@@ -1,4 +1,5 @@
 import { HumanApprovalsList } from "./human-approvals-list";
+import { PolicyReviewsList } from "./policy-reviews-list";
 
 export default function HumanApprovalsPage() {
   return (
@@ -8,11 +9,13 @@ export default function HumanApprovalsPage() {
         <h2>Human Approvals</h2>
         <p>
           Review HumanApproval records from the backend API as a governance
-          queue. This page keeps reviewer, requester, policy decision, status,
-          and timestamp context visible without inventing approval records.
+          queue. This page also shows PolicyVersion review requests for draft
+          policy snapshots. Review approval does not activate runtime policy
+          versions.
         </p>
       </section>
 
+      <PolicyReviewsList />
       <HumanApprovalsList />
     </>
   );

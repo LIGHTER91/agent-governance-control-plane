@@ -40,6 +40,7 @@ from agent_governance_api.models import (
     PolicyCheckStepTargetSelector,
     PolicyDecisionValue,
     PolicyStatus,
+    PolicyVersionReviewRequestStatus,
     PolicyVersionStatus,
     RiskLevel,
     ServiceActorApiKeyStatus,
@@ -1200,6 +1201,51 @@ class PolicyVersionRead(BaseModel):
     activated_at: datetime | None = None
     superseded_at: datetime | None = None
     archived_at: datetime | None = None
+
+
+class PolicyVersionReviewRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_note: str | None = None
+
+    @field_validator("request_note")
+    @classmethod
+    def reject_blank_request_note(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyVersion review request_note must be non-empty.")
+        return value
+
+
+class PolicyVersionReviewDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision_note: str | None = None
+
+    @field_validator("decision_note")
+    @classmethod
+    def reject_blank_decision_note(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyVersion review decision_note must be non-empty.")
+        return value
+
+
+class PolicyVersionReviewRequestRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    policy_version_id: UUID
+    policy_id: UUID
+    status: PolicyVersionReviewRequestStatus
+    requested_by_actor_type: ActorType
+    requested_by_actor_id: str
+    reviewer_actor_type: ActorType | None = None
+    reviewer_actor_id: str | None = None
+    request_note: str | None = None
+    decision_note: str | None = None
+    created_at: datetime
+    decided_at: datetime | None = None
+    policy_name: str | None = None
+    policy_version_number: int | None = None
 
 
 class PolicyRuleBase(BaseModel):

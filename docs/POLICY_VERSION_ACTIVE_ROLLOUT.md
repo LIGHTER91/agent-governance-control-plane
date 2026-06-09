@@ -251,8 +251,12 @@ Remaining target behavior:
 - Historical backfill, if needed, is explicit and conservative.
 - Policy Studio Save draft writes draft PolicyVersion snapshots and does not
   affect runtime until activation.
-- Frontend Submit for review and any activation workflow are only enabled after
-  the remaining semantics are implemented and validated.
+- Policy Studio Submit for review creates a dedicated pending
+  PolicyVersionReviewRequest for a saved draft snapshot and does not affect
+  runtime.
+- Review approval and rejection record reviewer intent only; they do not
+  activate a PolicyVersion.
+- Activation remains an explicit future workflow.
 
 ## Rollout Sequence
 
@@ -279,8 +283,8 @@ Recommended sequence:
    explicit administrative migration/report path, not as automatic runtime
    behavior.
 8. Policy Studio Save draft writes draft PolicyVersion snapshots. Implemented.
-9. Only after the above, implement Policy Studio Submit for review and review
-   workflow wiring.
+9. Add Policy Studio Submit for review and a minimal Policy Reviews queue with
+   no activation side effects. Implemented.
 10. Keep Publish out of the UI unless a later issue explicitly defines reviewed
    activation semantics.
 
@@ -289,17 +293,18 @@ Recommended sequence:
 Recommended next implementation issues:
 
 1. Decide and document whether historical PolicyDecision backfill is required.
-2. Define and implement PolicyVersion Submit for review semantics without
-   adding Publish or activation shortcuts.
+2. Define explicit PolicyVersion activation semantics without adding a direct
+   Publish shortcut.
+3. Add review diff, reviewer assignment, and rollback-copy UX only after the
+   activation contract is settled.
 
 ## Non-goals
 
-- No frontend UI.
 - No Publish button.
-- No Submit for review implementation.
 - No fake activation semantics.
 - No policy simulation engine.
 - No legal compliance certification claims.
 - No orchestration or tool execution.
 - No broad enterprise GRC workflow.
-- No review or activation workflow beyond the single-active guard.
+- No activation workflow beyond the single-active guard.
+- No review workflow side effects on runtime evaluation.

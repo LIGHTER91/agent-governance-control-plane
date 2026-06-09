@@ -15,6 +15,12 @@ from agent_governance_api.policy_check_steps import (
 )
 from agent_governance_api.policy_check_steps import router as policy_check_steps_router
 from agent_governance_api.policy_rules import router as policy_rules_router
+from agent_governance_api.policy_version_review_requests import (
+    policy_versions_router as policy_version_review_policy_versions_router,
+)
+from agent_governance_api.policy_version_review_requests import (
+    router as policy_version_review_requests_router,
+)
 from agent_governance_api.policy_versions import (
     policies_router as policy_versions_policies_router,
 )
@@ -44,6 +50,8 @@ app.include_router(model_assets_router)
 app.include_router(policies_router)
 app.include_router(policy_versions_policies_router)
 app.include_router(policy_versions_router)
+app.include_router(policy_version_review_policy_versions_router)
+app.include_router(policy_version_review_requests_router)
 app.include_router(policy_check_steps_router)
 app.include_router(policy_check_steps_policy_rules_router)
 app.include_router(policy_rules_router)

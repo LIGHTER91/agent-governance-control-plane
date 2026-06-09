@@ -3,6 +3,7 @@
 import {
   PolicyRecord,
   PolicyRuleRecord,
+  PolicyVersionReviewRequestRecord,
   PolicyVersionRecord
 } from "../lib/policies";
 import {
@@ -18,9 +19,13 @@ export function PolicyInspector({
   localNote,
   onChangeLocalNote,
   onSaveDraft,
+  onSubmitReview,
   onValidate,
+  pendingReviewRequest,
   parsed,
   policyVersionsState,
+  reviewRequestsState,
+  reviewState,
   saveDisabledReason,
   saveState,
   selectedDraftVersion,
@@ -39,13 +44,24 @@ export function PolicyInspector({
   localNote: string;
   onChangeLocalNote: (note: string) => void;
   onSaveDraft: () => void;
+  onSubmitReview: () => void;
   onValidate: () => void;
+  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
   parsed: ParsedPolicyDsl;
   policyVersionsState:
     | { status: "idle" }
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; versions: PolicyVersionRecord[] };
+  reviewRequestsState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
+  reviewState: {
+    status: "idle" | "submitting" | "success" | "error";
+    message: string;
+  };
   saveDisabledReason: string | null;
   saveState: { status: "idle" | "saving" | "success" | "error"; message: string };
   selectedDraftVersion: PolicyVersionRecord | null;
@@ -59,6 +75,17 @@ export function PolicyInspector({
     policyVersionsState.status === "ready"
       ? String(policyVersionsState.versions.length)
       : policyVersionsState.status;
+  const reviewRequestCount =
+    reviewRequestsState.status === "ready"
+      ? String(reviewRequestsState.requests.length)
+      : reviewRequestsState.status;
+  const submitDisabledReason = submitReviewDisabledReason({
+    pendingReviewRequest,
+    reviewState,
+    saveDisabledReason,
+    saveState,
+    selectedDraftVersion
+  });
 
   return (
     <aside className="ps2-inspector" aria-label="Policy inspector">
@@ -163,11 +190,20 @@ export function PolicyInspector({
               label="Draft status"
               value={
                 selectedDraftVersion
-                  ? `${selectedDraftVersion.status} / not active / not submitted`
+                  ? `${selectedDraftVersion.status} / not active`
                   : "Local only"
               }
             />
             <ReviewRow label="Known versions" value={versionCount} />
+            <ReviewRow label="Pending review requests" value={reviewRequestCount} />
+            <ReviewRow
+              label="Review request"
+              value={
+                pendingReviewRequest
+                  ? `${pendingReviewRequest.id} / pending`
+                  : "Not submitted"
+              }
+            />
             <ReviewRow
               label="Runtime impact"
               value="None until explicit PolicyVersion activation"
@@ -188,6 +224,12 @@ export function PolicyInspector({
               label="Save state"
               value={saveState.status === "idle" ? "No save attempted" : saveState.message}
             />
+            <ReviewRow
+              label="Review state"
+              value={
+                reviewState.status === "idle" ? "No review request" : reviewState.message
+              }
+            />
           </div>
           <textarea
             className="ps2-review-note"
@@ -205,6 +247,11 @@ export function PolicyInspector({
         ) : saveState.status === "error" || saveState.status === "success" ? (
           <div className={`ps2-save-state ${saveState.status}`}>
             {saveState.message}
+          </div>
+        ) : null}
+        {reviewState.status === "error" || reviewState.status === "success" ? (
+          <div className={`ps2-save-state ${reviewState.status}`}>
+            {reviewState.message}
           </div>
         ) : null}
         <div className="ps2-act-row">
@@ -226,15 +273,57 @@ export function PolicyInspector({
         </div>
         <button
           className="ps2-act-btn ps2-btn-submit"
-          disabled
-          title="Submit for review is not wired to a backend lifecycle endpoint in this frontend flow yet."
+          disabled={Boolean(submitDisabledReason)}
+          onClick={onSubmitReview}
+          title={
+            submitDisabledReason ||
+            "Submit creates a PolicyVersion review request. Approval does not activate this version."
+          }
           type="button"
         >
-          Submit for review
+          {reviewState.status === "submitting" ? "Submitting" : "Submit for review"}
         </button>
+        {submitDisabledReason ? (
+          <div className="ps2-save-state error">{submitDisabledReason}</div>
+        ) : (
+          <div className="ps2-save-state success">
+            Review approval does not activate this version.
+          </div>
+        )}
       </div>
     </aside>
   );
+}
+
+function submitReviewDisabledReason({
+  pendingReviewRequest,
+  reviewState,
+  saveDisabledReason,
+  saveState,
+  selectedDraftVersion
+}: {
+  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
+  reviewState: { status: "idle" | "submitting" | "success" | "error"; message: string };
+  saveDisabledReason: string | null;
+  saveState: { status: "idle" | "saving" | "success" | "error"; message: string };
+  selectedDraftVersion: PolicyVersionRecord | null;
+}) {
+  if (!selectedDraftVersion) {
+    return "Save a draft PolicyVersion before submitting for review.";
+  }
+  if (saveDisabledReason) {
+    return saveDisabledReason;
+  }
+  if (saveState.status === "saving" || reviewState.status === "submitting") {
+    return "A save or review request is already in progress.";
+  }
+  if (saveState.status !== "success" && reviewState.status !== "success") {
+    return "Save the current editor state before submitting for review.";
+  }
+  if (pendingReviewRequest) {
+    return "This draft PolicyVersion already has a pending review request.";
+  }
+  return null;
 }
 
 function FlowNode({

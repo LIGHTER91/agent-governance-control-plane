@@ -73,8 +73,10 @@ compilation to supported `PolicyRule.condition` fields, an inspector, and Save
 draft through draft `PolicyVersion` snapshots. Unsupported DSL lines block
 saving. Templates are static helpers, not backend records. Local validation is
 not runtime simulation. Draft versions do not affect runtime until explicit
-activation. Submit for review is still disabled, and there is no direct Publish
-action. Access Grants are inventory declarations
+activation. Submit for review now creates a dedicated
+PolicyVersionReviewRequest for a saved draft snapshot; approval or rejection
+does not activate the version. There is no direct Publish action. Access Grants
+are inventory declarations
 only; they are not enforced by runtime policy evaluation yet. Evidence Bundle
 export includes Agent-scoped Access Grants and safe Capability, Source, and ModelAsset
 references plus safe Data Usage Profile summaries for granted Sources, but it
@@ -136,8 +138,10 @@ linked CheckResult records. Runtime Gateway evaluates active PolicyVersion
 snapshots where available and falls back to unversioned Policy/PolicyRule rows
 for Policies without an active version. #56 remains needed but narrowed:
 Policy Studio Save draft now writes draft PolicyVersion snapshots, Submit for
-review is disabled, formal review request semantics are undecided, and review
-UI/inbox/diff behavior has not been implemented.
+review creates a dedicated pending PolicyVersionReviewRequest for a saved draft
+snapshot, and approval or rejection has no runtime activation side effect.
+Explicit activation semantics, review diff and assignment behavior,
+rollback-copy UX, and historical backfill remain follow-ups.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -433,7 +437,7 @@ Recommended next work:
   document covering grammar, storage/versioning, diffs, and unsupported-field
   behavior.
 - Use the refreshed #56 policy versioning and review guardrails to define
-  review request semantics before wiring the frontend Submit for review action.
+  explicit activation, review diff and assignment, and rollback-copy semantics.
 - Implement the remaining #68 follow-up before exposing activation, Publish, or
   runtime source-of-truth semantics: decide historical PolicyDecision backfill.
 - Add guided PolicyCheckStep UI support only after versioning, review, and
@@ -535,7 +539,9 @@ Planned capabilities:
   connection patterns, Service Actor expectations, setup snippets, and
   non-orchestrator boundaries.
 - Policy versioning and review UI after #56 guardrails and #68 historical
-  backfill decisions are complete.
+  backfill decisions are complete. A minimal Submit for review and Policy
+  Reviews queue exists; explicit activation, diff, assignment, and
+  rollback-copy UX remain follow-ups.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

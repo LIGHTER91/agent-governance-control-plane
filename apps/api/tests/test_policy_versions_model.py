@@ -17,13 +17,20 @@ from agent_governance_api.models import (
     Policy,
     PolicyStatus,
     PolicyVersion,
+    PolicyVersionReviewRequest,
+    PolicyVersionReviewRequestStatus,
     PolicyVersionStatus,
 )
 from agent_governance_api.schemas import (
     PolicyVersionCreate,
     PolicyVersionDraftPayload,
     PolicyVersionRead,
-    PolicyVersionReviewRequest,
+    PolicyVersionReviewDecisionRequest,
+    PolicyVersionReviewRequestCreate,
+    PolicyVersionReviewRequestRead,
+)
+from agent_governance_api.schemas import (
+    PolicyVersionReviewRequest as PolicyVersionLifecycleReviewRequest,
 )
 
 
@@ -36,6 +43,15 @@ def test_policy_version_status_enum_has_expected_values() -> None:
         "active",
         "superseded",
         "archived",
+    ]
+
+
+def test_policy_version_review_request_status_enum_has_expected_values() -> None:
+    assert [item.value for item in PolicyVersionReviewRequestStatus] == [
+        "pending",
+        "approved",
+        "rejected",
+        "canceled",
     ]
 
 
@@ -93,12 +109,52 @@ def test_policy_version_draft_schema_validates_editor_snapshot() -> None:
 
 
 def test_policy_version_review_schema_rejects_blank_note() -> None:
-    request = PolicyVersionReviewRequest(review_note="Reviewed with owner.")
+    request = PolicyVersionLifecycleReviewRequest(review_note="Reviewed with owner.")
 
     assert request.review_note == "Reviewed with owner."
 
     with pytest.raises(ValidationError):
-        PolicyVersionReviewRequest(review_note=" ")
+        PolicyVersionLifecycleReviewRequest(review_note=" ")
+
+
+def test_policy_version_review_request_schemas_validate_notes() -> None:
+    create_request = PolicyVersionReviewRequestCreate(
+        request_note="Ready for review.",
+    )
+    decision_request = PolicyVersionReviewDecisionRequest(
+        decision_note="Approved for activation planning.",
+    )
+    timestamp = datetime.now(UTC)
+    read_record = SimpleNamespace(
+        id=uuid4(),
+        policy_version_id=uuid4(),
+        policy_id=uuid4(),
+        status=PolicyVersionReviewRequestStatus.PENDING,
+        requested_by_actor_type=ActorType.DEVELOPMENT,
+        requested_by_actor_id="dev-placeholder",
+        reviewer_actor_type=None,
+        reviewer_actor_id=None,
+        request_note="Ready for review.",
+        decision_note=None,
+        created_at=timestamp,
+        decided_at=None,
+        policy_name="Email policy",
+        policy_version_number=1,
+    )
+
+    read_schema = PolicyVersionReviewRequestRead.model_validate(read_record)
+
+    assert create_request.request_note == "Ready for review."
+    assert decision_request.decision_note == "Approved for activation planning."
+    assert read_schema.status is PolicyVersionReviewRequestStatus.PENDING
+    assert read_schema.policy_name == "Email policy"
+    assert read_schema.policy_version_number == 1
+
+    with pytest.raises(ValidationError):
+        PolicyVersionReviewRequestCreate(request_note=" ")
+
+    with pytest.raises(ValidationError):
+        PolicyVersionReviewDecisionRequest(decision_note=" ")
 
 
 def test_policy_version_read_schema_validates_from_model_like_record() -> None:
@@ -189,6 +245,42 @@ def test_policy_version_single_active_index_compiles_for_postgresql() -> None:
     assert "WHERE status = 'active'" in ddl
 
 
+def test_policy_version_review_request_table_compiles_for_postgresql() -> None:
+    ddl = str(
+        CreateTable(PolicyVersionReviewRequest.__table__).compile(
+            dialect=postgresql.dialect()
+        )
+    )
+
+    assert "CREATE TABLE policy_version_review_requests" in ddl
+    assert "policy_version_id UUID NOT NULL" in ddl
+    assert "policy_id UUID NOT NULL" in ddl
+    assert "policy_version_review_request_status" in ddl
+    assert "policy_version_review_requested_actor_type" in ddl
+    assert "policy_version_review_reviewer_actor_type" in ddl
+    assert "request_note TEXT" in ddl
+    assert "decision_note TEXT" in ddl
+    assert "decided_at TIMESTAMP WITH TIME ZONE" in ddl
+    assert "FOREIGN KEY(policy_version_id) REFERENCES policy_versions" in ddl
+    assert "FOREIGN KEY(policy_id) REFERENCES policies" in ddl
+
+
+def test_policy_version_review_request_pending_index_compiles_for_postgresql() -> None:
+    index = next(
+        item
+        for item in PolicyVersionReviewRequest.__table__.indexes
+        if item.name == "uq_policy_version_review_requests_one_pending_per_version"
+    )
+    ddl = str(CreateIndex(index).compile(dialect=postgresql.dialect()))
+
+    assert (
+        "CREATE UNIQUE INDEX uq_policy_version_review_requests_one_pending_per_version"
+        in ddl
+    )
+    assert "ON policy_version_review_requests (policy_version_id)" in ddl
+    assert "WHERE status = 'pending'" in ddl
+
+
 def test_policy_version_migration_declares_expected_table() -> None:
     migration_path = (
         Path(__file__).resolve().parents[1]
@@ -226,6 +318,28 @@ def test_policy_version_single_active_guard_migration_declares_expected_index() 
     assert '["policy_id"]' in migration_text
     assert "unique=True" in migration_text
     assert "postgresql_where=sa.text(\"status = 'active'\")" in migration_text
+
+
+def test_policy_version_review_request_migration_declares_expected_table() -> None:
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "202606090002_create_policy_version_review_requests.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert 'revision: str = "202606090002"' in migration_text
+    assert 'down_revision: str | None = "202606090001"' in migration_text
+    assert '"policy_version_review_requests"' in migration_text
+    assert '"policy_version_id"' in migration_text
+    assert '"policy_id"' in migration_text
+    assert '"policy_version_review_request_status"' in migration_text
+    assert '"policy_version_review_requested_actor_type"' in migration_text
+    assert '"policy_version_review_reviewer_actor_type"' in migration_text
+    assert (
+        '"uq_policy_version_review_requests_one_pending_per_version"' in migration_text
+    )
 
 
 def test_policy_decision_policy_version_migration_declares_expected_reference() -> None:

@@ -7,10 +7,13 @@ import {
   PolicyRecord,
   PolicyRuleRecord,
   PolicyVersionDraftPayload,
+  PolicyVersionReviewRequestRecord,
   PolicyVersionRecord,
   createPolicy,
+  createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
   fetchPolicies,
+  fetchPolicyVersionReviewRequests,
   fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
   updatePolicyVersionDraft
@@ -53,8 +56,19 @@ type VersionsState =
   | { status: "error"; message: string }
   | { status: "ready"; versions: PolicyVersionRecord[] };
 
+type ReviewRequestsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
+
 type SaveState = {
   status: "idle" | "saving" | "success" | "error";
+  message: string;
+};
+
+type ReviewState = {
+  status: "idle" | "submitting" | "success" | "error";
   message: string;
 };
 
@@ -70,6 +84,8 @@ export function PolicyStudio() {
   const [versionsState, setVersionsState] = useState<VersionsState>({
     status: "idle"
   });
+  const [reviewRequestsState, setReviewRequestsState] =
+    useState<ReviewRequestsState>({ status: "idle" });
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState<PolicyVersionRecord | null>(
@@ -87,6 +103,10 @@ export function PolicyStudio() {
   const [saveState, setSaveState] = useState<SaveState>({
     status: "idle",
     message: "Unsaved local editor state"
+  });
+  const [reviewState, setReviewState] = useState<ReviewState>({
+    status: "idle",
+    message: "Review request not submitted"
   });
   const [validationRun, setValidationRun] = useState(0);
 
@@ -126,6 +146,19 @@ export function PolicyStudio() {
     draftVersion && draftVersion.policy_id === selectedPolicyId
       ? draftVersion
       : latestDraftVersion;
+  const pendingReviewRequest = useMemo(() => {
+    if (!selectedDraftVersion || reviewRequestsState.status !== "ready") {
+      return null;
+    }
+
+    return (
+      reviewRequestsState.requests.find(
+        (request) =>
+          request.policy_version_id === selectedDraftVersion.id &&
+          request.status === "pending"
+      ) || null
+    );
+  }, [reviewRequestsState, selectedDraftVersion]);
 
   const parsed = useMemo(() => parsePolicyDslToPolicyRule(dsl), [dsl]);
   const selectedRuleCondition = useMemo(
@@ -161,6 +194,9 @@ export function PolicyStudio() {
       ...studioStateMessages({
         policiesState,
         rulesState,
+        pendingReviewRequest,
+        reviewRequestsState,
+        reviewState,
         saveDisabledReason,
         saveState,
         selectedDraftVersion,
@@ -174,6 +210,9 @@ export function PolicyStudio() {
       parsed,
       policiesState,
       rulesState,
+      pendingReviewRequest,
+      reviewRequestsState,
+      reviewState,
       saveDisabledReason,
       saveState,
       selectedDraftVersion,
@@ -281,11 +320,33 @@ export function PolicyStudio() {
     []
   );
 
+  const loadReviewRequests = useCallback(async (signal?: AbortSignal) => {
+    setReviewRequestsState({ status: "loading" });
+
+    try {
+      const requests = await fetchPolicyVersionReviewRequests("pending", signal);
+      setReviewRequestsState({ status: "ready", requests });
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      setReviewRequestsState({
+        status: "error",
+        message: errorMessage(
+          error,
+          "Unable to load PolicyVersion review requests."
+        )
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     void loadPolicies(controller.signal);
+    void loadReviewRequests(controller.signal);
     return () => controller.abort();
-  }, [loadPolicies]);
+  }, [loadPolicies, loadReviewRequests]);
 
   useEffect(() => {
     if (!selectedPolicy) {
@@ -306,6 +367,7 @@ export function PolicyStudio() {
     setSelectedRuleId(null);
     setDraftVersion(null);
     setSaveState({ status: "idle", message: "Loading selected Policy rules" });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
     setRepositoryMode("policies");
   }
 
@@ -319,6 +381,7 @@ export function PolicyStudio() {
       status: "idle",
       message: "New unsaved Policy draft"
     });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
   }
 
   function handleUseTemplate(template: PolicyTemplate) {
@@ -332,6 +395,7 @@ export function PolicyStudio() {
       status: "idle",
       message: `${template.name} template loaded locally. Save draft to persist.`
     });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
   }
 
   function handleSelectRule(rule: PolicyRuleRecord) {
@@ -348,6 +412,7 @@ export function PolicyStudio() {
             )}`
           : "Loaded selected PolicyRule"
     });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
   }
 
   function handleValidate() {
@@ -433,6 +498,7 @@ export function PolicyStudio() {
         status: "success",
         message: `Draft PolicyVersion v${savedVersion.version_number} saved. It is not active and does not affect runtime until explicitly activated.`
       });
+      setReviewState({ status: "idle", message: "Review request not submitted" });
       void loadPolicies();
       void loadRules(policy);
       void loadVersions(policy);
@@ -440,6 +506,67 @@ export function PolicyStudio() {
       setSaveState({
         status: "error",
         message: errorMessage(error, "Unable to save Policy Studio draft.")
+      });
+    }
+  }
+
+  async function handleSubmitReview() {
+    const parsedForSubmit = parsePolicyDslToPolicyRule(dsl);
+    if (!selectedDraftVersion) {
+      setReviewState({
+        status: "error",
+        message: "Save a draft PolicyVersion before submitting for review."
+      });
+      return;
+    }
+    if (parsedForSubmit.errors.length > 0 || parsedForSubmit.unsupported.length > 0) {
+      setReviewState({
+        status: "error",
+        message:
+          "Run local validation and remove unsupported DSL lines before review submission."
+      });
+      return;
+    }
+    if (saveDisabledReason) {
+      setReviewState({ status: "error", message: saveDisabledReason });
+      return;
+    }
+    if (pendingReviewRequest) {
+      setReviewState({
+        status: "error",
+        message: "This draft PolicyVersion already has a pending review request."
+      });
+      return;
+    }
+
+    setReviewState({
+      status: "submitting",
+      message: "Submitting draft PolicyVersion for review"
+    });
+
+    try {
+      const request = await createPolicyVersionReviewRequest(
+        selectedDraftVersion.id,
+        {
+          request_note:
+            localNote.trim() ||
+            `Policy Studio review request for draft v${selectedDraftVersion.version_number}.`
+        }
+      );
+      setReviewState({
+        status: "success",
+        message: `Review requested for draft PolicyVersion v${selectedDraftVersion.version_number}. Approval does not activate this version.`
+      });
+      setReviewRequestsState((current) =>
+        current.status === "ready"
+          ? { status: "ready", requests: [request, ...current.requests] }
+          : current
+      );
+      void loadReviewRequests();
+    } catch (error: unknown) {
+      setReviewState({
+        status: "error",
+        message: errorMessage(error, "Unable to submit PolicyVersion review request.")
       });
     }
   }
@@ -488,6 +615,10 @@ export function PolicyStudio() {
           onChangeDsl={(nextDsl) => {
             setDsl(nextDsl);
             setSaveState({ status: "idle", message: "Unsaved local edits" });
+            setReviewState({
+              status: "idle",
+              message: "Review request not submitted"
+            });
           }}
           onSelectBlock={setSelectedBlockId}
           onSetEditorMode={setEditorMode}
@@ -502,9 +633,13 @@ export function PolicyStudio() {
           localNote={localNote}
           onChangeLocalNote={setLocalNote}
           onSaveDraft={handleSaveDraft}
+          onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
+          pendingReviewRequest={pendingReviewRequest}
           parsed={parsed}
           policyVersionsState={versionsState}
+          reviewRequestsState={reviewRequestsState}
+          reviewState={reviewState}
           saveDisabledReason={saveDisabledReason}
           saveState={saveState}
           selectedDraftVersion={selectedDraftVersion}
@@ -527,6 +662,9 @@ export function PolicyStudio() {
 function studioStateMessages({
   policiesState,
   rulesState,
+  pendingReviewRequest,
+  reviewRequestsState,
+  reviewState,
   saveDisabledReason,
   saveState,
   selectedDraftVersion,
@@ -537,6 +675,9 @@ function studioStateMessages({
 }: {
   policiesState: PoliciesState;
   rulesState: RulesState;
+  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
+  reviewRequestsState: ReviewRequestsState;
+  reviewState: ReviewState;
   saveDisabledReason: string | null;
   saveState: SaveState;
   selectedDraftVersion: PolicyVersionRecord | null;
@@ -568,6 +709,13 @@ function studioStateMessages({
     });
   }
 
+  if (reviewRequestsState.status === "error") {
+    messages.push({
+      tone: "warn",
+      text: `Backend unavailable for GET /policy-version-review-requests: ${reviewRequestsState.message}`
+    });
+  }
+
   messages.push({
     tone: selectedPolicy ? "info" : "warn",
     text: selectedPolicy
@@ -585,6 +733,13 @@ function studioStateMessages({
     messages.push({
       tone: "ok",
       text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active, not submitted for review)`
+    });
+  }
+
+  if (pendingReviewRequest) {
+    messages.push({
+      tone: "ok",
+      text: `Pending PolicyVersion review request: ${pendingReviewRequest.id}. Approval does not activate this version.`
     });
   }
 
@@ -620,6 +775,12 @@ function studioStateMessages({
   }
   if (saveState.status === "error") {
     messages.push({ tone: "error", text: saveState.message });
+  }
+  if (reviewState.status === "success") {
+    messages.push({ tone: "ok", text: reviewState.message });
+  }
+  if (reviewState.status === "error") {
+    messages.push({ tone: "error", text: reviewState.message });
   }
 
   return messages;

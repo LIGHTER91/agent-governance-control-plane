@@ -18,14 +18,16 @@ Already implemented:
 - Runtime Gateway active PolicyVersion snapshot evaluation with unversioned
   fallback;
 - Policy Studio Save draft creation/update of draft PolicyVersion snapshots;
+- a dedicated `PolicyVersionReviewRequest` workflow for draft-version review
+  requests, approval, and rejection;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
-  Publish button, and disabled Submit for review.
+  Publish button, and backend-backed Submit for review.
 
 Still unresolved:
 
-- formal review request semantics for policy authoring;
-- frontend Submit for review wiring;
+- explicit activation workflow after review approval;
+- richer review diff and reviewer assignment workflow;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
@@ -74,6 +76,8 @@ The backend currently uses a bounded aggregate model:
   contract.
 - `PolicyCheckStep` remains the authored metadata-check declaration.
 - `PolicyVersion` is the versioned review and activation unit.
+- `PolicyVersionReviewRequest` is the policy-authoring review request object.
+  It is separate from runtime `HumanApproval`.
 
 `PolicyVersion` snapshots:
 
@@ -99,6 +103,9 @@ Lifecycle APIs currently exist for:
 - list Policy versions;
 - get one PolicyVersion;
 - update an existing draft PolicyVersion from a Policy Studio/editor snapshot;
+- create a pending review request for a draft PolicyVersion;
+- list PolicyVersion review requests;
+- approve or reject a pending PolicyVersion review request without activation;
 - submit for review;
 - approve;
 - reject;
@@ -109,6 +116,10 @@ Lifecycle APIs currently exist for:
 Current audit events include:
 
 - `policy_version_created`;
+- `policy_version_draft_updated`;
+- `policy_version_review_requested`;
+- `policy_version_review_approved`;
+- `policy_version_review_rejected`;
 - `policy_version_submitted_for_review`;
 - `policy_version_approved`;
 - `policy_version_rejected`;
@@ -150,16 +161,16 @@ surface:
   version APIs;
 - existing Policy/PolicyRule APIs remain available for compatibility, but the
   user-facing Studio draft is now the version snapshot;
-- Submit for review is disabled;
+- Submit for review creates a pending `PolicyVersionReviewRequest`;
+- the Reviews page includes a Policy Reviews queue for pending review requests;
 - there is no direct Publish action.
 
 The frontend does not yet solve the backend/domain review workflow:
 
-- Submit for review is not wired to backend lifecycle APIs;
-- there is no policy review queue, reviewer assignment, diff view, or
-  role-aware review UI;
+- there is no activation flow after review approval;
+- there is no reviewer assignment, diff view, or richer role-aware review UI;
 - the inspector review status is informational and should not be treated as a
-  complete review workflow.
+  complete activation workflow.
 
 This means the frontend has lowered authoring risk, but it has not eliminated
 the core active-edit risk.
@@ -174,6 +185,8 @@ the core active-edit risk.
 - audit events;
 - rollback-copy semantics;
 - approval separated from activation;
+- dedicated PolicyVersion review requests instead of runtime HumanApproval
+  reuse;
 - active-version Runtime Gateway evaluation with fallback;
 - optional `policy_version_id` references on PolicyDecision and Evidence
   Bundle summaries.
@@ -182,7 +195,7 @@ the core active-edit risk.
 
 - controlled authoring instead of arbitrary JSON as the main workflow;
 - local validation before save;
-- disabled Submit for review;
+- backend-backed Submit for review for saved draft PolicyVersions;
 - no Publish action;
 - no fake production simulation or compliance score.
 
@@ -190,10 +203,6 @@ the core active-edit risk.
 
 The remaining work is narrower than the original broad design issue:
 
-- define formal review request semantics;
-- decide whether review should use only PolicyVersion review fields and audit
-  events or add a dedicated `PolicyReviewRequest`;
-- avoid reusing runtime `HumanApproval` as-is for policy authoring review;
 - define whether DSL source is stored in snapshots, stored only as safe UI
   metadata, or regenerated from compiled JSON;
 - document that compiled deterministic condition JSON is the runtime source of
@@ -202,7 +211,8 @@ The remaining work is narrower than the original broad design issue:
   PolicyVersion for V1;
 - decide historical PolicyDecision backfill behavior;
 - define rollback-copy UX and API expectations;
-- wire frontend Submit for review only after the review contract is agreed.
+- define explicit activation workflow after review approval;
+- add richer review diff, reviewer assignment, and role-aware product UX later.
 
 ## Proposed V1 Model
 
@@ -230,10 +240,10 @@ Recommended product semantics:
 
 - Save draft creates or updates draft PolicyVersion content and does not
   activate, submit for review, or mutate active runtime configuration.
-- Submit for review should create a review state or review request; it should
-  not publish or activate anything.
-- Approval should make a version eligible for activation; it should not
-  automatically activate the version.
+- Submit for review creates a pending `PolicyVersionReviewRequest`; it does not
+  publish or activate anything.
+- Review approval records reviewer intent on the review request; it does not
+  automatically activate the PolicyVersion.
 - Activation should be explicit and audited.
 - Activating a version fails if another active version already exists for the
   same Policy.
@@ -245,8 +255,9 @@ Recommended product semantics:
 
 ## Review Request Choice
 
-Runtime `HumanApproval` should not be reused directly for PolicyVersion review
-in V1.
+Runtime `HumanApproval` is not reused directly for PolicyVersion review in V1.
+AGCP now uses a dedicated `PolicyVersionReviewRequest` object for policy
+authoring review.
 
 Reasons:
 
@@ -257,12 +268,12 @@ Reasons:
 - reusing HumanApproval would blur runtime exception approval with policy
   lifecycle approval.
 
-Recommended V1 path:
+Implemented V1 path:
 
-- keep the existing PolicyVersion review fields and audit events for the
-  minimal lifecycle;
-- add a dedicated lightweight `PolicyReviewRequest` only if a review inbox,
-  reviewer assignment, or multi-step review queue becomes necessary;
+- create pending review requests only for draft PolicyVersions;
+- reject duplicate pending review requests for the same PolicyVersion;
+- approve or reject requests without activating the PolicyVersion;
+- keep runtime `HumanApproval` scoped to runtime tool-call decisions;
 - do not claim policy approval is legal certification.
 
 ## Evidence And Telemetry
@@ -311,15 +322,16 @@ Recommended next sequence:
 2. Keep #76 open or partial until `docs/POLICY_STUDIO_DSL_DESIGN.md` defines
    grammar, operators, supported fields, storage/versioning, diffs, and
    unsupported-line behavior.
-3. Use this refreshed #56 design to narrow review workflow work around Submit
-   for review, approval, activation, and rollback-copy.
+3. Treat PolicyVersion-backed Save draft and Submit for review as implemented.
+   Narrow remaining #56 work around explicit activation, rollback-copy UX, and
+   review diff/assignment behavior.
 4. Complete #68 follow-ups before exposing activation or Publish semantics:
    historical backfill must be decided and activation UI semantics must remain
    separate from review approval.
-5. Implement a backend Policy Review Workflow only after #56 and #68 decisions
-   are settled.
-6. Wire Policy Studio Submit for review to the backend review lifecycle.
-7. Add review inbox, diff UI, role-aware review actions, and separation of
+5. Implement explicit activation workflow only after #56 and #68 decisions are
+   settled.
+6. Add review diff UI, richer reviewer assignment, role-aware actions, and
+   separation of
    duties later, after identity and RBAC are stronger.
 
 ## Risks
@@ -353,18 +365,18 @@ Implemented:
 - active PolicyVersion Runtime Gateway evaluation with unversioned fallback;
 - `PolicyDecision.policy_version_id` and safe Evidence Bundle summaries;
 - frontend Policy Studio guardrails with Blocks/DSL, PolicyVersion-backed Save
-  draft, local validation, disabled Submit for review, and no Publish button.
+  draft, backend-backed Submit for review, local validation, and no Publish
+  button;
+- dedicated PolicyVersion review request queue with approve/reject actions.
 
 Still unresolved:
 
-- Submit for review is not wired;
-- formal review request object semantics are undecided;
+- explicit activation workflow is not wired;
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
-- no review inbox, diff UI, reviewer assignment, or role-aware policy review
-  workflow exists.
+- no diff UI, reviewer assignment, or richer role-aware policy review workflow
+  exists.
 
-Recommended next implementation issue: define and implement the PolicyVersion
-review workflow contract for Policy Studio, but only after historical backfill
-and activation semantics are explicitly scoped if that work includes
-activation.
+Recommended next implementation issue: define explicit activation semantics for
+approved PolicyVersion review requests, but only after historical backfill and
+runtime source-of-truth implications are explicitly scoped.

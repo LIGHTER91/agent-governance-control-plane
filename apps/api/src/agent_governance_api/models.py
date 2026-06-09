@@ -280,6 +280,13 @@ class PolicyVersionStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class PolicyVersionReviewRequestStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELED = "canceled"
+
+
 class PolicyDecisionValue(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
@@ -1455,6 +1462,9 @@ class Policy(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
     versions: Mapped[list["PolicyVersion"]] = relationship(back_populates="policy")
+    version_review_requests: Mapped[list["PolicyVersionReviewRequest"]] = relationship(
+        back_populates="policy"
+    )
 
 
 class PolicyVersion(Base):
@@ -1602,6 +1612,84 @@ class PolicyVersion(Base):
     def validate_snapshots(self, key: str, value: object) -> object:
         reject_unsafe_snapshot_keys(value, field_name=key)
         return value
+
+
+class PolicyVersionReviewRequest(Base):
+    __tablename__ = "policy_version_review_requests"
+    __table_args__ = (
+        Index(
+            "uq_policy_version_review_requests_one_pending_per_version",
+            "policy_version_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    policy_version_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("policy_versions.id"),
+        nullable=False,
+    )
+    policy_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("policies.id"),
+        nullable=False,
+    )
+    status: Mapped[PolicyVersionReviewRequestStatus] = mapped_column(
+        Enum(
+            PolicyVersionReviewRequestStatus,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_request_status",
+        ),
+        nullable=False,
+    )
+    requested_by_actor_type: Mapped[ActorType] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_requested_actor_type",
+        ),
+        nullable=False,
+    )
+    requested_by_actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    reviewer_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_reviewer_actor_type",
+        ),
+        nullable=True,
+    )
+    reviewer_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    request_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    policy: Mapped[Policy] = relationship(back_populates="version_review_requests")
+    policy_version: Mapped[PolicyVersion] = relationship()
 
 
 class PolicyRule(Base):

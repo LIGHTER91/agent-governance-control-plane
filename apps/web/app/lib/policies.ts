@@ -21,6 +21,16 @@ export const POLICY_VERSION_STATUSES = [
 
 export type PolicyVersionStatus = (typeof POLICY_VERSION_STATUSES)[number];
 
+export const POLICY_VERSION_REVIEW_REQUEST_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "canceled"
+] as const;
+
+export type PolicyVersionReviewRequestStatus =
+  (typeof POLICY_VERSION_REVIEW_REQUEST_STATUSES)[number];
+
 export const POLICY_RULE_DECISIONS = [
   "allow",
   "deny",
@@ -228,6 +238,31 @@ export type PolicyVersionDraftPayload = {
   check_step_snapshots?: Array<Record<string, unknown>>;
 };
 
+export type PolicyVersionReviewRequestRecord = {
+  id: string;
+  policy_version_id: string;
+  policy_id: string;
+  status: PolicyVersionReviewRequestStatus;
+  requested_by_actor_type: string;
+  requested_by_actor_id: string;
+  reviewer_actor_type: string | null;
+  reviewer_actor_id: string | null;
+  request_note: string | null;
+  decision_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  policy_name: string | null;
+  policy_version_number: number | null;
+};
+
+export type PolicyVersionReviewRequestPayload = {
+  request_note?: string | null;
+};
+
+export type PolicyVersionReviewDecisionPayload = {
+  decision_note?: string | null;
+};
+
 export async function fetchPolicies(
   signal?: AbortSignal
 ): Promise<PolicyRecord[]> {
@@ -324,6 +359,59 @@ export async function updatePolicyVersionDraft(
     {
       body: payload,
       errorLabel: "PATCH /policy-versions/{policy_version_id}/draft",
+      signal
+    }
+  );
+}
+
+export async function fetchPolicyVersionReviewRequests(
+  status: PolicyVersionReviewRequestStatus = "pending",
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewRequestRecord[]> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("status", status);
+
+  return fetchApiArray<PolicyVersionReviewRequestRecord>(
+    "/policy-version-review-requests",
+    {
+      errorLabel: "GET /policy-version-review-requests",
+      searchParams,
+      signal
+    }
+  );
+}
+
+export async function createPolicyVersionReviewRequest(
+  policyVersionId: string,
+  payload: PolicyVersionReviewRequestPayload = {},
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewRequestRecord> {
+  return postApiJson<PolicyVersionReviewRequestRecord>(
+    `/policy-versions/${encodeURIComponent(policyVersionId)}/review-requests`,
+    {
+      body: payload,
+      errorLabel: "POST /policy-versions/{policy_version_id}/review-requests",
+      signal
+    }
+  );
+}
+
+export async function decidePolicyVersionReviewRequest(
+  reviewRequestId: string,
+  action: "approve" | "reject",
+  payload: PolicyVersionReviewDecisionPayload = {},
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewRequestRecord> {
+  const errorLabel =
+    action === "approve"
+      ? "POST /policy-version-review-requests/{review_request_id}/approve"
+      : "POST /policy-version-review-requests/{review_request_id}/reject";
+
+  return postApiJson<PolicyVersionReviewRequestRecord>(
+    `/policy-version-review-requests/${encodeURIComponent(reviewRequestId)}/${action}`,
+    {
+      body: payload,
+      errorLabel,
       signal
     }
   );
