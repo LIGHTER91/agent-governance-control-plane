@@ -898,6 +898,16 @@ function titleFromSlug(value: string) {
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiRequestError) {
+    const detail =
+      typeof error.detail === "object" &&
+      error.detail !== null &&
+      "detail" in error.detail &&
+      typeof error.detail.detail === "string"
+        ? error.detail.detail
+        : null;
+    if (detail?.includes("Direct live Policy")) {
+      return `${detail} Use Save draft to create a reviewed PolicyVersion.`;
+    }
     return error.message;
   }
 

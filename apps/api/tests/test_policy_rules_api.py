@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,7 +12,17 @@ from sqlalchemy.pool import StaticPool
 
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
-from agent_governance_api.models import ActorType, AuditLog
+from agent_governance_api.models import (
+    ActorType,
+    AuditLog,
+    Policy,
+    PolicyRule,
+    PolicyVersion,
+    PolicyVersionStatus,
+)
+from agent_governance_api.policy_live_edit_guard import (
+    POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+)
 
 SessionFactory = Callable[[], Session]
 
@@ -67,6 +78,36 @@ def test_create_policy_rule(api_client: tuple[TestClient, SessionFactory]) -> No
     }
     assert body["created_at"]
     assert body["updated_at"]
+
+
+def test_create_policy_rule_blocked_when_active_policy_version_exists(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    active_version_id = create_active_policy_version(
+        session_factory,
+        policy_id=policy_id,
+    )
+
+    response = client.post(
+        "/policy-rules",
+        json=policy_rule_payload(policy_id=policy_id, name="Bypass rule"),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL
+    blocked_log = fetch_audit_logs(session_factory)[-1]
+    assert blocked_log.event_type == "policy_live_edit_blocked"
+    assert blocked_log.entity_type == "policy"
+    assert blocked_log.entity_id == policy_id
+    assert blocked_log.metadata_ == {
+        "operation": "create_policy_rule",
+        "policy_id": policy_id,
+        "active_policy_version_id": str(active_version_id),
+        "active_policy_version_number": 1,
+        "reason": POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    }
 
 
 def test_create_policy_rule_accepts_contextual_condition_fields(
@@ -209,6 +250,49 @@ def test_update_policy_rule(api_client: tuple[TestClient, SessionFactory]) -> No
     assert json.loads(body["condition"])["environment"] == "production"
 
 
+def test_update_policy_rule_blocked_when_active_policy_version_exists(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    created = create_policy_rule(client, policy_id=policy_id)
+    rule_id = created.json()["id"]
+    active_version_id = create_active_policy_version(
+        session_factory,
+        policy_id=policy_id,
+        rule_id=rule_id,
+    )
+
+    response = client.patch(
+        f"/policy-rules/{rule_id}",
+        json={"condition": condition_json(environment="production")},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL
+    with session_factory() as session:
+        rule = session.get(PolicyRule, UUID(rule_id))
+        assert rule is not None
+        assert json.loads(rule.condition).get("environment") is None
+        active_version = session.get(PolicyVersion, active_version_id)
+        assert active_version is not None
+        assert (
+            active_version.rule_snapshots[0]["condition"] == created.json()["condition"]
+        )
+
+    blocked_log = fetch_audit_logs(session_factory)[-1]
+    assert blocked_log.event_type == "policy_live_edit_blocked"
+    assert blocked_log.entity_type == "policy_rule"
+    assert blocked_log.entity_id == rule_id
+    assert blocked_log.metadata_ == {
+        "operation": "patch_policy_rule",
+        "policy_id": policy_id,
+        "active_policy_version_id": str(active_version_id),
+        "active_policy_version_number": 1,
+        "reason": POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    }
+
+
 def test_update_policy_rule_policy_id(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -225,6 +309,44 @@ def test_update_policy_rule_policy_id(
 
     assert response.status_code == 200
     assert response.json()["policy_id"] == other_policy_id
+
+
+def test_move_policy_rule_to_active_policy_is_blocked(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client, name="Email policy")
+    other_policy_id = create_policy(client, name="Production policy")
+    created = create_policy_rule(client, policy_id=policy_id)
+    rule_id = created.json()["id"]
+    active_version_id = create_active_policy_version(
+        session_factory,
+        policy_id=other_policy_id,
+    )
+
+    response = client.patch(
+        f"/policy-rules/{rule_id}",
+        json={"policy_id": other_policy_id},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL
+    with session_factory() as session:
+        rule = session.get(PolicyRule, UUID(rule_id))
+        assert rule is not None
+        assert str(rule.policy_id) == policy_id
+
+    blocked_log = fetch_audit_logs(session_factory)[-1]
+    assert blocked_log.event_type == "policy_live_edit_blocked"
+    assert blocked_log.entity_type == "policy_rule"
+    assert blocked_log.entity_id == rule_id
+    assert blocked_log.metadata_ == {
+        "operation": "move_policy_rule",
+        "policy_id": other_policy_id,
+        "active_policy_version_id": str(active_version_id),
+        "active_policy_version_number": 1,
+        "reason": POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    }
 
 
 def test_empty_policy_rule_update_is_rejected(
@@ -460,6 +582,53 @@ def fetch_audit_logs(session_factory: SessionFactory) -> list[AuditLog]:
     with session_factory() as session:
         statement = select(AuditLog).order_by(AuditLog.created_at, AuditLog.id)
         return list(session.scalars(statement).all())
+
+
+def create_active_policy_version(
+    session_factory: SessionFactory,
+    *,
+    policy_id: str,
+    rule_id: str | None = None,
+) -> UUID:
+    now = datetime.now(UTC)
+    version_id = uuid4()
+    with session_factory() as session:
+        policy = session.get(Policy, UUID(policy_id))
+        assert policy is not None
+        rule_snapshots: list[dict[str, object]] = []
+        if rule_id is not None:
+            rule = session.get(PolicyRule, UUID(rule_id))
+            assert rule is not None
+            rule_snapshots.append(
+                {
+                    "id": str(rule.id),
+                    "name": rule.name,
+                    "description": rule.description,
+                    "condition": rule.condition,
+                }
+            )
+        version = PolicyVersion(
+            id=version_id,
+            policy_id=policy.id,
+            version_number=1,
+            status=PolicyVersionStatus.ACTIVE,
+            change_summary="Reviewed active version.",
+            policy_snapshot={
+                "name": policy.name,
+                "description": policy.description,
+                "status": policy.status.value,
+            },
+            rule_snapshots=rule_snapshots,
+            check_step_snapshots=[],
+            created_by_actor_type=ActorType.DEVELOPMENT,
+            created_by_actor_id="dev-placeholder",
+            created_at=now,
+            updated_at=now,
+            activated_at=now,
+        )
+        session.add(version)
+        session.commit()
+    return version_id
 
 
 def policy_rule_payload(

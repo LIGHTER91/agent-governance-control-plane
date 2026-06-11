@@ -147,6 +147,7 @@ Current audit events include:
 - `policy_version_archived`;
 - `policy_version_rollback_draft_created`;
 - `policy_version_rollback_copy_created`.
+- `policy_live_edit_blocked`.
 
 Review-linked activation now fails fast when another active version already
 exists for the same Policy unless the caller explicitly sends
@@ -269,6 +270,9 @@ V1 source-of-truth rules:
   available;
 - unversioned Policy/PolicyRule rows remain fallback and editing compatibility
   records until migration is complete;
+- legacy live Policy and PolicyRule mutation APIs remain for bootstrapping and
+  fallback Policies without an active PolicyVersion, but direct live edits are
+  blocked once a Policy has an active PolicyVersion;
 - compiled deterministic `PolicyRule.condition` JSON is the runtime source of
   truth;
 - Policy Studio DSL source is an authoring representation, not a runtime
@@ -296,6 +300,9 @@ Recommended product semantics:
 - Runtime and evidence should record `policy_version_id` where available.
 - The UI should not expose a direct Publish button; runtime-changing
   transitions should keep using explicit Activate approved version wording.
+- Policies with an active PolicyVersion should be changed through draft
+  PolicyVersion snapshots, review, approval, and explicit activation rather
+  than legacy live Policy/PolicyRule mutation endpoints.
 
 ## Review Request Choice
 
@@ -408,9 +415,9 @@ Recommended next sequence:
 
 ## Risks
 
-- If existing compatibility Policy/PolicyRule APIs remain directly editable,
-  users may still bypass the Studio draft path unless later guardrails or
-  role-aware product flows make the intended lifecycle clearer.
+- If compatibility Policy/PolicyRule APIs are reopened for active-versioned
+  Policies without review guardrails, users may bypass the Studio draft path
+  and make future fallback/runtime behavior harder to explain.
 - If activation UX grows before #68 backfill is settled, AGCP may overstate
   historical version coverage.
 - If DSL source is treated as runtime source of truth too early, AGCP risks
@@ -452,6 +459,13 @@ Implemented:
 - minimal `/me`-backed frontend current-actor display for Policy Reviews.
   Role-aware button disabling is advisory; backend authorization remains the
   source of truth.
+- legacy live Policy and PolicyRule mutation guardrails. `POST /policies`
+  remains available for bootstrap containers, and unversioned fallback policies
+  remain editable. Once a Policy has an active PolicyVersion, direct
+  `PATCH /policies/{policy_id}`, `POST /policy-rules`, and
+  `PATCH /policy-rules/{rule_id}` mutations are blocked with
+  `policy_live_edit_blocked` audit evidence and guidance to create a draft
+  PolicyVersion instead.
 
 Still unresolved:
 

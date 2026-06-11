@@ -137,6 +137,11 @@ change runtime state. Policy Reviews now fetches `GET /me` to display the
 current actor and disable unavailable approve/reject/assign/activate actions
 with honest reasons, but backend RBAC remains authoritative. Historical
 PolicyDecision backfill remains a follow-up.
+Legacy live Policy and PolicyRule mutation endpoints remain for bootstrap and
+unversioned fallback Policies, but active-versioned Policies now have live-edit
+guardrails: direct Policy and PolicyRule mutations are blocked with
+`policy_live_edit_blocked` audit evidence and guidance to use draft
+PolicyVersion review instead.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -250,6 +255,8 @@ Recommended order:
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
 - [x] Add minimal `/me`-backed current actor display and advisory role-aware
       PolicyVersion review actions without broad frontend auth.
+- [x] Add legacy live Policy/PolicyRule mutation guardrails for Policies with
+      an active PolicyVersion.
 - [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.

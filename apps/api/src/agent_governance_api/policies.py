@@ -16,6 +16,10 @@ from agent_governance_api.openapi_examples import (
     POLICY_RULES_FOR_POLICY_OPENAPI,
     POLICY_UPDATE_OPENAPI,
 )
+from agent_governance_api.policy_live_edit_guard import (
+    POLICY_LIVE_EDIT_BLOCKED_DETAIL,
+    block_policy_live_edit_if_active_version_exists,
+)
 from agent_governance_api.schemas import (
     PolicyCreate,
     PolicyRead,
@@ -119,6 +123,15 @@ def update_policy(
         )
 
     policy = _get_policy_or_404(session, policy_id)
+    block_policy_live_edit_if_active_version_exists(
+        session,
+        policy_id=policy.id,
+        actor=actor,
+        operation="patch_policy",
+        entity_type="policy",
+        entity_id=str(policy.id),
+        detail=POLICY_LIVE_EDIT_BLOCKED_DETAIL,
+    )
     previous_status = policy.status
 
     for field, value in updates.items():

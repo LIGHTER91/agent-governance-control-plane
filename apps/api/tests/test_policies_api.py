@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +10,14 @@ from sqlalchemy.pool import StaticPool
 
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
-from agent_governance_api.models import ActorType, AuditLog
+from agent_governance_api.models import (
+    ActorType,
+    AuditLog,
+    Policy,
+    PolicyVersion,
+    PolicyVersionStatus,
+)
+from agent_governance_api.policy_live_edit_guard import POLICY_LIVE_EDIT_BLOCKED_DETAIL
 
 SessionFactory = Callable[[], Session]
 
@@ -108,6 +116,42 @@ def test_update_policy(api_client: tuple[TestClient, SessionFactory]) -> None:
     assert body["name"] == "Updated email review policy"
     assert body["description"] is None
     assert body["status"] == "draft"
+
+
+def test_update_policy_is_blocked_when_active_policy_version_exists(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    created = client.post("/policies", json=policy_payload())
+    policy_id = created.json()["id"]
+    active_version_id = create_active_policy_version(
+        session_factory,
+        policy_id=policy_id,
+    )
+
+    response = client.patch(
+        f"/policies/{policy_id}",
+        json={"description": "Bypass the reviewed version."},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == POLICY_LIVE_EDIT_BLOCKED_DETAIL
+    with session_factory() as session:
+        policy = session.get(Policy, UUID(policy_id))
+        assert policy is not None
+        assert policy.description == "Require review before governed email tool use."
+
+    blocked_log = fetch_audit_logs(session_factory)[-1]
+    assert blocked_log.event_type == "policy_live_edit_blocked"
+    assert blocked_log.entity_type == "policy"
+    assert blocked_log.entity_id == policy_id
+    assert blocked_log.metadata_ == {
+        "operation": "patch_policy",
+        "policy_id": policy_id,
+        "active_policy_version_id": str(active_version_id),
+        "active_policy_version_number": 1,
+        "reason": POLICY_LIVE_EDIT_BLOCKED_DETAIL,
+    }
 
 
 def test_empty_policy_update_is_rejected(
@@ -252,6 +296,40 @@ def fetch_audit_logs(session_factory: SessionFactory) -> list[AuditLog]:
     with session_factory() as session:
         statement = select(AuditLog).order_by(AuditLog.created_at, AuditLog.id)
         return list(session.scalars(statement).all())
+
+
+def create_active_policy_version(
+    session_factory: SessionFactory,
+    *,
+    policy_id: str,
+) -> UUID:
+    now = datetime.now(UTC)
+    version_id = uuid4()
+    with session_factory() as session:
+        policy = session.get(Policy, UUID(policy_id))
+        assert policy is not None
+        version = PolicyVersion(
+            id=version_id,
+            policy_id=policy.id,
+            version_number=1,
+            status=PolicyVersionStatus.ACTIVE,
+            change_summary="Reviewed active version.",
+            policy_snapshot={
+                "name": policy.name,
+                "description": policy.description,
+                "status": policy.status.value,
+            },
+            rule_snapshots=[],
+            check_step_snapshots=[],
+            created_by_actor_type=ActorType.DEVELOPMENT,
+            created_by_actor_id="dev-placeholder",
+            created_at=now,
+            updated_at=now,
+            activated_at=now,
+        )
+        session.add(version)
+        session.commit()
+    return version_id
 
 
 def policy_payload(

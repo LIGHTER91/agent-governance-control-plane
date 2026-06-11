@@ -15,6 +15,10 @@ from agent_governance_api.openapi_examples import (
     POLICY_RULE_LIST_OPENAPI,
     POLICY_RULE_UPDATE_OPENAPI,
 )
+from agent_governance_api.policy_live_edit_guard import (
+    POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    block_policy_live_edit_if_active_version_exists,
+)
 from agent_governance_api.schemas import (
     PolicyRuleCreate,
     PolicyRuleRead,
@@ -35,7 +39,16 @@ def create_policy_rule(
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
 ) -> PolicyRule:
-    _get_policy_or_404(session, payload.policy_id)
+    policy = _get_policy_or_404(session, payload.policy_id)
+    block_policy_live_edit_if_active_version_exists(
+        session,
+        policy_id=policy.id,
+        actor=actor,
+        operation="create_policy_rule",
+        entity_type="policy",
+        entity_id=str(policy.id),
+        detail=POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    )
     now = datetime.now(UTC)
     rule = PolicyRule(
         id=uuid4(),
@@ -106,8 +119,27 @@ def update_policy_rule(
 
     rule = _get_policy_rule_or_404(session, rule_id)
     previous_policy_id = rule.policy_id
+    block_policy_live_edit_if_active_version_exists(
+        session,
+        policy_id=rule.policy_id,
+        actor=actor,
+        operation="patch_policy_rule",
+        entity_type="policy_rule",
+        entity_id=str(rule.id),
+        detail=POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+    )
     if "policy_id" in updates:
-        _get_policy_or_404(session, updates["policy_id"])
+        target_policy = _get_policy_or_404(session, updates["policy_id"])
+        if target_policy.id != rule.policy_id:
+            block_policy_live_edit_if_active_version_exists(
+                session,
+                policy_id=target_policy.id,
+                actor=actor,
+                operation="move_policy_rule",
+                entity_type="policy_rule",
+                entity_id=str(rule.id),
+                detail=POLICY_RULE_LIVE_EDIT_BLOCKED_DETAIL,
+            )
 
     for field, value in updates.items():
         setattr(rule, field, value)

@@ -255,6 +255,11 @@ The target runtime/evidence behavior is now partially reached:
 - Historical decisions remain readable with nullable version references.
 - Evidence exports include safe version summaries when available and honest
   unversioned states otherwise.
+- Legacy live Policy and PolicyRule mutation endpoints remain for bootstrap and
+  unversioned fallback Policies, but direct live edits are blocked once a
+  Policy has an active PolicyVersion. Changes to versioned Policies should go
+  through draft PolicyVersion snapshots, review, approval, and explicit
+  activation.
 
 Remaining target behavior:
 
@@ -303,14 +308,18 @@ Recommended sequence:
     for review requests. Implemented.
 12. Add rollback draft creation from prior PolicyVersion evidence, without
     direct runtime rollback or automatic activation. Implemented.
-13. Keep Publish out of the UI.
+13. Add guardrails around legacy live Policy/PolicyRule mutation endpoints so
+    active-versioned Policies cannot bypass review. Implemented.
+14. Keep Publish out of the UI.
 
 ## Implementation Follow-Ups
 
 Recommended next implementation issues:
 
 1. Decide and document whether historical PolicyDecision backfill is required.
-2. Add reviewer assignment without changing the explicit activation boundary.
+2. Decide whether any admin-only legacy live edit override is needed later.
+   Default product behavior should keep active-versioned Policies on the
+   draft/review/activation path.
 
 ## Non-goals
 

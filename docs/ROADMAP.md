@@ -153,8 +153,12 @@ explicit activation. Minimal reviewer assignment is implemented for pending
 review requests as governance metadata; assignment does not approve, reject,
 notify, activate, or change runtime state. Policy Reviews now uses `GET /me`
 to show the current actor and disable unavailable review actions with honest
-reasons, but backend authorization remains authoritative. Historical
-PolicyDecision backfill remains a follow-up.
+reasons, but backend authorization remains authoritative. Legacy live
+Policy/PolicyRule mutation endpoints remain for bootstrap and unversioned
+fallback Policies, but active-versioned Policies now block direct live edits
+with `policy_live_edit_blocked` audit evidence and guidance to use draft
+PolicyVersion review instead. Historical PolicyDecision backfill remains a
+follow-up.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -561,6 +565,9 @@ Planned capabilities:
   Minimal reviewer assignment is implemented without automatic approval,
   activation, notification, or runtime changes. A minimal `/me`-backed current
   actor display now disables unavailable review actions with explicit reasons.
+- Legacy live Policy/PolicyRule mutation guardrails for active-versioned
+  Policies are implemented; fallback Policies without active versions remain
+  editable for bootstrap and compatibility.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

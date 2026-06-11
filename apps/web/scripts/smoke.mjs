@@ -213,6 +213,7 @@ const requiredText = [
   "Generated deterministic condition JSON",
   "Save draft is possible from this editor state",
   "Save draft blocked",
+  "Use Save draft to create a reviewed PolicyVersion",
   "No PolicyRule selected; Save draft will snapshot a generated rule id",
   "Save draft snapshots this source rule",
   "Draft PolicyVersion",

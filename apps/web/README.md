@@ -155,6 +155,10 @@ approve/reject/assign/activate buttons advisory-role-aware. Disabled buttons
 show reasons such as "Reviewer role required" or "Assigned to another
 reviewer", but backend authorization remains the source of truth. There is no
 fake reviewer directory; assignments use explicit stable actor ids.
+Legacy live Policy and PolicyRule endpoints remain available for bootstrap and
+unversioned fallback policies. Once a Policy has an active PolicyVersion,
+direct live Policy/PolicyRule mutations are blocked by the backend with
+guidance to use Save draft to create a reviewed PolicyVersion.
 The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
