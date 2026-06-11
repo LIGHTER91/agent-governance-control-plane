@@ -1254,6 +1254,87 @@ class PolicyVersionReviewRequestRead(BaseModel):
     policy_version_number: int | None = None
 
 
+class PolicyVersionDiffFieldValue(BaseModel):
+    field: str
+    value: Any = None
+
+
+class PolicyVersionDiffChangedField(BaseModel):
+    field: str
+    baseline: Any = None
+    reviewed: Any = None
+
+
+class PolicyVersionDiffFieldChange(BaseModel):
+    changed: bool
+    baseline: Any = None
+    reviewed: Any = None
+
+
+class PolicyVersionPolicySnapshotChanges(BaseModel):
+    name: PolicyVersionDiffFieldChange
+    description: PolicyVersionDiffFieldChange
+    status: PolicyVersionDiffFieldChange
+
+
+class PolicyVersionRuleConditionChanges(BaseModel):
+    added_fields: list[PolicyVersionDiffFieldValue] = Field(default_factory=list)
+    removed_fields: list[PolicyVersionDiffFieldValue] = Field(default_factory=list)
+    changed_fields: list[PolicyVersionDiffChangedField] = Field(default_factory=list)
+    unchanged_fields_count: int = 0
+
+
+class PolicyVersionCheckStepChanges(BaseModel):
+    added_count: int = 0
+    removed_count: int = 0
+    changed_count: int = 0
+    unchanged_count: int = 0
+    changed_fields: list[str] = Field(default_factory=list)
+
+
+class PolicyVersionReviewAuditReference(BaseModel):
+    id: UUID
+    event_type: str
+    entity_type: str
+    entity_id: str
+    summary: str
+    created_at: datetime
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PolicyVersionReviewEvidenceRead(BaseModel):
+    review_status: PolicyVersionReviewRequestStatus
+    review_requested_at: datetime
+    decided_at: datetime | None = None
+    requested_by_actor_type: ActorType
+    requested_by_actor_id: str
+    reviewer_actor_type: ActorType | None = None
+    reviewer_actor_id: str | None = None
+    activation_audit_event: PolicyVersionReviewAuditReference | None = None
+    superseded_audit_event: PolicyVersionReviewAuditReference | None = None
+    activated_policy_version_id: UUID | None = None
+    previous_active_policy_version_id: UUID | None = None
+
+
+class PolicyVersionReviewDiffRead(BaseModel):
+    review_request_id: UUID
+    policy_id: UUID
+    policy_version_id: UUID
+    baseline_policy_version_id: UUID | None = None
+    baseline_type: Literal["active_version", "live_fallback", "none"]
+    baseline_summary: str
+    reviewed_version_status: PolicyVersionStatus
+    review_status: PolicyVersionReviewRequestStatus
+    can_activate: bool
+    activation_requires_replace: bool
+    policy_snapshot_changes: PolicyVersionPolicySnapshotChanges
+    rule_condition_changes: PolicyVersionRuleConditionChanges
+    check_step_changes: PolicyVersionCheckStepChanges
+    plain_language_summary: list[str] = Field(default_factory=list)
+    runtime_effect_summary: list[str] = Field(default_factory=list)
+    evidence: PolicyVersionReviewEvidenceRead
+
+
 class PolicyRuleBase(BaseModel):
     policy_id: UUID
     name: str

@@ -1298,6 +1298,154 @@ a {
   padding: 12px 16px;
 }
 
+.policy-review-diff-card {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.policy-review-diff-card.error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.policy-review-diff-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.policy-review-diff-head strong {
+  color: var(--text);
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.policy-review-diff-head p,
+.policy-review-diff-card > p,
+.policy-review-diff-section p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.policy-review-diff-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.policy-review-diff-grid div {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.policy-review-diff-grid span,
+.policy-review-evidence-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.policy-review-diff-grid strong,
+.policy-review-evidence-grid dd {
+  color: var(--text);
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.policy-review-runtime-effect {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+}
+
+.policy-review-diff-details {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.policy-review-diff-details summary {
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.policy-review-diff-section {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.policy-review-diff-section h4 {
+  color: var(--text);
+  font-size: 13px;
+  margin: 0;
+}
+
+.policy-review-diff-section ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.policy-review-diff-section li {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  justify-content: space-between;
+  list-style: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 7px 8px;
+}
+
+.policy-review-diff-section code {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.policy-review-evidence-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.policy-review-evidence-grid div {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+}
+
 .row-link {
   color: var(--accent-strong);
   font-weight: 700;

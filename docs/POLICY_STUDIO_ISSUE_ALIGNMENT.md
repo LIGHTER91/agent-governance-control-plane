@@ -22,8 +22,8 @@ The `/policies` route is now an IDE-style frontend surface:
 - local validation console for parser errors, unsupported DSL, generated JSON,
   selected Policy/PolicyRule state, and save readiness;
 - inspector with summary, decision flow, compiled output, review status, and
-  disabled Submit for review action;
-- Save draft through the existing Policy and PolicyRule APIs;
+  Submit for review for saved draft PolicyVersion snapshots;
+- Save draft through draft PolicyVersion snapshots;
 - no Publish action, no fake compliance score, and no fake production
   simulation.
 
@@ -37,7 +37,7 @@ Implemented:
 
 - Raw JSON is no longer the primary authoring workflow.
 - Users can start from templates, inspect blocks, use a controlled DSL, and
-  save through existing Policy and PolicyRule APIs.
+  save editor output as draft PolicyVersion snapshots.
 - Plain-language summary and compiled deterministic JSON preview are available.
 - Unsupported DSL lines are surfaced and block saving instead of being silently
   persisted.
@@ -115,21 +115,25 @@ Why it matters now:
 - Backend `PolicyVersion` persistence, lifecycle APIs, audit events,
   Runtime Gateway active-version evaluation, and Evidence Bundle references
   already exist.
-- Save draft still writes through existing Policy/PolicyRule APIs instead of a
-  clearly isolated draft-version workflow.
-- Submit for review remains disabled and formal review request semantics are
-  undecided.
-- Review/version guardrails must still define draft-version save behavior,
-  review request shape, approval versus activation semantics, rollback-copy UX,
-  and frontend wiring.
+- Save draft now writes draft PolicyVersion snapshots and does not affect
+  runtime until explicit activation.
+- Submit for review now creates a dedicated pending
+  PolicyVersionReviewRequest for a saved draft snapshot.
+- Approving or rejecting a review request records reviewer intent only and does
+  not activate the PolicyVersion.
+- Approved review requests can now be activated explicitly. Replacement of an
+  existing active version requires explicit `replace_active` intent.
+- Review/version guardrails must still define rollback-copy UX, review diffs,
+  reviewer assignment, and historical backfill.
 
 Recommended next step: use
 `docs/POLICY_VERSIONING_REVIEW_DESIGN.md` as the narrowed #56 review workflow
-contract before wiring Submit for review in the UI.
+contract before adding rollback, diff, assignment, or publish-like semantics.
 
 ### #68 Active PolicyVersion rollout and telemetry migration
 
-Status: should remain open before any real activate/publish workflow.
+Status: should remain open for historical-backfill planning before richer
+activation or publish-like workflow semantics.
 
 Why it matters:
 
@@ -139,12 +143,11 @@ Why it matters:
 - Telemetry policy evaluation now uses the same active-version loader as
   Runtime Gateway, while historical PolicyDecision backfill still needs an
   explicit migration decision.
-- The project still needs a decided single-active-version guard strategy before
-  activation is presented as product-ready.
+- A single-active-version guard now exists in API validation and as a
+  database-level partial unique index.
 
-Recommended next step: implement the remaining #68 follow-ups: decide
-historical backfill, add a database-level single-active-version guard, then
-define activation UI semantics. Do not add Publish before this is settled.
+Recommended next step: decide historical backfill, then refine activation UI
+semantics with diffs and assignment. Do not add Publish.
 
 ### #57 Product UI rebuild
 
@@ -208,17 +211,16 @@ Current relationship to Policy Studio:
    editing and PolicyCheckStep authoring.
 2. Keep #76 open or mark partial until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
-3. Use the refreshed #56 design to implement draft-version Save draft behavior,
-   review request semantics, and frontend Submit for review wiring.
-4. Complete remaining #68 implementation follow-ups before any real activation,
-   Publish, historical backfill, or runtime source-of-truth semantics.
-5. Then implement backend Policy Review Workflow APIs and only after that wire
-   Submit for review in the frontend.
+3. Treat review request semantics, frontend Submit for review wiring, and
+   explicit Activate approved version as implemented for V1.
+4. Complete the remaining #68 historical-backfill decision before adding
+   publish-like semantics or claiming complete historical version coverage.
+5. Add review diffs, assignment, and rollback-copy UX as focused follow-ups.
 
 ## Guardrails
 
-- Do not add a direct Publish action before review and active-version rollout
-  semantics are settled.
+- Do not add a direct Publish action; use explicit Activate approved version
+  wording for runtime-changing transitions.
 - Do not call local validation production simulation.
 - Do not invent policy impact metrics, affected-system counts, compliance
   scores, or legal certification claims.

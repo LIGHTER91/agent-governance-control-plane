@@ -2134,6 +2134,25 @@ const CSS_STUDIO = `
   }
   .ps2-review-note:focus { border-color:var(--purple-brd); }
   .ps2-review-note::placeholder { color:var(--text-faint); }
+  .ps2-review-diff {
+    background:var(--bg-card); border:1px solid var(--border2);
+    border-radius:var(--radius-sm); padding:8px 10px; margin-top:8px;
+    display:grid; gap:5px;
+  }
+  .ps2-review-diff strong {
+    color:var(--text); font-family:var(--mono); font-size:10.5px;
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .ps2-review-diff span {
+    color:var(--purple-lt); font-family:var(--mono); font-size:10.5px;
+  }
+  .ps2-review-diff p {
+    color:var(--text-muted); font-size:11px; line-height:1.45; margin:0;
+  }
+  .ps2-review-diff small {
+    color:var(--text-dim); font-family:var(--mono); font-size:10px;
+    overflow-wrap:anywhere;
+  }
 
   /* Inspector footer */
   .ps2-insp-actions {

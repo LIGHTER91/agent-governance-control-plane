@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -21,17 +22,30 @@ from agent_governance_api.database import get_db_session
 from agent_governance_api.metadata_safety import redact_sensitive_text
 from agent_governance_api.models import (
     ActorType,
+    AuditLog,
+    Policy,
+    PolicyCheckStep,
+    PolicyRule,
     PolicyVersion,
     PolicyVersionReviewRequest,
     PolicyVersionReviewRequestStatus,
     PolicyVersionStatus,
 )
 from agent_governance_api.schemas import (
+    PolicyVersionCheckStepChanges,
+    PolicyVersionDiffChangedField,
+    PolicyVersionDiffFieldChange,
+    PolicyVersionDiffFieldValue,
+    PolicyVersionPolicySnapshotChanges,
     PolicyVersionRead,
     PolicyVersionReviewActivationRequest,
+    PolicyVersionReviewAuditReference,
     PolicyVersionReviewDecisionRequest,
+    PolicyVersionReviewDiffRead,
+    PolicyVersionReviewEvidenceRead,
     PolicyVersionReviewRequestCreate,
     PolicyVersionReviewRequestRead,
+    PolicyVersionRuleConditionChanges,
 )
 
 policy_versions_router = APIRouter(
@@ -112,6 +126,107 @@ def list_policy_version_review_requests(
         _review_request_read(review_request, version)
         for review_request, version in session.execute(statement).all()
     ]
+
+
+@router.get(
+    "/{review_request_id}/diff",
+    response_model=PolicyVersionReviewDiffRead,
+)
+def get_policy_version_review_request_diff(
+    review_request_id: UUID,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersionReviewDiffRead:
+    _require_policy_version_review_reader(actor)
+    review_request = _get_policy_version_review_request_or_404(
+        session,
+        review_request_id,
+    )
+    version = _get_policy_version_or_404(session, review_request.policy_version_id)
+    _require_review_request_policy_match(review_request, version)
+
+    activation_audit = _activation_audit_for_review_request(
+        session,
+        review_request,
+        version,
+    )
+    previous_active_version_id = _previous_active_version_id_from_audit(
+        activation_audit
+    )
+    superseded_audit = _superseded_audit_for_activation(
+        session,
+        review_request,
+        version,
+        previous_active_version_id,
+    )
+    baseline = _diff_baseline_for_review_request(
+        session,
+        version,
+        previous_active_version_id=previous_active_version_id,
+    )
+
+    policy_snapshot_changes = _policy_snapshot_changes(
+        baseline.policy_snapshot,
+        version.policy_snapshot,
+    )
+    rule_condition_changes = _rule_condition_changes(
+        baseline.rule_snapshots,
+        version.rule_snapshots,
+    )
+    check_step_changes = _check_step_changes(
+        baseline.check_step_snapshots,
+        version.check_step_snapshots,
+    )
+    can_activate = (
+        review_request.status is PolicyVersionReviewRequestStatus.APPROVED
+        and version.status in {PolicyVersionStatus.DRAFT, PolicyVersionStatus.APPROVED}
+    )
+    activation_requires_replace = (
+        can_activate
+        and baseline.baseline_type == "active_version"
+        and baseline.policy_version_id is not None
+    )
+
+    return PolicyVersionReviewDiffRead(
+        review_request_id=review_request.id,
+        policy_id=review_request.policy_id,
+        policy_version_id=review_request.policy_version_id,
+        baseline_policy_version_id=baseline.policy_version_id,
+        baseline_type=baseline.baseline_type,
+        baseline_summary=baseline.summary,
+        reviewed_version_status=version.status,
+        review_status=review_request.status,
+        can_activate=can_activate,
+        activation_requires_replace=activation_requires_replace,
+        policy_snapshot_changes=policy_snapshot_changes,
+        rule_condition_changes=rule_condition_changes,
+        check_step_changes=check_step_changes,
+        plain_language_summary=_plain_language_summary(
+            baseline,
+            policy_snapshot_changes=policy_snapshot_changes,
+            rule_condition_changes=rule_condition_changes,
+            check_step_changes=check_step_changes,
+            review_request=review_request,
+            version=version,
+        ),
+        runtime_effect_summary=_runtime_effect_summary(
+            review_request,
+            version,
+            can_activate=can_activate,
+        ),
+        evidence=_review_evidence(
+            review_request,
+            activation_audit=activation_audit,
+            superseded_audit=superseded_audit,
+            activated_policy_version_id=(
+                version.id
+                if activation_audit is not None
+                or version.status is PolicyVersionStatus.ACTIVE
+                else None
+            ),
+            previous_active_policy_version_id=previous_active_version_id,
+        ),
+    )
 
 
 @router.post(
@@ -525,3 +640,478 @@ def _audit_text(value: str | None, *, max_length: int = 512) -> str | None:
     if len(redacted) <= max_length:
         return redacted
     return f"{redacted[: max_length - 3]}..."
+
+
+class _DiffBaseline:
+    def __init__(
+        self,
+        *,
+        baseline_type: str,
+        policy_snapshot: dict[str, object] | None,
+        rule_snapshots: list[dict[str, object]],
+        check_step_snapshots: list[dict[str, object]],
+        summary: str,
+        policy_version_id: UUID | None = None,
+    ) -> None:
+        self.baseline_type = baseline_type
+        self.policy_snapshot = policy_snapshot
+        self.rule_snapshots = rule_snapshots
+        self.check_step_snapshots = check_step_snapshots
+        self.summary = summary
+        self.policy_version_id = policy_version_id
+
+
+def _diff_baseline_for_review_request(
+    session: Session,
+    version: PolicyVersion,
+    *,
+    previous_active_version_id: UUID | None,
+) -> _DiffBaseline:
+    if version.status is PolicyVersionStatus.ACTIVE and previous_active_version_id:
+        previous_active_version = session.get(PolicyVersion, previous_active_version_id)
+        if previous_active_version is not None:
+            return _baseline_from_policy_version(
+                previous_active_version,
+                summary=(
+                    "Baseline active version was the previous active PolicyVersion "
+                    "superseded by this activation."
+                ),
+            )
+
+    active_version = session.scalar(
+        select(PolicyVersion)
+        .where(
+            PolicyVersion.policy_id == version.policy_id,
+            PolicyVersion.status == PolicyVersionStatus.ACTIVE,
+            PolicyVersion.id != version.id,
+        )
+        .order_by(
+            PolicyVersion.version_number.desc(),
+            PolicyVersion.id.desc(),
+        )
+    )
+    if active_version is not None:
+        return _baseline_from_policy_version(
+            active_version,
+            summary="Baseline active version is the current active PolicyVersion.",
+        )
+
+    live_fallback = _live_fallback_baseline(session, version.policy_id)
+    if live_fallback is not None:
+        return live_fallback
+
+    return _DiffBaseline(
+        baseline_type="none",
+        policy_snapshot=None,
+        rule_snapshots=[],
+        check_step_snapshots=[],
+        summary="No active baseline found.",
+    )
+
+
+def _baseline_from_policy_version(
+    version: PolicyVersion,
+    *,
+    summary: str,
+) -> _DiffBaseline:
+    return _DiffBaseline(
+        baseline_type="active_version",
+        policy_snapshot=dict(version.policy_snapshot),
+        rule_snapshots=[dict(rule) for rule in version.rule_snapshots],
+        check_step_snapshots=[dict(step) for step in version.check_step_snapshots],
+        summary=summary,
+        policy_version_id=version.id,
+    )
+
+
+def _live_fallback_baseline(
+    session: Session,
+    policy_id: UUID,
+) -> _DiffBaseline | None:
+    policy = session.get(Policy, policy_id)
+    if policy is None:
+        return None
+
+    rules = list(
+        session.scalars(
+            select(PolicyRule)
+            .where(PolicyRule.policy_id == policy_id)
+            .order_by(PolicyRule.created_at, PolicyRule.id)
+        ).all()
+    )
+    if not rules:
+        return None
+
+    rule_snapshots = [
+        {
+            "id": str(rule.id),
+            "policy_id": str(rule.policy_id),
+            "name": rule.name,
+            "description": rule.description,
+            "condition": rule.condition,
+        }
+        for rule in rules
+    ]
+    check_step_snapshots = _live_check_step_snapshots(
+        session,
+        [rule.id for rule in rules],
+    )
+    return _DiffBaseline(
+        baseline_type="live_fallback",
+        policy_snapshot={
+            "id": str(policy.id),
+            "name": policy.name,
+            "description": policy.description,
+            "status": policy.status.value,
+        },
+        rule_snapshots=rule_snapshots,
+        check_step_snapshots=check_step_snapshots,
+        summary=(
+            "No active PolicyVersion baseline found; comparing against live "
+            "unversioned Policy/PolicyRule fallback."
+        ),
+    )
+
+
+def _live_check_step_snapshots(
+    session: Session,
+    rule_ids: list[UUID],
+) -> list[dict[str, object]]:
+    if not rule_ids:
+        return []
+
+    steps = list(
+        session.scalars(
+            select(PolicyCheckStep)
+            .where(PolicyCheckStep.policy_rule_id.in_(rule_ids))
+            .order_by(PolicyCheckStep.created_at, PolicyCheckStep.id)
+        ).all()
+    )
+    return [
+        {
+            "id": str(step.id),
+            "policy_rule_id": str(step.policy_rule_id),
+            "check_tool_id": None
+            if step.check_tool_id is None
+            else str(step.check_tool_id),
+            "check_type": step.check_type.value,
+            "target_selector": step.target_selector.value,
+            "required": step.required,
+            "failure_behavior": step.failure_behavior.value,
+            "min_confidence": step.min_confidence,
+            "status": step.status.value,
+            "evidence_retention": step.evidence_retention.value,
+            "metadata": dict(step.metadata_ or {}),
+        }
+        for step in steps
+    ]
+
+
+def _policy_snapshot_changes(
+    baseline: dict[str, object] | None,
+    reviewed: dict[str, object],
+) -> PolicyVersionPolicySnapshotChanges:
+    return PolicyVersionPolicySnapshotChanges(
+        name=_field_change(baseline, reviewed, "name"),
+        description=_field_change(baseline, reviewed, "description"),
+        status=_field_change(baseline, reviewed, "status"),
+    )
+
+
+def _field_change(
+    baseline: dict[str, object] | None,
+    reviewed: dict[str, object],
+    field: str,
+) -> PolicyVersionDiffFieldChange:
+    baseline_value = baseline.get(field) if baseline is not None else None
+    reviewed_value = reviewed.get(field)
+    return PolicyVersionDiffFieldChange(
+        changed=baseline_value != reviewed_value,
+        baseline=baseline_value,
+        reviewed=reviewed_value,
+    )
+
+
+def _rule_condition_changes(
+    baseline_rules: list[dict[str, object]],
+    reviewed_rules: list[dict[str, object]],
+) -> PolicyVersionRuleConditionChanges:
+    baseline_fields = _condition_fields(baseline_rules)
+    reviewed_fields = _condition_fields(reviewed_rules)
+
+    baseline_keys = set(baseline_fields)
+    reviewed_keys = set(reviewed_fields)
+    common_keys = baseline_keys & reviewed_keys
+    return PolicyVersionRuleConditionChanges(
+        added_fields=[
+            PolicyVersionDiffFieldValue(field=field, value=reviewed_fields[field])
+            for field in sorted(reviewed_keys - baseline_keys)
+        ],
+        removed_fields=[
+            PolicyVersionDiffFieldValue(field=field, value=baseline_fields[field])
+            for field in sorted(baseline_keys - reviewed_keys)
+        ],
+        changed_fields=[
+            PolicyVersionDiffChangedField(
+                field=field,
+                baseline=baseline_fields[field],
+                reviewed=reviewed_fields[field],
+            )
+            for field in sorted(common_keys)
+            if baseline_fields[field] != reviewed_fields[field]
+        ],
+        unchanged_fields_count=sum(
+            1
+            for field in common_keys
+            if baseline_fields[field] == reviewed_fields[field]
+        ),
+    )
+
+
+def _condition_fields(rule_snapshots: list[dict[str, object]]) -> dict[str, object]:
+    fields: dict[str, object] = {}
+    use_prefix = len(rule_snapshots) > 1
+    for index, rule_snapshot in enumerate(rule_snapshots):
+        condition = _condition_object(rule_snapshot.get("condition"))
+        prefix = ""
+        if use_prefix:
+            prefix = f"{_rule_snapshot_label(rule_snapshot, index)}."
+        for key, value in condition.items():
+            fields[f"{prefix}{key}"] = value
+    return fields
+
+
+def _condition_object(value: object) -> dict[str, object]:
+    if not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return dict(parsed)
+
+
+def _rule_snapshot_label(rule_snapshot: dict[str, object], index: int) -> str:
+    name = rule_snapshot.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip().replace(" ", "_")
+    rule_id = rule_snapshot.get("id")
+    if isinstance(rule_id, str) and rule_id.strip():
+        return rule_id.strip()
+    return f"rule_{index + 1}"
+
+
+def _check_step_changes(
+    baseline_steps: list[dict[str, object]],
+    reviewed_steps: list[dict[str, object]],
+) -> PolicyVersionCheckStepChanges:
+    baseline_map = _check_step_map(baseline_steps)
+    reviewed_map = _check_step_map(reviewed_steps)
+    baseline_keys = set(baseline_map)
+    reviewed_keys = set(reviewed_map)
+    common_keys = baseline_keys & reviewed_keys
+    changed_fields: list[str] = []
+    unchanged_count = 0
+    changed_count = 0
+
+    for key in sorted(common_keys):
+        baseline_step = baseline_map[key]
+        reviewed_step = reviewed_map[key]
+        step_changed = False
+        for field in sorted(set(baseline_step) | set(reviewed_step)):
+            if baseline_step.get(field) != reviewed_step.get(field):
+                changed_fields.append(f"{key}.{field}")
+                step_changed = True
+        if step_changed:
+            changed_count += 1
+        else:
+            unchanged_count += 1
+
+    return PolicyVersionCheckStepChanges(
+        added_count=len(reviewed_keys - baseline_keys),
+        removed_count=len(baseline_keys - reviewed_keys),
+        changed_count=changed_count,
+        unchanged_count=unchanged_count,
+        changed_fields=changed_fields,
+    )
+
+
+def _check_step_map(
+    check_step_snapshots: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    mapped: dict[str, dict[str, object]] = {}
+    for index, check_step in enumerate(check_step_snapshots):
+        check_step_id = check_step.get("id")
+        key = check_step_id if isinstance(check_step_id, str) else f"step_{index + 1}"
+        mapped[key] = dict(check_step)
+    return mapped
+
+
+def _plain_language_summary(
+    baseline: _DiffBaseline,
+    *,
+    policy_snapshot_changes: PolicyVersionPolicySnapshotChanges,
+    rule_condition_changes: PolicyVersionRuleConditionChanges,
+    check_step_changes: PolicyVersionCheckStepChanges,
+    review_request: PolicyVersionReviewRequest,
+    version: PolicyVersion,
+) -> list[str]:
+    policy_change_count = sum(
+        1
+        for change in (
+            policy_snapshot_changes.name,
+            policy_snapshot_changes.description,
+            policy_snapshot_changes.status,
+        )
+        if change.changed
+    )
+    changed_condition_count = (
+        len(rule_condition_changes.added_fields)
+        + len(rule_condition_changes.removed_fields)
+        + len(rule_condition_changes.changed_fields)
+    )
+    check_change_count = (
+        check_step_changes.added_count
+        + check_step_changes.removed_count
+        + check_step_changes.changed_count
+    )
+    summary = [
+        baseline.summary,
+        (
+            f"Policy snapshot changes: {policy_change_count} field(s); "
+            f"condition changes: {changed_condition_count} field(s); "
+            f"check step changes: {check_change_count} item(s)."
+        ),
+        (
+            f"Review request is {review_request.status.value}; reviewed "
+            f"PolicyVersion is {version.status.value}."
+        ),
+    ]
+    if baseline.baseline_type == "none":
+        summary.append("No active baseline found.")
+    return summary
+
+
+def _runtime_effect_summary(
+    review_request: PolicyVersionReviewRequest,
+    version: PolicyVersion,
+    *,
+    can_activate: bool,
+) -> list[str]:
+    if version.status is PolicyVersionStatus.ACTIVE:
+        return [
+            "PolicyVersion is active. Future Runtime Gateway and telemetry "
+            "policy evaluation use this snapshot.",
+        ]
+
+    if review_request.status in {
+        PolicyVersionReviewRequestStatus.PENDING,
+        PolicyVersionReviewRequestStatus.APPROVED,
+    }:
+        summary = ["No runtime effect until activation"]
+        if can_activate:
+            summary.append(
+                "Activation will change future runtime and telemetry policy evaluation"
+            )
+        return summary
+
+    return ["No runtime effect from this review request in its current state"]
+
+
+def _review_evidence(
+    review_request: PolicyVersionReviewRequest,
+    *,
+    activation_audit: AuditLog | None,
+    superseded_audit: AuditLog | None,
+    activated_policy_version_id: UUID | None,
+    previous_active_policy_version_id: UUID | None,
+) -> PolicyVersionReviewEvidenceRead:
+    return PolicyVersionReviewEvidenceRead(
+        review_status=review_request.status,
+        review_requested_at=review_request.created_at,
+        decided_at=review_request.decided_at,
+        requested_by_actor_type=review_request.requested_by_actor_type,
+        requested_by_actor_id=review_request.requested_by_actor_id,
+        reviewer_actor_type=review_request.reviewer_actor_type,
+        reviewer_actor_id=review_request.reviewer_actor_id,
+        activation_audit_event=_audit_reference(activation_audit),
+        superseded_audit_event=_audit_reference(superseded_audit),
+        activated_policy_version_id=activated_policy_version_id,
+        previous_active_policy_version_id=previous_active_policy_version_id,
+    )
+
+
+def _activation_audit_for_review_request(
+    session: Session,
+    review_request: PolicyVersionReviewRequest,
+    version: PolicyVersion,
+) -> AuditLog | None:
+    statement = (
+        select(AuditLog)
+        .where(
+            AuditLog.event_type == "policy_version_activated",
+            AuditLog.entity_type == "policy_version",
+            AuditLog.entity_id == str(version.id),
+        )
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    )
+    for audit_log in session.scalars(statement).all():
+        if audit_log.metadata_.get("review_request_id") == str(review_request.id):
+            return audit_log
+    return None
+
+
+def _previous_active_version_id_from_audit(audit_log: AuditLog | None) -> UUID | None:
+    if audit_log is None:
+        return None
+    value = audit_log.metadata_.get("superseded_policy_version_id")
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
+
+
+def _superseded_audit_for_activation(
+    session: Session,
+    review_request: PolicyVersionReviewRequest,
+    version: PolicyVersion,
+    previous_active_version_id: UUID | None,
+) -> AuditLog | None:
+    if previous_active_version_id is None:
+        return None
+    statement = (
+        select(AuditLog)
+        .where(
+            AuditLog.event_type == "policy_version_superseded",
+            AuditLog.entity_type == "policy_version",
+            AuditLog.entity_id == str(previous_active_version_id),
+        )
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    )
+    for audit_log in session.scalars(statement).all():
+        metadata = audit_log.metadata_
+        if metadata.get("replacement_policy_version_id") == str(
+            version.id
+        ) and metadata.get("review_request_id") == str(review_request.id):
+            return audit_log
+    return None
+
+
+def _audit_reference(
+    audit_log: AuditLog | None,
+) -> PolicyVersionReviewAuditReference | None:
+    if audit_log is None:
+        return None
+    return PolicyVersionReviewAuditReference(
+        id=audit_log.id,
+        event_type=audit_log.event_type,
+        entity_type=audit_log.entity_type,
+        entity_id=audit_log.entity_id,
+        summary=audit_log.summary,
+        created_at=audit_log.created_at,
+        metadata=dict(audit_log.metadata_ or {}),
+    )

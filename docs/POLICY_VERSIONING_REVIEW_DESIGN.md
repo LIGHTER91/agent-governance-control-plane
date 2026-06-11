@@ -22,13 +22,16 @@ Already implemented:
   requests, approval, and rejection;
 - explicit activation of approved PolicyVersion review requests, with
   `replace_active` required before superseding an existing active version;
+- deterministic metadata-only PolicyVersion review diffs with activation and
+  supersession evidence references;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
   Publish button, and backend-backed Submit for review.
 
 Still unresolved:
 
-- richer review diff and reviewer assignment workflow;
+- reviewer assignment workflow;
+- rollback-copy UX;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
@@ -108,6 +111,7 @@ Lifecycle APIs currently exist for:
 - list PolicyVersion review requests;
 - approve or reject a pending PolicyVersion review request without activation;
 - activate an approved PolicyVersion review request explicitly;
+- read a safe diff for a PolicyVersion review request;
 - submit for review;
 - approve;
 - reject;
@@ -170,12 +174,15 @@ surface:
 - Submit for review creates a pending `PolicyVersionReviewRequest`;
 - the Reviews page includes a Policy Reviews queue for pending and approved
   review requests;
+- the Reviews page shows Policy Review Diff summaries with baseline type,
+  changed condition fields, runtime effect copy, and activation/supersession
+  audit references when available;
 - approved review requests can be explicitly activated from that queue;
 - there is no direct Publish action.
 
 The frontend does not yet solve the full backend/domain review workflow:
 
-- there is no reviewer assignment, diff view, or richer role-aware review UI;
+- there is no reviewer assignment or richer role-aware review UI;
 - activation replacement is an explicit checkbox/action, not a full diff-based
   release workflow;
 - the inspector review status is informational and should not be treated as a
@@ -196,6 +203,7 @@ the core active-edit risk.
 - approval separated from activation;
 - dedicated PolicyVersion review requests instead of runtime HumanApproval
   reuse;
+- deterministic metadata-only review diffs for PolicyVersion review requests;
 - active-version Runtime Gateway evaluation with fallback;
 - optional `policy_version_id` references on PolicyDecision and Evidence
   Bundle summaries.
@@ -220,8 +228,9 @@ The remaining work is narrower than the original broad design issue:
   PolicyVersion for V1;
 - decide historical PolicyDecision backfill behavior;
 - define rollback-copy UX and API expectations;
-- refine explicit activation UX with policy diffs and assignment;
-- add richer review diff, reviewer assignment, and role-aware product UX later.
+- refine explicit activation UX with reviewer assignment;
+- add rollback-copy UX, reviewer assignment, and richer role-aware product UX
+  later.
 
 ## Proposed V1 Model
 
@@ -309,6 +318,38 @@ reference active PolicyVersion snapshots for new decisions, but historical
 PolicyDecision records remain nullable unless a future explicit backfill task
 is designed.
 
+## Review Diff And Activation Evidence
+
+PolicyVersion review requests now expose a deterministic metadata-only diff:
+
+```text
+GET /policy-version-review-requests/{review_request_id}/diff
+```
+
+The response compares the reviewed PolicyVersion against:
+
+- the current active PolicyVersion for the same Policy when one exists;
+- the previously active PolicyVersion if the reviewed version has already
+  replaced it and activation audit metadata identifies that prior version;
+- otherwise the live unversioned Policy/PolicyRule fallback when live rules
+  exist;
+- otherwise an explicit `baseline_type = none` state with "No active baseline
+  found."
+
+The diff includes safe Policy snapshot field changes, deterministic PolicyRule
+condition field changes, PolicyCheckStep snapshot counts, review status,
+whether activation is currently possible, whether replacement is required, and
+plain-language runtime effect copy. It does not simulate production impact,
+calculate affected agents, expose full runtime payloads, or claim compliance
+status.
+
+Activation evidence is audit-based. The diff response can include the review
+request actor/timestamps, reviewer actor/timestamps, activation audit event,
+supersession audit event, activated PolicyVersion id, and previous active
+PolicyVersion id when replacement happened. This supports reviewer
+explanation without adding automatic activation, Publish wording, or rollback
+behavior.
+
 ## Non-goals
 
 - No frontend Publish button.
@@ -336,10 +377,8 @@ Recommended next sequence:
 4. Complete remaining #68 follow-ups before adding richer activation product
    semantics: historical backfill must be decided and activation UI semantics
    must remain separate from review approval.
-5. Keep rollback-copy UX, review diffs, and reviewer assignment as focused
-   follow-ups.
-6. Add review diff UI, richer reviewer assignment, role-aware actions, and
-   separation of
+5. Keep rollback-copy UX and reviewer assignment as focused follow-ups.
+6. Add richer reviewer assignment, role-aware actions, and separation of
    duties later, after identity and RBAC are stronger.
 
 ## Risks
@@ -378,14 +417,16 @@ Implemented:
 - dedicated PolicyVersion review request queue with approve/reject actions.
 - explicit Activate approved version action for approved review requests, with
   optional `replace_active` superseding of the previous active version.
+- metadata-only Policy Review Diff UI with baseline type, changed fields, and
+  activation/supersession evidence references.
 
 Still unresolved:
 
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
-- no diff UI, reviewer assignment, or richer role-aware policy review workflow
-  exists.
+- no reviewer assignment, rollback-copy UX, or richer role-aware policy review
+  workflow exists.
 
 Recommended next implementation issue: define historical PolicyDecision
-backfill expectations or add review diff/reviewer assignment UX. Do not add
-Publish wording or legal certification claims.
+backfill expectations or add reviewer assignment and rollback-copy UX. Do not
+add Publish wording or legal certification claims.

@@ -7,12 +7,14 @@ import {
   PolicyRecord,
   PolicyRuleRecord,
   PolicyVersionDraftPayload,
+  PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
   PolicyVersionRecord,
   createPolicy,
   createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
   fetchPolicies,
+  fetchPolicyVersionReviewRequestDiff,
   fetchPolicyVersionReviewRequests,
   fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
@@ -72,6 +74,12 @@ type ReviewState = {
   message: string;
 };
 
+type ReviewDiffState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; diff: PolicyVersionReviewDiffRecord };
+
 const INITIAL_TEMPLATE =
   POLICY_TEMPLATES.find((template) => template.id === "governance_review_gate") ||
   POLICY_TEMPLATES[0];
@@ -107,6 +115,9 @@ export function PolicyStudio() {
   const [reviewState, setReviewState] = useState<ReviewState>({
     status: "idle",
     message: "Review request not submitted"
+  });
+  const [reviewDiffState, setReviewDiffState] = useState<ReviewDiffState>({
+    status: "idle"
   });
   const [validationRun, setValidationRun] = useState(0);
 
@@ -361,6 +372,35 @@ export function PolicyStudio() {
     void loadVersions(selectedPolicy, controller.signal);
     return () => controller.abort();
   }, [loadRules, loadVersions, selectedPolicy]);
+
+  useEffect(() => {
+    if (!pendingReviewRequest) {
+      setReviewDiffState({ status: "idle" });
+      return;
+    }
+
+    const controller = new AbortController();
+    setReviewDiffState({ status: "loading" });
+    void fetchPolicyVersionReviewRequestDiff(
+      pendingReviewRequest.id,
+      controller.signal
+    )
+      .then((diff) => {
+        setReviewDiffState({ status: "ready", diff });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setReviewDiffState({
+          status: "error",
+          message: errorMessage(error, "Unable to load Policy Review Diff.")
+        });
+      });
+
+    return () => controller.abort();
+  }, [pendingReviewRequest]);
 
   function handleSelectPolicy(policy: PolicyRecord) {
     setSelectedPolicyId(policy.id);
@@ -638,6 +678,7 @@ export function PolicyStudio() {
           pendingReviewRequest={pendingReviewRequest}
           parsed={parsed}
           policyVersionsState={versionsState}
+          reviewDiffState={reviewDiffState}
           reviewRequestsState={reviewRequestsState}
           reviewState={reviewState}
           saveDisabledReason={saveDisabledReason}

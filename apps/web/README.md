@@ -91,6 +91,7 @@ PATCH /policies/{policy_id}
 GET /policies/{policy_id}/rules
 POST /policy-rules
 PATCH /policy-rules/{rule_id}
+GET /policy-version-review-requests/{review_request_id}/diff
 ```
 
 Configure the backend base URL with:
@@ -137,6 +138,11 @@ rejection records reviewer intent but does not activate the version. Approved
 review requests can be activated explicitly from the Policy Reviews queue with
 Activate approved version; activation changes future runtime policy evaluation
 and replacement of an existing active version requires explicit user intent.
+The Policy Reviews queue also loads deterministic metadata-only Policy Review
+Diff summaries from the backend. These summaries show active/live/no-baseline
+comparison state, changed condition fields, runtime-effect copy, and
+activation/supersession audit references when available. They do not simulate
+production impact or claim legal compliance.
 The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
@@ -145,7 +151,7 @@ V1 guided authoring goal from #58. The controlled DSL from #76 exists as a
 frontend implementation layer, but a formal DSL design document is still a
 recommended follow-up. Backend review workflow refinements should continue to
 follow the #56 versioning/review guardrail contract and #68 active
-PolicyVersion rollout decisions before adding rollback, diff, assignment, or
+PolicyVersion rollout decisions before adding rollback, assignment, or
 publish-like semantics.
 
 ## Local Full-Stack Demo

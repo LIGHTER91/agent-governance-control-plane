@@ -412,6 +412,251 @@ def test_activation_with_existing_active_requires_explicit_replacement(
     assert audit_events.count("policy_version_activated") == 2
 
 
+def test_review_diff_against_active_policy_version(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    first_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "allow",
+            "reason": "Baseline allows email.",
+            "tool_name": "send_email",
+            "action_type": "send",
+        },
+    )
+    first_request = create_and_approve_review_request(client, first_version)
+    assert (
+        client.post(
+            f"/policy-version-review-requests/{first_request['id']}/activate"
+        ).status_code
+        == 200
+    )
+
+    set_current_actor(development_actor())
+    second_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "deny",
+            "reason": "Reviewed version denies high-risk email.",
+            "tool_name": "send_email",
+            "risk_level": "high",
+        },
+    )
+    review_request = client.post(
+        f"/policy-versions/{second_version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    response = client.get(
+        f"/policy-version-review-requests/{review_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["review_request_id"] == review_request["id"]
+    assert body["policy_id"] == policy_id
+    assert body["policy_version_id"] == second_version["id"]
+    assert body["baseline_policy_version_id"] == first_version["id"]
+    assert body["baseline_type"] == "active_version"
+    assert body["reviewed_version_status"] == "draft"
+    assert body["review_status"] == "pending"
+    assert body["can_activate"] is False
+    assert body["activation_requires_replace"] is False
+    assert [
+        field["field"] for field in body["rule_condition_changes"]["added_fields"]
+    ] == ["risk_level"]
+    assert [
+        field["field"] for field in body["rule_condition_changes"]["removed_fields"]
+    ] == ["action_type"]
+    assert {
+        field["field"] for field in body["rule_condition_changes"]["changed_fields"]
+    } == {"decision", "reason"}
+    assert body["rule_condition_changes"]["unchanged_fields_count"] == 1
+    assert "No runtime effect until activation" in body["runtime_effect_summary"]
+    assert "matched_decisions" not in json.dumps(body)
+    assert "compliance_score" not in json.dumps(body)
+
+
+def test_review_diff_with_no_active_baseline(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    response = client.get(
+        f"/policy-version-review-requests/{review_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["baseline_type"] == "none"
+    assert body["baseline_policy_version_id"] is None
+    assert body["baseline_summary"] == "No active baseline found."
+    assert "No active baseline found." in body["plain_language_summary"]
+
+
+def test_review_diff_against_live_fallback_policy_rules(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client, status="active")
+    create_policy_rule(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "allow",
+            "reason": "Live fallback allows email.",
+            "tool_name": "send_email",
+        },
+    )
+    version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={
+            "decision": "require_human_review",
+            "reason": "Reviewed version escalates high-risk email.",
+            "tool_name": "send_email",
+            "risk_level": "high",
+        },
+    )
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    response = client.get(
+        f"/policy-version-review-requests/{review_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["baseline_type"] == "live_fallback"
+    assert body["baseline_policy_version_id"] is None
+    assert body["policy_snapshot_changes"]["status"]["baseline"] == "active"
+    assert body["policy_snapshot_changes"]["status"]["reviewed"] == "draft"
+    assert [
+        field["field"] for field in body["rule_condition_changes"]["added_fields"]
+    ] == ["risk_level"]
+    assert {
+        field["field"] for field in body["rule_condition_changes"]["changed_fields"]
+    } == {"decision", "reason"}
+
+
+def test_approved_review_diff_can_activate_and_requires_replace_when_active_exists(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    active_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "allow", "reason": "Baseline active version."},
+    )
+    active_request = create_and_approve_review_request(client, active_version)
+    assert (
+        client.post(
+            f"/policy-version-review-requests/{active_request['id']}/activate"
+        ).status_code
+        == 200
+    )
+
+    set_current_actor(development_actor())
+    reviewed_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "deny", "reason": "Reviewed replacement version."},
+    )
+    approved_request = create_and_approve_review_request(client, reviewed_version)
+
+    response = client.get(
+        f"/policy-version-review-requests/{approved_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["review_status"] == "approved"
+    assert body["can_activate"] is True
+    assert body["activation_requires_replace"] is True
+    assert (
+        "Activation will change future runtime and telemetry policy evaluation"
+        in body["runtime_effect_summary"]
+    )
+
+
+def test_activated_review_diff_includes_activation_and_supersession_evidence(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    first_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "allow", "reason": "First active version."},
+    )
+    first_request = create_and_approve_review_request(client, first_version)
+    assert (
+        client.post(
+            f"/policy-version-review-requests/{first_request['id']}/activate"
+        ).status_code
+        == 200
+    )
+
+    set_current_actor(development_actor())
+    second_version = create_policy_version_draft(
+        client,
+        policy_id=policy_id,
+        condition={"decision": "deny", "reason": "Second active version."},
+    )
+    second_request = create_and_approve_review_request(client, second_version)
+    activation = client.post(
+        f"/policy-version-review-requests/{second_request['id']}/activate",
+        json={"replace_active": True},
+    )
+    assert activation.status_code == 200
+
+    response = client.get(
+        f"/policy-version-review-requests/{second_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["baseline_type"] == "active_version"
+    assert body["baseline_policy_version_id"] == first_version["id"]
+    assert body["can_activate"] is False
+    assert body["evidence"]["activated_policy_version_id"] == second_version["id"]
+    assert body["evidence"]["previous_active_policy_version_id"] == first_version["id"]
+    assert (
+        body["evidence"]["activation_audit_event"]["event_type"]
+        == "policy_version_activated"
+    )
+    assert (
+        body["evidence"]["superseded_audit_event"]["event_type"]
+        == "policy_version_superseded"
+    )
+    assert "PolicyVersion is active" in body["runtime_effect_summary"][0]
+
+
+def test_unknown_review_diff_returns_safe_not_found(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    set_current_actor(reviewer_actor())
+
+    response = client.get(f"/policy-version-review-requests/{uuid4()}/diff")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "PolicyVersion review request not found."
+
+
 def test_activation_updates_runtime_and_telemetry_source_of_truth(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

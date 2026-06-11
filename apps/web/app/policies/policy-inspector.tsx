@@ -3,6 +3,7 @@
 import {
   PolicyRecord,
   PolicyRuleRecord,
+  PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
   PolicyVersionRecord
 } from "../lib/policies";
@@ -24,6 +25,7 @@ export function PolicyInspector({
   pendingReviewRequest,
   parsed,
   policyVersionsState,
+  reviewDiffState,
   reviewRequestsState,
   reviewState,
   saveDisabledReason,
@@ -53,6 +55,11 @@ export function PolicyInspector({
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; versions: PolicyVersionRecord[] };
+  reviewDiffState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; diff: PolicyVersionReviewDiffRecord };
   reviewRequestsState:
     | { status: "idle" }
     | { status: "loading" }
@@ -209,6 +216,10 @@ export function PolicyInspector({
               value="None until explicit PolicyVersion activation"
             />
             <ReviewRow
+              label="Review diff"
+              value={reviewDiffSummary(reviewDiffState)}
+            />
+            <ReviewRow
               label="Unsupported fields"
               value={
                 selectedRuleUnsupportedFields.length > 0
@@ -231,6 +242,22 @@ export function PolicyInspector({
               }
             />
           </div>
+          {reviewDiffState.status === "ready" ? (
+            <div className="ps2-review-diff">
+              <strong>Policy Review Diff</strong>
+              <span>{policyStudioBaselineLabel(reviewDiffState.diff)}</span>
+              <p>{reviewDiffState.diff.runtime_effect_summary.join(" ")}</p>
+              <small>
+                Changed fields: {policyStudioChangedFields(reviewDiffState.diff)}
+              </small>
+              {reviewDiffState.diff.evidence.activation_audit_event ? (
+                <small>
+                  Activation evidence:{" "}
+                  {reviewDiffState.diff.evidence.activation_audit_event.event_type}
+                </small>
+              ) : null}
+            </div>
+          ) : null}
           <textarea
             className="ps2-review-note"
             onChange={(event) => onChangeLocalNote(event.target.value)}
@@ -375,6 +402,46 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
       <span className="ps2-rc-val">{value}</span>
     </div>
   );
+}
+
+function reviewDiffSummary(
+  reviewDiffState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; diff: PolicyVersionReviewDiffRecord }
+) {
+  if (reviewDiffState.status === "idle") {
+    return "No review diff loaded";
+  }
+  if (reviewDiffState.status === "loading") {
+    return "Loading Policy Review Diff";
+  }
+  if (reviewDiffState.status === "error") {
+    return reviewDiffState.message;
+  }
+  return `${policyStudioBaselineLabel(reviewDiffState.diff)} / ${
+    reviewDiffState.diff.review_status
+  }`;
+}
+
+function policyStudioBaselineLabel(diff: PolicyVersionReviewDiffRecord) {
+  if (diff.baseline_type === "active_version") {
+    return "Baseline active version";
+  }
+  if (diff.baseline_type === "live_fallback") {
+    return "Baseline live fallback";
+  }
+  return "No active baseline found";
+}
+
+function policyStudioChangedFields(diff: PolicyVersionReviewDiffRecord) {
+  const fields = [
+    ...diff.rule_condition_changes.added_fields.map((field) => field.field),
+    ...diff.rule_condition_changes.removed_fields.map((field) => field.field),
+    ...diff.rule_condition_changes.changed_fields.map((field) => field.field)
+  ];
+  return fields.length > 0 ? fields.join(", ") : "None detected";
 }
 
 function reviewStatusChip(status: string) {

@@ -10,9 +10,11 @@ import {
 } from "../agcp-studio/primitives";
 import { getApiBaseUrl } from "../lib/api";
 import {
+  PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
   activatePolicyVersionReviewRequest,
   decidePolicyVersionReviewRequest,
+  fetchPolicyVersionReviewRequestDiff,
   fetchPolicyVersionReviewRequests
 } from "../lib/policies";
 
@@ -26,6 +28,11 @@ type ActionState = {
   status: "idle" | "submitting" | "success" | "error";
   message: string;
 };
+
+type DiffState =
+  | { status: "loading" }
+  | { status: "ready"; diff: PolicyVersionReviewDiffRecord }
+  | { status: "error"; message: string };
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -66,6 +73,7 @@ export function PolicyReviewsList() {
   const [replaceActiveById, setReplaceActiveById] = useState<
     Record<string, boolean>
   >({});
+  const [diffsById, setDiffsById] = useState<Record<string, DiffState>>({});
   const [actionState, setActionState] = useState<ActionState>({
     id: null,
     status: "idle",
@@ -84,6 +92,42 @@ export function PolicyReviewsList() {
         right.created_at.localeCompare(left.created_at)
       );
       setState({ status: "ready", requests });
+      setDiffsById(
+        Object.fromEntries(
+          requests.map((request) => [request.id, { status: "loading" }])
+        )
+      );
+      const diffEntries = await Promise.all(
+        requests.map(async (request) => {
+          try {
+            const diff = await fetchPolicyVersionReviewRequestDiff(
+              request.id,
+              signal
+            );
+            return [request.id, { status: "ready", diff }] as const;
+          } catch (error: unknown) {
+            if (signal?.aborted) {
+              return null;
+            }
+
+            return [
+              request.id,
+              {
+                status: "error",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to load Policy review diff."
+              }
+            ] as const;
+          }
+        })
+      );
+      if (!signal?.aborted) {
+        setDiffsById(
+          Object.fromEntries(diffEntries.filter((entry) => entry !== null))
+        );
+      }
     } catch (error: unknown) {
       if (signal?.aborted) {
         return;
@@ -153,7 +197,7 @@ export function PolicyReviewsList() {
         id: request.id,
         status: "success",
         message:
-          "Activate approved version saved. Activation changes runtime policy evaluation."
+          "Activate approved version saved. Activation changes future runtime policy evaluation."
       });
       setReplaceActiveById((current) => ({ ...current, [request.id]: false }));
       void loadPolicyReviews();
@@ -251,6 +295,8 @@ export function PolicyReviewsList() {
                 </div>
               </dl>
 
+              <PolicyReviewDiffSummary diffState={diffsById[request.id]} />
+
               {request.status === "pending" ? (
                 <div className="approval-actions">
                   <label className="approval-note">
@@ -322,7 +368,7 @@ export function PolicyReviewsList() {
                   </div>
                   <p className="agcp-muted">
                     Approval does not activate automatically. Activation changes
-                    runtime policy evaluation for future Runtime Gateway and
+                    future runtime policy evaluation for Runtime Gateway and
                     telemetry decisions.
                   </p>
                   {actionState.id === request.id &&
@@ -337,4 +383,219 @@ export function PolicyReviewsList() {
       ) : null}
     </AGCPPanel>
   );
+}
+
+function PolicyReviewDiffSummary({
+  diffState
+}: {
+  diffState: DiffState | undefined;
+}) {
+  if (!diffState || diffState.status === "loading") {
+    return (
+      <div className="policy-review-diff-card">
+        <div className="policy-review-diff-head">
+          <strong>Policy review diff</strong>
+          <AGCPBadge tone="muted">Loading</AGCPBadge>
+        </div>
+        <p>Loading deterministic Policy Review Diff from the backend.</p>
+      </div>
+    );
+  }
+
+  if (diffState.status === "error") {
+    return (
+      <div className="policy-review-diff-card error">
+        <div className="policy-review-diff-head">
+          <strong>Policy review diff</strong>
+          <AGCPBadge tone="danger">Unavailable</AGCPBadge>
+        </div>
+        <p>{diffState.message}</p>
+      </div>
+    );
+  }
+
+  const diff = diffState.diff;
+  const conditionChangeCount = diffConditionChangeCount(diff);
+  const baselineLabel = policyReviewBaselineLabel(diff);
+  const changedFields = changedConditionFieldNames(diff);
+  const runtimeEffect = diff.runtime_effect_summary.join(" ");
+
+  return (
+    <div className="policy-review-diff-card">
+      <div className="policy-review-diff-head">
+        <div>
+          <strong>Policy review diff</strong>
+          <p>{diff.baseline_summary}</p>
+        </div>
+        <AGCPBadge tone={diff.baseline_type === "none" ? "warn" : "info"}>
+          {baselineLabel}
+        </AGCPBadge>
+      </div>
+
+      <div className="policy-review-diff-grid">
+        <div>
+          <span>Changed fields</span>
+          <strong>{conditionChangeCount}</strong>
+        </div>
+        <div>
+          <span>Unchanged condition fields</span>
+          <strong>{diff.rule_condition_changes.unchanged_fields_count}</strong>
+        </div>
+        <div>
+          <span>Can activate</span>
+          <strong>{diff.can_activate ? "Yes" : "No"}</strong>
+        </div>
+        <div>
+          <span>Requires replace</span>
+          <strong>{diff.activation_requires_replace ? "Yes" : "No"}</strong>
+        </div>
+      </div>
+
+      <p className="policy-review-runtime-effect">
+        {runtimeEffect || "No runtime effect until activation"}
+      </p>
+
+      <details className="policy-review-diff-details">
+        <summary>Expand Policy Review Diff details</summary>
+        <div className="policy-review-diff-section">
+          <h4>Changed condition fields</h4>
+          {changedFields.length > 0 ? (
+            <ul>
+              {changedFields.map((field) => (
+                <li key={field}>{field}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No condition field changes detected.</p>
+          )}
+        </div>
+
+        <div className="policy-review-diff-section">
+          <h4>Policy snapshot changes</h4>
+          <ul>
+            {(["name", "description", "status"] as const).map((field) => {
+              const change = diff.policy_snapshot_changes[field];
+              return (
+                <li key={field}>
+                  <span>{field}</span>
+                  <code>
+                    {change.changed
+                      ? `${formatDiffValue(change.baseline)} -> ${formatDiffValue(
+                          change.reviewed
+                        )}`
+                      : "unchanged"}
+                  </code>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="policy-review-diff-section">
+          <h4>Check step changes</h4>
+          <p>
+            Added {diff.check_step_changes.added_count}, removed{" "}
+            {diff.check_step_changes.removed_count}, changed{" "}
+            {diff.check_step_changes.changed_count}, unchanged{" "}
+            {diff.check_step_changes.unchanged_count}.
+          </p>
+        </div>
+
+        <div className="policy-review-diff-section">
+          <h4>Activation evidence</h4>
+          <dl className="policy-review-evidence-grid">
+            <div>
+              <dt>Requested by</dt>
+              <dd>
+                {formatValue(diff.evidence.requested_by_actor_type)} /{" "}
+                {diff.evidence.requested_by_actor_id}
+              </dd>
+            </div>
+            <div>
+              <dt>Reviewer</dt>
+              <dd>
+                {diff.evidence.reviewer_actor_type
+                  ? `${formatValue(diff.evidence.reviewer_actor_type)} / ${
+                      diff.evidence.reviewer_actor_id
+                    }`
+                  : "Not decided"}
+              </dd>
+            </div>
+            <div>
+              <dt>Activation audit</dt>
+              <dd>
+                {diff.evidence.activation_audit_event
+                  ? diff.evidence.activation_audit_event.event_type
+                  : "No activation audit event yet"}
+              </dd>
+            </div>
+            <div>
+              <dt>Superseded audit</dt>
+              <dd>
+                {diff.evidence.superseded_audit_event
+                  ? diff.evidence.superseded_audit_event.event_type
+                  : "No supersession audit event yet"}
+              </dd>
+            </div>
+            <div>
+              <dt>Activated PolicyVersion</dt>
+              <dd>{diff.evidence.activated_policy_version_id || "Not activated"}</dd>
+            </div>
+            <div>
+              <dt>Previous active version</dt>
+              <dd>
+                {diff.evidence.previous_active_policy_version_id ||
+                  "No previous active version recorded"}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function policyReviewBaselineLabel(diff: PolicyVersionReviewDiffRecord) {
+  if (diff.baseline_type === "active_version") {
+    return "Baseline active version";
+  }
+  if (diff.baseline_type === "live_fallback") {
+    return "Baseline live fallback";
+  }
+  return "No active baseline found";
+}
+
+function diffConditionChangeCount(diff: PolicyVersionReviewDiffRecord) {
+  return (
+    diff.rule_condition_changes.added_fields.length +
+    diff.rule_condition_changes.removed_fields.length +
+    diff.rule_condition_changes.changed_fields.length
+  );
+}
+
+function changedConditionFieldNames(diff: PolicyVersionReviewDiffRecord) {
+  return [
+    ...diff.rule_condition_changes.added_fields.map(
+      (field) => `added ${field.field}`
+    ),
+    ...diff.rule_condition_changes.removed_fields.map(
+      (field) => `removed ${field.field}`
+    ),
+    ...diff.rule_condition_changes.changed_fields.map(
+      (field) => `changed ${field.field}`
+    )
+  ];
+}
+
+function formatDiffValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "not set";
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return JSON.stringify(value);
 }

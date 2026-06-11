@@ -267,6 +267,79 @@ export type PolicyVersionReviewActivationPayload = {
   replace_active?: boolean;
 };
 
+export type PolicyVersionDiffFieldValue = {
+  field: string;
+  value: unknown;
+};
+
+export type PolicyVersionDiffChangedField = {
+  field: string;
+  baseline: unknown;
+  reviewed: unknown;
+};
+
+export type PolicyVersionDiffFieldChange = {
+  changed: boolean;
+  baseline: unknown;
+  reviewed: unknown;
+};
+
+export type PolicyVersionReviewAuditReference = {
+  id: string;
+  event_type: string;
+  entity_type: string;
+  entity_id: string;
+  summary: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+};
+
+export type PolicyVersionReviewDiffRecord = {
+  review_request_id: string;
+  policy_id: string;
+  policy_version_id: string;
+  baseline_policy_version_id: string | null;
+  baseline_type: "active_version" | "live_fallback" | "none";
+  baseline_summary: string;
+  reviewed_version_status: PolicyVersionStatus;
+  review_status: PolicyVersionReviewRequestStatus;
+  can_activate: boolean;
+  activation_requires_replace: boolean;
+  policy_snapshot_changes: {
+    name: PolicyVersionDiffFieldChange;
+    description: PolicyVersionDiffFieldChange;
+    status: PolicyVersionDiffFieldChange;
+  };
+  rule_condition_changes: {
+    added_fields: PolicyVersionDiffFieldValue[];
+    removed_fields: PolicyVersionDiffFieldValue[];
+    changed_fields: PolicyVersionDiffChangedField[];
+    unchanged_fields_count: number;
+  };
+  check_step_changes: {
+    added_count: number;
+    removed_count: number;
+    changed_count: number;
+    unchanged_count: number;
+    changed_fields: string[];
+  };
+  plain_language_summary: string[];
+  runtime_effect_summary: string[];
+  evidence: {
+    review_status: PolicyVersionReviewRequestStatus;
+    review_requested_at: string;
+    decided_at: string | null;
+    requested_by_actor_type: string;
+    requested_by_actor_id: string;
+    reviewer_actor_type: string | null;
+    reviewer_actor_id: string | null;
+    activation_audit_event: PolicyVersionReviewAuditReference | null;
+    superseded_audit_event: PolicyVersionReviewAuditReference | null;
+    activated_policy_version_id: string | null;
+    previous_active_policy_version_id: string | null;
+  };
+};
+
 export async function fetchPolicies(
   signal?: AbortSignal
 ): Promise<PolicyRecord[]> {
@@ -431,6 +504,19 @@ export async function activatePolicyVersionReviewRequest(
     {
       body: payload,
       errorLabel: "POST /policy-version-review-requests/{review_request_id}/activate",
+      signal
+    }
+  );
+}
+
+export async function fetchPolicyVersionReviewRequestDiff(
+  reviewRequestId: string,
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewDiffRecord> {
+  return fetchApiJson<PolicyVersionReviewDiffRecord>(
+    `/policy-version-review-requests/${encodeURIComponent(reviewRequestId)}/diff`,
+    {
+      errorLabel: "GET /policy-version-review-requests/{review_request_id}/diff",
       signal
     }
   );

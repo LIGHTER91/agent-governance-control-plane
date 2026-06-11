@@ -30,6 +30,9 @@ Current state:
   Approval alone still has no runtime effect.
 - If another active version exists, activation requires `replace_active=true`;
   replacement supersedes the previous active version in the same transaction.
+- PolicyVersion review requests now expose deterministic metadata-only review
+  diffs and activation/supersession audit references. These diffs explain what
+  is being reviewed or activated; they do not simulate production impact.
 
 AGCP remains a governance and evidence control plane. It does not execute
 tools, replace orchestrators, provide legal certification, or run a production
@@ -296,15 +299,17 @@ Recommended sequence:
    no activation side effects. Implemented.
 10. Add explicit Activate approved version workflow for approved review
     requests. Implemented.
-11. Keep Publish out of the UI.
+11. Add deterministic metadata-only Policy Review Diff and activation evidence
+    for review requests. Implemented.
+12. Keep Publish out of the UI.
 
 ## Implementation Follow-Ups
 
 Recommended next implementation issues:
 
 1. Decide and document whether historical PolicyDecision backfill is required.
-2. Add review diff, reviewer assignment, and rollback-copy UX without changing
-   the explicit activation boundary.
+2. Add reviewer assignment and rollback-copy UX without changing the explicit
+   activation boundary.
 
 ## Non-goals
 
