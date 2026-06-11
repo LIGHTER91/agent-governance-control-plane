@@ -150,6 +150,11 @@ Pending PolicyVersion review requests can also be assigned to an explicit
 reviewer actor id. Assignment is governance metadata only: it does not approve,
 reject, notify, activate, or change runtime state, and the backend still
 enforces reviewer/platform_admin decision rules.
+The Policy Reviews queue calls `GET /me` to show the current actor and make
+approve/reject/assign/activate buttons advisory-role-aware. Disabled buttons
+show reasons such as "Reviewer role required" or "Assigned to another
+reviewer", but backend authorization remains the source of truth. There is no
+fake reviewer directory; assignments use explicit stable actor ids.
 The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
@@ -258,7 +263,9 @@ npm run build
 ## Current Limitations
 
 - No login or auth UI.
-- No role-aware frontend behavior.
+- No broad enterprise role-aware frontend behavior. Policy Reviews has a
+  minimal `/me`-backed advisory current-actor display, but backend RBAC remains
+  authoritative.
 - Agent list is read-only.
 - Agent detail page is read-only.
 - Agent activity timeline is read-only and lightweight.

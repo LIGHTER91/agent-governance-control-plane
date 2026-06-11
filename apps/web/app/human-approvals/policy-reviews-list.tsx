@@ -10,6 +10,10 @@ import {
 } from "../agcp-studio/primitives";
 import { getApiBaseUrl } from "../lib/api";
 import {
+  CurrentActorRecord,
+  fetchCurrentActor
+} from "../lib/current-actor";
+import {
   PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
   activatePolicyVersionReviewRequest,
@@ -24,6 +28,11 @@ type PolicyReviewsState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
+
+type CurrentActorState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; actor: CurrentActorRecord };
 
 type ActionState = {
   id: string | null;
@@ -44,6 +53,7 @@ type DiffState =
   | { status: "error"; message: string };
 
 const REVIEWER_ACTOR_TYPES = ["user", "development"] as const;
+const REVIEWER_ROLES = ["reviewer", "platform_admin"] as const;
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -80,6 +90,9 @@ function statusTone(status: string) {
 
 export function PolicyReviewsList() {
   const [state, setState] = useState<PolicyReviewsState>({ status: "loading" });
+  const [actorState, setActorState] = useState<CurrentActorState>({
+    status: "loading"
+  });
   const [notesById, setNotesById] = useState<Record<string, string>>({});
   const [assignmentDraftsById, setAssignmentDraftsById] = useState<
     Record<string, AssignmentDraft>
@@ -167,11 +180,33 @@ export function PolicyReviewsList() {
     }
   }, []);
 
+  const loadCurrentActor = useCallback(async (signal?: AbortSignal) => {
+    setActorState({ status: "loading" });
+
+    try {
+      const actor = await fetchCurrentActor(signal);
+      setActorState({ status: "ready", actor });
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      setActorState({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to load current actor from the backend."
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     void loadPolicyReviews(controller.signal);
+    void loadCurrentActor(controller.signal);
     return () => controller.abort();
-  }, [loadPolicyReviews]);
+  }, [loadCurrentActor, loadPolicyReviews]);
 
   async function handleDecision(
     request: PolicyVersionReviewRequestRecord,
@@ -330,6 +365,8 @@ export function PolicyReviewsList() {
         }
       />
 
+      <CurrentActorSummary actorState={actorState} />
+
       {state.status === "loading" ? (
         <AGCPEmptyState title="Loading Policy Reviews">
           Requesting pending PolicyVersion review requests from {getApiBaseUrl()}.
@@ -353,7 +390,22 @@ export function PolicyReviewsList() {
 
       {state.status === "ready" && state.requests.length > 0 ? (
         <div className="agcp-review-list">
-          {state.requests.map((request) => (
+          {state.requests.map((request) => {
+            const decisionAccess = policyReviewDecisionAccess(
+              request,
+              actorState
+            );
+            const assignmentAccess = policyReviewRoleAccess(actorState);
+            const activateAccess = policyReviewRoleAccess(actorState);
+            const decisionDisabled =
+              actionState.status === "submitting" || !decisionAccess.allowed;
+            const assignmentDisabled =
+              assignmentState.status === "submitting" ||
+              !assignmentAccess.allowed;
+            const activateDisabled =
+              actionState.status === "submitting" || !activateAccess.allowed;
+
+            return (
             <article className="agcp-review-card" key={request.id}>
               <div className="agcp-review-head">
                 <div>
@@ -419,7 +471,7 @@ export function PolicyReviewsList() {
                     <label className="approval-note">
                       <span>Reviewer actor type</span>
                       <select
-                        disabled={assignmentState.status === "submitting"}
+                        disabled={assignmentDisabled}
                         onChange={(event) =>
                           setAssignmentDraftsById((current) => ({
                             ...current,
@@ -444,7 +496,7 @@ export function PolicyReviewsList() {
                     <label className="approval-note">
                       <span>Reviewer actor id</span>
                       <input
-                        disabled={assignmentState.status === "submitting"}
+                        disabled={assignmentDisabled}
                         onChange={(event) =>
                           setAssignmentDraftsById((current) => ({
                             ...current,
@@ -461,7 +513,7 @@ export function PolicyReviewsList() {
                     <label className="approval-note">
                       <span>Display name optional</span>
                       <input
-                        disabled={assignmentState.status === "submitting"}
+                        disabled={assignmentDisabled}
                         onChange={(event) =>
                           setAssignmentDraftsById((current) => ({
                             ...current,
@@ -478,7 +530,7 @@ export function PolicyReviewsList() {
                     <label className="approval-note">
                       <span>Assignment note optional</span>
                       <textarea
-                        disabled={assignmentState.status === "submitting"}
+                        disabled={assignmentDisabled}
                         onChange={(event) =>
                           setAssignmentDraftsById((current) => ({
                             ...current,
@@ -494,7 +546,7 @@ export function PolicyReviewsList() {
                     </label>
                     <button
                       className="table-action-button"
-                      disabled={assignmentState.status === "submitting"}
+                      disabled={assignmentDisabled}
                       onClick={() => void handleAssign(request)}
                       type="button"
                     >
@@ -503,6 +555,15 @@ export function PolicyReviewsList() {
                         ? "Assigning reviewer"
                         : "Assign reviewer"}
                     </button>
+                    {!assignmentAccess.allowed ? (
+                      <p className="policy-review-disabled-reason">
+                        {assignmentAccess.reason}
+                      </p>
+                    ) : (
+                      <p className="policy-review-disabled-reason">
+                        Backend authorization still enforced. No fake user directory is provided; enter a stable actor id.
+                      </p>
+                    )}
                     {assignmentState.id === request.id &&
                     assignmentState.status !== "idle" ? (
                       <p
@@ -530,7 +591,7 @@ export function PolicyReviewsList() {
                   <label className="approval-note">
                     <span>Decision note</span>
                     <textarea
-                      disabled={actionState.status === "submitting"}
+                      disabled={decisionDisabled}
                       onChange={(event) =>
                         setNotesById((current) => ({
                           ...current,
@@ -544,7 +605,7 @@ export function PolicyReviewsList() {
                   <div className="approval-action-buttons">
                     <button
                       className="table-action-button approve"
-                      disabled={actionState.status === "submitting"}
+                      disabled={decisionDisabled}
                       onClick={() => void handleDecision(request, "approve")}
                       type="button"
                     >
@@ -552,7 +613,7 @@ export function PolicyReviewsList() {
                     </button>
                     <button
                       className="table-action-button reject"
-                      disabled={actionState.status === "submitting"}
+                      disabled={decisionDisabled}
                       onClick={() => void handleDecision(request, "reject")}
                       type="button"
                     >
@@ -564,6 +625,11 @@ export function PolicyReviewsList() {
                     assigned reviews can be decided by the assigned reviewer or
                     platform_admin.
                   </p>
+                  {!decisionAccess.allowed ? (
+                    <p className="policy-review-disabled-reason">
+                      {decisionAccess.reason}
+                    </p>
+                  ) : null}
                   {actionState.id === request.id &&
                   actionState.status !== "idle" ? (
                     <p className="review-action-message">{actionState.message}</p>
@@ -576,7 +642,7 @@ export function PolicyReviewsList() {
                   <label className="approval-note checkbox">
                     <input
                       checked={Boolean(replaceActiveById[request.id])}
-                      disabled={actionState.status === "submitting"}
+                      disabled={activateDisabled}
                       onChange={(event) =>
                         setReplaceActiveById((current) => ({
                           ...current,
@@ -592,7 +658,7 @@ export function PolicyReviewsList() {
                   <div className="approval-action-buttons">
                     <button
                       className="table-action-button approve"
-                      disabled={actionState.status === "submitting"}
+                      disabled={activateDisabled}
                       onClick={() => void handleActivate(request)}
                       type="button"
                     >
@@ -604,6 +670,11 @@ export function PolicyReviewsList() {
                     future runtime policy evaluation for Runtime Gateway and
                     telemetry decisions.
                   </p>
+                  {!activateAccess.allowed ? (
+                    <p className="policy-review-disabled-reason">
+                      {activateAccess.reason}
+                    </p>
+                  ) : null}
                   {actionState.id === request.id &&
                   actionState.status !== "idle" ? (
                     <p className="review-action-message">{actionState.message}</p>
@@ -611,7 +682,8 @@ export function PolicyReviewsList() {
                 </div>
               ) : null}
             </article>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </AGCPPanel>
@@ -639,6 +711,97 @@ function assignedReviewerLabel(request: PolicyVersionReviewRequestRecord) {
   return `${formatValue(request.assigned_reviewer_actor_type)} / ${
     request.assigned_reviewer_actor_id
   }`;
+}
+
+function CurrentActorSummary({
+  actorState
+}: {
+  actorState: CurrentActorState;
+}) {
+  if (actorState.status === "loading") {
+    return (
+      <div className="policy-review-actor-bar">
+        <strong>Current actor</strong>
+        <span>Loading current actor from GET /me</span>
+        <AGCPBadge tone="muted">Backend authorization still enforced</AGCPBadge>
+      </div>
+    );
+  }
+
+  if (actorState.status === "error") {
+    return (
+      <div className="policy-review-actor-bar warning">
+        <strong>Current actor</strong>
+        <span>{actorState.message}</span>
+        <AGCPBadge tone="warn">Backend authorization still enforced</AGCPBadge>
+      </div>
+    );
+  }
+
+  const actor = actorState.actor;
+  const rolesLabel = actor.roles.length > 0 ? actor.roles.join(", ") : "No roles";
+
+  return (
+    <div className="policy-review-actor-bar">
+      <strong>Current actor</strong>
+      <span>
+        {formatValue(actor.actor_type)} / {actor.actor_id}
+      </span>
+      <AGCPBadge tone={canReviewPolicies(actor) ? "ok" : "warn"}>
+        {rolesLabel}
+      </AGCPBadge>
+      <span>
+        {actor.dev_mode_caveat ||
+          "Frontend role-aware behavior is advisory; backend authorization still enforced."}
+      </span>
+    </div>
+  );
+}
+
+function policyReviewRoleAccess(actorState: CurrentActorState) {
+  if (actorState.status === "loading") {
+    return { allowed: false, reason: "Current actor loading." };
+  }
+  if (actorState.status === "error") {
+    return {
+      allowed: false,
+      reason: "Backend authorization still enforced."
+    };
+  }
+  if (canReviewPolicies(actorState.actor)) {
+    return { allowed: true, reason: null };
+  }
+  return { allowed: false, reason: "Reviewer role required." };
+}
+
+function policyReviewDecisionAccess(
+  request: PolicyVersionReviewRequestRecord,
+  actorState: CurrentActorState
+) {
+  const roleAccess = policyReviewRoleAccess(actorState);
+  if (!roleAccess.allowed || actorState.status !== "ready") {
+    return roleAccess;
+  }
+
+  const actor = actorState.actor;
+  if (!request.assigned_reviewer_actor_id || hasRole(actor, "platform_admin")) {
+    return { allowed: true, reason: null };
+  }
+  if (
+    actor.actor_type === request.assigned_reviewer_actor_type &&
+    actor.actor_id === request.assigned_reviewer_actor_id
+  ) {
+    return { allowed: true, reason: null };
+  }
+  return { allowed: false, reason: "Assigned to another reviewer." };
+}
+
+function canReviewPolicies(actor: CurrentActorRecord) {
+  return REVIEWER_ROLES.some((role) => hasRole(actor, role));
+}
+
+function hasRole(actor: CurrentActorRecord, role: string) {
+  return actor.roles.includes(role);
 }
 
 function PolicyReviewDiffSummary({

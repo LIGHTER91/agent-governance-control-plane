@@ -108,7 +108,7 @@ and a read-only Evidence Bundle page backed by
 `GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
 that explains Custom Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and
 generic webhook/API connection patterns without making AGCP execute tools or
-replace orchestrators, but no login/auth UI, no role-aware
+replace orchestrators, but no login/auth UI, no broad enterprise role-aware
 frontend behavior, no Agent edit form, no dedicated inventory or
 PolicyCheckStep management UI, no broad activity filtering or pagination, and
 no Evidence Bundle PDF/download/signature actions.
@@ -133,7 +133,10 @@ review/activation path. Rollback draft creation from prior PolicyVersion
 evidence is implemented and remains review/activation-gated. Minimal reviewer
 assignment for pending PolicyVersion review requests is implemented as
 governance metadata: assignment does not approve, reject, activate, notify, or
-change runtime state. Historical PolicyDecision backfill remains a follow-up.
+change runtime state. Policy Reviews now fetches `GET /me` to display the
+current actor and disable unavailable approve/reject/assign/activate actions
+with honest reasons, but backend RBAC remains authoritative. Historical
+PolicyDecision backfill remains a follow-up.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -245,7 +248,9 @@ Recommended order:
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
 - [ ] Add OpenAPI examples for `GET /human-approvals` if missing.
-- [ ] Add frontend auth and role-aware UI.
+- [x] Add minimal `/me`-backed current actor display and advisory role-aware
+      PolicyVersion review actions without broad frontend auth.
+- [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
 - [ ] Turn Integration Hub guidance into focused adapter packages only after

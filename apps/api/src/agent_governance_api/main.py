@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent_governance_api.access_grants import router as access_grants_router
 from agent_governance_api.agents import router as agents_router
+from agent_governance_api.auth import ActorContext, get_current_actor
 from agent_governance_api.capabilities import router as capabilities_router
 from agent_governance_api.config import get_settings
 from agent_governance_api.human_approvals import router as human_approvals_router
@@ -67,10 +68,37 @@ class HealthResponse(BaseModel):
     environment: str
 
 
+class CurrentActorResponse(BaseModel):
+    actor_type: str
+    actor_id: str
+    roles: tuple[str, ...]
+    display_name: str | None = None
+    environment: str
+    dev_mode_caveat: str | None = None
+
+
 @app.get("/health", response_model=HealthResponse, tags=["health"])
 def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         service=settings.app_name,
         environment=settings.environment,
+    )
+
+
+@app.get("/me", response_model=CurrentActorResponse, tags=["identity"])
+def current_actor(
+    actor: ActorContext = Depends(get_current_actor),
+) -> CurrentActorResponse:
+    is_development_actor = actor.actor_type.value == "development"
+    return CurrentActorResponse(
+        actor_type=actor.actor_type.value,
+        actor_id=actor.actor_id,
+        roles=actor.roles,
+        environment=settings.environment,
+        dev_mode_caveat=(
+            "Local development actor fallback; this is not enterprise auth."
+            if is_development_actor
+            else None
+        ),
     )

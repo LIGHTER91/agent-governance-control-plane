@@ -197,12 +197,15 @@ surface:
   or activate a version;
 - assigned review requests can be approved or rejected only by the assigned
   reviewer or `platform_admin`;
+- the Policy Reviews UI fetches `GET /me` for current actor and role display,
+  then disables unavailable approve/reject/assign/activate actions with honest
+  reasons while keeping backend RBAC authoritative;
 - there is no direct Publish action.
 
 The frontend does not yet solve the full backend/domain review workflow:
 
 - there is no reviewer directory, notification/email flow, unassign action, or
-  full role-aware frontend auth;
+  full enterprise auth/user management;
 - activation replacement is an explicit checkbox/action, not a full diff-based
   release workflow;
 - the inspector review status is informational and should not be treated as a
@@ -446,13 +449,16 @@ Implemented:
   activate an approved review request before runtime changes.
 - minimal reviewer assignment for pending review requests. Assignment is
   governance metadata and does not approve, reject, notify, or activate.
+- minimal `/me`-backed frontend current-actor display for Policy Reviews.
+  Role-aware button disabling is advisory; backend authorization remains the
+  source of truth.
 
 Still unresolved:
 
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
 - no reviewer directory, notification/email flow, unassign action, or full
-  role-aware frontend auth exists.
+  enterprise auth/user management exists.
 
 Recommended next implementation issue: define historical PolicyDecision
 backfill expectations or decide optional unassign/role-aware frontend

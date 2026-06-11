@@ -42,7 +42,7 @@ by the backend. The frontend also has an Integration Hub page for Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
 connection guidance, with optional read-only Service Actor registry summary
 metadata when registry admin APIs are enabled. It does not have login,
-role-aware views, Agent edit forms,
+enterprise-auth-backed role-aware views, Agent edit forms,
 broad activity filtering or pagination, Evidence Bundle PDF/signature actions,
 runtime adapter packages, or enterprise-auth-backed review workflows.
 
@@ -151,8 +151,10 @@ references when available. Rollback draft creation is implemented from prior
 PolicyVersion evidence and does not change runtime until review approval and
 explicit activation. Minimal reviewer assignment is implemented for pending
 review requests as governance metadata; assignment does not approve, reject,
-notify, activate, or change runtime state. Historical PolicyDecision backfill
-remains a follow-up.
+notify, activate, or change runtime state. Policy Reviews now uses `GET /me`
+to show the current actor and disable unavailable review actions with honest
+reasons, but backend authorization remains authoritative. Historical
+PolicyDecision backfill remains a follow-up.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -487,7 +489,8 @@ Important limitations:
 - No team membership or organization-unit resolver exists.
 - HumanApproval and Evidence Bundle RBAC are minimal local checks, not full
   enterprise authorization.
-- Frontend authentication and role-aware navigation are not implemented.
+- Frontend authentication and broad role-aware navigation are not implemented.
+  Policy Reviews has a minimal `/me`-backed advisory current actor display.
 - The Agent list, Agent detail page, Access & Data page, Runtime activity, and
   Evidence Bundle views require the backend API to be running. The Access &
   Data workflow is read-only. Human Approval review actions are available only
@@ -556,7 +559,8 @@ Planned capabilities:
   Reviews queue exists, with explicit Activate approved version support.
   Metadata-only review diff and rollback draft creation are implemented.
   Minimal reviewer assignment is implemented without automatic approval,
-  activation, notification, or runtime changes.
+  activation, notification, or runtime changes. A minimal `/me`-backed current
+  actor display now disables unavailable review actions with explicit reasons.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.
