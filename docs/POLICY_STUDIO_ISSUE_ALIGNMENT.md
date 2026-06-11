@@ -67,8 +67,8 @@ editing and PolicyCheckStep authoring.
 
 ### #76 Controlled Policy Studio DSL
 
-Status: partially implemented as frontend prototype; design deliverable still
-missing.
+Status: implemented as a V1 controlled authoring layer with formal design
+documentation.
 
 Implemented:
 
@@ -91,16 +91,29 @@ Partially implemented:
 - CHECK currently compiles to deterministic `check_*` and inventory/context
   fields; it does not create or edit PolicyCheckStep records.
 
-Still missing:
+Documented in `docs/POLICY_STUDIO_DSL_DESIGN.md`:
 
-- `docs/POLICY_STUDIO_DSL_DESIGN.md` or equivalent formal design document.
-- Explicit grammar, operator, storage, diff, version snapshot, and deprecation
-  decisions.
-- Decision on whether DSL source should be persisted as display metadata in
+- V1 grammar for `policy`, `scope`, `when`, `and`, `check`, `then`, and
+  `prove`.
+- Supported fields, aliases, operators, values, and validation behavior.
+- The compile target: deterministic `PolicyRule.condition` JSON inside draft
   PolicyVersion snapshots.
+- The product boundary: the DSL is an authoring layer, not a runtime engine.
+- PROVE semantics as evidence intent, not a proof engine or separate backend
+  clause.
+- Review diff behavior based on compiled snapshots, not arbitrary source text.
 
-Recommended GitHub action: keep #76 open or mark partially implemented until a
-formal DSL design document exists.
+Remaining follow-ups:
+
+- Decide whether DSL source should be persisted as safe display metadata in
+  PolicyVersion snapshots.
+- Add complete bidirectional block editing for every supported field.
+- Add operator persistence only if the backend condition schema and evaluator
+  are extended deliberately.
+
+Recommended GitHub action: mark #76 implemented for V1 design; keep narrower
+follow-ups for DSL source metadata, richer block editing, and future operator
+semantics.
 
 ### #56 Policy versioning and review guardrails
 
@@ -209,8 +222,9 @@ Current relationship to Policy Studio:
 1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
    product acceptance bar; create narrower follow-ups for direct no-code block
    editing and PolicyCheckStep authoring.
-2. Keep #76 open or mark partial until a formal
-   `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
+2. Mark #76 implemented for V1 because the controlled DSL now has formal
+   design documentation in `docs/POLICY_STUDIO_DSL_DESIGN.md`; keep narrower
+   follow-ups for source metadata and richer block editing.
 3. Treat review request semantics, frontend Submit for review wiring, and
    explicit Activate approved version as implemented for V1.
 4. Complete the remaining #68 historical-backfill decision before adding

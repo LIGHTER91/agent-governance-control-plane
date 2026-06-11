@@ -162,11 +162,12 @@ follow-up.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
-most of the guided authoring goals from #58, while #76 should remain open or
-partial until a formal controlled DSL design document defines grammar,
-operators, storage/versioning, and diff behavior. #56 should now focus on the
-remaining backend review workflow contract rather than broad versioning
-foundation work. Active PolicyVersion rollout planning is documented in
+most of the guided authoring goals from #58. The controlled DSL from #76 is now
+formally documented in `docs/POLICY_STUDIO_DSL_DESIGN.md`, including grammar,
+operators, compile target, storage/versioning boundary, PROVE semantics, and
+diff behavior. #56 should now focus on the remaining backend review workflow
+contract rather than broad versioning foundation work. Active PolicyVersion
+rollout planning is documented in
 `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: Runtime Gateway already uses active
 PolicyVersion snapshots with unversioned fallback, telemetry now uses the same
 active-version loader, historical PolicyDecisions remain nullable/unversioned,
@@ -450,9 +451,9 @@ Recommended next work:
 - Close or mark #58 implemented if the current Policy Studio V1 satisfies the
   product acceptance bar; keep narrower follow-ups for direct no-code block
   editing and PolicyCheckStep authoring.
-- Keep #76 open or partial until the controlled DSL has a formal design
-  document covering grammar, storage/versioning, diffs, and unsupported-field
-  behavior.
+- Treat #76 as implemented for V1; keep narrower follow-ups for DSL source
+  metadata, richer block editing, explicit operator persistence, and future
+  PolicyCheckStep authoring.
 - Treat minimal reviewer assignment as implemented; decide optional unassign
   behavior and richer role-aware frontend actions only after identity/RBAC are
   stronger.
@@ -514,6 +515,7 @@ References:
 - `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
+- `docs/POLICY_STUDIO_DSL_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`

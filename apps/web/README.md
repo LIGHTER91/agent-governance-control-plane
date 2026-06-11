@@ -163,11 +163,12 @@ The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the
-V1 guided authoring goal from #58. The controlled DSL from #76 exists as a
-frontend implementation layer, but a formal DSL design document is still a
-recommended follow-up. Backend review workflow refinements should continue to
-follow the #56 versioning/review guardrail contract and #68 active
-PolicyVersion rollout decisions before adding publish-like semantics.
+V1 guided authoring goal from #58. The controlled DSL from #76 is formally
+documented in `docs/POLICY_STUDIO_DSL_DESIGN.md`: it is a frontend authoring
+layer that compiles to deterministic PolicyRule condition JSON, not a runtime
+engine or production simulation language. Backend review workflow refinements
+should continue to follow the #56 versioning/review guardrail contract and #68
+active PolicyVersion rollout decisions before adding publish-like semantics.
 
 ## Local Full-Stack Demo
 

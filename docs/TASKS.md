@@ -159,6 +159,7 @@ References:
 - `docs/DATA_USAGE_PROFILE_DESIGN.md`
 - `docs/POLICY_PRE_CHECKS_DESIGN.md`
 - `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`
+- `docs/POLICY_STUDIO_DSL_DESIGN.md`
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
@@ -183,8 +184,9 @@ Recommended order:
 1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
    product acceptance bar; otherwise create narrower follow-ups for direct
    no-code block editing and PolicyCheckStep authoring.
-2. Keep #76 open or mark partially implemented until a formal
-   `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
+2. Mark #76 implemented for V1 because
+   `docs/POLICY_STUDIO_DSL_DESIGN.md` now defines the controlled DSL grammar,
+   compile target, PROVE semantics, storage boundary, and diff behavior.
 3. Treat minimal reviewer assignment as implemented; decide optional unassign
    behavior and richer role-aware frontend actions only after identity/RBAC are
    stronger.
@@ -235,7 +237,7 @@ Recommended order:
 - [ ] Add deeper separation-of-duties checks for HumanApproval review.
 - [x] Add IDE-style Policy Studio V1 for guided Policy/PolicyRule authoring
       without raw JSON as the main workflow.
-- [ ] Add formal controlled Policy Studio DSL design document for #76,
+- [x] Add formal controlled Policy Studio DSL design document for #76,
       including grammar, supported fields/operators, compile targets,
       versioning/storage, diffs, and unsupported-field handling.
 - [x] Implement rollback draft UX for prior PolicyVersion evidence without
