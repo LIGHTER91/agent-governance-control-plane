@@ -16,6 +16,19 @@ Run the API:
 uv run uvicorn --app-dir src agent_governance_api.main:app --reload
 ```
 
+For the full local development stack, including PostgreSQL, migrations,
+backend, and frontend, run this from the repository root:
+
+```bash
+docker compose -f compose.dev.yml up --build
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\dev-up.ps1
+```
+
 The API uses a `src` layout, so `--app-dir src` is required when running from
 `apps/api`. After startup, `GET /health` should return:
 

@@ -1,0 +1,11 @@
+.venv
+.uv-cache
+__pycache__
+.pytest_cache
+.ruff_cache
+*.py[cod]
+*.log
+.env
+.env.*
+dist
+build

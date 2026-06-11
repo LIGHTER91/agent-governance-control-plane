@@ -1,0 +1,86 @@
+services:
+  db:
+    image: postgres:16
+    container_name: agcp-dev-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agent_governance_control_plane}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - agcp_dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-agent_governance_control_plane}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    container_name: agcp-dev-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AGCP_DATABASE_URL: ${AGCP_DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/agent_governance_control_plane?connect_timeout=5}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/agent_governance_control_plane?connect_timeout=5}
+      AGCP_CORS_ALLOWED_ORIGINS: ${AGCP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api/src:/app/src
+      - ./apps/api/migrations:/app/migrations
+      - ./apps/api/scripts:/app/scripts
+      - ./apps/api/tests:/app/tests
+      - ./apps/api/alembic.ini:/app/alembic.ini:ro
+      - api_uv_cache:/tmp/uv-cache
+    command:
+      [
+        "sh",
+        "-c",
+        "uv run alembic upgrade head && uv run uvicorn --app-dir src agent_governance_api.main:app --host 0.0.0.0 --port 8000 --reload",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: agcp-dev-web
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_AGCP_API_BASE_URL: ${NEXT_PUBLIC_AGCP_API_BASE_URL:-http://localhost:8000}
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app
+      - web_node_modules:/app/node_modules
+      - web_next:/app/.next
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
+
+volumes:
+  agcp_dev_postgres_data:
+  api_uv_cache:
+  web_node_modules:
+  web_next:

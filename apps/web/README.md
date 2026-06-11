@@ -56,6 +56,19 @@ Start the development server:
 npm run dev
 ```
 
+For the full local development stack, including PostgreSQL, migrations,
+backend, and frontend, run this from the repository root:
+
+```bash
+docker compose -f compose.dev.yml up --build
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\dev-up.ps1
+```
+
 Open the URL printed by Next.js, usually:
 
 ```text

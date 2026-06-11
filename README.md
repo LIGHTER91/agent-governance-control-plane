@@ -344,6 +344,82 @@ from `apps/api`. After startup, `GET /health` should return:
 {"status":"ok","service":"Agent Governance Control Plane API","environment":"development"}
 ```
 
+### One-command Local Dev Stack
+
+For normal local product testing, Docker Compose can start PostgreSQL, apply
+Alembic migrations, run the FastAPI backend, and run the Next.js frontend:
+
+```bash
+docker compose -f compose.dev.yml up --build
+```
+
+On Windows PowerShell, the helper script runs the same command from the
+repository root:
+
+```powershell
+.\scripts\dev-up.ps1
+```
+
+Open:
+
+```text
+Frontend: http://localhost:3000
+Backend:  http://localhost:8000
+API docs: http://localhost:8000/docs
+Health:   http://localhost:8000/health
+```
+
+The Compose stack is local development only. It uses PostgreSQL 16 with local
+credentials from `.env.compose.example`, mounts backend and frontend source
+code for hot reload, and keeps dependency caches in Docker named volumes. It
+does not seed fake data by default; run the demo seed manually when you want
+sample records.
+
+Stop the stack:
+
+```bash
+docker compose -f compose.dev.yml down
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\dev-down.ps1
+```
+
+Reset the local Compose database volume only when you intentionally want to
+delete local development data:
+
+```bash
+docker compose -f compose.dev.yml down -v
+```
+
+Optional safe demo seed, after the stack is running:
+
+```bash
+docker compose -f compose.dev.yml exec api uv run python scripts/seed_full_stack_demo.py --apply
+```
+
+Troubleshooting the Compose stack:
+
+- Docker Desktop not running: start Docker Desktop, then rerun
+  `docker compose -f compose.dev.yml up --build`.
+- Port already in use: stop the process using `3000`, `8000`, or `5432`, or
+  set `POSTGRES_PORT` in a local `.env` file for the database host port.
+- `.next` lock on Windows: stop the stack with `.\scripts\dev-down.ps1`; if the
+  lock persists, run `docker compose -f compose.dev.yml down -v` to remove the
+  named `.next` development volume.
+- Backend migration errors: inspect the `api` and `db` logs with
+  `docker compose -f compose.dev.yml logs api db`, fix the migration issue, and
+  rerun the stack.
+- Empty UI: the stack intentionally does not seed records by default. Run the
+  seed command above, then refresh `/agents`.
+- Frontend cannot fetch the backend: confirm
+  `NEXT_PUBLIC_AGCP_API_BASE_URL=http://localhost:8000` and open
+  `http://localhost:8000/health` from the host browser.
+
+### Manual Local Full-Stack Demo
+
 Run a local full-stack demo with real backend data:
 
 ```powershell
