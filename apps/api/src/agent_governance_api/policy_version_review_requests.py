@@ -39,6 +39,7 @@ from agent_governance_api.schemas import (
     PolicyVersionPolicySnapshotChanges,
     PolicyVersionRead,
     PolicyVersionReviewActivationRequest,
+    PolicyVersionReviewAssignmentRequest,
     PolicyVersionReviewAuditReference,
     PolicyVersionReviewDecisionRequest,
     PolicyVersionReviewDiffRead,
@@ -230,6 +231,54 @@ def get_policy_version_review_request_diff(
 
 
 @router.post(
+    "/{review_request_id}/assign",
+    response_model=PolicyVersionReviewRequestRead,
+)
+def assign_policy_version_review_request(
+    review_request_id: UUID,
+    payload: PolicyVersionReviewAssignmentRequest,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersionReviewRequestRead:
+    review_request = _get_policy_version_review_request_or_404(
+        session,
+        review_request_id,
+    )
+    _require_pending_review_request(review_request)
+    _require_policy_version_review_reviewer(actor)
+    version = _get_policy_version_or_404(session, review_request.policy_version_id)
+    _require_review_request_policy_match(review_request, version)
+
+    now = datetime.now(UTC)
+    review_request.assigned_reviewer_actor_type = payload.assigned_reviewer_actor_type
+    review_request.assigned_reviewer_actor_id = payload.assigned_reviewer_actor_id
+    review_request.assigned_reviewer_name = payload.assigned_reviewer_name
+    review_request.assigned_at = now
+    review_request.assigned_by_actor_type = actor.actor_type
+    review_request.assigned_by_actor_id = actor.actor_id
+    _append_policy_version_review_audit(
+        session,
+        review_request,
+        version=version,
+        event_type="policy_version_review_assigned",
+        summary="PolicyVersion review assigned.",
+        actor=actor,
+        metadata={
+            "assigned_reviewer_actor_type": (
+                payload.assigned_reviewer_actor_type.value
+            ),
+            "assigned_reviewer_actor_id": payload.assigned_reviewer_actor_id,
+            "assigned_reviewer_name": _audit_text(payload.assigned_reviewer_name),
+            "assignment_note": _audit_text(payload.assignment_note),
+        },
+    )
+    session.commit()
+    session.refresh(review_request)
+
+    return _review_request_read(review_request, version)
+
+
+@router.post(
     "/{review_request_id}/approve",
     response_model=PolicyVersionReviewRequestRead,
 )
@@ -376,6 +425,7 @@ def _decide_policy_version_review_request(
     _require_pending_review_request(review_request)
     _require_policy_version_review_reviewer(actor)
     _ensure_not_self_review(actor, review_request)
+    _ensure_assigned_reviewer_can_decide(actor, review_request)
     version = _get_policy_version_or_404(session, review_request.policy_version_id)
 
     now = datetime.now(UTC)
@@ -543,6 +593,28 @@ def _ensure_not_self_review(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Requester cannot approve or reject their own PolicyVersion review.",
         )
+
+
+def _ensure_assigned_reviewer_can_decide(
+    actor: ActorContext,
+    review_request: PolicyVersionReviewRequest,
+) -> None:
+    if review_request.assigned_reviewer_actor_id is None:
+        return
+    if has_role(actor, ROLE_PLATFORM_ADMIN):
+        return
+    if (
+        actor.actor_type is review_request.assigned_reviewer_actor_type
+        and actor.actor_id == review_request.assigned_reviewer_actor_id
+    ):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            "PolicyVersion review is assigned to another reviewer. Only the "
+            "assigned reviewer or platform_admin can approve or reject it."
+        ),
+    )
 
 
 def _append_policy_version_review_audit(

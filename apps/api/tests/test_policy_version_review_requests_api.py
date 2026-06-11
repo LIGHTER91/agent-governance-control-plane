@@ -129,6 +129,180 @@ def test_duplicate_pending_review_request_fails(
     )
 
 
+def test_assign_pending_policy_version_review_request_succeeds(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-1",
+            "assigned_reviewer_name": "Reviewer One",
+            "assignment_note": "Please review this rollback candidate.",
+        },
+    )
+    refreshed_version = client.get(f"/policy-versions/{version['id']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["assigned_reviewer_actor_type"] == "user"
+    assert body["assigned_reviewer_actor_id"] == "user:reviewer-1"
+    assert body["assigned_reviewer_name"] == "Reviewer One"
+    assert body["assigned_at"] is not None
+    assert body["assigned_by_actor_type"] == "user"
+    assert body["assigned_by_actor_id"] == "user:reviewer-1"
+    assert body["reviewer_actor_id"] is None
+    assert body["decided_at"] is None
+    assert refreshed_version.status_code == 200
+    assert refreshed_version.json()["status"] == "draft"
+    assert refreshed_version.json()["activated_at"] is None
+
+    audit_log = fetch_audit_logs(session_factory)[-1]
+    assert audit_log.event_type == "policy_version_review_assigned"
+    assert audit_log.entity_type == "policy_version_review_request"
+    assert audit_log.entity_id == review_request["id"]
+    assert audit_log.metadata_ == {
+        "policy_id": policy_id,
+        "policy_version_id": version["id"],
+        "policy_version_number": 1,
+        "policy_version_status": "draft",
+        "review_status": "pending",
+        "assigned_reviewer_actor_type": "user",
+        "assigned_reviewer_actor_id": "user:reviewer-1",
+        "assigned_reviewer_name": "Reviewer One",
+        "assignment_note": "Please review this rollback candidate.",
+    }
+
+
+def test_assign_non_pending_policy_version_review_request_fails(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+    approved = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/approve",
+    )
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-2",
+        },
+    )
+
+    assert approved.status_code == 200
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Only pending PolicyVersion review requests can transition."
+    )
+
+
+def test_assigned_reviewer_can_approve_policy_version_review_request(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(platform_admin_actor())
+    assigned = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-1",
+        },
+    )
+    set_current_actor(reviewer_actor())
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/approve",
+        json={"decision_note": "Assigned reviewer approved."},
+    )
+
+    assert assigned.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    assert response.json()["reviewer_actor_id"] == "user:reviewer-1"
+    assert response.json()["assigned_reviewer_actor_id"] == "user:reviewer-1"
+
+
+def test_different_reviewer_cannot_approve_assigned_review_request(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(platform_admin_actor())
+    assigned = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-1",
+        },
+    )
+    set_current_actor(other_reviewer_actor())
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/approve",
+    )
+
+    assert assigned.status_code == 200
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "PolicyVersion review is assigned to another reviewer. Only the "
+        "assigned reviewer or platform_admin can approve or reject it."
+    )
+
+
+def test_platform_admin_can_approve_assigned_review_request(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+    set_current_actor(reviewer_actor())
+    assigned = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-1",
+        },
+    )
+    set_current_actor(platform_admin_actor())
+
+    response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/approve",
+    )
+
+    assert assigned.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    assert response.json()["reviewer_actor_id"] == "user:policy-admin"
+
+
 def test_reviewer_can_approve_pending_review_without_activation(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -254,6 +428,13 @@ def test_actor_without_review_role_cannot_list_or_decide_reviews(
     )
 
     list_response = client.get("/policy-version-review-requests")
+    assign_response = client.post(
+        f"/policy-version-review-requests/{review_request['id']}/assign",
+        json={
+            "assigned_reviewer_actor_type": "user",
+            "assigned_reviewer_actor_id": "user:reviewer-1",
+        },
+    )
     approve_response = client.post(
         f"/policy-version-review-requests/{review_request['id']}/approve",
     )
@@ -261,6 +442,10 @@ def test_actor_without_review_role_cannot_list_or_decide_reviews(
     assert list_response.status_code == 403
     assert list_response.json()["detail"] == (
         "Actor requires one of these roles: reviewer, auditor, platform_admin."
+    )
+    assert assign_response.status_code == 403
+    assert assign_response.json()["detail"] == (
+        "Actor requires one of these roles: reviewer, platform_admin."
     )
     assert approve_response.status_code == 403
     assert approve_response.json()["detail"] == (
@@ -901,6 +1086,22 @@ def reviewer_actor() -> ActorContext:
         actor_type=ActorType.USER,
         actor_id="user:reviewer-1",
         roles=("reviewer",),
+    )
+
+
+def other_reviewer_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:reviewer-2",
+        roles=("reviewer",),
+    )
+
+
+def platform_admin_actor() -> ActorContext:
+    return ActorContext(
+        actor_type=ActorType.USER,
+        actor_id="user:policy-admin",
+        roles=("platform_admin",),
     )
 
 

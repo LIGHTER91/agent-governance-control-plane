@@ -13,6 +13,8 @@ import {
   PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
   activatePolicyVersionReviewRequest,
+  assignPolicyVersionReviewRequest,
+  createPolicyVersionRollbackDraft,
   decidePolicyVersionReviewRequest,
   fetchPolicyVersionReviewRequestDiff,
   fetchPolicyVersionReviewRequests
@@ -29,10 +31,19 @@ type ActionState = {
   message: string;
 };
 
+type AssignmentDraft = {
+  actorType: string;
+  actorId: string;
+  name: string;
+  note: string;
+};
+
 type DiffState =
   | { status: "loading" }
   | { status: "ready"; diff: PolicyVersionReviewDiffRecord }
   | { status: "error"; message: string };
+
+const REVIEWER_ACTOR_TYPES = ["user", "development"] as const;
 
 function formatValue(value: string | null | undefined) {
   if (!value) {
@@ -70,6 +81,9 @@ function statusTone(status: string) {
 export function PolicyReviewsList() {
   const [state, setState] = useState<PolicyReviewsState>({ status: "loading" });
   const [notesById, setNotesById] = useState<Record<string, string>>({});
+  const [assignmentDraftsById, setAssignmentDraftsById] = useState<
+    Record<string, AssignmentDraft>
+  >({});
   const [replaceActiveById, setReplaceActiveById] = useState<
     Record<string, boolean>
   >({});
@@ -78,6 +92,16 @@ export function PolicyReviewsList() {
     id: null,
     status: "idle",
     message: "No policy review action submitted"
+  });
+  const [rollbackState, setRollbackState] = useState<ActionState>({
+    id: null,
+    status: "idle",
+    message: "No rollback draft action submitted"
+  });
+  const [assignmentState, setAssignmentState] = useState<ActionState>({
+    id: null,
+    status: "idle",
+    message: "No reviewer assignment submitted"
   });
 
   const loadPolicyReviews = useCallback(async (signal?: AbortSignal) => {
@@ -182,6 +206,54 @@ export function PolicyReviewsList() {
     }
   }
 
+  async function handleAssign(request: PolicyVersionReviewRequestRecord) {
+    const draft = assignmentDraftsById[request.id] || emptyAssignmentDraft();
+    const actorId = draft.actorId.trim();
+    if (!actorId) {
+      setAssignmentState({
+        id: request.id,
+        status: "error",
+        message: "Reviewer actor id is required."
+      });
+      return;
+    }
+
+    setAssignmentState({
+      id: request.id,
+      status: "submitting",
+      message: "Assigning reviewer"
+    });
+
+    try {
+      await assignPolicyVersionReviewRequest(request.id, {
+        assigned_reviewer_actor_type: draft.actorType,
+        assigned_reviewer_actor_id: actorId,
+        assigned_reviewer_name: draft.name.trim() || null,
+        assignment_note: draft.note.trim() || null
+      });
+      setAssignmentState({
+        id: request.id,
+        status: "success",
+        message:
+          "Reviewer assigned. Assignment does not approve the review."
+      });
+      setAssignmentDraftsById((current) => ({
+        ...current,
+        [request.id]: emptyAssignmentDraft()
+      }));
+      void loadPolicyReviews();
+    } catch (error: unknown) {
+      setAssignmentState({
+        id: request.id,
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to assign PolicyVersion reviewer."
+      });
+    }
+  }
+
   async function handleActivate(request: PolicyVersionReviewRequestRecord) {
     setActionState({
       id: request.id,
@@ -209,6 +281,38 @@ export function PolicyReviewsList() {
           error instanceof Error
             ? error.message
             : "Unable to activate approved PolicyVersion review request."
+      });
+    }
+  }
+
+  async function handleCreateRollbackDraft(
+    request: PolicyVersionReviewRequestRecord,
+    sourcePolicyVersionId: string
+  ) {
+    setRollbackState({
+      id: request.id,
+      status: "submitting",
+      message: "Creating rollback draft"
+    });
+
+    try {
+      const draft = await createPolicyVersionRollbackDraft(sourcePolicyVersionId, {
+        change_summary: `Rollback draft copied from PolicyVersion ${sourcePolicyVersionId}.`
+      });
+      setRollbackState({
+        id: request.id,
+        status: "success",
+        message: `Rollback draft v${draft.version_number} created. Submit for review required before activation.`
+      });
+      void loadPolicyReviews();
+    } catch (error: unknown) {
+      setRollbackState({
+        id: request.id,
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to create rollback draft."
       });
     }
   }
@@ -293,9 +397,133 @@ export function PolicyReviewsList() {
                       : "None until explicit PolicyVersion activation"}
                   </dd>
                 </div>
+                <div>
+                  <dt>Assigned reviewer</dt>
+                  <dd>{assignedReviewerLabel(request)}</dd>
+                </div>
               </dl>
 
-              <PolicyReviewDiffSummary diffState={diffsById[request.id]} />
+              <div className="policy-review-assignment-box">
+                <div>
+                  <strong>Assigned reviewer</strong>
+                  <p>
+                    {request.assigned_reviewer_actor_id
+                      ? `Assigned to ${assignedReviewerLabel(request)}`
+                      : "Unassigned"}
+                  </p>
+                  <p>Assignment does not approve the review.</p>
+                  <p>Assigned reviewer must still approve or reject.</p>
+                </div>
+                {request.status === "pending" ? (
+                  <div className="policy-review-assignment-form">
+                    <label className="approval-note">
+                      <span>Reviewer actor type</span>
+                      <select
+                        disabled={assignmentState.status === "submitting"}
+                        onChange={(event) =>
+                          setAssignmentDraftsById((current) => ({
+                            ...current,
+                            [request.id]: {
+                              ...(current[request.id] || emptyAssignmentDraft()),
+                              actorType: event.target.value
+                            }
+                          }))
+                        }
+                        value={
+                          assignmentDraftsById[request.id]?.actorType ||
+                          emptyAssignmentDraft().actorType
+                        }
+                      >
+                        {REVIEWER_ACTOR_TYPES.map((actorType) => (
+                          <option key={actorType} value={actorType}>
+                            {formatValue(actorType)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="approval-note">
+                      <span>Reviewer actor id</span>
+                      <input
+                        disabled={assignmentState.status === "submitting"}
+                        onChange={(event) =>
+                          setAssignmentDraftsById((current) => ({
+                            ...current,
+                            [request.id]: {
+                              ...(current[request.id] || emptyAssignmentDraft()),
+                              actorId: event.target.value
+                            }
+                          }))
+                        }
+                        placeholder="user:reviewer-1"
+                        value={assignmentDraftsById[request.id]?.actorId || ""}
+                      />
+                    </label>
+                    <label className="approval-note">
+                      <span>Display name optional</span>
+                      <input
+                        disabled={assignmentState.status === "submitting"}
+                        onChange={(event) =>
+                          setAssignmentDraftsById((current) => ({
+                            ...current,
+                            [request.id]: {
+                              ...(current[request.id] || emptyAssignmentDraft()),
+                              name: event.target.value
+                            }
+                          }))
+                        }
+                        placeholder="Reviewer One"
+                        value={assignmentDraftsById[request.id]?.name || ""}
+                      />
+                    </label>
+                    <label className="approval-note">
+                      <span>Assignment note optional</span>
+                      <textarea
+                        disabled={assignmentState.status === "submitting"}
+                        onChange={(event) =>
+                          setAssignmentDraftsById((current) => ({
+                            ...current,
+                            [request.id]: {
+                              ...(current[request.id] || emptyAssignmentDraft()),
+                              note: event.target.value
+                            }
+                          }))
+                        }
+                        placeholder="Context for this reviewer assignment"
+                        value={assignmentDraftsById[request.id]?.note || ""}
+                      />
+                    </label>
+                    <button
+                      className="table-action-button"
+                      disabled={assignmentState.status === "submitting"}
+                      onClick={() => void handleAssign(request)}
+                      type="button"
+                    >
+                      {assignmentState.id === request.id &&
+                      assignmentState.status === "submitting"
+                        ? "Assigning reviewer"
+                        : "Assign reviewer"}
+                    </button>
+                    {assignmentState.id === request.id &&
+                    assignmentState.status !== "idle" ? (
+                      <p
+                        className={`review-action-message ${assignmentState.status}`}
+                      >
+                        {assignmentState.message}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <PolicyReviewDiffSummary
+                diffState={diffsById[request.id]}
+                onCreateRollbackDraft={(sourcePolicyVersionId) =>
+                  void handleCreateRollbackDraft(request, sourcePolicyVersionId)
+                }
+                rollbackState={
+                  rollbackState.id === request.id ? rollbackState : undefined
+                }
+              />
 
               {request.status === "pending" ? (
                 <div className="approval-actions">
@@ -331,6 +559,11 @@ export function PolicyReviewsList() {
                       Reject
                     </button>
                   </div>
+                  <p className="agcp-muted">
+                    Backend assignment rules are enforced on approve/reject:
+                    assigned reviews can be decided by the assigned reviewer or
+                    platform_admin.
+                  </p>
                   {actionState.id === request.id &&
                   actionState.status !== "idle" ? (
                     <p className="review-action-message">{actionState.message}</p>
@@ -385,10 +618,37 @@ export function PolicyReviewsList() {
   );
 }
 
+function emptyAssignmentDraft(): AssignmentDraft {
+  return {
+    actorType: "user",
+    actorId: "",
+    name: "",
+    note: ""
+  };
+}
+
+function assignedReviewerLabel(request: PolicyVersionReviewRequestRecord) {
+  if (!request.assigned_reviewer_actor_id) {
+    return "Unassigned";
+  }
+  if (request.assigned_reviewer_name) {
+    return `${request.assigned_reviewer_name} (${formatValue(
+      request.assigned_reviewer_actor_type
+    )} / ${request.assigned_reviewer_actor_id})`;
+  }
+  return `${formatValue(request.assigned_reviewer_actor_type)} / ${
+    request.assigned_reviewer_actor_id
+  }`;
+}
+
 function PolicyReviewDiffSummary({
-  diffState
+  diffState,
+  onCreateRollbackDraft,
+  rollbackState
 }: {
   diffState: DiffState | undefined;
+  onCreateRollbackDraft: (sourcePolicyVersionId: string) => void;
+  rollbackState: ActionState | undefined;
 }) {
   if (!diffState || diffState.status === "loading") {
     return (
@@ -419,6 +679,7 @@ function PolicyReviewDiffSummary({
   const baselineLabel = policyReviewBaselineLabel(diff);
   const changedFields = changedConditionFieldNames(diff);
   const runtimeEffect = diff.runtime_effect_summary.join(" ");
+  const rollbackSourcePolicyVersionId = rollbackSourceVersionId(diff);
 
   return (
     <div className="policy-review-diff-card">
@@ -454,6 +715,43 @@ function PolicyReviewDiffSummary({
       <p className="policy-review-runtime-effect">
         {runtimeEffect || "No runtime effect until activation"}
       </p>
+
+      <div className="policy-review-rollback-box">
+        <div>
+          <strong>Create rollback draft</strong>
+          <p>Rollback draft does not affect runtime.</p>
+          <p>Submit for review required before activation.</p>
+          <p>No runtime change until approved and activated.</p>
+        </div>
+        <button
+          className="table-action-button"
+          disabled={
+            !rollbackSourcePolicyVersionId ||
+            rollbackState?.status === "submitting"
+          }
+          onClick={() => {
+            if (rollbackSourcePolicyVersionId) {
+              onCreateRollbackDraft(rollbackSourcePolicyVersionId);
+            }
+          }}
+          title={
+            rollbackSourcePolicyVersionId
+              ? `Create a draft copy from PolicyVersion ${rollbackSourcePolicyVersionId}`
+              : "No prior active, superseded, approved, or archived PolicyVersion is available as a rollback source."
+          }
+          type="button"
+        >
+          {rollbackState?.status === "submitting"
+            ? "Creating rollback draft"
+            : "Create rollback draft"}
+        </button>
+      </div>
+
+      {rollbackState && rollbackState.status !== "idle" ? (
+        <p className={`review-action-message ${rollbackState.status}`}>
+          {rollbackState.message}
+        </p>
+      ) : null}
 
       <details className="policy-review-diff-details">
         <summary>Expand Policy Review Diff details</summary>
@@ -563,6 +861,14 @@ function policyReviewBaselineLabel(diff: PolicyVersionReviewDiffRecord) {
     return "Baseline live fallback";
   }
   return "No active baseline found";
+}
+
+function rollbackSourceVersionId(diff: PolicyVersionReviewDiffRecord) {
+  return (
+    diff.evidence.previous_active_policy_version_id ||
+    diff.baseline_policy_version_id ||
+    null
+  );
 }
 
 function diffConditionChangeCount(diff: PolicyVersionReviewDiffRecord) {

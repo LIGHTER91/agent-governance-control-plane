@@ -142,7 +142,14 @@ The Policy Reviews queue also loads deterministic metadata-only Policy Review
 Diff summaries from the backend. These summaries show active/live/no-baseline
 comparison state, changed condition fields, runtime-effect copy, and
 activation/supersession audit references when available. They do not simulate
-production impact or claim legal compliance.
+production impact or claim legal compliance. When a prior PolicyVersion is
+available from the diff or activation evidence, reviewers can create a rollback
+draft from that source. The rollback draft does not affect runtime, must be
+submitted for review, and still requires explicit activation after approval.
+Pending PolicyVersion review requests can also be assigned to an explicit
+reviewer actor id. Assignment is governance metadata only: it does not approve,
+reject, notify, activate, or change runtime state, and the backend still
+enforces reviewer/platform_admin decision rules.
 The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in
@@ -151,8 +158,7 @@ V1 guided authoring goal from #58. The controlled DSL from #76 exists as a
 frontend implementation layer, but a formal DSL design document is still a
 recommended follow-up. Backend review workflow refinements should continue to
 follow the #56 versioning/review guardrail contract and #68 active
-PolicyVersion rollout decisions before adding rollback, assignment, or
-publish-like semantics.
+PolicyVersion rollout decisions before adding publish-like semantics.
 
 ## Local Full-Stack Demo
 

@@ -1229,6 +1229,31 @@ class PolicyVersionReviewDecisionRequest(BaseModel):
         return value
 
 
+class PolicyVersionReviewAssignmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assigned_reviewer_actor_type: ActorType
+    assigned_reviewer_actor_id: str
+    assigned_reviewer_name: str | None = None
+    assignment_note: str | None = None
+
+    @field_validator("assigned_reviewer_actor_id")
+    @classmethod
+    def reject_blank_assigned_reviewer_actor_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError(
+                "PolicyVersion assigned_reviewer_actor_id must be non-empty."
+            )
+        return value
+
+    @field_validator("assigned_reviewer_name", "assignment_note")
+    @classmethod
+    def reject_blank_optional_assignment_text(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyVersion review assignment text must be non-empty.")
+        return value
+
+
 class PolicyVersionReviewActivationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1246,6 +1271,12 @@ class PolicyVersionReviewRequestRead(BaseModel):
     requested_by_actor_id: str
     reviewer_actor_type: ActorType | None = None
     reviewer_actor_id: str | None = None
+    assigned_reviewer_actor_type: ActorType | None = None
+    assigned_reviewer_actor_id: str | None = None
+    assigned_reviewer_name: str | None = None
+    assigned_at: datetime | None = None
+    assigned_by_actor_type: ActorType | None = None
+    assigned_by_actor_id: str | None = None
     request_note: str | None = None
     decision_note: str | None = None
     created_at: datetime

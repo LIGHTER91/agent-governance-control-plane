@@ -1216,6 +1216,8 @@ a {
   font-weight: 700;
 }
 
+.approval-note input,
+.approval-note select,
 .approval-note textarea {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1228,6 +1230,13 @@ a {
   resize: vertical;
 }
 
+.approval-note input,
+.approval-note select {
+  min-height: 34px;
+}
+
+.approval-note input:disabled,
+.approval-note select:disabled,
 .approval-note textarea:disabled {
   opacity: 0.65;
 }
@@ -1372,6 +1381,47 @@ a {
 .policy-review-runtime-effect {
   border-left: 3px solid var(--accent);
   padding-left: 10px;
+}
+
+.policy-review-assignment-box,
+.policy-review-rollback-box {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.policy-review-assignment-box {
+  align-items: flex-start;
+  border-color: color-mix(in srgb, #9d7cff 35%, var(--border));
+  margin: 12px 0;
+}
+
+.policy-review-assignment-form {
+  display: grid;
+  gap: 8px;
+  min-width: min(100%, 280px);
+}
+
+.policy-review-assignment-box strong,
+.policy-review-rollback-box strong {
+  color: var(--text);
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.policy-review-assignment-box p,
+.policy-review-rollback-box p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 3px 0 0;
 }
 
 .policy-review-diff-details {

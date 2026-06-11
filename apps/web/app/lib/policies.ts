@@ -247,6 +247,12 @@ export type PolicyVersionReviewRequestRecord = {
   requested_by_actor_id: string;
   reviewer_actor_type: string | null;
   reviewer_actor_id: string | null;
+  assigned_reviewer_actor_type: string | null;
+  assigned_reviewer_actor_id: string | null;
+  assigned_reviewer_name: string | null;
+  assigned_at: string | null;
+  assigned_by_actor_type: string | null;
+  assigned_by_actor_id: string | null;
   request_note: string | null;
   decision_note: string | null;
   created_at: string;
@@ -263,8 +269,19 @@ export type PolicyVersionReviewDecisionPayload = {
   decision_note?: string | null;
 };
 
+export type PolicyVersionReviewAssignmentPayload = {
+  assigned_reviewer_actor_type: string;
+  assigned_reviewer_actor_id: string;
+  assigned_reviewer_name?: string | null;
+  assignment_note?: string | null;
+};
+
 export type PolicyVersionReviewActivationPayload = {
   replace_active?: boolean;
+};
+
+export type PolicyVersionRollbackDraftPayload = {
+  change_summary: string;
 };
 
 export type PolicyVersionDiffFieldValue = {
@@ -494,6 +511,21 @@ export async function decidePolicyVersionReviewRequest(
   );
 }
 
+export async function assignPolicyVersionReviewRequest(
+  reviewRequestId: string,
+  payload: PolicyVersionReviewAssignmentPayload,
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewRequestRecord> {
+  return postApiJson<PolicyVersionReviewRequestRecord>(
+    `/policy-version-review-requests/${encodeURIComponent(reviewRequestId)}/assign`,
+    {
+      body: payload,
+      errorLabel: "POST /policy-version-review-requests/{review_request_id}/assign",
+      signal
+    }
+  );
+}
+
 export async function activatePolicyVersionReviewRequest(
   reviewRequestId: string,
   payload: PolicyVersionReviewActivationPayload = {},
@@ -517,6 +549,21 @@ export async function fetchPolicyVersionReviewRequestDiff(
     `/policy-version-review-requests/${encodeURIComponent(reviewRequestId)}/diff`,
     {
       errorLabel: "GET /policy-version-review-requests/{review_request_id}/diff",
+      signal
+    }
+  );
+}
+
+export async function createPolicyVersionRollbackDraft(
+  policyVersionId: string,
+  payload: PolicyVersionRollbackDraftPayload,
+  signal?: AbortSignal
+): Promise<PolicyVersionRecord> {
+  return postApiJson<PolicyVersionRecord>(
+    `/policy-versions/${encodeURIComponent(policyVersionId)}/rollback-draft`,
+    {
+      body: payload,
+      errorLabel: "POST /policy-versions/{policy_version_id}/rollback-draft",
       signal
     }
   );

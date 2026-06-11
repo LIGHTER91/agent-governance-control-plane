@@ -40,6 +40,12 @@ ROLLBACK_COPY_SOURCE_STATUSES = {
     PolicyVersionStatus.ACTIVE,
     PolicyVersionStatus.SUPERSEDED,
 }
+ROLLBACK_DRAFT_SOURCE_STATUSES = {
+    PolicyVersionStatus.APPROVED,
+    PolicyVersionStatus.ACTIVE,
+    PolicyVersionStatus.SUPERSEDED,
+    PolicyVersionStatus.ARCHIVED,
+}
 ARCHIVABLE_STATUSES = {
     PolicyVersionStatus.DRAFT,
     PolicyVersionStatus.APPROVED,
@@ -419,6 +425,54 @@ def create_policy_version_rollback_copy(
         "to a new draft.",
     )
 
+    return _create_policy_version_draft_from_source(
+        session,
+        source_version=source_version,
+        payload=payload,
+        event_type="policy_version_rollback_copy_created",
+        actor=actor,
+        summary="PolicyVersion rollback copy created.",
+    )
+
+
+@router.post(
+    "/{version_id}/rollback-draft",
+    response_model=PolicyVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_policy_version_rollback_draft(
+    version_id: UUID,
+    payload: PolicyVersionCreate,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersion:
+    source_version = _get_policy_version_or_404(session, version_id)
+    _require_status(
+        source_version,
+        ROLLBACK_DRAFT_SOURCE_STATUSES,
+        "Only approved, active, superseded, or archived PolicyVersions can create "
+        "a rollback draft.",
+    )
+
+    return _create_policy_version_draft_from_source(
+        session,
+        source_version=source_version,
+        payload=payload,
+        event_type="policy_version_rollback_draft_created",
+        actor=actor,
+        summary="PolicyVersion rollback draft created.",
+    )
+
+
+def _create_policy_version_draft_from_source(
+    session: Session,
+    *,
+    source_version: PolicyVersion,
+    payload: PolicyVersionCreate,
+    event_type: str,
+    actor: ActorContext,
+    summary: str,
+) -> PolicyVersion:
     now = datetime.now(UTC)
     new_version = PolicyVersion(
         id=uuid4(),
@@ -440,9 +494,9 @@ def create_policy_version_rollback_copy(
     _append_policy_version_audit(
         session,
         new_version,
-        event_type="policy_version_rollback_copy_created",
+        event_type=event_type,
         actor=actor,
-        summary="PolicyVersion rollback copy created.",
+        summary=summary,
         metadata={
             "source_version_id": str(source_version.id),
             "source_version_number": source_version.version_number,

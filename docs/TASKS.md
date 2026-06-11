@@ -129,8 +129,11 @@ deterministic metadata-only Policy Review Diff with baseline type, changed
 condition fields, runtime-effect copy, and activation/supersession audit
 references when available. There is no Publish action.
 This satisfies much of the Policy Studio authoring surface and the reduced #56
-review/activation path, but reviewer assignment behavior, rollback-copy UX,
-and historical backfill remain follow-ups.
+review/activation path. Rollback draft creation from prior PolicyVersion
+evidence is implemented and remains review/activation-gated. Minimal reviewer
+assignment for pending PolicyVersion review requests is implemented as
+governance metadata: assignment does not approve, reject, activate, notify, or
+change runtime state. Historical PolicyDecision backfill remains a follow-up.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -174,8 +177,9 @@ Recommended order:
    no-code block editing and PolicyCheckStep authoring.
 2. Keep #76 open or mark partially implemented until a formal
    `docs/POLICY_STUDIO_DSL_DESIGN.md` exists.
-3. Use the refreshed #56 design to narrow the remaining policy review workflow
-   contract: reviewer assignment behavior and rollback-copy UX.
+3. Treat minimal reviewer assignment as implemented; decide optional unassign
+   behavior and richer role-aware frontend actions only after identity/RBAC are
+   stronger.
 4. Implement remaining #68 follow-ups from
    `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`: decide historical PolicyDecision
    backfill before publish-like or complete historical source-of-truth
@@ -226,13 +230,16 @@ Recommended order:
 - [ ] Add formal controlled Policy Studio DSL design document for #76,
       including grammar, supported fields/operators, compile targets,
       versioning/storage, diffs, and unsupported-field handling.
-- [ ] Implement the remaining narrowed #56 policy review workflow contract:
-      rollback-copy UX and reviewer assignment.
+- [x] Implement rollback draft UX for prior PolicyVersion evidence without
+      direct runtime rollback or automatic activation.
+- [x] Implement the remaining narrowed #56 policy review workflow contract:
+      reviewer assignment without automatic approval, activation, notification,
+      or runtime changes.
 - [ ] Decide whether historical PolicyDecision backfill is needed; if so,
       implement it as an explicit audited/admin migration path, not automatic
       runtime behavior.
 - [ ] Add richer explicit activation UX only after review diff and assignment
-      behavior is designed.
+      behavior is validated.
 - [ ] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.

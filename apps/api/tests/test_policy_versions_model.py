@@ -25,6 +25,7 @@ from agent_governance_api.schemas import (
     PolicyVersionCreate,
     PolicyVersionDraftPayload,
     PolicyVersionRead,
+    PolicyVersionReviewAssignmentRequest,
     PolicyVersionReviewDecisionRequest,
     PolicyVersionReviewRequestCreate,
     PolicyVersionReviewRequestRead,
@@ -121,6 +122,12 @@ def test_policy_version_review_request_schemas_validate_notes() -> None:
     create_request = PolicyVersionReviewRequestCreate(
         request_note="Ready for review.",
     )
+    assignment_request = PolicyVersionReviewAssignmentRequest(
+        assigned_reviewer_actor_type=ActorType.USER,
+        assigned_reviewer_actor_id="user:reviewer-1",
+        assigned_reviewer_name="Reviewer One",
+        assignment_note="Please review the rollback draft.",
+    )
     decision_request = PolicyVersionReviewDecisionRequest(
         decision_note="Approved for activation planning.",
     )
@@ -134,6 +141,12 @@ def test_policy_version_review_request_schemas_validate_notes() -> None:
         requested_by_actor_id="dev-placeholder",
         reviewer_actor_type=None,
         reviewer_actor_id=None,
+        assigned_reviewer_actor_type=ActorType.USER,
+        assigned_reviewer_actor_id="user:reviewer-1",
+        assigned_reviewer_name="Reviewer One",
+        assigned_at=timestamp,
+        assigned_by_actor_type=ActorType.USER,
+        assigned_by_actor_id="user:review-lead",
         request_note="Ready for review.",
         decision_note=None,
         created_at=timestamp,
@@ -145,13 +158,31 @@ def test_policy_version_review_request_schemas_validate_notes() -> None:
     read_schema = PolicyVersionReviewRequestRead.model_validate(read_record)
 
     assert create_request.request_note == "Ready for review."
+    assert assignment_request.assigned_reviewer_actor_id == "user:reviewer-1"
+    assert assignment_request.assigned_reviewer_name == "Reviewer One"
     assert decision_request.decision_note == "Approved for activation planning."
     assert read_schema.status is PolicyVersionReviewRequestStatus.PENDING
+    assert read_schema.assigned_reviewer_actor_id == "user:reviewer-1"
+    assert read_schema.assigned_reviewer_name == "Reviewer One"
+    assert read_schema.assigned_by_actor_id == "user:review-lead"
     assert read_schema.policy_name == "Email policy"
     assert read_schema.policy_version_number == 1
 
     with pytest.raises(ValidationError):
         PolicyVersionReviewRequestCreate(request_note=" ")
+
+    with pytest.raises(ValidationError):
+        PolicyVersionReviewAssignmentRequest(
+            assigned_reviewer_actor_type=ActorType.USER,
+            assigned_reviewer_actor_id=" ",
+        )
+
+    with pytest.raises(ValidationError):
+        PolicyVersionReviewAssignmentRequest(
+            assigned_reviewer_actor_type=ActorType.USER,
+            assigned_reviewer_actor_id="user:reviewer-1",
+            assignment_note=" ",
+        )
 
     with pytest.raises(ValidationError):
         PolicyVersionReviewDecisionRequest(decision_note=" ")
@@ -258,6 +289,12 @@ def test_policy_version_review_request_table_compiles_for_postgresql() -> None:
     assert "policy_version_review_request_status" in ddl
     assert "policy_version_review_requested_actor_type" in ddl
     assert "policy_version_review_reviewer_actor_type" in ddl
+    assert "policy_version_review_assigned_actor_type" in ddl
+    assert "policy_version_review_assigned_by_actor_type" in ddl
+    assert "assigned_reviewer_actor_id VARCHAR(255)" in ddl
+    assert "assigned_reviewer_name VARCHAR(255)" in ddl
+    assert "assigned_at TIMESTAMP WITH TIME ZONE" in ddl
+    assert "assigned_by_actor_id VARCHAR(255)" in ddl
     assert "request_note TEXT" in ddl
     assert "decision_note TEXT" in ddl
     assert "decided_at TIMESTAMP WITH TIME ZONE" in ddl
@@ -340,6 +377,28 @@ def test_policy_version_review_request_migration_declares_expected_table() -> No
     assert (
         '"uq_policy_version_review_requests_one_pending_per_version"' in migration_text
     )
+
+
+def test_policy_version_review_assignment_migration_declares_expected_fields() -> None:
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "202606090003_add_policy_review_assignment_fields.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert 'revision: str = "202606090003"' in migration_text
+    assert 'down_revision: str | None = "202606090002"' in migration_text
+    assert '"policy_version_review_requests"' in migration_text
+    assert '"assigned_reviewer_actor_type"' in migration_text
+    assert '"policy_version_review_assigned_actor_type"' in migration_text
+    assert '"assigned_reviewer_actor_id"' in migration_text
+    assert '"assigned_reviewer_name"' in migration_text
+    assert '"assigned_at"' in migration_text
+    assert '"assigned_by_actor_type"' in migration_text
+    assert '"policy_version_review_assigned_by_actor_type"' in migration_text
+    assert '"assigned_by_actor_id"' in migration_text
 
 
 def test_policy_decision_policy_version_migration_declares_expected_reference() -> None:

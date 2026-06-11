@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +10,13 @@ from sqlalchemy.pool import StaticPool
 
 from agent_governance_api.database import Base, get_db_session
 from agent_governance_api.main import app
-from agent_governance_api.models import ActorType, AuditLog
+from agent_governance_api.models import (
+    ActorType,
+    AuditLog,
+    PolicyDecision,
+    PolicyVersion,
+    PolicyVersionStatus,
+)
 
 SessionFactory = Callable[[], Session]
 
@@ -479,6 +486,154 @@ def test_policy_version_rollback_copy_rejects_mutable_source_status(
     )
 
 
+def test_policy_version_rollback_draft_from_superseded_version_copies_snapshot(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    rule_id = create_policy_rule(client, policy_id=policy_id)
+    create_policy_check_step(client, policy_rule_id=rule_id)
+    source = create_policy_version(client, policy_id=policy_id)
+    mark_policy_version_status(
+        session_factory,
+        source["id"],
+        PolicyVersionStatus.SUPERSEDED,
+    )
+
+    response = client.post(
+        f"/policy-versions/{source['id']}/rollback-draft",
+        json={"change_summary": "Create rollback candidate from prior version."},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "draft"
+    assert body["source_version_id"] == source["id"]
+    assert body["version_number"] == 2
+    assert body["policy_snapshot"] == source["policy_snapshot"]
+    assert body["rule_snapshots"] == source["rule_snapshots"]
+    assert body["check_step_snapshots"] == source["check_step_snapshots"]
+    assert body["activated_at"] is None
+    assert body["submitted_at"] is None
+    assert body["approved_at"] is None
+
+    refreshed_source = client.get(f"/policy-versions/{source['id']}")
+    assert refreshed_source.status_code == 200
+    assert refreshed_source.json()["status"] == "superseded"
+    assert refreshed_source.json()["rule_snapshots"] == source["rule_snapshots"]
+    assert (
+        refreshed_source.json()["check_step_snapshots"]
+        == source["check_step_snapshots"]
+    )
+
+    audit_log = fetch_audit_logs(session_factory)[-1]
+    assert audit_log.event_type == "policy_version_rollback_draft_created"
+    assert audit_log.entity_type == "policy_version"
+    assert audit_log.entity_id == body["id"]
+    assert audit_log.metadata_ == {
+        "policy_id": policy_id,
+        "version_number": 2,
+        "status": "draft",
+        "source_version_id": source["id"],
+        "source_version_number": 1,
+        "source_version_status": "superseded",
+        "change_summary": "Create rollback candidate from prior version.",
+    }
+
+
+def test_policy_version_rollback_draft_from_active_version_does_not_affect_runtime(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    create_policy_rule(client, policy_id=policy_id)
+    active = approve_and_activate_policy_version(
+        client,
+        create_policy_version(client, policy_id=policy_id),
+    )
+    agent_id = create_agent(client)
+
+    rollback_response = client.post(
+        f"/policy-versions/{active['id']}/rollback-draft",
+        json={"change_summary": "Copy current active version to a rollback draft."},
+    )
+    runtime_response = client.post(
+        "/runtime/tool-calls/decision",
+        json=runtime_decision_payload(agent_id),
+    )
+    telemetry_response = client.post(
+        "/telemetry/events",
+        json=trace_event_payload(agent_id),
+    )
+    refreshed_active = client.get(f"/policy-versions/{active['id']}")
+
+    assert rollback_response.status_code == 201
+    rollback_body = rollback_response.json()
+    assert rollback_body["status"] == "draft"
+    assert rollback_body["source_version_id"] == active["id"]
+    assert rollback_body["activated_at"] is None
+    assert rollback_body["submitted_at"] is None
+
+    assert runtime_response.status_code == 201
+    assert runtime_response.json()["policy_decision_id"] is not None
+
+    assert telemetry_response.status_code == 201
+    assert (
+        telemetry_response.json()["policy_decision"]["policy_version_id"]
+        == active["id"]
+    )
+    assert (
+        telemetry_response.json()["policy_decision"]["policy_version_id"]
+        != rollback_body["id"]
+    )
+
+    assert refreshed_active.status_code == 200
+    assert refreshed_active.json()["status"] == "active"
+
+    policy_decisions = fetch_policy_decisions(session_factory)
+    assert [str(decision.policy_version_id) for decision in policy_decisions] == [
+        active["id"],
+        active["id"],
+    ]
+    assert rollback_body["id"] not in [
+        str(decision.policy_version_id) for decision in policy_decisions
+    ]
+
+
+def test_policy_version_rollback_draft_rejects_mutable_source_status(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    source = create_policy_version(client, policy_id=policy_id)
+
+    response = client.post(
+        f"/policy-versions/{source['id']}/rollback-draft",
+        json={"change_summary": "Try to copy a draft."},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Only approved, active, superseded, or archived PolicyVersions can create "
+        "a rollback draft."
+    )
+
+
+def test_policy_version_rollback_draft_unknown_source_returns_safe_404(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    missing_id = "00000000-0000-0000-0000-000000000001"
+
+    response = client.post(
+        f"/policy-versions/{missing_id}/rollback-draft",
+        json={"change_summary": "Try to copy a missing version."},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "PolicyVersion not found."
+
+
 def test_policy_version_unknown_policy_and_version_return_404(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -526,6 +681,30 @@ def approve_and_activate_policy_version(
     return response.json()
 
 
+def mark_policy_version_status(
+    session_factory: SessionFactory,
+    version_id: str,
+    status: PolicyVersionStatus,
+) -> None:
+    now = datetime.now(UTC)
+    with session_factory() as session:
+        version = session.get(PolicyVersion, UUID(version_id))
+        assert version is not None
+        version.status = status
+        version.updated_at = now
+        if status is PolicyVersionStatus.APPROVED:
+            version.approved_at = now
+        if status is PolicyVersionStatus.ACTIVE:
+            version.activated_at = now
+        if status is PolicyVersionStatus.SUPERSEDED:
+            version.approved_at = version.approved_at or now
+            version.activated_at = version.activated_at or now
+            version.superseded_at = now
+        if status is PolicyVersionStatus.ARCHIVED:
+            version.archived_at = now
+        session.commit()
+
+
 def create_policy(
     client: TestClient,
     *,
@@ -538,6 +717,27 @@ def create_policy(
             "name": name,
             "description": "Governed email policy.",
             "status": status,
+        },
+    )
+
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def create_agent(client: TestClient) -> str:
+    response = client.post(
+        "/agents",
+        json={
+            "name": "Rollback validation agent",
+            "description": "Safe local test agent for rollback draft validation.",
+            "owner_type": "team",
+            "owner_id": "team:governance",
+            "owner_name": "Governance Team",
+            "owner_contact_email": None,
+            "environment": "development",
+            "status": "active",
+            "risk_level": "medium",
+            "framework": "LangGraph-style test",
         },
     )
 
@@ -562,6 +762,33 @@ def create_policy_rule(client: TestClient, *, policy_id: str) -> str:
 
     assert response.status_code == 201
     return response.json()["id"]
+
+
+def runtime_decision_payload(agent_id: str) -> dict[str, object]:
+    return {
+        "request_id": "rollback-runtime-request-001",
+        "agent_id": agent_id,
+        "run_id": str(uuid4()),
+        "correlation_id": "rollback-runtime-correlation-001",
+        "tool_name": "send_email",
+        "action_summary": "Validate rollback draft does not affect runtime.",
+        "metadata": {"ticket_category": "support"},
+        "mode": "simulation",
+    }
+
+
+def trace_event_payload(agent_id: str) -> dict[str, object]:
+    return {
+        "id": str(uuid4()),
+        "agent_id": agent_id,
+        "run_id": str(uuid4()),
+        "correlation_id": "rollback-telemetry-correlation-001",
+        "external_event_id": "rollback-telemetry-event-001",
+        "event_type": "tool_call_requested",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "summary": "Validate rollback draft does not affect telemetry.",
+        "metadata": {"tool_name": "send_email"},
+    }
 
 
 def create_policy_check_step(
@@ -647,4 +874,13 @@ def policy_version_draft_payload(
 def fetch_audit_logs(session_factory: SessionFactory) -> list[AuditLog]:
     with session_factory() as session:
         statement = select(AuditLog).order_by(AuditLog.created_at, AuditLog.id)
+        return list(session.scalars(statement).all())
+
+
+def fetch_policy_decisions(session_factory: SessionFactory) -> list[PolicyDecision]:
+    with session_factory() as session:
+        statement = select(PolicyDecision).order_by(
+            PolicyDecision.created_at,
+            PolicyDecision.id,
+        )
         return list(session.scalars(statement).all())

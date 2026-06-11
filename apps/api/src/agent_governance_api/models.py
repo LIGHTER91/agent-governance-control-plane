@@ -1675,6 +1675,44 @@ class PolicyVersionReviewRequest(Base):
         String(255),
         nullable=True,
     )
+    assigned_reviewer_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_assigned_actor_type",
+        ),
+        nullable=True,
+    )
+    assigned_reviewer_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    assigned_reviewer_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    assigned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    assigned_by_actor_type: Mapped[ActorType | None] = mapped_column(
+        Enum(
+            ActorType,
+            values_callable=enum_values,
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            name="policy_version_review_assigned_by_actor_type",
+        ),
+        nullable=True,
+    )
+    assigned_by_actor_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
     request_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

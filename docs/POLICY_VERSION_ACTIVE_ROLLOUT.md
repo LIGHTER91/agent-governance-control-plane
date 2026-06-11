@@ -301,15 +301,16 @@ Recommended sequence:
     requests. Implemented.
 11. Add deterministic metadata-only Policy Review Diff and activation evidence
     for review requests. Implemented.
-12. Keep Publish out of the UI.
+12. Add rollback draft creation from prior PolicyVersion evidence, without
+    direct runtime rollback or automatic activation. Implemented.
+13. Keep Publish out of the UI.
 
 ## Implementation Follow-Ups
 
 Recommended next implementation issues:
 
 1. Decide and document whether historical PolicyDecision backfill is required.
-2. Add reviewer assignment and rollback-copy UX without changing the explicit
-   activation boundary.
+2. Add reviewer assignment without changing the explicit activation boundary.
 
 ## Non-goals
 

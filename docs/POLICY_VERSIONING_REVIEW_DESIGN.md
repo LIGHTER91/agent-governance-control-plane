@@ -24,14 +24,22 @@ Already implemented:
   `replace_active` required before superseding an existing active version;
 - deterministic metadata-only PolicyVersion review diffs with activation and
   supersession evidence references;
+- rollback draft creation from a prior approved, active, superseded, or
+  archived PolicyVersion, with `source_version_id` and
+  `policy_version_rollback_draft_created` audit evidence;
+- Policy Reviews UI action to create a rollback draft from review diff or
+  activation evidence context, with explicit copy that runtime is unchanged
+  until review approval and activation;
+- minimal reviewer assignment for pending `PolicyVersionReviewRequest`
+  records, including assignment metadata, assignment audit evidence, and a
+  decision guard that lets only the assigned reviewer or `platform_admin`
+  approve or reject assigned reviews;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
   Publish button, and backend-backed Submit for review.
 
 Still unresolved:
 
-- reviewer assignment workflow;
-- rollback-copy UX;
 - historical PolicyDecision backfill guidance;
 - whether and how Policy Studio DSL source should be stored with version
   snapshots.
@@ -109,21 +117,26 @@ Lifecycle APIs currently exist for:
 - update an existing draft PolicyVersion from a Policy Studio/editor snapshot;
 - create a pending review request for a draft PolicyVersion;
 - list PolicyVersion review requests;
+- assign a pending PolicyVersion review request to a reviewer actor without
+  approving, rejecting, or activating the version;
 - approve or reject a pending PolicyVersion review request without activation;
 - activate an approved PolicyVersion review request explicitly;
 - read a safe diff for a PolicyVersion review request;
+- create a rollback draft from an approved, active, superseded, or archived
+  PolicyVersion without changing runtime behavior;
 - submit for review;
 - approve;
 - reject;
 - activate;
 - archive;
-- rollback-copy.
+- rollback-copy compatibility.
 
 Current audit events include:
 
 - `policy_version_created`;
 - `policy_version_draft_updated`;
 - `policy_version_review_requested`;
+- `policy_version_review_assigned`;
 - `policy_version_review_approved`;
 - `policy_version_review_rejected`;
 - `policy_version_submitted_for_review`;
@@ -132,6 +145,7 @@ Current audit events include:
 - `policy_version_activated`;
 - `policy_version_superseded`;
 - `policy_version_archived`;
+- `policy_version_rollback_draft_created`;
 - `policy_version_rollback_copy_created`.
 
 Review-linked activation now fails fast when another active version already
@@ -178,11 +192,17 @@ surface:
   changed condition fields, runtime effect copy, and activation/supersession
   audit references when available;
 - approved review requests can be explicitly activated from that queue;
+- pending review requests can be assigned to a reviewer actor from that queue;
+- assignment is governance metadata only and does not approve, reject, notify,
+  or activate a version;
+- assigned review requests can be approved or rejected only by the assigned
+  reviewer or `platform_admin`;
 - there is no direct Publish action.
 
 The frontend does not yet solve the full backend/domain review workflow:
 
-- there is no reviewer assignment or richer role-aware review UI;
+- there is no reviewer directory, notification/email flow, unassign action, or
+  full role-aware frontend auth;
 - activation replacement is an explicit checkbox/action, not a full diff-based
   release workflow;
 - the inspector review status is informational and should not be treated as a
@@ -199,11 +219,14 @@ the core active-edit risk.
 - version lifecycle statuses;
 - safe aggregate snapshots;
 - audit events;
-- rollback-copy semantics;
+- rollback-copy compatibility and rollback-draft governance semantics;
 - approval separated from activation;
 - dedicated PolicyVersion review requests instead of runtime HumanApproval
   reuse;
 - deterministic metadata-only review diffs for PolicyVersion review requests;
+- rollback draft UX from review diff/activation evidence, requiring review and
+  explicit activation before runtime changes;
+- minimal reviewer assignment for pending PolicyVersion review requests;
 - active-version Runtime Gateway evaluation with fallback;
 - optional `policy_version_id` references on PolicyDecision and Evidence
   Bundle summaries.
@@ -227,10 +250,8 @@ The remaining work is narrower than the original broad design issue:
 - confirm PolicyCheckSteps remain snapshotted inside the aggregate
   PolicyVersion for V1;
 - decide historical PolicyDecision backfill behavior;
-- define rollback-copy UX and API expectations;
-- refine explicit activation UX with reviewer assignment;
-- add rollback-copy UX, reviewer assignment, and richer role-aware product UX
-  later.
+- decide whether an unassign endpoint is needed;
+- add richer role-aware product UX later.
 
 ## Proposed V1 Model
 
@@ -377,9 +398,10 @@ Recommended next sequence:
 4. Complete remaining #68 follow-ups before adding richer activation product
    semantics: historical backfill must be decided and activation UI semantics
    must remain separate from review approval.
-5. Keep rollback-copy UX and reviewer assignment as focused follow-ups.
-6. Add richer reviewer assignment, role-aware actions, and separation of
-   duties later, after identity and RBAC are stronger.
+5. Treat rollback draft creation and minimal reviewer assignment as
+   implemented.
+6. Add optional unassign behavior, richer role-aware actions, and separation
+   of duties later, after identity and RBAC are stronger.
 
 ## Risks
 
@@ -419,14 +441,20 @@ Implemented:
   optional `replace_active` superseding of the previous active version.
 - metadata-only Policy Review Diff UI with baseline type, changed fields, and
   activation/supersession evidence references.
+- rollback draft action from prior version evidence. It creates a draft
+  PolicyVersion copy only; users must submit it for review and explicitly
+  activate an approved review request before runtime changes.
+- minimal reviewer assignment for pending review requests. Assignment is
+  governance metadata and does not approve, reject, notify, or activate.
 
 Still unresolved:
 
 - DSL source storage/versioning is undecided;
 - historical backfill remains a #68 implementation follow-up;
-- no reviewer assignment, rollback-copy UX, or richer role-aware policy review
-  workflow exists.
+- no reviewer directory, notification/email flow, unassign action, or full
+  role-aware frontend auth exists.
 
 Recommended next implementation issue: define historical PolicyDecision
-backfill expectations or add reviewer assignment and rollback-copy UX. Do not
-add Publish wording or legal certification claims.
+backfill expectations or decide optional unassign/role-aware frontend
+behavior. Do not add Publish wording, direct runtime rollback, or legal
+certification claims.

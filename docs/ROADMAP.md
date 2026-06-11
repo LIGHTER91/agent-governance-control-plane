@@ -147,8 +147,12 @@ Explicit activation for approved review requests is implemented with
 `replace_active` handling. Deterministic metadata-only Policy Review Diff
 summaries are implemented for review requests, including changed condition
 fields, baseline type, runtime-effect copy, and activation/supersession audit
-references when available. Reviewer assignment behavior, rollback-copy UX, and
-historical backfill remain follow-ups.
+references when available. Rollback draft creation is implemented from prior
+PolicyVersion evidence and does not change runtime until review approval and
+explicit activation. Minimal reviewer assignment is implemented for pending
+review requests as governance metadata; assignment does not approve, reject,
+notify, activate, or change runtime state. Historical PolicyDecision backfill
+remains a follow-up.
 
 Policy Studio issue alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current implementation satisfies
@@ -443,8 +447,9 @@ Recommended next work:
 - Keep #76 open or partial until the controlled DSL has a formal design
   document covering grammar, storage/versioning, diffs, and unsupported-field
   behavior.
-- Use the refreshed #56 policy versioning and review guardrails to define
-  reviewer assignment and rollback-copy semantics.
+- Treat minimal reviewer assignment as implemented; decide optional unassign
+  behavior and richer role-aware frontend actions only after identity/RBAC are
+  stronger.
 - Implement the remaining #68 follow-up before exposing publish-like or
   complete historical source-of-truth semantics: decide historical
   PolicyDecision backfill.
@@ -549,8 +554,9 @@ Planned capabilities:
 - Policy versioning and review UI after #56 guardrails and #68 historical
   backfill decisions are complete. A minimal Submit for review and Policy
   Reviews queue exists, with explicit Activate approved version support.
-  Metadata-only review diff is implemented. Assignment and rollback-copy UX
-  remain follow-ups.
+  Metadata-only review diff and rollback draft creation are implemented.
+  Minimal reviewer assignment is implemented without automatic approval,
+  activation, notification, or runtime changes.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.
