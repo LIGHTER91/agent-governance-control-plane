@@ -155,7 +155,10 @@ explicit activation. Minimal reviewer assignment is implemented for pending
 review requests as governance metadata; assignment does not approve, reject,
 notify, activate, or change runtime state. Policy Reviews now uses `GET /me`
 to show the current actor and disable unavailable review actions with honest
-reasons, but backend authorization remains authoritative. Legacy live
+reasons, but backend authorization remains authoritative. Policy Studio reads
+selected-draft review state through the narrow
+`GET /policy-versions/{policy_version_id}/review-state` endpoint instead of
+depending on the global reviewer/admin queue. Legacy live
 Policy/PolicyRule mutation endpoints remain for bootstrap and unversioned
 fallback Policies, but active-versioned Policies now block direct live edits
 with `policy_live_edit_blocked` audit evidence and guidance to use draft

@@ -139,6 +139,9 @@ change runtime state. Policy Reviews now fetches `GET /me` to display the
 current actor and disable unavailable approve/reject/assign/activate actions
 with honest reasons, but backend RBAC remains authoritative. Historical
 PolicyDecision backfill remains a follow-up.
+Policy Studio reads selected-draft review state through the narrow
+`GET /policy-versions/{policy_version_id}/review-state` endpoint instead of
+depending on the global reviewer/admin queue.
 Legacy live Policy and PolicyRule mutation endpoints remain for bootstrap and
 unversioned fallback Policies, but active-versioned Policies now have live-edit
 guardrails: direct Policy and PolicyRule mutations are blocked with
