@@ -9,13 +9,14 @@ import {
   PolicyVersionDraftPayload,
   PolicyVersionReviewDiffRecord,
   PolicyVersionReviewRequestRecord,
+  PolicyVersionReviewStateRecord,
   PolicyVersionRecord,
   createPolicy,
   createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
   fetchPolicies,
   fetchPolicyVersionReviewRequestDiff,
-  fetchPolicyVersionReviewRequests,
+  fetchPolicyVersionReviewState,
   fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
   updatePolicyVersionDraft
@@ -58,11 +59,11 @@ type VersionsState =
   | { status: "error"; message: string }
   | { status: "ready"; versions: PolicyVersionRecord[] };
 
-type ReviewRequestsState =
+type VersionReviewState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
+  | { status: "ready"; state: PolicyVersionReviewStateRecord };
 
 type SaveState = {
   status: "unsaved" | "saving" | "saved" | "save_error";
@@ -92,8 +93,9 @@ export function PolicyStudio() {
   const [versionsState, setVersionsState] = useState<VersionsState>({
     status: "idle"
   });
-  const [reviewRequestsState, setReviewRequestsState] =
-    useState<ReviewRequestsState>({ status: "idle" });
+  const [versionReviewState, setVersionReviewState] = useState<VersionReviewState>({
+    status: "idle"
+  });
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState<PolicyVersionRecord | null>(
@@ -158,19 +160,12 @@ export function PolicyStudio() {
     draftVersion && draftVersion.policy_id === selectedPolicyId
       ? draftVersion
       : latestDraftVersion;
-  const pendingReviewRequest = useMemo(() => {
-    if (!selectedDraftVersion || reviewRequestsState.status !== "ready") {
-      return null;
-    }
-
-    return (
-      reviewRequestsState.requests.find(
-        (request) =>
-          request.policy_version_id === selectedDraftVersion.id &&
-          request.status === "pending"
-      ) || null
-    );
-  }, [reviewRequestsState, selectedDraftVersion]);
+  const selectedDraftReviewState =
+    versionReviewState.status === "ready" &&
+    selectedDraftVersion &&
+    versionReviewState.state.policy_version_id === selectedDraftVersion.id
+      ? versionReviewState.state
+      : null;
 
   const parsed = useMemo(() => parsePolicyDslToPolicyRule(dsl), [dsl]);
   const selectedRuleCondition = useMemo(
@@ -206,8 +201,7 @@ export function PolicyStudio() {
       ...studioStateMessages({
         policiesState,
         rulesState,
-        pendingReviewRequest,
-        reviewRequestsState,
+        selectedDraftReviewState,
         reviewState,
         saveDisabledReason,
         saveState,
@@ -215,6 +209,7 @@ export function PolicyStudio() {
         selectedPolicy,
         selectedRule,
         selectedRuleUnsupportedFields,
+        versionReviewState,
         versionsState
       })
     ],
@@ -222,8 +217,7 @@ export function PolicyStudio() {
       parsed,
       policiesState,
       rulesState,
-      pendingReviewRequest,
-      reviewRequestsState,
+      selectedDraftReviewState,
       reviewState,
       saveDisabledReason,
       saveState,
@@ -231,6 +225,7 @@ export function PolicyStudio() {
       selectedPolicy,
       selectedRule,
       selectedRuleUnsupportedFields,
+      versionReviewState,
       versionsState,
       validationRun
     ]
@@ -339,39 +334,42 @@ export function PolicyStudio() {
     []
   );
 
-  const loadReviewRequests = useCallback(async (signal?: AbortSignal) => {
-    setReviewRequestsState({ status: "loading" });
+  const loadVersionReviewState = useCallback(
+    async (policyVersionId: string, signal?: AbortSignal) => {
+      setVersionReviewState({ status: "loading" });
 
-    try {
-      const requests = await fetchPolicyVersionReviewRequests("pending", signal);
-      setReviewRequestsState({ status: "ready", requests });
-    } catch (error: unknown) {
-      if (signal?.aborted) {
-        return;
+      try {
+        const state = await fetchPolicyVersionReviewState(policyVersionId, signal);
+        setVersionReviewState({ status: "ready", state });
+      } catch (error: unknown) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        setVersionReviewState({
+          status: "error",
+          message:
+            error instanceof ApiRequestError && error.status === 403
+              ? "Review state unavailable for current actor."
+              : errorMessage(error, "Unable to load PolicyVersion review state.")
+        });
       }
-
-      setReviewRequestsState({
-        status: "error",
-        message: errorMessage(
-          error,
-          "Unable to load PolicyVersion review requests."
-        )
-      });
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void loadPolicies(controller.signal);
-    void loadReviewRequests(controller.signal);
     return () => controller.abort();
-  }, [loadPolicies, loadReviewRequests]);
+  }, [loadPolicies]);
 
   useEffect(() => {
     if (!selectedPolicy) {
       setRulesState({ status: "idle" });
       setVersionsState({ status: "idle" });
       setDraftVersion(null);
+      setVersionReviewState({ status: "idle" });
       return;
     }
 
@@ -387,7 +385,18 @@ export function PolicyStudio() {
   }, [loadRules, loadVersions, selectedPolicy]);
 
   useEffect(() => {
-    if (!pendingReviewRequest) {
+    if (!selectedDraftVersion) {
+      setVersionReviewState({ status: "idle" });
+      return;
+    }
+
+    const controller = new AbortController();
+    void loadVersionReviewState(selectedDraftVersion.id, controller.signal);
+    return () => controller.abort();
+  }, [loadVersionReviewState, selectedDraftVersion]);
+
+  useEffect(() => {
+    if (!selectedDraftReviewState?.latest_review_request_id) {
       setReviewDiffState({ status: "idle" });
       return;
     }
@@ -395,7 +404,7 @@ export function PolicyStudio() {
     const controller = new AbortController();
     setReviewDiffState({ status: "loading" });
     void fetchPolicyVersionReviewRequestDiff(
-      pendingReviewRequest.id,
+      selectedDraftReviewState.latest_review_request_id,
       controller.signal
     )
       .then((diff) => {
@@ -413,13 +422,14 @@ export function PolicyStudio() {
       });
 
     return () => controller.abort();
-  }, [pendingReviewRequest]);
+  }, [selectedDraftReviewState?.latest_review_request_id]);
 
   function handleSelectPolicy(policy: PolicyRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
     setSelectedPolicyId(policy.id);
     setSelectedRuleId(null);
     setDraftVersion(null);
+    setVersionReviewState({ status: "idle" });
     setSaveState({ status: "unsaved", message: "Loading selected Policy rules" });
     setReviewState({ status: "idle", message: "Review request not submitted" });
     setRepositoryMode("policies");
@@ -431,6 +441,7 @@ export function PolicyStudio() {
     setSelectedRuleId(null);
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
+    setVersionReviewState({ status: "idle" });
     setDsl(conditionToDsl("new_policy", defaultCondition()));
     setSaveState({
       status: "unsaved",
@@ -445,6 +456,7 @@ export function PolicyStudio() {
     setSelectedRuleId(null);
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
+    setVersionReviewState({ status: "idle" });
     setDsl(templateToDsl(template));
     setEditorMode("blocks");
     setSaveState({
@@ -603,7 +615,7 @@ export function PolicyStudio() {
       setReviewState({ status: "error", message: saveDisabledReason });
       return;
     }
-    if (pendingReviewRequest) {
+    if (selectedDraftReviewState?.review_status === "pending") {
       setReviewState({
         status: "success",
         message: "A review request is already pending for this draft."
@@ -627,14 +639,13 @@ export function PolicyStudio() {
       );
       setReviewState({
         status: "success",
-        message: `Review requested for draft PolicyVersion v${selectedDraftVersion.version_number}. Approval does not activate this version.`
+        message: "Review request submitted. Approval does not activate this version."
       });
-      setReviewRequestsState((current) =>
-        current.status === "ready"
-          ? { status: "ready", requests: [request, ...current.requests] }
-          : current
-      );
-      void loadReviewRequests();
+      setVersionReviewState({
+        status: "ready",
+        state: reviewStateFromRequest(request)
+      });
+      void loadVersionReviewState(selectedDraftVersion.id);
     } catch (error: unknown) {
       const conflictMessage = policyReviewRequestConflictMessage(error);
       if (conflictMessage) {
@@ -642,7 +653,11 @@ export function PolicyStudio() {
           status: "success",
           message: conflictMessage
         });
-        void loadReviewRequests();
+        setVersionReviewState({
+          status: "ready",
+          state: pendingReviewStateForDraft(selectedDraftVersion.id, conflictMessage)
+        });
+        void loadVersionReviewState(selectedDraftVersion.id);
         return;
       }
 
@@ -717,11 +732,11 @@ export function PolicyStudio() {
           onSaveDraft={handleSaveDraft}
           onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
-          pendingReviewRequest={pendingReviewRequest}
           parsed={parsed}
           policyVersionsState={versionsState}
           reviewDiffState={reviewDiffState}
-          reviewRequestsState={reviewRequestsState}
+          selectedDraftReviewState={selectedDraftReviewState}
+          versionReviewState={versionReviewState}
           reviewState={reviewState}
           saveDisabledReason={saveDisabledReason}
           saveState={saveState}
@@ -745,8 +760,8 @@ export function PolicyStudio() {
 function studioStateMessages({
   policiesState,
   rulesState,
-  pendingReviewRequest,
-  reviewRequestsState,
+  selectedDraftReviewState,
+  versionReviewState,
   reviewState,
   saveDisabledReason,
   saveState,
@@ -758,8 +773,8 @@ function studioStateMessages({
 }: {
   policiesState: PoliciesState;
   rulesState: RulesState;
-  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
-  reviewRequestsState: ReviewRequestsState;
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
+  versionReviewState: VersionReviewState;
   reviewState: ReviewState;
   saveDisabledReason: string | null;
   saveState: SaveState;
@@ -792,10 +807,10 @@ function studioStateMessages({
     });
   }
 
-  if (reviewRequestsState.status === "error") {
+  if (versionReviewState.status === "error") {
     messages.push({
       tone: "warn",
-      text: `Backend unavailable for GET /policy-version-review-requests: ${reviewRequestsState.message}`
+      text: versionReviewState.message
     });
   }
 
@@ -815,14 +830,22 @@ function studioStateMessages({
   if (selectedDraftVersion) {
     messages.push({
       tone: "ok",
-      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active, not submitted for review)`
+      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active)`
     });
   }
 
-  if (pendingReviewRequest) {
+  if (selectedDraftReviewState?.review_status === "pending") {
     messages.push({
       tone: "ok",
-      text: `Pending PolicyVersion review request: ${pendingReviewRequest.id}. Approval does not activate this version.`
+      text: "Pending review: Review request pending. Approval does not activate this version."
+    });
+  } else if (selectedDraftReviewState) {
+    messages.push({
+      tone:
+        selectedDraftReviewState.review_status === "not_submitted" ? "info" : "ok",
+      text: `Review state: ${reviewStatusLabel(
+        selectedDraftReviewState.review_status
+      )}. ${selectedDraftReviewState.message}`
     });
   }
 
@@ -941,6 +964,56 @@ function parseRuleSnapshotCondition(version: PolicyVersionRecord) {
     policy_id: version.policy_id,
     updated_at: version.updated_at
   });
+}
+
+function reviewStateFromRequest(
+  request: PolicyVersionReviewRequestRecord
+): PolicyVersionReviewStateRecord {
+  return {
+    can_submit_review: request.status !== "pending",
+    decided_at: request.decided_at,
+    latest_review_request_id: request.id,
+    message:
+      request.status === "pending"
+        ? "Review request pending. Approval does not activate this version."
+        : "Review request submitted. Approval does not activate this version.",
+    policy_version_id: request.policy_version_id,
+    requested_at: request.created_at,
+    reviewer_actor_id: request.reviewer_actor_id,
+    review_status: request.status
+  };
+}
+
+function pendingReviewStateForDraft(
+  policyVersionId: string,
+  message: string
+): PolicyVersionReviewStateRecord {
+  return {
+    can_submit_review: false,
+    decided_at: null,
+    latest_review_request_id: null,
+    message,
+    policy_version_id: policyVersionId,
+    requested_at: null,
+    reviewer_actor_id: null,
+    review_status: "pending"
+  };
+}
+
+function reviewStatusLabel(status: PolicyVersionReviewStateRecord["review_status"]) {
+  if (status === "not_submitted") {
+    return "Not submitted";
+  }
+  if (status === "pending") {
+    return "Pending review";
+  }
+  if (status === "approved") {
+    return "Approved";
+  }
+  if (status === "rejected") {
+    return "Rejected";
+  }
+  return "Canceled";
 }
 
 function titleFromSlug(value: string) {

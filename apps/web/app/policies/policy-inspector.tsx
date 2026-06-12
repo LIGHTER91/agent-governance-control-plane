@@ -4,7 +4,7 @@ import {
   PolicyRecord,
   PolicyRuleRecord,
   PolicyVersionReviewDiffRecord,
-  PolicyVersionReviewRequestRecord,
+  PolicyVersionReviewStateRecord,
   PolicyVersionRecord
 } from "../lib/policies";
 import {
@@ -22,18 +22,18 @@ export function PolicyInspector({
   onSaveDraft,
   onSubmitReview,
   onValidate,
-  pendingReviewRequest,
   parsed,
   policyVersionsState,
   reviewDiffState,
-  reviewRequestsState,
   reviewState,
   saveDisabledReason,
   saveState,
+  selectedDraftReviewState,
   selectedDraftVersion,
   selectedPolicy,
   selectedRule,
-  selectedRuleUnsupportedFields
+  selectedRuleUnsupportedFields,
+  versionReviewState
 }: {
   compiled: {
     checkFields: string[];
@@ -48,7 +48,6 @@ export function PolicyInspector({
   onSaveDraft: () => void;
   onSubmitReview: () => void;
   onValidate: () => void;
-  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
   parsed: ParsedPolicyDsl;
   policyVersionsState:
     | { status: "idle" }
@@ -60,11 +59,11 @@ export function PolicyInspector({
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; diff: PolicyVersionReviewDiffRecord };
-  reviewRequestsState:
+  versionReviewState:
     | { status: "idle" }
     | { status: "loading" }
     | { status: "error"; message: string }
-    | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
+    | { status: "ready"; state: PolicyVersionReviewStateRecord };
   reviewState: {
     status: "idle" | "submitting" | "success" | "error";
     message: string;
@@ -74,6 +73,7 @@ export function PolicyInspector({
     status: "unsaved" | "saving" | "saved" | "save_error";
     message: string;
   };
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
   selectedDraftVersion: PolicyVersionRecord | null;
   selectedPolicy: PolicyRecord | null;
   selectedRule: PolicyRuleRecord | null;
@@ -85,15 +85,19 @@ export function PolicyInspector({
     policyVersionsState.status === "ready"
       ? String(policyVersionsState.versions.length)
       : policyVersionsState.status;
-  const reviewRequestCount =
-    reviewRequestsState.status === "ready"
-      ? String(reviewRequestsState.requests.length)
-      : reviewRequestsState.status;
+  const reviewStatusLabelText = selectedDraftReviewState
+    ? reviewStateLabel(selectedDraftReviewState.review_status)
+    : reviewStateFallbackLabel(versionReviewState);
+  const reviewStateMessage =
+    selectedDraftReviewState?.message ||
+    (versionReviewState.status === "error"
+      ? versionReviewState.message
+      : "Review state is not loaded for this draft.");
   const submitDisabledReason = submitReviewDisabledReason({
-    pendingReviewRequest,
     reviewState,
     saveDisabledReason,
     saveState,
+    selectedDraftReviewState,
     selectedDraftVersion
   });
 
@@ -205,14 +209,27 @@ export function PolicyInspector({
               }
             />
             <ReviewRow label="Known versions" value={versionCount} />
-            <ReviewRow label="Pending review requests" value={reviewRequestCount} />
+            <ReviewRow label="Review status" value={reviewStatusLabelText} />
             <ReviewRow
               label="Review request"
               value={
-                pendingReviewRequest
-                  ? `${pendingReviewRequest.id} / pending`
+                selectedDraftReviewState?.latest_review_request_id
+                  ? `${selectedDraftReviewState.latest_review_request_id} / ${reviewStatusLabelText}`
                   : "Not submitted"
               }
+            />
+            <ReviewRow label="Review state message" value={reviewStateMessage} />
+            <ReviewRow
+              label="Requested at"
+              value={selectedDraftReviewState?.requested_at || "Not submitted"}
+            />
+            <ReviewRow
+              label="Decided at"
+              value={selectedDraftReviewState?.decided_at || "Not decided"}
+            />
+            <ReviewRow
+              label="Reviewer"
+              value={selectedDraftReviewState?.reviewer_actor_id || "Not decided"}
             />
             <ReviewRow
               label="Runtime impact"
@@ -334,19 +351,19 @@ export function PolicyInspector({
 }
 
 function submitReviewDisabledReason({
-  pendingReviewRequest,
   reviewState,
   saveDisabledReason,
   saveState,
+  selectedDraftReviewState,
   selectedDraftVersion
 }: {
-  pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
   reviewState: { status: "idle" | "submitting" | "success" | "error"; message: string };
   saveDisabledReason: string | null;
   saveState: {
     status: "unsaved" | "saving" | "saved" | "save_error";
     message: string;
   };
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
   selectedDraftVersion: PolicyVersionRecord | null;
 }) {
   if (!selectedDraftVersion) {
@@ -355,14 +372,17 @@ function submitReviewDisabledReason({
   if (saveDisabledReason) {
     return saveDisabledReason;
   }
+  if (selectedDraftReviewState?.review_status === "pending") {
+    return "A review request is already pending for this draft.";
+  }
+  if (selectedDraftReviewState && !selectedDraftReviewState.can_submit_review) {
+    return "Submit for review disabled when pending or after this review state.";
+  }
   if (saveState.status === "saving" || reviewState.status === "submitting") {
     return "A save or review request is already in progress.";
   }
   if (saveState.status !== "saved" && reviewState.status !== "success") {
     return "Save the current editor state before submitting for review.";
-  }
-  if (pendingReviewRequest) {
-    return "A review request is already pending for this draft.";
   }
   if (
     reviewState.status === "success" &&
@@ -372,6 +392,40 @@ function submitReviewDisabledReason({
     return "A review request is already pending for this draft.";
   }
   return null;
+}
+
+function reviewStateLabel(
+  status: PolicyVersionReviewStateRecord["review_status"]
+) {
+  if (status === "not_submitted") {
+    return "Not submitted";
+  }
+  if (status === "pending") {
+    return "Pending review";
+  }
+  if (status === "approved") {
+    return "Approved";
+  }
+  if (status === "rejected") {
+    return "Rejected";
+  }
+  return "Canceled";
+}
+
+function reviewStateFallbackLabel(
+  versionReviewState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; state: PolicyVersionReviewStateRecord }
+) {
+  if (versionReviewState.status === "loading") {
+    return "Loading review state";
+  }
+  if (versionReviewState.status === "error") {
+    return "Review state unavailable for current actor.";
+  }
+  return "Not submitted";
 }
 
 function FlowNode({

@@ -151,12 +151,17 @@ generated JSON shape; it does not simulate runtime impact or claim production
 enforcement coverage. Built-in templates are static authoring helpers, not
 backend records, and they never save automatically. Draft versions do not
 affect runtime until explicit activation. Save draft only creates or updates the
-draft PolicyVersion snapshot; it does not create a review request. Submit for
-review creates a dedicated pending PolicyVersionReviewRequest only after the
-user explicitly clicks that action. If a pending review request already exists,
-the UI shows "A review request is already pending for this draft." instead of a
-raw endpoint conflict. Approval or rejection records reviewer intent but does
-not activate the version. Approved
+draft PolicyVersion snapshot; it does not create a review request. Policy Studio
+reads narrow draft review state through
+`GET /policy-versions/{policy_version_id}/review-state` instead of depending on
+the global review queue. The global queue remains reviewer/admin oriented.
+Submit for review creates a dedicated pending PolicyVersionReviewRequest only
+after the user explicitly clicks that action. On success the inspector shows
+Pending review, disables Submit for review, and states that approval does not
+activate this version. If a pending review request already exists, the UI shows
+"A review request is already pending for this draft." instead of a raw endpoint
+conflict. Approval or rejection records reviewer intent but does not activate
+the version. Approved
 review requests can be activated explicitly from the Policy Reviews queue with
 Activate approved version; activation changes future runtime policy evaluation
 and replacement of an existing active version requires explicit user intent.
