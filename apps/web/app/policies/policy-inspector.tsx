@@ -362,7 +362,14 @@ function submitReviewDisabledReason({
     return "Save the current editor state before submitting for review.";
   }
   if (pendingReviewRequest) {
-    return "This draft PolicyVersion already has a pending review request.";
+    return "A review request is already pending for this draft.";
+  }
+  if (
+    reviewState.status === "success" &&
+    (reviewState.message.includes("Review requested") ||
+      reviewState.message.includes("already pending"))
+  ) {
+    return "A review request is already pending for this draft.";
   }
   return null;
 }

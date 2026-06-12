@@ -605,8 +605,8 @@ export function PolicyStudio() {
     }
     if (pendingReviewRequest) {
       setReviewState({
-        status: "error",
-        message: "This draft PolicyVersion already has a pending review request."
+        status: "success",
+        message: "A review request is already pending for this draft."
       });
       return;
     }
@@ -636,6 +636,16 @@ export function PolicyStudio() {
       );
       void loadReviewRequests();
     } catch (error: unknown) {
+      const conflictMessage = policyReviewRequestConflictMessage(error);
+      if (conflictMessage) {
+        setReviewState({
+          status: "success",
+          message: conflictMessage
+        });
+        void loadReviewRequests();
+        return;
+      }
+
       setReviewState({
         status: "error",
         message: errorMessage(error, "Unable to submit PolicyVersion review request.")
@@ -660,18 +670,6 @@ export function PolicyStudio() {
     return createPolicy(payload);
   }
 
-  function handleChangeCondition(nextCondition: PolicyCondition) {
-    setDsl(conditionToDsl(parsed.policyName || "policy_studio_draft", nextCondition));
-    setSaveState({
-      status: "unsaved",
-      message: "Unsaved local edits from Blocks editor"
-    });
-    setReviewState({
-      status: "idle",
-      message: "Review request not submitted"
-    });
-  }
-
   return (
     <div className="policy-studio-route">
       <div className="ps2-shell">
@@ -694,10 +692,8 @@ export function PolicyStudio() {
         <PolicyEditor
           blocks={blocks}
           compiled={compiled}
-          condition={condition}
           dsl={dsl}
           editorMode={editorMode}
-          onChangeCondition={handleChangeCondition}
           onChangeDsl={(nextDsl) => {
             setDsl(nextDsl);
             setSaveState({ status: "unsaved", message: "Unsaved local edits" });
@@ -710,8 +706,6 @@ export function PolicyStudio() {
           onSetEditorMode={setEditorMode}
           onValidate={handleValidate}
           selectedBlockId={selectedBlockId}
-          unsupportedDslLines={parsed.unsupported}
-          unsupportedFieldNames={selectedRuleUnsupportedFields}
           validationMessages={validationMessages}
         />
 
@@ -972,4 +966,40 @@ function errorMessage(error: unknown, fallback: string) {
   }
 
   return error instanceof Error ? error.message : fallback;
+}
+
+function policyReviewRequestConflictMessage(error: unknown) {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) {
+    return null;
+  }
+
+  const detailText = apiErrorDetailText(error.detail).toLowerCase();
+  if (
+    detailText.includes("pending") ||
+    detailText.includes("already") ||
+    detailText.includes("review request")
+  ) {
+    return "A review request is already pending for this draft.";
+  }
+
+  return "A review request could not be created because this draft has a conflicting review state. Review state was refreshed.";
+}
+
+function apiErrorDetailText(detail: unknown): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (
+    detail &&
+    typeof detail === "object" &&
+    "detail" in detail &&
+    typeof detail.detail === "string"
+  ) {
+    return detail.detail;
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return "";
+  }
 }

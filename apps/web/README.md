@@ -138,20 +138,25 @@ The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
 states that runtime callers, not AGCP, execute tools and honor `proceed`.
 The Policy Studio uses existing Policy APIs for the Policy container and saves
-editor output as draft PolicyVersion snapshots. Code DSL and block editing are
-frontend authoring surfaces that compile to deterministic PolicyRule condition
-JSON inside the version snapshot. Blocks mode is editable for the supported V1
-WHEN, CHECK, and THEN fields and updates the same compiled condition state used
-by the Code DSL preview. After Save draft succeeds, the editor keeps the saved
-draft content visible while the inspector updates the draft PolicyVersion id and
-status. Local validation checks parser support,
+editor output as draft PolicyVersion snapshots. Code DSL is the precise V1
+authoring surface and compiles to deterministic PolicyRule condition JSON
+inside the version snapshot. Blocks mode is a compact IDE-style projection of
+the same compiled condition surface: it groups WHEN, CHECK, THEN, and PROVE
+rows for review and selection, while precise condition edits remain in Code DSL
+until fuller bidirectional Blocks editing is designed. After Save draft
+succeeds, the editor keeps the saved draft content visible while the inspector
+updates the draft PolicyVersion id and status. Local validation checks parser support,
 required fields, unsupported DSL syntax, selected Policy/PolicyRule state, and
 generated JSON shape; it does not simulate runtime impact or claim production
 enforcement coverage. Built-in templates are static authoring helpers, not
 backend records, and they never save automatically. Draft versions do not
-affect runtime until explicit activation. Submit for review creates a dedicated
-pending PolicyVersionReviewRequest for a saved draft snapshot; approval or
-rejection records reviewer intent but does not activate the version. Approved
+affect runtime until explicit activation. Save draft only creates or updates the
+draft PolicyVersion snapshot; it does not create a review request. Submit for
+review creates a dedicated pending PolicyVersionReviewRequest only after the
+user explicitly clicks that action. If a pending review request already exists,
+the UI shows "A review request is already pending for this draft." instead of a
+raw endpoint conflict. Approval or rejection records reviewer intent but does
+not activate the version. Approved
 review requests can be activated explicitly from the Policy Reviews queue with
 Activate approved version; activation changes future runtime policy evaluation
 and replacement of an existing active version requires explicit user intent.

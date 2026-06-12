@@ -104,6 +104,42 @@ Frontend, when requested:
 - simple UI first;
 - no chart-heavy dashboard unless required.
 
+## Frontend product UX rules
+
+AGCP frontend work must be workflow-first, not API-resource-first.
+
+- Do not design screens by directly mirroring backend endpoints or database
+  tables.
+- Do not turn product surfaces into generic CRUD forms unless explicitly
+  requested.
+- Existing AGCPStudio mockups are the visual and UX source of truth when
+  attached or referenced.
+- Fix behavior without redesigning the UX unless the user explicitly asks for a
+  redesign.
+- If a feature requires a new UX pattern, propose it first or document the
+  product rationale before implementing it.
+- Preserve AGCP's boundary in UI copy: governance/evidence control plane, not an
+  orchestrator, not legal certification, no fake compliance score, and no fake
+  production simulation.
+- Browser verification for frontend work should include visual notes, not only
+  typecheck/build results.
+- Any significant frontend change must report whether it preserved the mockup
+  layout and product direction.
+
+For Policy Studio specifically, preserve the IDE layout:
+
+- repository sidebar;
+- center editor;
+- policy structure bar;
+- `WHEN -> CHECK -> THEN -> PROVE`;
+- Blocks / Code DSL toggle;
+- compact block list;
+- compile bar;
+- local validation console;
+- right inspector.
+
+Blocks mode must not be replaced by a dense grid of form fields or selects.
+
 ## Domain vocabulary
 
 Use these domain terms consistently:
@@ -185,7 +221,9 @@ For every implementation task:
 5. Add or update tests.
 6. Run relevant checks successfully.
 7. Review your own diff.
-8. Report:
+8. For frontend work, verify that the approved product UX or attached mockup
+   direction was preserved.
+9. Report:
    - completed items;
    - files changed;
    - tests/checks run;
@@ -233,6 +271,7 @@ A Codex task is complete only when:
 - tests/checks were run successfully;
 - no secrets are introduced;
 - public API behavior is documented;
+- frontend work preserves the approved product UX/mockup direction;
 - remaining risks are listed.
 
 If implementation is finished but tests/checks cannot run because local tooling, services, or credentials are missing, the task status is "implementation complete, validation pending". It must not be moved to Done until validation succeeds.
