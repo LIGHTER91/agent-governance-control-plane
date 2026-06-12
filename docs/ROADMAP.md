@@ -69,9 +69,9 @@ Source-targeting Access Grants. Policy and PolicyRule management now have an
 IDE-style Policy Studio frontend surface. The Studio uses a repository sidebar,
 static authoring templates, Blocks and Code DSL modes, a
 `WHEN -> CHECK -> THEN -> PROVE` structure, local validation, deterministic
-compilation to supported `PolicyRule.condition` fields, editable Blocks
-controls for supported V1 WHEN, CHECK, and THEN fields, an inspector, and Save
-draft through draft `PolicyVersion` snapshots. Unsupported DSL lines block
+compilation to supported `PolicyRule.condition` fields, compact IDE-style
+Blocks review, an inspector, and Save draft through draft `PolicyVersion`
+snapshots. Code DSL remains the precise V1 editing path. Unsupported DSL lines block
 saving. Saved drafts remain visible in the editor instead of resetting to live
 PolicyRule fallback state. Templates are static helpers, not backend records.
 Local validation is not runtime simulation. Draft versions do not affect
@@ -431,9 +431,10 @@ Completed foundation:
 - Policy management API for auditable Policy lifecycle records.
 - PolicyRule management API for deterministic rule conditions.
 - Policy Studio frontend for Policy and PolicyRule authoring with static
-  templates, editable Blocks controls, Code DSL mode, deterministic local
-  validation, unsupported-DSL save blocking, and Save draft through draft
-  PolicyVersion snapshots without resetting the saved editor state.
+  templates, compact IDE-style Blocks review, Code DSL mode as the precise V1
+  editing path, deterministic local validation, unsupported-DSL save blocking,
+  and Save draft through draft PolicyVersion snapshots without resetting the
+  saved editor state.
 - Evidence Bundle export includes Agent-scoped Access Grants, safe Capability,
   Source, and ModelAsset references, and safe Data Usage Profile summaries for
   granted Sources.
@@ -454,8 +455,8 @@ Recommended next work:
   product acceptance bar; keep narrower follow-ups for direct no-code block
   editing and PolicyCheckStep authoring.
 - Treat #76 as implemented for V1; keep narrower follow-ups for DSL source
-  metadata, richer block editing, explicit operator persistence, and future
-  PolicyCheckStep authoring.
+  metadata, full bidirectional Blocks editing, explicit operator persistence,
+  and future PolicyCheckStep authoring.
 - Treat minimal reviewer assignment as implemented; decide optional unassign
   behavior and richer role-aware frontend actions only after identity/RBAC are
   stronger.
@@ -556,9 +557,9 @@ Planned capabilities:
 - Agent Governance Profile backend endpoint. Completed.
 - Agent Governance Profile frontend UI. Completed.
 - Policy Studio IDE. Completed as a frontend authoring surface with
-  repository-style Policy/PolicyRule navigation, static templates, Blocks and
-  Code DSL modes, deterministic condition JSON compilation, local validation,
-  editable V1 condition fields in Blocks mode, and Save draft through draft
+  repository-style Policy/PolicyRule navigation, static templates, compact
+  Blocks review, Code DSL mode as the precise V1 editing path, deterministic
+  condition JSON compilation, local validation, and Save draft through draft
   PolicyVersion snapshots without resetting the saved editor state.
 - Integration Hub page. Completed as a frontend product surface for runtime
   connection patterns, Service Actor expectations, setup snippets, and

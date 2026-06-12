@@ -19,8 +19,10 @@ understand:
 
 The DSL gives the frontend a compact representation of the existing
 `PolicyRule.condition` JSON while keeping the backend and Runtime Gateway on the
-same deterministic condition model. Users may work in Blocks mode or Code DSL
-mode, but both modes compile to the same bounded condition JSON.
+same deterministic condition model. Code DSL is the precise V1 editing path.
+Blocks mode presents the same compiled condition surface as compact, grouped
+WHEN/CHECK/THEN/PROVE review blocks; fuller bidirectional Blocks editing is a
+separate follow-up.
 
 ## Product Boundary
 
@@ -246,11 +248,11 @@ the compiled snapshot.
 ## Blocks And Templates
 
 Blocks mode and Code DSL mode are two views of the same supported condition
-fields. The frontend keeps one canonical editor state for the compiled
+surface. The frontend keeps one canonical editor state for the compiled
 condition surface: Code DSL edits are parsed into condition JSON, while Blocks
-edits update supported condition fields and regenerate the DSL preview. Save
-draft uses the validated compiled condition object, not a separate hidden form
-state.
+mode renders compact grouped rows for inspection, selection, and navigation back
+to Code DSL for precise edits. Save draft uses the validated compiled condition
+object, not a separate hidden form state.
 
 Blocks mode groups fields by:
 
@@ -264,10 +266,10 @@ state only, never create backend records automatically, and never imply that
 production runtime behavior changes before explicit Save draft, review, and
 activation.
 
-If the editor contains unsupported DSL lines or backend condition fields not
-represented in Blocks, Blocks editing is guarded to avoid silently dropping
-state. The user must remove unsupported syntax in Code DSL or use a supported
-condition path before saving.
+If the editor contains unsupported DSL lines, Save draft is blocked rather than
+silently persisting syntax that the runtime cannot enforce. Backend condition
+fields not represented by the compact Blocks projection should remain visible in
+Code DSL or inspector output instead of being dropped by a form-style editor.
 
 ## PolicyVersion, Review Diff, Runtime, And Telemetry
 
