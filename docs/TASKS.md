@@ -116,8 +116,10 @@ The `/policies` route is now an IDE-style Policy Studio rather than a raw
 Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
 static templates, Blocks and Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`,
 deterministic frontend compilation to supported `PolicyRule.condition` JSON,
-local validation, generated JSON preview, unsupported-DSL save blocking, and
-Save draft through draft `PolicyVersion` snapshots. Templates are static
+editable Blocks controls for supported V1 WHEN, CHECK, and THEN fields, local
+validation, generated JSON preview, unsupported-DSL save blocking, and Save
+draft through draft `PolicyVersion` snapshots. Saved drafts no longer
+rehydrate the editor from live PolicyRule fallback state. Templates are static
 helpers, not backend records. Local validation is not runtime simulation. Draft
 versions do not affect runtime until explicit activation. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft
@@ -259,6 +261,9 @@ Recommended order:
       PolicyVersion review actions without broad frontend auth.
 - [x] Add legacy live Policy/PolicyRule mutation guardrails for Policies with
       an active PolicyVersion.
+- [x] Fix Policy Studio authoring regressions so Save draft preserves the
+      saved draft editor state and Blocks mode edits supported V1 condition
+      fields.
 - [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.

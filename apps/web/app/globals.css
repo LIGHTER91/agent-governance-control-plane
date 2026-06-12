@@ -2325,6 +2325,107 @@ a {
   padding: 14px 16px;
 }
 
+.ps2-block-editor-note,
+.ps2-block-warning,
+.ps2-prove-copy {
+  background:
+    linear-gradient(135deg, rgba(139, 120, 246, 0.1), rgba(56, 180, 245, 0.06)),
+    rgba(8, 8, 17, 0.8);
+  border: 1px solid rgba(139, 120, 246, 0.22);
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: grid;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
+.ps2-block-editor-note strong,
+.ps2-prove-copy strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ps2-block-warning {
+  background:
+    linear-gradient(135deg, rgba(240, 135, 58, 0.13), rgba(8, 8, 17, 0.82)),
+    rgba(8, 8, 17, 0.86);
+  border-color: rgba(240, 135, 58, 0.32);
+  color: #f6c09a;
+}
+
+.ps2-block-field-grid,
+.ps2-then-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ps2-block-field {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.ps2-block-field-wide {
+  grid-column: 1 / -1;
+}
+
+.ps2-block-field-label {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ps2-block-field-detail {
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ps2-block-field input,
+.ps2-block-field select,
+.ps2-block-field textarea {
+  background: rgba(4, 4, 10, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 0;
+  outline: none;
+  padding: 8px 9px;
+  width: 100%;
+}
+
+.ps2-block-field textarea {
+  resize: vertical;
+}
+
+.ps2-block-field input:focus,
+.ps2-block-field select:focus,
+.ps2-block-field textarea:focus {
+  border-color: rgba(139, 120, 246, 0.5);
+  box-shadow: 0 0 0 2px rgba(139, 120, 246, 0.14);
+}
+
+.ps2-block-field input:disabled,
+.ps2-block-field select:disabled,
+.ps2-block-field textarea:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 @media (max-width: 1100px) {
   .status-grid,
   .dashboard-metrics,
@@ -2449,7 +2550,9 @@ a {
     .integration-card-grid,
     .integration-status-grid,
     .integration-setup-grid,
-    .integration-registry-details {
+    .integration-registry-details,
+    .ps2-block-field-grid,
+    .ps2-then-grid {
     grid-template-columns: 1fr;
   }
 

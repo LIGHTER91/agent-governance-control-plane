@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError } from "../lib/api";
 import {
   PolicyPayload,
@@ -65,7 +65,7 @@ type ReviewRequestsState =
   | { status: "ready"; requests: PolicyVersionReviewRequestRecord[] };
 
 type SaveState = {
-  status: "idle" | "saving" | "success" | "error";
+  status: "unsaved" | "saving" | "saved" | "save_error";
   message: string;
 };
 
@@ -105,11 +105,12 @@ export function PolicyStudio() {
   const [repositoryQuery, setRepositoryQuery] = useState("");
   const [editorMode, setEditorMode] = useState<"blocks" | "code">("blocks");
   const [dsl, setDsl] = useState(() => templateToDsl(INITIAL_TEMPLATE));
+  const preserveEditorOnNextRulesLoadRef = useRef<string | null>(null);
   const [localNote, setLocalNote] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({
-    status: "idle",
+    status: "unsaved",
     message: "Unsaved local editor state"
   });
   const [reviewState, setReviewState] = useState<ReviewState>({
@@ -261,12 +262,19 @@ export function PolicyStudio() {
   }, []);
 
   const loadRules = useCallback(
-    async (policy: PolicyRecord, signal?: AbortSignal) => {
+    async (
+      policy: PolicyRecord,
+      signal?: AbortSignal,
+      options: { hydrateEditor: boolean } = { hydrateEditor: true }
+    ) => {
       setRulesState({ status: "loading" });
 
       try {
         const rules = await fetchPolicyRulesForPolicy(policy.id, signal);
         setRulesState({ status: "ready", rules });
+        if (!options.hydrateEditor) {
+          return;
+        }
         const firstRule = rules[0] || null;
         const firstCondition = firstRule ? parseRuleCondition(firstRule) : null;
         const unsupportedFields = firstCondition
@@ -279,7 +287,7 @@ export function PolicyStudio() {
             : conditionToDsl(policy.name, defaultCondition())
         );
         setSaveState({
-          status: unsupportedFields.length > 0 ? "error" : "idle",
+          status: unsupportedFields.length > 0 ? "save_error" : "unsaved",
           message:
             unsupportedFields.length > 0
               ? `Loaded PolicyRule has unsupported condition field(s): ${unsupportedFields.join(
@@ -368,7 +376,12 @@ export function PolicyStudio() {
     }
 
     const controller = new AbortController();
-    void loadRules(selectedPolicy, controller.signal);
+    const hydrateEditor =
+      preserveEditorOnNextRulesLoadRef.current !== selectedPolicy.id;
+    if (!hydrateEditor) {
+      preserveEditorOnNextRulesLoadRef.current = null;
+    }
+    void loadRules(selectedPolicy, controller.signal, { hydrateEditor });
     void loadVersions(selectedPolicy, controller.signal);
     return () => controller.abort();
   }, [loadRules, loadVersions, selectedPolicy]);
@@ -403,28 +416,31 @@ export function PolicyStudio() {
   }, [pendingReviewRequest]);
 
   function handleSelectPolicy(policy: PolicyRecord) {
+    preserveEditorOnNextRulesLoadRef.current = null;
     setSelectedPolicyId(policy.id);
     setSelectedRuleId(null);
     setDraftVersion(null);
-    setSaveState({ status: "idle", message: "Loading selected Policy rules" });
+    setSaveState({ status: "unsaved", message: "Loading selected Policy rules" });
     setReviewState({ status: "idle", message: "Review request not submitted" });
     setRepositoryMode("policies");
   }
 
   function handleNewPolicy() {
+    preserveEditorOnNextRulesLoadRef.current = null;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
     setDsl(conditionToDsl("new_policy", defaultCondition()));
     setSaveState({
-      status: "idle",
+      status: "unsaved",
       message: "New unsaved Policy draft"
     });
     setReviewState({ status: "idle", message: "Review request not submitted" });
   }
 
   function handleUseTemplate(template: PolicyTemplate) {
+    preserveEditorOnNextRulesLoadRef.current = null;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
     setDraftVersion(null);
@@ -432,19 +448,20 @@ export function PolicyStudio() {
     setDsl(templateToDsl(template));
     setEditorMode("blocks");
     setSaveState({
-      status: "idle",
+      status: "unsaved",
       message: `${template.name} template loaded locally. Save draft to persist.`
     });
     setReviewState({ status: "idle", message: "Review request not submitted" });
   }
 
   function handleSelectRule(rule: PolicyRuleRecord) {
+    preserveEditorOnNextRulesLoadRef.current = null;
     const conditionForRule = parseRuleCondition(rule);
     const unsupportedFields = unsupportedConditionFields(conditionForRule);
     setSelectedRuleId(rule.id);
     setDsl(conditionToDsl(selectedPolicy?.name || rule.name, conditionForRule));
     setSaveState({
-      status: unsupportedFields.length > 0 ? "error" : "idle",
+      status: unsupportedFields.length > 0 ? "save_error" : "unsaved",
       message:
         unsupportedFields.length > 0
           ? `Selected PolicyRule has unsupported condition field(s): ${unsupportedFields.join(
@@ -457,13 +474,20 @@ export function PolicyStudio() {
 
   function handleValidate() {
     setValidationRun((current) => current + 1);
-    setSaveState({
-      status: parsed.errors.length > 0 ? "error" : "idle",
+    setSaveState((current) => ({
+      status:
+        parsed.errors.length > 0
+          ? "save_error"
+          : current.status === "saved"
+            ? "saved"
+            : "unsaved",
       message:
         parsed.errors.length > 0
           ? parsed.errors.join(" ")
-          : "Local validation completed"
-    });
+          : current.status === "saved"
+            ? current.message
+            : "Local validation completed"
+    }));
   }
 
   async function handleSaveDraft() {
@@ -471,7 +495,7 @@ export function PolicyStudio() {
 
     if (!parsedForSave.condition) {
       setSaveState({
-        status: "error",
+        status: "save_error",
         message: parsedForSave.errors.join(" ") || "DSL did not compile."
       });
       return;
@@ -479,7 +503,7 @@ export function PolicyStudio() {
 
     if (parsedForSave.unsupported.length > 0) {
       setSaveState({
-        status: "error",
+        status: "save_error",
         message:
           "Remove unsupported DSL lines before saving. Unsupported lines are not persisted by the current compiler."
       });
@@ -488,7 +512,7 @@ export function PolicyStudio() {
 
     if (selectedRuleUnsupportedFields.length > 0) {
       setSaveState({
-        status: "error",
+        status: "save_error",
         message: `Selected backend PolicyRule contains unsupported condition field(s): ${selectedRuleUnsupportedFields.join(
           ", "
         )}. Saving is blocked to avoid dropping backend fields.`
@@ -498,7 +522,7 @@ export function PolicyStudio() {
 
     if (!parsedForSave.ruleName.trim()) {
       setSaveState({
-        status: "error",
+        status: "save_error",
         message: "PolicyRule name is required."
       });
       return;
@@ -527,6 +551,15 @@ export function PolicyStudio() {
         : await createPolicyVersionDraft(policy.id, draftPayload);
 
       setDraftVersion(savedVersion);
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: upsertPolicyRecord(current.policies, policy)
+            }
+          : current
+      );
+      preserveEditorOnNextRulesLoadRef.current = policy.id;
       setSelectedPolicyId(policy.id);
       setDsl(
         conditionToDsl(
@@ -535,16 +568,15 @@ export function PolicyStudio() {
         )
       );
       setSaveState({
-        status: "success",
-        message: `Draft PolicyVersion v${savedVersion.version_number} saved. It is not active and does not affect runtime until explicitly activated.`
+        status: "saved",
+        message: `Draft version saved: PolicyVersion v${savedVersion.version_number}. It is not active and does not affect runtime until explicitly activated.`
       });
       setReviewState({ status: "idle", message: "Review request not submitted" });
       void loadPolicies();
-      void loadRules(policy);
       void loadVersions(policy);
     } catch (error: unknown) {
       setSaveState({
-        status: "error",
+        status: "save_error",
         message: errorMessage(error, "Unable to save Policy Studio draft.")
       });
     }
@@ -628,6 +660,18 @@ export function PolicyStudio() {
     return createPolicy(payload);
   }
 
+  function handleChangeCondition(nextCondition: PolicyCondition) {
+    setDsl(conditionToDsl(parsed.policyName || "policy_studio_draft", nextCondition));
+    setSaveState({
+      status: "unsaved",
+      message: "Unsaved local edits from Blocks editor"
+    });
+    setReviewState({
+      status: "idle",
+      message: "Review request not submitted"
+    });
+  }
+
   return (
     <div className="policy-studio-route">
       <div className="ps2-shell">
@@ -650,11 +694,13 @@ export function PolicyStudio() {
         <PolicyEditor
           blocks={blocks}
           compiled={compiled}
+          condition={condition}
           dsl={dsl}
           editorMode={editorMode}
+          onChangeCondition={handleChangeCondition}
           onChangeDsl={(nextDsl) => {
             setDsl(nextDsl);
-            setSaveState({ status: "idle", message: "Unsaved local edits" });
+            setSaveState({ status: "unsaved", message: "Unsaved local edits" });
             setReviewState({
               status: "idle",
               message: "Review request not submitted"
@@ -664,6 +710,8 @@ export function PolicyStudio() {
           onSetEditorMode={setEditorMode}
           onValidate={handleValidate}
           selectedBlockId={selectedBlockId}
+          unsupportedDslLines={parsed.unsupported}
+          unsupportedFieldNames={selectedRuleUnsupportedFields}
           validationMessages={validationMessages}
         />
 
@@ -811,10 +859,10 @@ function studioStateMessages({
     messages.push({ tone: "error", text: `Save draft blocked: ${saveDisabledReason}` });
   }
 
-  if (saveState.status === "success") {
+  if (saveState.status === "saved") {
     messages.push({ tone: "ok", text: saveState.message });
   }
-  if (saveState.status === "error") {
+  if (saveState.status === "save_error") {
     messages.push({ tone: "error", text: saveState.message });
   }
   if (reviewState.status === "success") {
@@ -825,6 +873,15 @@ function studioStateMessages({
   }
 
   return messages;
+}
+
+function upsertPolicyRecord(policies: PolicyRecord[], policy: PolicyRecord) {
+  const existingIndex = policies.findIndex((item) => item.id === policy.id);
+  if (existingIndex === -1) {
+    return [policy, ...policies];
+  }
+
+  return policies.map((item) => (item.id === policy.id ? policy : item));
 }
 
 function buildPolicyVersionDraftPayload({
@@ -873,6 +930,9 @@ function buildPolicyVersionDraftPayload({
 function parseRuleSnapshotCondition(version: PolicyVersionRecord) {
   const snapshot = version.rule_snapshots[0] || {};
   const condition = snapshot.condition;
+  if (condition && typeof condition === "object" && !Array.isArray(condition)) {
+    return stableCondition(condition as PolicyCondition);
+  }
   if (typeof condition !== "string") {
     return defaultCondition();
   }

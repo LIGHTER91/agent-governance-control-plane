@@ -1,6 +1,6 @@
 "use client";
 
-import { PolicyBlock } from "./policy-dsl";
+import type { PolicyBlock, PolicyCondition } from "./policy-dsl";
 import { PolicyBlocksEditor } from "./policy-blocks-editor";
 import { PolicyCodeEditor } from "./policy-code-editor";
 
@@ -9,13 +9,17 @@ type EditorMode = "blocks" | "code";
 export function PolicyEditor({
   blocks,
   compiled,
+  condition,
   dsl,
   editorMode,
+  onChangeCondition,
   onChangeDsl,
   onSelectBlock,
   onSetEditorMode,
   onValidate,
   selectedBlockId,
+  unsupportedDslLines,
+  unsupportedFieldNames,
   validationMessages
 }: {
   blocks: PolicyBlock[];
@@ -26,13 +30,17 @@ export function PolicyEditor({
     policyRuleCount: number;
     usesCheckFields: boolean;
   };
+  condition: PolicyCondition;
   dsl: string;
   editorMode: EditorMode;
+  onChangeCondition: (condition: PolicyCondition) => void;
   onChangeDsl: (dsl: string) => void;
   onSelectBlock: (blockId: string) => void;
   onSetEditorMode: (mode: EditorMode) => void;
   onValidate: () => void;
   selectedBlockId: string | null;
+  unsupportedDslLines: string[];
+  unsupportedFieldNames: string[];
   validationMessages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }>;
 }) {
   const counts = {
@@ -92,8 +100,12 @@ export function PolicyEditor({
         {editorMode === "blocks" ? (
           <PolicyBlocksEditor
             blocks={blocks}
+            condition={condition}
+            onChangeCondition={onChangeCondition}
             onSelectBlock={onSelectBlock}
             selectedBlockId={selectedBlockId}
+            unsupportedDslLines={unsupportedDslLines}
+            unsupportedFieldNames={unsupportedFieldNames}
           />
         ) : (
           <PolicyCodeEditor dsl={dsl} onChange={onChangeDsl} />

@@ -140,7 +140,11 @@ states that runtime callers, not AGCP, execute tools and honor `proceed`.
 The Policy Studio uses existing Policy APIs for the Policy container and saves
 editor output as draft PolicyVersion snapshots. Code DSL and block editing are
 frontend authoring surfaces that compile to deterministic PolicyRule condition
-JSON inside the version snapshot. Local validation checks parser support,
+JSON inside the version snapshot. Blocks mode is editable for the supported V1
+WHEN, CHECK, and THEN fields and updates the same compiled condition state used
+by the Code DSL preview. After Save draft succeeds, the editor keeps the saved
+draft content visible while the inspector updates the draft PolicyVersion id and
+status. Local validation checks parser support,
 required fields, unsupported DSL syntax, selected Policy/PolicyRule state, and
 generated JSON shape; it does not simulate runtime impact or claim production
 enforcement coverage. Built-in templates are static authoring helpers, not

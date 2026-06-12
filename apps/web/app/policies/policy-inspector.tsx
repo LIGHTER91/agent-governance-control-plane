@@ -70,7 +70,10 @@ export function PolicyInspector({
     message: string;
   };
   saveDisabledReason: string | null;
-  saveState: { status: "idle" | "saving" | "success" | "error"; message: string };
+  saveState: {
+    status: "unsaved" | "saving" | "saved" | "save_error";
+    message: string;
+  };
   selectedDraftVersion: PolicyVersionRecord | null;
   selectedPolicy: PolicyRecord | null;
   selectedRule: PolicyRuleRecord | null;
@@ -233,7 +236,11 @@ export function PolicyInspector({
             />
             <ReviewRow
               label="Save state"
-              value={saveState.status === "idle" ? "No save attempted" : saveState.message}
+              value={
+                saveState.status === "unsaved"
+                  ? `Unsaved: ${saveState.message}`
+                  : saveState.message
+              }
             />
             <ReviewRow
               label="Review state"
@@ -271,8 +278,12 @@ export function PolicyInspector({
       <div className="ps2-insp-actions">
         {saveDisabledReason ? (
           <div className="ps2-save-state error">{saveDisabledReason}</div>
-        ) : saveState.status === "error" || saveState.status === "success" ? (
-          <div className={`ps2-save-state ${saveState.status}`}>
+        ) : saveState.status === "save_error" || saveState.status === "saved" ? (
+          <div
+            className={`ps2-save-state ${
+              saveState.status === "save_error" ? "error" : "success"
+            }`}
+          >
             {saveState.message}
           </div>
         ) : null}
@@ -332,7 +343,10 @@ function submitReviewDisabledReason({
   pendingReviewRequest: PolicyVersionReviewRequestRecord | null;
   reviewState: { status: "idle" | "submitting" | "success" | "error"; message: string };
   saveDisabledReason: string | null;
-  saveState: { status: "idle" | "saving" | "success" | "error"; message: string };
+  saveState: {
+    status: "unsaved" | "saving" | "saved" | "save_error";
+    message: string;
+  };
   selectedDraftVersion: PolicyVersionRecord | null;
 }) {
   if (!selectedDraftVersion) {
@@ -344,7 +358,7 @@ function submitReviewDisabledReason({
   if (saveState.status === "saving" || reviewState.status === "submitting") {
     return "A save or review request is already in progress.";
   }
-  if (saveState.status !== "success" && reviewState.status !== "success") {
+  if (saveState.status !== "saved" && reviewState.status !== "success") {
     return "Save the current editor state before submitting for review.";
   }
   if (pendingReviewRequest) {

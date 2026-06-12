@@ -246,7 +246,13 @@ the compiled snapshot.
 ## Blocks And Templates
 
 Blocks mode and Code DSL mode are two views of the same supported condition
-fields. Blocks mode groups fields by:
+fields. The frontend keeps one canonical editor state for the compiled
+condition surface: Code DSL edits are parsed into condition JSON, while Blocks
+edits update supported condition fields and regenerate the DSL preview. Save
+draft uses the validated compiled condition object, not a separate hidden form
+state.
+
+Blocks mode groups fields by:
 
 - WHEN: request/runtime matching fields;
 - CHECK: inventory, review, and check summary fields;
@@ -257,6 +263,11 @@ Built-in templates are static authoring helpers. They prefill local editor
 state only, never create backend records automatically, and never imply that
 production runtime behavior changes before explicit Save draft, review, and
 activation.
+
+If the editor contains unsupported DSL lines or backend condition fields not
+represented in Blocks, Blocks editing is guarded to avoid silently dropping
+state. The user must remove unsupported syntax in Code DSL or use a supported
+condition path before saving.
 
 ## PolicyVersion, Review Diff, Runtime, And Telemetry
 
