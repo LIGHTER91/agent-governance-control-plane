@@ -73,9 +73,12 @@ compilation to supported `PolicyRule.condition` fields, compact IDE-style
 Blocks review, an inspector, and Save draft through draft `PolicyVersion`
 snapshots. Code DSL remains the precise V1 editing path. Unsupported DSL lines block
 saving. Saved drafts remain visible in the editor instead of resetting to live
-PolicyRule fallback state. Templates are static helpers, not backend records.
-Local validation is not runtime simulation. Draft versions do not affect
-runtime until explicit activation. Submit for review now creates a dedicated
+PolicyRule fallback state; reload prefers the latest draft PolicyVersion
+snapshot, then an active PolicyVersion baseline, then live PolicyRule fallback.
+Templates are static helpers, not backend records. Local validation is not
+runtime simulation. Draft versions do not affect runtime until explicit
+activation, and drafts with pending review requests are immutable so reviews do
+not point to moving content. Submit for review now creates a dedicated
 PolicyVersionReviewRequest for a saved draft snapshot; approval or rejection
 does not activate the version. Approved review requests can be activated
 explicitly with Activate approved version; that runtime-changing step can

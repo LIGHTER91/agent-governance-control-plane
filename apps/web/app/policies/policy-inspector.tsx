@@ -1,6 +1,6 @@
 "use client";
 
-import { CurrentActorRecord } from "../lib/current-actor";
+import type { CurrentActorRecord } from "../lib/current-actor";
 import {
   PolicyRecord,
   PolicyRuleRecord,
@@ -14,11 +14,13 @@ import {
   jsonConditionPreview,
   summarizePolicyRule
 } from "./policy-dsl";
+import type { PolicyStudioEditorSource } from "./policy-studio";
 
 export function PolicyInspector({
   compiled,
   condition,
   currentActorState,
+  editorSource,
   localNote,
   onChangeLocalNote,
   onSaveDraft,
@@ -50,6 +52,7 @@ export function PolicyInspector({
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; actor: CurrentActorRecord };
+  editorSource: PolicyStudioEditorSource;
   localNote: string;
   onChangeLocalNote: (note: string) => void;
   onSaveDraft: () => void;
@@ -102,6 +105,7 @@ export function PolicyInspector({
       : "Review state is not loaded for this draft.");
   const submitDisabledReason = submitReviewDisabledReason({
     currentActorState,
+    editorSource,
     reviewState,
     saveDisabledReason,
     saveState,
@@ -196,6 +200,7 @@ export function PolicyInspector({
           <div className="ps2-insp-sec-title ist2-review">Review Status</div>
           <div className="ps2-review-card">
             <ReviewRow label="Policy status" value={reviewStatus} />
+            <ReviewRow label="Editor source" value={editorSourceLabel(editorSource)} />
             <ReviewRow
               label="Policy id"
               value={selectedPolicy?.id || "Not persisted"}
@@ -249,7 +254,7 @@ export function PolicyInspector({
             />
             <ReviewRow
               label="Runtime impact"
-              value="None until explicit PolicyVersion activation"
+              value={runtimeImpactLabel(editorSource)}
             />
             <ReviewRow
               label="Review diff"
@@ -368,6 +373,7 @@ export function PolicyInspector({
 
 function submitReviewDisabledReason({
   currentActorState,
+  editorSource,
   reviewState,
   saveDisabledReason,
   saveState,
@@ -379,6 +385,7 @@ function submitReviewDisabledReason({
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; actor: CurrentActorRecord };
+  editorSource: PolicyStudioEditorSource;
   reviewState: { status: "idle" | "submitting" | "success" | "error"; message: string };
   saveDisabledReason: string | null;
   saveState: {
@@ -396,6 +403,12 @@ function submitReviewDisabledReason({
   }
   if (selectedDraftReviewState?.review_status === "pending") {
     return "A review request is already pending for this draft.";
+  }
+  if (editorSource.kind === "active_version") {
+    return "Create a draft before submitting changes for review.";
+  }
+  if (editorSource.kind !== "draft_version") {
+    return "Save a draft before submitting for review.";
   }
   if (!selectedDraftVersion) {
     return "Save a draft before submitting for review.";
@@ -423,6 +436,29 @@ function submitReviewDisabledReason({
     return "This PolicyVersion is not a draft.";
   }
   return null;
+}
+
+function editorSourceLabel(editorSource: PolicyStudioEditorSource) {
+  if (editorSource.kind === "draft_version") {
+    return `Editing draft PolicyVersion v${editorSource.versionNumber}`;
+  }
+  if (editorSource.kind === "active_version") {
+    return `Editing active PolicyVersion v${editorSource.versionNumber} baseline`;
+  }
+  if (editorSource.kind === "live_fallback") {
+    return "Live PolicyRule fallback";
+  }
+  return "Local unsaved draft";
+}
+
+function runtimeImpactLabel(editorSource: PolicyStudioEditorSource) {
+  if (editorSource.kind === "draft_version") {
+    return "No runtime effect until reviewed and activated";
+  }
+  if (editorSource.kind === "active_version") {
+    return "Currently active baseline; edits require a new draft";
+  }
+  return "None until explicit PolicyVersion activation";
 }
 
 function currentActorLabel(

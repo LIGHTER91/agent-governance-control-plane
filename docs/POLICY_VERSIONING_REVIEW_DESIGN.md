@@ -18,6 +18,9 @@ Already implemented:
 - Runtime Gateway active PolicyVersion snapshot evaluation with unversioned
   fallback;
 - Policy Studio Save draft creation/update of draft PolicyVersion snapshots;
+- Policy Studio reload hydration from the latest draft PolicyVersion snapshot,
+  with active PolicyVersion and live PolicyRule fallback used only when no draft
+  snapshot exists;
 - a dedicated `PolicyVersionReviewRequest` workflow for draft-version review
   requests, approval, and rejection;
 - explicit activation of approved PolicyVersion review requests, with
@@ -114,7 +117,8 @@ Lifecycle APIs currently exist for:
 - create a draft PolicyVersion from a Policy Studio/editor snapshot;
 - list Policy versions;
 - get one PolicyVersion;
-- update an existing draft PolicyVersion from a Policy Studio/editor snapshot;
+- update an existing draft PolicyVersion from a Policy Studio/editor snapshot
+  only while no pending review request exists for that version;
 - create a pending review request for a draft PolicyVersion;
 - read narrow review state for one PolicyVersion through
   `GET /policy-versions/{policy_version_id}/review-state`;
@@ -288,6 +292,9 @@ Recommended product semantics:
 
 - Save draft creates or updates draft PolicyVersion content and does not
   activate, submit for review, or mutate active runtime configuration.
+- A draft PolicyVersion with a pending review request is immutable in V1. The
+  backend rejects `PATCH /policy-versions/{policy_version_id}/draft` with 409
+  and instructs callers to create a new draft for additional changes.
 - Submit for review creates a pending `PolicyVersionReviewRequest`; it does not
   publish or activate anything.
 - Review approval records reviewer intent on the review request; it does not

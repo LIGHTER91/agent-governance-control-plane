@@ -119,9 +119,12 @@ deterministic frontend compilation to supported `PolicyRule.condition` JSON,
 compact IDE-style Blocks review, Code DSL as the precise V1 editing path, local
 validation, generated JSON preview, unsupported-DSL save blocking, and Save
 draft through draft `PolicyVersion` snapshots. Saved drafts no longer
-rehydrate the editor from live PolicyRule fallback state. Templates are static
-helpers, not backend records. Local validation is not runtime simulation. Draft
-versions do not affect runtime until explicit activation. Submit for review
+rehydrate the editor from live PolicyRule fallback state; reload prefers the
+latest draft PolicyVersion snapshot, then active PolicyVersion baseline, then
+live PolicyRule fallback. Templates are static helpers, not backend records.
+Local validation is not runtime simulation. Draft versions do not affect runtime
+until explicit activation. Draft PolicyVersions with pending review requests are
+immutable and require a new draft for additional changes. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft
 snapshot, and a minimal Policy Reviews queue can approve or reject that request
 without activating the version. Approved review requests can now be activated

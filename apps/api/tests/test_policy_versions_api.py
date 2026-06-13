@@ -259,6 +259,51 @@ def test_update_policy_version_draft_from_editor_payload(
     assert audit_log.metadata_["check_step_snapshot_count"] == 0
 
 
+def test_update_policy_version_draft_with_pending_review_fails(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    draft = create_policy_version_draft(client, policy_id=policy_id)
+    review_response = client.post(f"/policy-versions/{draft['id']}/review-requests")
+
+    response = client.patch(
+        f"/policy-versions/{draft['id']}/draft",
+        json={
+            "change_summary": "Attempt to mutate pending review draft.",
+            "policy_snapshot": {
+                "name": "Mutated pending review draft",
+                "description": "This should not replace the reviewed snapshot.",
+                "status": "draft",
+            },
+            "rule_snapshots": [
+                {
+                    "name": "Mutated pending review rule",
+                    "description": "Should be rejected.",
+                    "condition": (
+                        '{"decision":"deny",'
+                        '"reason":"Do not mutate a pending review snapshot.",'
+                        '"tool_name":"send_email"}'
+                    ),
+                }
+            ],
+        },
+    )
+    refreshed = client.get(f"/policy-versions/{draft['id']}")
+
+    assert review_response.status_code == 201
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Cannot update a draft PolicyVersion while a review request is pending. "
+        "Create a new draft version for additional changes."
+    )
+    assert refreshed.status_code == 200
+    refreshed_body = refreshed.json()
+    assert refreshed_body["change_summary"] == draft["change_summary"]
+    assert refreshed_body["policy_snapshot"] == draft["policy_snapshot"]
+    assert refreshed_body["rule_snapshots"] == draft["rule_snapshots"]
+
+
 def test_update_non_draft_policy_version_fails(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

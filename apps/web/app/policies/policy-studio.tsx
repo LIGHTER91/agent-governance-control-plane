@@ -467,7 +467,7 @@ export function PolicyStudio() {
     }
     localEditorDirtyRef.current = false;
     void loadRules(selectedPolicy, controller.signal, { hydrateEditor: false });
-    void loadVersions(selectedPolicy, controller.signal);
+    void loadVersions(selectedPolicy, controller.signal, { hydrateEditor });
     return () => controller.abort();
   }, [loadRules, loadVersions, selectedPolicy]);
 
@@ -781,6 +781,35 @@ export function PolicyStudio() {
     }
   }
 
+  function hydrateEditorFromPolicyVersion(
+    version: PolicyVersionRecord,
+    kind: "draft_version" | "active_version"
+  ) {
+    const editorState = policyVersionToEditorState(version);
+    const unsupportedFields = unsupportedConditionFields(editorState.condition);
+
+    setSelectedRuleId(editorState.ruleSnapshotId);
+    setDsl(editorState.dsl);
+    setEditorSource({
+      kind,
+      versionId: version.id,
+      versionNumber: version.version_number
+    });
+    setSaveState({
+      status: unsupportedFields.length > 0 ? "save_error" : "saved",
+      message:
+        unsupportedFields.length > 0
+          ? `PolicyVersion snapshot has unsupported condition field(s): ${unsupportedFields.join(
+              ", "
+            )}`
+          : kind === "draft_version"
+            ? `Editing draft PolicyVersion v${version.version_number}. No runtime effect until reviewed and activated.`
+            : `Editing active PolicyVersion v${version.version_number} as source baseline. Create a draft before submitting changes for review.`
+    });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
+    localEditorDirtyRef.current = false;
+  }
+
   async function ensurePolicyDraft(
     policy: PolicyRecord | null,
     policyName: string
@@ -874,6 +903,7 @@ export function PolicyStudio() {
 }
 
 function studioStateMessages({
+  editorSource,
   policiesState,
   rulesState,
   selectedDraftReviewState,
@@ -887,6 +917,7 @@ function studioStateMessages({
   selectedRuleUnsupportedFields,
   versionsState
 }: {
+  editorSource: PolicyStudioEditorSource;
   policiesState: PoliciesState;
   rulesState: RulesState;
   selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
@@ -942,12 +973,19 @@ function studioStateMessages({
       ? `Selected PolicyRule: ${selectedRule.id}. Save draft snapshots this source rule without patching it.`
       : "No PolicyRule selected; Save draft will snapshot a generated rule id into a draft PolicyVersion"
   });
+  messages.push(editorSourceMessage(editorSource));
 
   if (selectedDraftVersion) {
     messages.push({
       tone: "ok",
-      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active)`
+      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active). No runtime effect until reviewed and activated.`
     });
+    if (selectedDraftVersion.rule_snapshots.length > 1) {
+      messages.push({
+        tone: "info",
+        text: `Selected rule snapshot: first of ${selectedDraftVersion.rule_snapshots.length} deterministic rule snapshots.`
+      });
+    }
   }
 
   if (selectedDraftReviewState?.review_status === "pending") {
@@ -1008,35 +1046,6 @@ function studioStateMessages({
   return messages;
 }
 
-  function hydrateEditorFromPolicyVersion(
-    version: PolicyVersionRecord,
-    kind: "draft_version" | "active_version"
-  ) {
-    const editorState = policyVersionToEditorState(version);
-    const unsupportedFields = unsupportedConditionFields(editorState.condition);
-
-    setSelectedRuleId(editorState.ruleSnapshotId);
-    setDsl(editorState.dsl);
-    setEditorSource({
-      kind,
-      versionId: version.id,
-      versionNumber: version.version_number
-    });
-    setSaveState({
-      status: unsupportedFields.length > 0 ? "save_error" : "saved",
-      message:
-        unsupportedFields.length > 0
-          ? `PolicyVersion snapshot has unsupported condition field(s): ${unsupportedFields.join(
-              ", "
-            )}`
-          : kind === "draft_version"
-            ? `Editing draft PolicyVersion v${version.version_number}. No runtime effect until reviewed and activated.`
-            : `Editing active PolicyVersion v${version.version_number} as source baseline. Create a draft before submitting changes for review.`
-    });
-    setReviewState({ status: "idle", message: "Review request not submitted" });
-    localEditorDirtyRef.current = false;
-  }
-
 function upsertPolicyRecord(policies: PolicyRecord[], policy: PolicyRecord) {
   const existingIndex = policies.findIndex((item) => item.id === policy.id);
   if (existingIndex === -1) {
@@ -1044,6 +1053,63 @@ function upsertPolicyRecord(policies: PolicyRecord[], policy: PolicyRecord) {
   }
 
   return policies.map((item) => (item.id === policy.id ? policy : item));
+}
+
+function upsertPolicyVersionRecord(
+  versions: PolicyVersionRecord[],
+  version: PolicyVersionRecord
+) {
+  const existingIndex = versions.findIndex((item) => item.id === version.id);
+  if (existingIndex === -1) {
+    return [...versions, version].sort(
+      (left, right) => left.version_number - right.version_number
+    );
+  }
+
+  return versions.map((item) => (item.id === version.id ? version : item));
+}
+
+function editorSourceMessage(editorSource: PolicyStudioEditorSource) {
+  if (editorSource.kind === "draft_version") {
+    return {
+      tone: "ok" as const,
+      text: `Editor source: Editing draft PolicyVersion v${editorSource.versionNumber}. Not active. No runtime effect until reviewed and activated.`
+    };
+  }
+  if (editorSource.kind === "active_version") {
+    return {
+      tone: "info" as const,
+      text: `Editor source: Editing active PolicyVersion v${editorSource.versionNumber} as baseline. Create a draft before submitting changes for review.`
+    };
+  }
+  if (editorSource.kind === "live_fallback") {
+    return {
+      tone: "warn" as const,
+      text: "Editor source: Live PolicyRule fallback. Save a draft before submitting for review."
+    };
+  }
+  return {
+    tone: "warn" as const,
+    text: "Editor source: Local unsaved draft. Save a draft before submitting for review."
+  };
+}
+
+function policyVersionToEditorState(version: PolicyVersionRecord) {
+  const ruleSnapshot = version.rule_snapshots[0] || {};
+  const policyName =
+    typeof version.policy_snapshot.name === "string"
+      ? version.policy_snapshot.name
+      : `policy_version_${version.version_number}`;
+  const condition = parseRuleSnapshotCondition(version);
+
+  return {
+    condition,
+    dsl: conditionToDsl(policyName, condition),
+    ruleSnapshotId:
+      typeof ruleSnapshot.id === "string" ? ruleSnapshot.id : "snapshot-rule",
+    ruleSnapshotName:
+      typeof ruleSnapshot.name === "string" ? ruleSnapshot.name : "snapshot_rule"
+  };
 }
 
 function buildPolicyVersionDraftPayload({

@@ -145,13 +145,19 @@ the same compiled condition surface: it groups WHEN, CHECK, THEN, and PROVE
 rows for review and selection, while precise condition edits remain in Code DSL
 until fuller bidirectional Blocks editing is designed. After Save draft
 succeeds, the editor keeps the saved draft content visible while the inspector
-updates the draft PolicyVersion id and status. Local validation checks parser support,
-required fields, unsupported DSL syntax, selected Policy/PolicyRule state, and
-generated JSON shape; it does not simulate runtime impact or claim production
-enforcement coverage. Built-in templates are static authoring helpers, not
-backend records, and they never save automatically. Draft versions do not
-affect runtime until explicit activation. Save draft only creates or updates the
-draft PolicyVersion snapshot; it does not create a review request. Policy Studio
+updates the draft PolicyVersion id and status. On page reload, Policy Studio
+hydrates the editor from the latest draft PolicyVersion snapshot when one
+exists, then from the active PolicyVersion baseline when available, and only
+falls back to live PolicyRule rows for unversioned/bootstrap policies. Local
+validation checks parser support, required fields, unsupported DSL syntax,
+selected Policy/PolicyRule state, and generated JSON shape; it does not simulate
+runtime impact or claim production enforcement coverage. Built-in templates are
+static authoring helpers, not backend records, and they never save
+automatically. Draft versions do not affect runtime until explicit activation.
+Save draft only creates or updates the draft PolicyVersion snapshot; it does not
+create a review request. Draft PolicyVersions with a pending review request are
+not mutable; additional changes must use a new draft version so the review
+request does not point to moving content. Policy Studio
 reads narrow draft review state through
 `GET /policy-versions/{policy_version_id}/review-state` instead of depending on
 the global review queue. The global queue remains reviewer/admin oriented.

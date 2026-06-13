@@ -21,14 +21,20 @@ from agent_governance_api.models import (
     PolicyCheckStep,
     PolicyRule,
     PolicyVersion,
+    PolicyVersionReviewRequestStatus,
     PolicyVersionStatus,
     reject_unsafe_snapshot_keys,
+)
+from agent_governance_api.models import (
+    PolicyVersionReviewRequest as PolicyVersionReviewRequestModel,
 )
 from agent_governance_api.schemas import (
     PolicyVersionCreate,
     PolicyVersionDraftPayload,
     PolicyVersionRead,
-    PolicyVersionReviewRequest,
+)
+from agent_governance_api.schemas import (
+    PolicyVersionReviewRequest as PolicyVersionReviewRequestPayload,
 )
 
 policies_router = APIRouter(prefix="/policies", tags=["policy versions"])
@@ -195,6 +201,7 @@ def update_policy_version_draft(
         {PolicyVersionStatus.DRAFT},
         "Only draft policy versions can be updated.",
     )
+    _require_no_pending_review_request_for_draft_update(session, version.id)
     policy = _get_policy_or_404(session, version.policy_id)
     policy_snapshot, rule_snapshots, check_step_snapshots = (
         _snapshots_from_draft_payload(session, policy, payload)
@@ -266,7 +273,7 @@ def submit_policy_version_for_review(
 )
 def approve_policy_version(
     version_id: UUID,
-    payload: PolicyVersionReviewRequest | None = None,
+    payload: PolicyVersionReviewRequestPayload | None = None,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
 ) -> PolicyVersion:
@@ -304,7 +311,7 @@ def approve_policy_version(
 )
 def reject_policy_version(
     version_id: UUID,
-    payload: PolicyVersionReviewRequest | None = None,
+    payload: PolicyVersionReviewRequestPayload | None = None,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
 ) -> PolicyVersion:
@@ -723,6 +730,28 @@ def _require_no_other_active_policy_version(
         detail=(
             "Policy already has an active PolicyVersion. Archive the active "
             "version before activating another."
+        ),
+    )
+
+
+def _require_no_pending_review_request_for_draft_update(
+    session: Session,
+    version_id: UUID,
+) -> None:
+    pending_request = session.scalar(
+        select(PolicyVersionReviewRequestModel).where(
+            PolicyVersionReviewRequestModel.policy_version_id == version_id,
+            PolicyVersionReviewRequestModel.status
+            == PolicyVersionReviewRequestStatus.PENDING,
+        )
+    )
+    if pending_request is None:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "Cannot update a draft PolicyVersion while a review request is "
+            "pending. Create a new draft version for additional changes."
         ),
     )
 
