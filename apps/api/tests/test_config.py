@@ -251,6 +251,51 @@ def test_service_actor_registry_flag_can_be_enabled(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_dev_actor_roles_are_empty_by_default(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_DEV_ACTOR_ROLES", raising=False)
+
+    try:
+        settings = get_settings()
+
+        assert settings.dev_actor_roles == ()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_dev_actor_settings_are_loaded_from_environment(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_DEV_ACTOR_ID", "local-admin")
+    monkeypatch.setenv("AGCP_DEV_ACTOR_ROLES", "platform_admin,reviewer,auditor")
+    monkeypatch.setenv("AGCP_DEV_ACTOR_DISPLAY_NAME", "Local Admin")
+
+    try:
+        settings = get_settings()
+
+        assert settings.dev_actor_id == "local-admin"
+        assert settings.dev_actor_roles == ("platform_admin", "reviewer", "auditor")
+        assert settings.dev_actor_display_name == "Local Admin"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_invalid_dev_actor_roles_are_rejected(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_DEV_ACTOR_ROLES", "platform_admin,owner")
+
+    try:
+        with pytest.raises(
+            ValueError,
+            match=(
+                "AGCP_DEV_ACTOR_ROLES unsupported roles: owner. "
+                "Supported roles: auditor, platform_admin, reviewer."
+            ),
+        ):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_service_actor_api_keys_are_loaded_from_hashed_config(monkeypatch) -> None:
     get_settings.cache_clear()
     key_hash = sha256(b"local-test-service-key").hexdigest()

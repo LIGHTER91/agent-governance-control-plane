@@ -1285,6 +1285,23 @@ class PolicyVersionReviewRequestRead(BaseModel):
     policy_version_number: int | None = None
 
 
+class PolicyVersionReviewStateRead(BaseModel):
+    policy_version_id: UUID
+    latest_review_request_id: UUID | None = None
+    review_status: Literal[
+        "not_submitted",
+        "pending",
+        "approved",
+        "rejected",
+        "canceled",
+    ]
+    requested_at: datetime | None = None
+    decided_at: datetime | None = None
+    reviewer_actor_id: str | None = None
+    can_submit_review: bool
+    message: str
+
+
 class PolicyVersionDiffFieldValue(BaseModel):
     field: str
     value: Any = None

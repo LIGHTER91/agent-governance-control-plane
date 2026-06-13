@@ -3,7 +3,7 @@ from functools import lru_cache
 from json import JSONDecodeError, loads
 from os import getenv
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 DEFAULT_DATABASE_URL = (
     "postgresql+psycopg://postgres@127.0.0.1:5432/"
@@ -13,8 +13,16 @@ DEFAULT_CORS_ALLOWED_ORIGINS = (
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 )
+DEFAULT_DEV_ACTOR_ID = "dev-placeholder"
 SERVICE_ACTOR_API_KEY_HASH_PREFIX = "sha256:"
 SERVICE_ACTOR_API_KEY_HASH_HEX_LENGTH = 64
+SUPPORTED_DEV_ACTOR_ROLES = frozenset(
+    {
+        "auditor",
+        "reviewer",
+        "platform_admin",
+    }
+)
 SUPPORTED_SERVICE_ACTOR_SCOPES = frozenset(
     {
         "agent:read",
@@ -95,6 +103,14 @@ class Settings(BaseModel):
         default_factory=tuple
     )
     service_actor_registry_enabled: bool = Field(default=False)
+    dev_actor_id: str = Field(default=DEFAULT_DEV_ACTOR_ID)
+    dev_actor_roles: tuple[str, ...] = Field(default_factory=tuple)
+    dev_actor_display_name: str | None = Field(default=None)
+
+    @field_validator("dev_actor_roles")
+    @classmethod
+    def validate_dev_actor_roles(cls, roles: tuple[str, ...]) -> tuple[str, ...]:
+        return _validate_dev_actor_roles("AGCP_DEV_ACTOR_ROLES", roles)
 
 
 @lru_cache
@@ -138,6 +154,10 @@ def get_settings() -> Settings:
             "AGCP_SERVICE_ACTOR_REGISTRY_ENABLED",
             default=False,
         ),
+        dev_actor_id=getenv("AGCP_DEV_ACTOR_ID", DEFAULT_DEV_ACTOR_ID).strip()
+        or DEFAULT_DEV_ACTOR_ID,
+        dev_actor_roles=_get_dev_actor_roles_env("AGCP_DEV_ACTOR_ROLES"),
+        dev_actor_display_name=_get_optional_env("AGCP_DEV_ACTOR_DISPLAY_NAME"),
     )
 
 
@@ -152,6 +172,41 @@ def _get_csv_env(name: str, *, default: tuple[str, ...]) -> tuple[str, ...]:
         )
     )
     return values
+
+
+def _get_optional_env(name: str) -> str | None:
+    raw_value = getenv(name)
+    if raw_value is None:
+        return None
+
+    value = raw_value.strip()
+    return value or None
+
+
+def _get_dev_actor_roles_env(name: str) -> tuple[str, ...]:
+    raw_value = getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return ()
+
+    roles = tuple(
+        dict.fromkeys(role.strip() for role in raw_value.split(",") if role.strip())
+    )
+    return _validate_dev_actor_roles(name, roles)
+
+
+def _validate_dev_actor_roles(name: str, roles: tuple[str, ...]) -> tuple[str, ...]:
+    unsupported_roles = sorted(
+        role for role in roles if role not in SUPPORTED_DEV_ACTOR_ROLES
+    )
+    if unsupported_roles:
+        supported_values = ", ".join(sorted(SUPPORTED_DEV_ACTOR_ROLES))
+        unsupported_values = ", ".join(unsupported_roles)
+        raise ValueError(
+            f"{name} unsupported roles: {unsupported_values}. "
+            f"Supported roles: {supported_values}."
+        )
+
+    return roles
 
 
 def _get_bool_env(name: str, *, default: bool) -> bool:

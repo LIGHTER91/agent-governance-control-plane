@@ -182,6 +182,11 @@ approve/reject/assign/activate buttons advisory-role-aware. Disabled buttons
 show reasons such as "Reviewer role required" or "Assigned to another
 reviewer", but backend authorization remains the source of truth. There is no
 fake reviewer directory; assignments use explicit stable actor ids.
+The Docker Compose dev stack configures `GET /me` as `Local Admin` with
+`platform_admin`, `reviewer`, and `auditor` roles so review and activation
+flows can be tested end-to-end locally. Clear `AGCP_DEV_ACTOR_ROLES` in a local
+`.env` file to test restricted UI states. This is local development auth only,
+not enterprise authentication.
 Legacy live Policy and PolicyRule endpoints remain available for bootstrap and
 unversioned fallback policies. Once a Policy has an active PolicyVersion,
 direct live Policy/PolicyRule mutations are blocked by the backend with
@@ -295,7 +300,7 @@ npm run build
 ## Current Limitations
 
 - No login or auth UI.
-- No broad enterprise role-aware frontend behavior. Policy Reviews has a
+- No broad enterprise auth or fake user directory. Policy Reviews has a
   minimal `/me`-backed advisory current-actor display, but backend RBAC remains
   authoritative.
 - Agent list is read-only.

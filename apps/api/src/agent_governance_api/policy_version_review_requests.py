@@ -46,6 +46,7 @@ from agent_governance_api.schemas import (
     PolicyVersionReviewEvidenceRead,
     PolicyVersionReviewRequestCreate,
     PolicyVersionReviewRequestRead,
+    PolicyVersionReviewStateRead,
     PolicyVersionRuleConditionChanges,
 )
 
@@ -99,6 +100,22 @@ def create_policy_version_review_request(
     session.refresh(review_request)
 
     return _review_request_read(review_request, version)
+
+
+@policy_versions_router.get(
+    "/{policy_version_id}/review-state",
+    response_model=PolicyVersionReviewStateRead,
+)
+def get_policy_version_review_state(
+    policy_version_id: UUID,
+    session: Session = Depends(get_db_session),
+    actor: ActorContext = Depends(get_current_actor),
+) -> PolicyVersionReviewStateRead:
+    version = _get_policy_version_or_404(session, policy_version_id)
+    review_request = _latest_review_request_for_policy_version(session, version.id)
+    _require_policy_version_review_state_reader(actor, version, review_request)
+
+    return _review_state_read(version, review_request)
 
 
 @router.get("", response_model=list[PolicyVersionReviewRequestRead])
@@ -505,6 +522,20 @@ def _require_no_pending_review_request(
     )
 
 
+def _latest_review_request_for_policy_version(
+    session: Session,
+    policy_version_id: UUID,
+) -> PolicyVersionReviewRequest | None:
+    return session.scalar(
+        select(PolicyVersionReviewRequest)
+        .where(PolicyVersionReviewRequest.policy_version_id == policy_version_id)
+        .order_by(
+            PolicyVersionReviewRequest.created_at.desc(),
+            PolicyVersionReviewRequest.id.desc(),
+        )
+    )
+
+
 def _require_pending_review_request(
     review_request: PolicyVersionReviewRequest,
 ) -> None:
@@ -564,6 +595,37 @@ def _require_policy_version_review_reader(actor: ActorContext) -> None:
         )
 
     require_role(actor, (ROLE_REVIEWER, ROLE_AUDITOR, ROLE_PLATFORM_ADMIN))
+
+
+def _require_policy_version_review_state_reader(
+    actor: ActorContext,
+    version: PolicyVersion,
+    review_request: PolicyVersionReviewRequest | None,
+) -> None:
+    if (
+        has_role(actor, ROLE_REVIEWER)
+        or has_role(actor, ROLE_AUDITOR)
+        or has_role(
+            actor,
+            ROLE_PLATFORM_ADMIN,
+        )
+    ):
+        return
+    if (
+        actor.actor_type is version.created_by_actor_type
+        and actor.actor_id == version.created_by_actor_id
+    ):
+        return
+    if review_request is not None and (
+        actor.actor_type is review_request.requested_by_actor_type
+        and actor.actor_id == review_request.requested_by_actor_id
+    ):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Review state unavailable for current actor.",
+    )
 
 
 def _require_policy_version_review_reviewer(actor: ActorContext) -> None:
@@ -703,6 +765,47 @@ def _review_request_read(
             "policy_version_number": version.version_number,
         }
     )
+
+
+def _review_state_read(
+    version: PolicyVersion,
+    review_request: PolicyVersionReviewRequest | None,
+) -> PolicyVersionReviewStateRead:
+    if review_request is None:
+        can_submit = version.status is PolicyVersionStatus.DRAFT
+        return PolicyVersionReviewStateRead(
+            policy_version_id=version.id,
+            review_status="not_submitted",
+            can_submit_review=can_submit,
+            message=(
+                "Review request not submitted."
+                if can_submit
+                else "Only draft PolicyVersions can be submitted for review."
+            ),
+        )
+
+    is_pending = review_request.status is PolicyVersionReviewRequestStatus.PENDING
+    return PolicyVersionReviewStateRead(
+        policy_version_id=version.id,
+        latest_review_request_id=review_request.id,
+        review_status=review_request.status.value,
+        requested_at=review_request.created_at,
+        decided_at=review_request.decided_at,
+        reviewer_actor_id=review_request.reviewer_actor_id,
+        can_submit_review=version.status is PolicyVersionStatus.DRAFT
+        and not is_pending,
+        message=_review_state_message(review_request.status),
+    )
+
+
+def _review_state_message(status_: PolicyVersionReviewRequestStatus) -> str:
+    if status_ is PolicyVersionReviewRequestStatus.PENDING:
+        return "Review request pending. Approval does not activate this version."
+    if status_ is PolicyVersionReviewRequestStatus.APPROVED:
+        return "Review request approved. Activation remains explicit."
+    if status_ is PolicyVersionReviewRequestStatus.REJECTED:
+        return "Review request rejected."
+    return "Review request canceled."
 
 
 def _audit_text(value: str | None, *, max_length: int = 512) -> str | None:

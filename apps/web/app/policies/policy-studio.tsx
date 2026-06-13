@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError } from "../lib/api";
+import type { CurrentActorRecord } from "../lib/current-actor";
+import { fetchCurrentActor } from "../lib/current-actor";
 import {
   PolicyPayload,
   PolicyRecord,
@@ -65,6 +67,18 @@ type VersionReviewState =
   | { status: "error"; message: string }
   | { status: "ready"; state: PolicyVersionReviewStateRecord };
 
+type CurrentActorState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; actor: CurrentActorRecord };
+
+export type PolicyStudioEditorSource =
+  | { kind: "local_draft" }
+  | { kind: "draft_version"; versionId: string; versionNumber: number }
+  | { kind: "active_version"; versionId: string; versionNumber: number }
+  | { kind: "live_fallback" };
+
 type SaveState = {
   status: "unsaved" | "saving" | "saved" | "save_error";
   message: string;
@@ -96,11 +110,17 @@ export function PolicyStudio() {
   const [versionReviewState, setVersionReviewState] = useState<VersionReviewState>({
     status: "idle"
   });
+  const [currentActorState, setCurrentActorState] = useState<CurrentActorState>({
+    status: "idle"
+  });
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState<PolicyVersionRecord | null>(
     null
   );
+  const [editorSource, setEditorSource] = useState<PolicyStudioEditorSource>({
+    kind: "local_draft"
+  });
   const [repositoryMode, setRepositoryMode] = useState<"policies" | "templates">(
     "policies"
   );
@@ -123,6 +143,7 @@ export function PolicyStudio() {
     status: "idle"
   });
   const [validationRun, setValidationRun] = useState(0);
+  const localEditorDirtyRef = useRef(false);
 
   const selectedPolicy = useMemo(() => {
     if (policiesState.status !== "ready" || !selectedPolicyId) {
@@ -169,8 +190,11 @@ export function PolicyStudio() {
 
   const parsed = useMemo(() => parsePolicyDslToPolicyRule(dsl), [dsl]);
   const selectedRuleCondition = useMemo(
-    () => (selectedRule ? parseRuleCondition(selectedRule) : null),
-    [selectedRule]
+    () =>
+      editorSource.kind === "live_fallback" && selectedRule
+        ? parseRuleCondition(selectedRule)
+        : null,
+    [editorSource.kind, selectedRule]
   );
   const selectedRuleUnsupportedFields = useMemo(
     () =>
@@ -192,14 +216,27 @@ export function PolicyStudio() {
         ", "
       )}. Create a new draft or use a supported rule to avoid dropping fields.`;
     }
+    if (
+      editorSource.kind === "draft_version" &&
+      selectedDraftReviewState?.review_status === "pending"
+    ) {
+      return "Cannot update a draft PolicyVersion while a review request is pending. Create a new draft version for additional changes.";
+    }
 
     return null;
-  }, [parsed.errors, parsed.unsupported, selectedRuleUnsupportedFields]);
+  }, [
+    editorSource.kind,
+    parsed.errors,
+    parsed.unsupported,
+    selectedDraftReviewState?.review_status,
+    selectedRuleUnsupportedFields
+  ]);
   const validationMessages = useMemo(
     () => [
       ...localValidationMessages(parsed),
       ...studioStateMessages({
         policiesState,
+        editorSource,
         rulesState,
         selectedDraftReviewState,
         reviewState,
@@ -216,6 +253,7 @@ export function PolicyStudio() {
     [
       parsed,
       policiesState,
+      editorSource,
       rulesState,
       selectedDraftReviewState,
       reviewState,
@@ -256,6 +294,24 @@ export function PolicyStudio() {
     }
   }, []);
 
+  const loadCurrentActor = useCallback(async (signal?: AbortSignal) => {
+    setCurrentActorState({ status: "loading" });
+
+    try {
+      const actor = await fetchCurrentActor(signal);
+      setCurrentActorState({ status: "ready", actor });
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      setCurrentActorState({
+        status: "error",
+        message: errorMessage(error, "Unable to load current actor from GET /me.")
+      });
+    }
+  }, []);
+
   const loadRules = useCallback(
     async (
       policy: PolicyRecord,
@@ -270,6 +326,9 @@ export function PolicyStudio() {
         if (!options.hydrateEditor) {
           return;
         }
+        if (localEditorDirtyRef.current) {
+          return;
+        }
         const firstRule = rules[0] || null;
         const firstCondition = firstRule ? parseRuleCondition(firstRule) : null;
         const unsupportedFields = firstCondition
@@ -281,6 +340,8 @@ export function PolicyStudio() {
             ? conditionToDsl(policy.name, firstCondition || defaultCondition())
             : conditionToDsl(policy.name, defaultCondition())
         );
+        setEditorSource({ kind: "live_fallback" });
+        localEditorDirtyRef.current = false;
         setSaveState({
           status: unsupportedFields.length > 0 ? "save_error" : "unsaved",
           message:
@@ -307,7 +368,11 @@ export function PolicyStudio() {
   );
 
   const loadVersions = useCallback(
-    async (policy: PolicyRecord, signal?: AbortSignal) => {
+    async (
+      policy: PolicyRecord,
+      signal?: AbortSignal,
+      options: { hydrateEditor: boolean } = { hydrateEditor: true }
+    ) => {
       setVersionsState({ status: "loading" });
 
       try {
@@ -318,7 +383,26 @@ export function PolicyStudio() {
             .filter((version) => version.status === "draft")
             .sort((left, right) => right.version_number - left.version_number)[0] ||
           null;
+        const activeVersion =
+          [...versions]
+            .filter((version) => version.status === "active")
+            .sort((left, right) => right.version_number - left.version_number)[0] ||
+          null;
         setDraftVersion(latestDraft);
+        if (!options.hydrateEditor || localEditorDirtyRef.current) {
+          return;
+        }
+        if (latestDraft) {
+          hydrateEditorFromPolicyVersion(latestDraft, "draft_version");
+          return;
+        }
+        if (activeVersion) {
+          hydrateEditorFromPolicyVersion(activeVersion, "active_version");
+          return;
+        }
+
+        setEditorSource({ kind: "live_fallback" });
+        void loadRules(policy, signal, { hydrateEditor: true });
       } catch (error: unknown) {
         if (signal?.aborted) {
           return;
@@ -331,7 +415,7 @@ export function PolicyStudio() {
         setDraftVersion(null);
       }
     },
-    []
+    [loadRules]
   );
 
   const loadVersionReviewState = useCallback(
@@ -361,14 +445,16 @@ export function PolicyStudio() {
   useEffect(() => {
     const controller = new AbortController();
     void loadPolicies(controller.signal);
+    void loadCurrentActor(controller.signal);
     return () => controller.abort();
-  }, [loadPolicies]);
+  }, [loadCurrentActor, loadPolicies]);
 
   useEffect(() => {
     if (!selectedPolicy) {
       setRulesState({ status: "idle" });
       setVersionsState({ status: "idle" });
       setDraftVersion(null);
+      setEditorSource({ kind: "local_draft" });
       setVersionReviewState({ status: "idle" });
       return;
     }
@@ -379,7 +465,8 @@ export function PolicyStudio() {
     if (!hydrateEditor) {
       preserveEditorOnNextRulesLoadRef.current = null;
     }
-    void loadRules(selectedPolicy, controller.signal, { hydrateEditor });
+    localEditorDirtyRef.current = false;
+    void loadRules(selectedPolicy, controller.signal, { hydrateEditor: false });
     void loadVersions(selectedPolicy, controller.signal);
     return () => controller.abort();
   }, [loadRules, loadVersions, selectedPolicy]);
@@ -426,9 +513,11 @@ export function PolicyStudio() {
 
   function handleSelectPolicy(policy: PolicyRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    localEditorDirtyRef.current = false;
     setSelectedPolicyId(policy.id);
     setSelectedRuleId(null);
     setDraftVersion(null);
+    setEditorSource({ kind: "local_draft" });
     setVersionReviewState({ status: "idle" });
     setSaveState({ status: "unsaved", message: "Loading selected Policy rules" });
     setReviewState({ status: "idle", message: "Review request not submitted" });
@@ -437,10 +526,12 @@ export function PolicyStudio() {
 
   function handleNewPolicy() {
     preserveEditorOnNextRulesLoadRef.current = null;
+    localEditorDirtyRef.current = false;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
+    setEditorSource({ kind: "local_draft" });
     setVersionReviewState({ status: "idle" });
     setDsl(conditionToDsl("new_policy", defaultCondition()));
     setSaveState({
@@ -452,10 +543,12 @@ export function PolicyStudio() {
 
   function handleUseTemplate(template: PolicyTemplate) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    localEditorDirtyRef.current = false;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
+    setEditorSource({ kind: "local_draft" });
     setVersionReviewState({ status: "idle" });
     setDsl(templateToDsl(template));
     setEditorMode("blocks");
@@ -468,9 +561,11 @@ export function PolicyStudio() {
 
   function handleSelectRule(rule: PolicyRuleRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    localEditorDirtyRef.current = false;
     const conditionForRule = parseRuleCondition(rule);
     const unsupportedFields = unsupportedConditionFields(conditionForRule);
     setSelectedRuleId(rule.id);
+    setEditorSource({ kind: "live_fallback" });
     setDsl(conditionToDsl(selectedPolicy?.name || rule.name, conditionForRule));
     setSaveState({
       status: unsupportedFields.length > 0 ? "save_error" : "unsaved",
@@ -545,6 +640,7 @@ export function PolicyStudio() {
     try {
       const policy = await ensurePolicyDraft(selectedPolicy, parsedForSave.policyName);
       const versionToUpdate =
+        editorSource.kind === "draft_version" &&
         selectedDraftVersion?.policy_id === policy.id &&
         selectedDraftVersion.status === "draft"
           ? selectedDraftVersion
@@ -563,6 +659,14 @@ export function PolicyStudio() {
         : await createPolicyVersionDraft(policy.id, draftPayload);
 
       setDraftVersion(savedVersion);
+      setVersionsState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              versions: upsertPolicyVersionRecord(current.versions, savedVersion)
+            }
+          : current
+      );
       setPoliciesState((current) =>
         current.status === "ready"
           ? {
@@ -573,19 +677,14 @@ export function PolicyStudio() {
       );
       preserveEditorOnNextRulesLoadRef.current = policy.id;
       setSelectedPolicyId(policy.id);
-      setDsl(
-        conditionToDsl(
-          String(savedVersion.policy_snapshot.name || policy.name),
-          parseRuleSnapshotCondition(savedVersion)
-        )
-      );
+      hydrateEditorFromPolicyVersion(savedVersion, "draft_version");
       setSaveState({
         status: "saved",
         message: `Draft version saved: PolicyVersion v${savedVersion.version_number}. It is not active and does not affect runtime until explicitly activated.`
       });
       setReviewState({ status: "idle", message: "Review request not submitted" });
       void loadPolicies();
-      void loadVersions(policy);
+      void loadVersions(policy, undefined, { hydrateEditor: false });
     } catch (error: unknown) {
       setSaveState({
         status: "save_error",
@@ -596,6 +695,20 @@ export function PolicyStudio() {
 
   async function handleSubmitReview() {
     const parsedForSubmit = parsePolicyDslToPolicyRule(dsl);
+    if (editorSource.kind === "active_version") {
+      setReviewState({
+        status: "error",
+        message: "Create a draft before submitting changes for review."
+      });
+      return;
+    }
+    if (editorSource.kind !== "draft_version") {
+      setReviewState({
+        status: "error",
+        message: "Save a draft before submitting for review."
+      });
+      return;
+    }
     if (!selectedDraftVersion) {
       setReviewState({
         status: "error",
@@ -710,6 +823,7 @@ export function PolicyStudio() {
           dsl={dsl}
           editorMode={editorMode}
           onChangeDsl={(nextDsl) => {
+            localEditorDirtyRef.current = true;
             setDsl(nextDsl);
             setSaveState({ status: "unsaved", message: "Unsaved local edits" });
             setReviewState({
@@ -735,6 +849,8 @@ export function PolicyStudio() {
           parsed={parsed}
           policyVersionsState={versionsState}
           reviewDiffState={reviewDiffState}
+          currentActorState={currentActorState}
+          editorSource={editorSource}
           selectedDraftReviewState={selectedDraftReviewState}
           versionReviewState={versionReviewState}
           reviewState={reviewState}
@@ -891,6 +1007,35 @@ function studioStateMessages({
 
   return messages;
 }
+
+  function hydrateEditorFromPolicyVersion(
+    version: PolicyVersionRecord,
+    kind: "draft_version" | "active_version"
+  ) {
+    const editorState = policyVersionToEditorState(version);
+    const unsupportedFields = unsupportedConditionFields(editorState.condition);
+
+    setSelectedRuleId(editorState.ruleSnapshotId);
+    setDsl(editorState.dsl);
+    setEditorSource({
+      kind,
+      versionId: version.id,
+      versionNumber: version.version_number
+    });
+    setSaveState({
+      status: unsupportedFields.length > 0 ? "save_error" : "saved",
+      message:
+        unsupportedFields.length > 0
+          ? `PolicyVersion snapshot has unsupported condition field(s): ${unsupportedFields.join(
+              ", "
+            )}`
+          : kind === "draft_version"
+            ? `Editing draft PolicyVersion v${version.version_number}. No runtime effect until reviewed and activated.`
+            : `Editing active PolicyVersion v${version.version_number} as source baseline. Create a draft before submitting changes for review.`
+    });
+    setReviewState({ status: "idle", message: "Review request not submitted" });
+    localEditorDirtyRef.current = false;
+  }
 
 function upsertPolicyRecord(policies: PolicyRecord[], policy: PolicyRecord) {
   const existingIndex = policies.findIndex((item) => item.id === policy.id);

@@ -7,6 +7,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from agent_governance_api.config import (
+    DEFAULT_DEV_ACTOR_ID,
     SERVICE_ACTOR_API_KEY_HASH_PREFIX,
     SERVICE_ACTOR_FINE_GRAINED_WILDCARD,
     Settings,
@@ -21,7 +22,7 @@ from agent_governance_api.service_actor_registry import (
     has_service_actor_scope_rules,
 )
 
-DEVELOPMENT_ACTOR_ID = "dev-placeholder"
+DEVELOPMENT_ACTOR_ID = DEFAULT_DEV_ACTOR_ID
 SERVICE_ACTOR_API_KEY_HEADER = "X-AGCP-API-Key"
 SCOPE_TELEMETRY_WRITE = "telemetry:write"
 SCOPE_RUNTIME_DECISION = "runtime:decision"
@@ -42,15 +43,19 @@ class ActorContext:
     actor_type: ActorType
     actor_id: str
     roles: tuple[str, ...] = field(default_factory=tuple)
+    display_name: str | None = None
     service_actor_auth_source: str | None = None
 
 
 def get_current_actor() -> ActorContext:
-    """Return the local development actor until real auth is implemented."""
+    """Return the configurable local development actor until real auth exists."""
 
+    settings = get_settings()
     return ActorContext(
         actor_type=ActorType.DEVELOPMENT,
-        actor_id=DEVELOPMENT_ACTOR_ID,
+        actor_id=settings.dev_actor_id,
+        roles=settings.dev_actor_roles,
+        display_name=settings.dev_actor_display_name,
     )
 
 

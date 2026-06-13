@@ -1,5 +1,6 @@
 "use client";
 
+import { CurrentActorRecord } from "../lib/current-actor";
 import {
   PolicyRecord,
   PolicyRuleRecord,
@@ -17,6 +18,7 @@ import {
 export function PolicyInspector({
   compiled,
   condition,
+  currentActorState,
   localNote,
   onChangeLocalNote,
   onSaveDraft,
@@ -43,6 +45,11 @@ export function PolicyInspector({
     usesCheckFields: boolean;
   };
   condition: PolicyCondition;
+  currentActorState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; actor: CurrentActorRecord };
   localNote: string;
   onChangeLocalNote: (note: string) => void;
   onSaveDraft: () => void;
@@ -94,6 +101,7 @@ export function PolicyInspector({
       ? versionReviewState.message
       : "Review state is not loaded for this draft.");
   const submitDisabledReason = submitReviewDisabledReason({
+    currentActorState,
     reviewState,
     saveDisabledReason,
     saveState,
@@ -209,6 +217,14 @@ export function PolicyInspector({
               }
             />
             <ReviewRow label="Known versions" value={versionCount} />
+            <ReviewRow
+              label="Current actor"
+              value={currentActorLabel(currentActorState)}
+            />
+            <ReviewRow
+              label="Actor roles"
+              value={currentActorRolesLabel(currentActorState)}
+            />
             <ReviewRow label="Review status" value={reviewStatusLabelText} />
             <ReviewRow
               label="Review request"
@@ -351,12 +367,18 @@ export function PolicyInspector({
 }
 
 function submitReviewDisabledReason({
+  currentActorState,
   reviewState,
   saveDisabledReason,
   saveState,
   selectedDraftReviewState,
   selectedDraftVersion
 }: {
+  currentActorState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; actor: CurrentActorRecord };
   reviewState: { status: "idle" | "submitting" | "success" | "error"; message: string };
   saveDisabledReason: string | null;
   saveState: {
@@ -366,23 +388,29 @@ function submitReviewDisabledReason({
   selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
   selectedDraftVersion: PolicyVersionRecord | null;
 }) {
-  if (!selectedDraftVersion) {
-    return "Save a draft PolicyVersion before submitting for review.";
+  if (currentActorState.status !== "ready") {
+    return "Current actor state is unavailable.";
   }
-  if (saveDisabledReason) {
-    return saveDisabledReason;
+  if (currentActorState.actor.actor_type === "service") {
+    return "Backend authorization still applies.";
   }
   if (selectedDraftReviewState?.review_status === "pending") {
     return "A review request is already pending for this draft.";
   }
-  if (selectedDraftReviewState && !selectedDraftReviewState.can_submit_review) {
-    return "Submit for review disabled when pending or after this review state.";
+  if (!selectedDraftVersion) {
+    return "Save a draft before submitting for review.";
+  }
+  if (selectedDraftVersion.status !== "draft") {
+    return "This PolicyVersion is not a draft.";
+  }
+  if (saveDisabledReason || saveState.status === "save_error") {
+    return "Fix validation errors before submitting.";
   }
   if (saveState.status === "saving" || reviewState.status === "submitting") {
-    return "A save or review request is already in progress.";
+    return "Backend authorization still applies.";
   }
   if (saveState.status !== "saved" && reviewState.status !== "success") {
-    return "Save the current editor state before submitting for review.";
+    return "Save a draft before submitting for review.";
   }
   if (
     reviewState.status === "success" &&
@@ -391,7 +419,55 @@ function submitReviewDisabledReason({
   ) {
     return "A review request is already pending for this draft.";
   }
+  if (selectedDraftReviewState && !selectedDraftReviewState.can_submit_review) {
+    return "This PolicyVersion is not a draft.";
+  }
   return null;
+}
+
+function currentActorLabel(
+  currentActorState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; actor: CurrentActorRecord }
+) {
+  if (currentActorState.status === "loading") {
+    return "Loading current actor from GET /me";
+  }
+  if (currentActorState.status === "error") {
+    return "Current actor state is unavailable.";
+  }
+  if (currentActorState.status === "idle") {
+    return "Current actor state is unavailable.";
+  }
+
+  const actor = currentActorState.actor;
+  return actor.display_name
+    ? `${actor.display_name} (${formatActorType(actor.actor_type)} / ${actor.actor_id})`
+    : `${formatActorType(actor.actor_type)} / ${actor.actor_id}`;
+}
+
+function currentActorRolesLabel(
+  currentActorState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; actor: CurrentActorRecord }
+) {
+  if (currentActorState.status !== "ready") {
+    return "Current actor state is unavailable.";
+  }
+  return currentActorState.actor.roles.length > 0
+    ? currentActorState.actor.roles.join(", ")
+    : "No roles";
+}
+
+function formatActorType(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function reviewStateLabel(

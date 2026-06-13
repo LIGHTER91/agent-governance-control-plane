@@ -148,7 +148,13 @@ function ValidationConsole({
   return (
     <div className="ps2-sim">
       <div className="ps2-sim-head">
-        <span className="ps2-sim-title">// LOCAL VALIDATION CONSOLE - Local validation only</span>
+        <div className="ps2-sim-title-group">
+          <span className="ps2-sim-title">// LOCAL VALIDATION CONSOLE - Local validation only</span>
+          <span className="ps2-sim-help">
+            Validate does not save, submit for review, or simulate production runtime.
+            Save draft persists a PolicyVersion draft.
+          </span>
+        </div>
         <button className="ps2-sim-run" onClick={onValidate} type="button">
           Validate
         </button>

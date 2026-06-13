@@ -56,12 +56,42 @@ def registry_session() -> Iterator[Session]:
         engine.dispose()
 
 
-def test_default_actor_context_is_development_placeholder() -> None:
-    actor = get_current_actor()
+def test_default_actor_context_is_development_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.delenv("AGCP_DEV_ACTOR_ID", raising=False)
+    monkeypatch.delenv("AGCP_DEV_ACTOR_ROLES", raising=False)
+    monkeypatch.delenv("AGCP_DEV_ACTOR_DISPLAY_NAME", raising=False)
+
+    try:
+        actor = get_current_actor()
+    finally:
+        get_settings.cache_clear()
 
     assert actor.actor_type is ActorType.DEVELOPMENT
     assert actor.actor_id == DEVELOPMENT_ACTOR_ID
     assert actor.roles == ()
+    assert actor.display_name is None
+
+
+def test_configured_dev_actor_context_uses_safe_local_roles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("AGCP_DEV_ACTOR_ID", "local-admin")
+    monkeypatch.setenv("AGCP_DEV_ACTOR_ROLES", "platform_admin,reviewer,auditor")
+    monkeypatch.setenv("AGCP_DEV_ACTOR_DISPLAY_NAME", "Local Admin")
+
+    try:
+        actor = get_current_actor()
+    finally:
+        get_settings.cache_clear()
+
+    assert actor.actor_type is ActorType.DEVELOPMENT
+    assert actor.actor_id == "local-admin"
+    assert actor.roles == ("platform_admin", "reviewer", "auditor")
+    assert actor.display_name == "Local Admin"
 
 
 def test_integration_actor_preserves_missing_key_development_fallback(

@@ -116,6 +116,8 @@ Lifecycle APIs currently exist for:
 - get one PolicyVersion;
 - update an existing draft PolicyVersion from a Policy Studio/editor snapshot;
 - create a pending review request for a draft PolicyVersion;
+- read narrow review state for one PolicyVersion through
+  `GET /policy-versions/{policy_version_id}/review-state`;
 - list PolicyVersion review requests;
 - assign a pending PolicyVersion review request to a reviewer actor without
   approving, rejecting, or activating the version;
@@ -323,6 +325,8 @@ Implemented V1 path:
 
 - create pending review requests only for draft PolicyVersions;
 - reject duplicate pending review requests for the same PolicyVersion;
+- expose narrow PolicyVersion review state to Policy Studio without requiring
+  access to the global reviewer/admin queue;
 - approve or reject requests without activating the PolicyVersion;
 - keep runtime `HumanApproval` scoped to runtime tool-call decisions;
 - do not claim policy approval is legal certification.

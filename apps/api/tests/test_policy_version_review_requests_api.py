@@ -129,6 +129,76 @@ def test_duplicate_pending_review_request_fails(
     )
 
 
+def test_review_state_for_draft_without_request_is_not_submitted(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+
+    response = client.get(f"/policy-versions/{version['id']}/review-state")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "policy_version_id": version["id"],
+        "latest_review_request_id": None,
+        "review_status": "not_submitted",
+        "requested_at": None,
+        "decided_at": None,
+        "reviewer_actor_id": None,
+        "can_submit_review": True,
+        "message": "Review request not submitted.",
+    }
+
+
+def test_review_state_after_submit_is_pending(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+
+    response = client.get(f"/policy-versions/{version['id']}/review-state")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["policy_version_id"] == version["id"]
+    assert body["latest_review_request_id"] == review_request["id"]
+    assert body["review_status"] == "pending"
+    assert body["requested_at"] is not None
+    assert body["decided_at"] is None
+    assert body["reviewer_actor_id"] is None
+    assert body["can_submit_review"] is False
+    assert body["message"] == (
+        "Review request pending. Approval does not activate this version."
+    )
+
+
+def test_duplicate_submit_keeps_review_state_pending(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    review_request = client.post(
+        f"/policy-versions/{version['id']}/review-requests",
+    ).json()
+
+    duplicate = client.post(f"/policy-versions/{version['id']}/review-requests")
+    state_response = client.get(f"/policy-versions/{version['id']}/review-state")
+
+    assert duplicate.status_code == 409
+    assert state_response.status_code == 200
+    body = state_response.json()
+    assert body["latest_review_request_id"] == review_request["id"]
+    assert body["review_status"] == "pending"
+    assert body["can_submit_review"] is False
+
+
 def test_assign_pending_policy_version_review_request_succeeds(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:
@@ -451,6 +521,27 @@ def test_actor_without_review_role_cannot_list_or_decide_reviews(
     assert approve_response.json()["detail"] == (
         "Actor requires one of these roles: reviewer, platform_admin."
     )
+
+
+def test_narrow_review_state_does_not_leak_to_unrelated_actor(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    version = create_policy_version_draft(client, policy_id=policy_id)
+    client.post(f"/policy-versions/{version['id']}/review-requests")
+    set_current_actor(
+        ActorContext(
+            actor_type=ActorType.USER,
+            actor_id="user:viewer-1",
+            roles=("viewer",),
+        )
+    )
+
+    response = client.get(f"/policy-versions/{version['id']}/review-state")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Review state unavailable for current actor."
 
 
 def test_requester_cannot_review_own_policy_version_without_admin_role(

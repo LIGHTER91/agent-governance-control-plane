@@ -91,14 +91,20 @@ def current_actor(
     actor: ActorContext = Depends(get_current_actor),
 ) -> CurrentActorResponse:
     is_development_actor = actor.actor_type.value == "development"
+    dev_mode_caveat = None
+    if is_development_actor:
+        dev_mode_caveat = (
+            "Local development actor roles come from AGCP_DEV_ACTOR_ROLES; "
+            "this is local development auth only, not enterprise auth."
+            if actor.roles
+            else "Local development actor fallback; this is not enterprise auth."
+        )
+
     return CurrentActorResponse(
         actor_type=actor.actor_type.value,
         actor_id=actor.actor_id,
         roles=actor.roles,
+        display_name=actor.display_name,
         environment=settings.environment,
-        dev_mode_caveat=(
-            "Local development actor fallback; this is not enterprise auth."
-            if is_development_actor
-            else None
-        ),
+        dev_mode_caveat=dev_mode_caveat,
     )

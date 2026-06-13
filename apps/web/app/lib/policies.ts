@@ -31,6 +31,13 @@ export const POLICY_VERSION_REVIEW_REQUEST_STATUSES = [
 export type PolicyVersionReviewRequestStatus =
   (typeof POLICY_VERSION_REVIEW_REQUEST_STATUSES)[number];
 
+export type PolicyVersionReviewStateStatus =
+  | "not_submitted"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "canceled";
+
 export const POLICY_RULE_DECISIONS = [
   "allow",
   "deny",
@@ -261,6 +268,17 @@ export type PolicyVersionReviewRequestRecord = {
   policy_version_number: number | null;
 };
 
+export type PolicyVersionReviewStateRecord = {
+  policy_version_id: string;
+  latest_review_request_id: string | null;
+  review_status: PolicyVersionReviewStateStatus;
+  requested_at: string | null;
+  decided_at: string | null;
+  reviewer_actor_id: string | null;
+  can_submit_review: boolean;
+  message: string;
+};
+
 export type PolicyVersionReviewRequestPayload = {
   request_note?: string | null;
 };
@@ -470,6 +488,19 @@ export async function fetchPolicyVersionReviewRequests(
     {
       errorLabel: "GET /policy-version-review-requests",
       searchParams,
+      signal
+    }
+  );
+}
+
+export async function fetchPolicyVersionReviewState(
+  policyVersionId: string,
+  signal?: AbortSignal
+): Promise<PolicyVersionReviewStateRecord> {
+  return fetchApiJson<PolicyVersionReviewStateRecord>(
+    `/policy-versions/${encodeURIComponent(policyVersionId)}/review-state`,
+    {
+      errorLabel: "GET /policy-versions/{policy_version_id}/review-state",
       signal
     }
   );
