@@ -197,7 +197,7 @@ const requiredText = [
   "Not submitted",
   "Pending review",
   "Review request submitted",
-  "A review request is already pending for this draft.",
+  "Review request already pending.",
   "Approval does not activate this version",
   "Review approval does not activate",
   "Current actor",
@@ -220,7 +220,8 @@ const requiredText = [
   "Policy review diff",
   "Changed fields",
   "Baseline active version",
-  "No active baseline found",
+  "No active baseline yet",
+  "This appears to be the first reviewed version for this policy.",
   "No runtime effect until activation",
   "Create rollback draft",
   "Rollback draft does not affect runtime",
@@ -233,15 +234,23 @@ const requiredText = [
   "Validate does not save",
   "Save draft persists a PolicyVersion draft",
   "Save draft is possible from this editor state",
-  "Save draft blocked",
+  "Success",
+  "Info",
+  "Attention",
+  "Blocking",
   "Draft version saved",
   "Editing draft PolicyVersion",
   "Editor source:",
   "Live PolicyRule fallback",
   "No runtime effect until reviewed and activated",
-  "Cannot update a draft PolicyVersion while a review request is pending",
+  "This draft is locked while review is pending",
+  "Create a new draft for additional changes",
+  "Create new draft for changes",
+  "This draft is locked because a review is pending",
+  "Review request already pending.",
   "Use Save draft to create a reviewed PolicyVersion",
-  "No PolicyRule selected; Save draft will snapshot a generated rule id",
+  "This draft will save a generated rule snapshot",
+  "This policy currently relies on CHECK facts",
   "Save draft snapshots this source rule",
   "Draft PolicyVersion",
   "deterministic PolicyRule condition JSON",
@@ -704,6 +713,18 @@ async function runPolicyDslRoundTripSmoke() {
   assertSmoke(
     !policyStudioSource.includes("Publish"),
     "Policy Studio source contains a Publish action"
+  );
+  assertSmoke(
+    !policyStudioSource.includes("A review request is already pending for this draft."),
+    "Policy Studio source contains noisy duplicate review request copy"
+  );
+  assertSmoke(
+    !policyStudioSource.includes("No supported WHEN request fields were found."),
+    "Policy Studio source contains noisy WHEN warning copy"
+  );
+  assertSmoke(
+    !policyStudioSource.includes("No active baseline found"),
+    "Policy Studio source contains scary baseline copy"
   );
   const normalizedPolicyStudioSource = policyStudioSource.toLowerCase();
   for (const forbidden of [

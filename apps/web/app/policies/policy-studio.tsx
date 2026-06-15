@@ -27,6 +27,7 @@ import {
   POLICY_TEMPLATES,
   PolicyTemplate,
   PolicyCondition,
+  PolicyValidationMessage,
   compilePolicyRulePreview,
   conditionToDsl,
   defaultCondition,
@@ -144,6 +145,7 @@ export function PolicyStudio() {
   });
   const [validationRun, setValidationRun] = useState(0);
   const localEditorDirtyRef = useRef(false);
+  const savedEditorPolicyRef = useRef<string | null>(null);
 
   const selectedPolicy = useMemo(() => {
     if (policiesState.status !== "ready" || !selectedPolicyId) {
@@ -220,7 +222,7 @@ export function PolicyStudio() {
       editorSource.kind === "draft_version" &&
       selectedDraftReviewState?.review_status === "pending"
     ) {
-      return "Cannot update a draft PolicyVersion while a review request is pending. Create a new draft version for additional changes.";
+      return pendingDraftLockedMessage();
     }
 
     return null;
@@ -389,6 +391,9 @@ export function PolicyStudio() {
             .sort((left, right) => right.version_number - left.version_number)[0] ||
           null;
         setDraftVersion(latestDraft);
+        if (savedEditorPolicyRef.current === policy.id) {
+          return;
+        }
         if (!options.hydrateEditor || localEditorDirtyRef.current) {
           return;
         }
@@ -513,6 +518,7 @@ export function PolicyStudio() {
 
   function handleSelectPolicy(policy: PolicyRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    savedEditorPolicyRef.current = null;
     localEditorDirtyRef.current = false;
     setSelectedPolicyId(policy.id);
     setSelectedRuleId(null);
@@ -526,6 +532,7 @@ export function PolicyStudio() {
 
   function handleNewPolicy() {
     preserveEditorOnNextRulesLoadRef.current = null;
+    savedEditorPolicyRef.current = null;
     localEditorDirtyRef.current = false;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
@@ -543,6 +550,7 @@ export function PolicyStudio() {
 
   function handleUseTemplate(template: PolicyTemplate) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    savedEditorPolicyRef.current = null;
     localEditorDirtyRef.current = false;
     setSelectedPolicyId(null);
     setSelectedRuleId(null);
@@ -561,6 +569,7 @@ export function PolicyStudio() {
 
   function handleSelectRule(rule: PolicyRuleRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
+    savedEditorPolicyRef.current = null;
     localEditorDirtyRef.current = false;
     const conditionForRule = parseRuleCondition(rule);
     const unsupportedFields = unsupportedConditionFields(conditionForRule);
@@ -676,6 +685,7 @@ export function PolicyStudio() {
           : current
       );
       preserveEditorOnNextRulesLoadRef.current = policy.id;
+      savedEditorPolicyRef.current = policy.id;
       setSelectedPolicyId(policy.id);
       hydrateEditorFromPolicyVersion(savedVersion, "draft_version");
       setSaveState({
@@ -683,12 +693,108 @@ export function PolicyStudio() {
         message: `Draft version saved: PolicyVersion v${savedVersion.version_number}. It is not active and does not affect runtime until explicitly activated.`
       });
       setReviewState({ status: "idle", message: "Review request not submitted" });
-      void loadPolicies();
       void loadVersions(policy, undefined, { hydrateEditor: false });
+    } catch (error: unknown) {
+      const lockMessage = policyDraftLockedErrorMessage(error);
+      setSaveState({
+        status: "save_error",
+        message: lockMessage || errorMessage(error, "Unable to save Policy Studio draft.")
+      });
+    }
+  }
+
+  async function handleCreateNewDraftForChanges() {
+    const parsedForSave = parsePolicyDslToPolicyRule(dsl);
+
+    if (!parsedForSave.condition) {
+      setSaveState({
+        status: "save_error",
+        message: parsedForSave.errors.join(" ") || "DSL did not compile."
+      });
+      return;
+    }
+
+    if (parsedForSave.unsupported.length > 0) {
+      setSaveState({
+        status: "save_error",
+        message:
+          "Remove unsupported DSL lines before creating a new draft. Unsupported lines are not persisted by the current compiler."
+      });
+      return;
+    }
+
+    if (selectedRuleUnsupportedFields.length > 0) {
+      setSaveState({
+        status: "save_error",
+        message: `Selected backend PolicyRule contains unsupported condition field(s): ${selectedRuleUnsupportedFields.join(
+          ", "
+        )}. Create a supported draft before saving review changes.`
+      });
+      return;
+    }
+
+    if (!parsedForSave.ruleName.trim()) {
+      setSaveState({
+        status: "save_error",
+        message: "PolicyRule name is required."
+      });
+      return;
+    }
+
+    setSaveState({
+      status: "saving",
+      message: "Creating new draft for changes"
+    });
+
+    try {
+      const policy = await ensurePolicyDraft(selectedPolicy, parsedForSave.policyName);
+      const draftPayload = buildPolicyVersionDraftPayload({
+        condition: parsedForSave.condition,
+        draftVersion: null,
+        localNote:
+          localNote.trim() ||
+          "New PolicyVersion draft created from a locked pending-review draft.",
+        policy,
+        policyName: parsedForSave.policyName,
+        rule: selectedRule,
+        ruleName: parsedForSave.ruleName
+      });
+      const savedVersion = await createPolicyVersionDraft(policy.id, draftPayload);
+
+      setDraftVersion(savedVersion);
+      setVersionReviewState({ status: "idle" });
+      setReviewDiffState({ status: "idle" });
+      setVersionsState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              versions: upsertPolicyVersionRecord(current.versions, savedVersion)
+            }
+          : current
+      );
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: upsertPolicyRecord(current.policies, policy)
+            }
+          : current
+      );
+      preserveEditorOnNextRulesLoadRef.current = policy.id;
+      savedEditorPolicyRef.current = policy.id;
+      setSelectedPolicyId(policy.id);
+      hydrateEditorFromPolicyVersion(savedVersion, "draft_version");
+      setSaveState({
+        status: "saved",
+        message: `New draft for changes created: PolicyVersion v${savedVersion.version_number}. Submit for review when ready.`
+      });
+      setReviewState({ status: "idle", message: "Review request not submitted" });
+      void loadVersions(policy, undefined, { hydrateEditor: false });
+      void loadVersionReviewState(savedVersion.id);
     } catch (error: unknown) {
       setSaveState({
         status: "save_error",
-        message: errorMessage(error, "Unable to save Policy Studio draft.")
+        message: errorMessage(error, "Unable to create a new PolicyVersion draft.")
       });
     }
   }
@@ -724,15 +830,15 @@ export function PolicyStudio() {
       });
       return;
     }
-    if (saveDisabledReason) {
-      setReviewState({ status: "error", message: saveDisabledReason });
-      return;
-    }
     if (selectedDraftReviewState?.review_status === "pending") {
       setReviewState({
         status: "success",
-        message: "A review request is already pending for this draft."
+        message: "Review request already pending."
       });
+      return;
+    }
+    if (saveDisabledReason) {
+      setReviewState({ status: "error", message: saveDisabledReason });
       return;
     }
 
@@ -872,6 +978,7 @@ export function PolicyStudio() {
           condition={condition}
           localNote={localNote}
           onChangeLocalNote={setLocalNote}
+          onCreateNewDraftForChanges={handleCreateNewDraftForChanges}
           onSaveDraft={handleSaveDraft}
           onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
@@ -930,54 +1037,54 @@ function studioStateMessages({
   selectedRule: PolicyRuleRecord | null;
   selectedRuleUnsupportedFields: string[];
   versionsState: VersionsState;
-}): Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }> {
-  const messages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }> = [];
+}): PolicyValidationMessage[] {
+  const messages: PolicyValidationMessage[] = [];
 
   if (policiesState.status === "error") {
     messages.push({
-      tone: "warn",
+      tone: "attention",
       text: `Backend unavailable for GET /policies: ${policiesState.message}`
     });
   }
 
   if (rulesState.status === "error") {
     messages.push({
-      tone: "warn",
+      tone: "attention",
       text: `Backend unavailable for GET /policies/{policy_id}/rules: ${rulesState.message}`
     });
   }
 
   if (versionsState.status === "error") {
     messages.push({
-      tone: "warn",
+      tone: "attention",
       text: `Backend unavailable for GET /policies/{policy_id}/versions: ${versionsState.message}`
     });
   }
 
   if (versionReviewState.status === "error") {
     messages.push({
-      tone: "warn",
+      tone: "attention",
       text: versionReviewState.message
     });
   }
 
   messages.push({
-    tone: selectedPolicy ? "info" : "warn",
+    tone: "info",
     text: selectedPolicy
       ? `Selected Policy: ${selectedPolicy.id} (${selectedPolicy.status})`
       : "No persisted Policy selected; Save draft will create a draft Policy container"
   });
   messages.push({
-    tone: selectedRule ? "info" : "warn",
+    tone: "info",
     text: selectedRule
       ? `Selected PolicyRule: ${selectedRule.id}. Save draft snapshots this source rule without patching it.`
-      : "No PolicyRule selected; Save draft will snapshot a generated rule id into a draft PolicyVersion"
+      : "This draft will save a generated rule snapshot."
   });
   messages.push(editorSourceMessage(editorSource));
 
   if (selectedDraftVersion) {
     messages.push({
-      tone: "ok",
+      tone: "success",
       text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active). No runtime effect until reviewed and activated.`
     });
     if (selectedDraftVersion.rule_snapshots.length > 1) {
@@ -990,13 +1097,15 @@ function studioStateMessages({
 
   if (selectedDraftReviewState?.review_status === "pending") {
     messages.push({
-      tone: "ok",
-      text: "Pending review: Review request pending. Approval does not activate this version."
+      tone: "info",
+      text: "Pending review: This draft is locked while review is pending. Create a new draft for additional changes."
     });
   } else if (selectedDraftReviewState) {
     messages.push({
       tone:
-        selectedDraftReviewState.review_status === "not_submitted" ? "info" : "ok",
+        selectedDraftReviewState.review_status === "not_submitted"
+          ? "info"
+          : "success",
       text: `Review state: ${reviewStatusLabel(
         selectedDraftReviewState.review_status
       )}. ${selectedDraftReviewState.message}`
@@ -1012,14 +1121,14 @@ function studioStateMessages({
 
   if (selectedPolicy?.status === "active") {
     messages.push({
-      tone: "warn",
+      tone: "attention",
       text: "Selected Policy is active. Save draft creates a draft PolicyVersion; runtime still uses the active version or fallback until explicit activation."
     });
   }
 
   if (selectedRuleUnsupportedFields.length > 0) {
     messages.push({
-      tone: "error",
+      tone: "blocking",
       text: `Selected backend rule has unsupported fields not represented in this editor: ${selectedRuleUnsupportedFields.join(
         ", "
       )}`
@@ -1027,20 +1136,28 @@ function studioStateMessages({
   }
 
   if (saveDisabledReason) {
-    messages.push({ tone: "error", text: `Save draft blocked: ${saveDisabledReason}` });
+    messages.push({
+      tone: isPendingReviewLockMessage(saveDisabledReason) ? "info" : "blocking",
+      text: isPendingReviewLockMessage(saveDisabledReason)
+        ? saveDisabledReason
+        : `Save draft blocked: ${saveDisabledReason}`
+    });
   }
 
   if (saveState.status === "saved") {
-    messages.push({ tone: "ok", text: saveState.message });
+    messages.push({ tone: "success", text: saveState.message });
   }
   if (saveState.status === "save_error") {
-    messages.push({ tone: "error", text: saveState.message });
+    messages.push({
+      tone: isPendingReviewLockMessage(saveState.message) ? "info" : "blocking",
+      text: saveState.message
+    });
   }
   if (reviewState.status === "success") {
-    messages.push({ tone: "ok", text: reviewState.message });
+    messages.push({ tone: "success", text: reviewState.message });
   }
   if (reviewState.status === "error") {
-    messages.push({ tone: "error", text: reviewState.message });
+    messages.push({ tone: "blocking", text: reviewState.message });
   }
 
   return messages;
@@ -1072,7 +1189,7 @@ function upsertPolicyVersionRecord(
 function editorSourceMessage(editorSource: PolicyStudioEditorSource) {
   if (editorSource.kind === "draft_version") {
     return {
-      tone: "ok" as const,
+      tone: "success" as const,
       text: `Editor source: Editing draft PolicyVersion v${editorSource.versionNumber}. Not active. No runtime effect until reviewed and activated.`
     };
   }
@@ -1084,12 +1201,12 @@ function editorSourceMessage(editorSource: PolicyStudioEditorSource) {
   }
   if (editorSource.kind === "live_fallback") {
     return {
-      tone: "warn" as const,
+      tone: "attention" as const,
       text: "Editor source: Live PolicyRule fallback. Save a draft before submitting for review."
     };
   }
   return {
-    tone: "warn" as const,
+    tone: "attention" as const,
     text: "Editor source: Local unsaved draft. Save a draft before submitting for review."
   };
 }
@@ -1227,6 +1344,21 @@ function reviewStatusLabel(status: PolicyVersionReviewStateRecord["review_status
   return "Canceled";
 }
 
+function pendingDraftLockedMessage() {
+  return "This draft is locked because a review is pending. Create a new draft for additional changes.";
+}
+
+function isPendingReviewLockMessage(message: string | null | undefined) {
+  if (!message) {
+    return false;
+  }
+  return (
+    message.includes("review is pending") ||
+    message.includes("pending review") ||
+    message.includes("already pending")
+  );
+}
+
 function titleFromSlug(value: string) {
   return slugifyPolicyName(value)
     .split("_")
@@ -1252,6 +1384,22 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function policyDraftLockedErrorMessage(error: unknown) {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) {
+    return null;
+  }
+
+  const detailText = apiErrorDetailText(error.detail);
+  if (
+    detailText.includes("Cannot update a draft PolicyVersion") &&
+    detailText.includes("pending")
+  ) {
+    return pendingDraftLockedMessage();
+  }
+
+  return null;
+}
+
 function policyReviewRequestConflictMessage(error: unknown) {
   if (!(error instanceof ApiRequestError) || error.status !== 409) {
     return null;
@@ -1263,7 +1411,7 @@ function policyReviewRequestConflictMessage(error: unknown) {
     detailText.includes("already") ||
     detailText.includes("review request")
   ) {
-    return "A review request is already pending for this draft.";
+    return "Review request already pending.";
   }
 
   return "A review request could not be created because this draft has a conflicting review state. Review state was refreshed.";

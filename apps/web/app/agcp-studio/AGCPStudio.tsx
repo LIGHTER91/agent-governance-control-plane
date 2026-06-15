@@ -2021,7 +2021,9 @@ const CSS_STUDIO = `
     display:flex; align-items:center; justify-content:space-between;
     padding:7px 16px; border-bottom:1px solid var(--border2);
   }
+  .ps2-sim-title-group { display:grid; gap:2px; min-width:0; }
   .ps2-sim-title { font-family:var(--mono); font-size:10.5px; color:var(--text-muted); letter-spacing:.07em; }
+  .ps2-sim-help { font-family:var(--mono); font-size:10px; color:var(--text-faint); letter-spacing:.02em; }
   .ps2-sim-run {
     display:flex; align-items:center; gap:5px;
     font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.04em;
@@ -5078,6 +5080,22 @@ const AGCP_CONNECTED_CSS = `
     white-space: pre-wrap;
   }
 
+  .ps2-sim-group + .ps2-sim-group {
+    margin-top: 8px;
+  }
+
+  .ps2-sim-group-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0;
+    margin: 0 0 3px;
+    text-transform: uppercase;
+  }
+
+  .ps2-sim-blocking {
+    color: var(--red);
+  }
+
   .ps2-save-state {
     border-radius: var(--radius-sm);
     font-family: var(--mono);
@@ -5096,6 +5114,20 @@ const AGCP_CONNECTED_CSS = `
     background: var(--red-dim);
     border: 1px solid var(--red-brd);
     color: var(--red);
+  }
+
+  .ps2-save-state.info {
+    background: var(--sky-dim);
+    border: 1px solid var(--sky-brd);
+    color: var(--sky);
+    display: grid;
+    gap: 3px;
+  }
+
+  .ps2-save-state.attention {
+    background: var(--orange-dim);
+    border: 1px solid var(--orange-brd);
+    color: var(--orange);
   }
 
   .ps2-act-btn:disabled {

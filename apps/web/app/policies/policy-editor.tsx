@@ -1,6 +1,10 @@
 "use client";
 
-import type { PolicyBlock } from "./policy-dsl";
+import type {
+  PolicyBlock,
+  PolicyValidationMessage,
+  PolicyValidationMessageTone
+} from "./policy-dsl";
 import { PolicyBlocksEditor } from "./policy-blocks-editor";
 import { PolicyCodeEditor } from "./policy-code-editor";
 
@@ -33,7 +37,7 @@ export function PolicyEditor({
   onSetEditorMode: (mode: EditorMode) => void;
   onValidate: () => void;
   selectedBlockId: string | null;
-  validationMessages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }>;
+  validationMessages: PolicyValidationMessage[];
 }) {
   const counts = {
     check: blocks.filter((block) => block.group === "check").length,
@@ -143,8 +147,10 @@ function ValidationConsole({
   validationMessages
 }: {
   onValidate: () => void;
-  validationMessages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }>;
+  validationMessages: PolicyValidationMessage[];
 }) {
+  const groupedMessages = consoleMessageGroups(validationMessages);
+
   return (
     <div className="ps2-sim">
       <div className="ps2-sim-head">
@@ -160,13 +166,20 @@ function ValidationConsole({
         </button>
       </div>
       <div className="ps2-sim-body">
-        {validationMessages.map((message, index) => (
-          <div
-            className={`ps2-sim-line ${messageClass(message.tone)}`}
-            key={`${message.text}-${index}`}
-          >
-            <span className="ps2-sym">{messageSymbol(message.tone)}</span>
-            <span>{message.text}</span>
+        {groupedMessages.map((group) => (
+          <div className="ps2-sim-group" key={group.tone}>
+            <div className={`ps2-sim-group-title ${messageClass(group.tone)}`}>
+              {group.label}
+            </div>
+            {group.messages.map((message, index) => (
+              <div
+                className={`ps2-sim-line ${messageClass(message.tone)}`}
+                key={`${message.text}-${index}`}
+              >
+                <span className="ps2-sym">{messageSymbolForTone(message.tone)}</span>
+                <span>{message.text}</span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -213,19 +226,54 @@ function compileBarShape(compiled: {
     },
     {
       className: "chip-draft",
-      text: "Not published"
+      text: "Not active"
     }
   ];
 }
 
-function messageClass(tone: "ok" | "warn" | "error" | "info") {
-  if (tone === "ok") {
+function consoleMessageGroups(messages: PolicyValidationMessage[]) {
+  const groupOrder: Array<{
+    label: string;
+    tone: PolicyValidationMessageTone;
+  }> = [
+    { label: "Success", tone: "success" },
+    { label: "Info", tone: "info" },
+    { label: "Attention", tone: "attention" },
+    { label: "Blocking", tone: "blocking" }
+  ];
+
+  return groupOrder
+    .map((group) => ({
+      ...group,
+      messages: messages.filter((message) => message.tone === group.tone)
+    }))
+    .filter((group) => group.messages.length > 0);
+}
+
+function messageClass(tone: PolicyValidationMessageTone) {
+  if (tone === "success") {
     return "ps2-sim-ok";
   }
-  if (tone === "warn" || tone === "error") {
+  if (tone === "attention") {
     return "ps2-sim-warn";
   }
+  if (tone === "blocking") {
+    return "ps2-sim-blocking";
+  }
   return "ps2-sim-info";
+}
+
+function messageSymbolForTone(tone: PolicyValidationMessageTone) {
+  if (tone === "success") {
+    return messageSymbol("ok");
+  }
+  if (tone === "attention") {
+    return messageSymbol("warn");
+  }
+  if (tone === "blocking") {
+    return "x";
+  }
+  return messageSymbol("info");
 }
 
 function messageSymbol(tone: "ok" | "warn" | "error" | "info") {

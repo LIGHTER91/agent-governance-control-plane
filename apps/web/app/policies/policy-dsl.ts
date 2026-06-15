@@ -27,6 +27,17 @@ export type ParsedPolicyDsl = {
   warnings: string[];
 };
 
+export type PolicyValidationMessageTone =
+  | "success"
+  | "info"
+  | "attention"
+  | "blocking";
+
+export type PolicyValidationMessage = {
+  tone: PolicyValidationMessageTone;
+  text: string;
+};
+
 export type PolicyBlock = {
   id: string;
   group: "when" | "check" | "then" | "prove";
@@ -444,11 +455,14 @@ export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
 
   const hasWhen = entriesForFields(condition, WHEN_FIELDS).length > 0;
   const hasCheck = entriesForFields(condition, CHECK_FIELDS).length > 0;
-  if (!hasWhen) {
-    warnings.push("No supported WHEN request fields were found.");
-  }
-  if (!hasCheck) {
-    warnings.push("No supported CHECK or inventory fields were found.");
+  if (!hasWhen && !hasCheck) {
+    warnings.push("This policy has neither WHEN request fields nor CHECK facts.");
+  } else if (!hasWhen) {
+    warnings.push(
+      "This policy currently relies on CHECK facts rather than WHEN request fields."
+    );
+  } else if (!hasCheck) {
+    warnings.push("This policy currently uses WHEN request fields without CHECK facts.");
   }
 
   return {
@@ -546,24 +560,24 @@ export function compilePolicyRulePreview(parsed: ParsedPolicyDsl) {
 }
 
 export function localValidationMessages(parsed: ParsedPolicyDsl) {
-  const messages: Array<{ tone: "ok" | "warn" | "error" | "info"; text: string }> = [];
+  const messages: PolicyValidationMessage[] = [];
 
   if (parsed.errors.length === 0) {
-    messages.push({ tone: "ok", text: `policy ${parsed.policyName} parsed` });
+    messages.push({ tone: "success", text: `policy ${parsed.policyName} parsed` });
     messages.push({
-      tone: "ok",
+      tone: "success",
       text: "condition JSON generated from supported AGCP fields"
     });
     messages.push({
-      tone: "ok",
+      tone: "success",
       text: "Compiled editor state maps to deterministic PolicyRule condition JSON"
     });
     messages.push({
-      tone: "ok",
+      tone: "success",
       text: "Required fields present: decision and reason"
     });
     messages.push({
-      tone: parsed.unsupported.length > 0 ? "warn" : "ok",
+      tone: parsed.unsupported.length > 0 ? "blocking" : "success",
       text:
         parsed.unsupported.length > 0
           ? "Save draft is blocked until unsupported DSL lines are removed"
@@ -578,16 +592,26 @@ export function localValidationMessages(parsed: ParsedPolicyDsl) {
   }
 
   for (const error of parsed.errors) {
-    messages.push({ tone: "error", text: error });
+    messages.push({ tone: "blocking", text: error });
   }
 
+  const hasWhen = parsed.condition
+    ? entriesForFields(parsed.condition, WHEN_FIELDS).length > 0
+    : false;
+  const hasCheck = parsed.condition
+    ? entriesForFields(parsed.condition, CHECK_FIELDS).length > 0
+    : false;
+
   for (const warning of parsed.warnings) {
-    messages.push({ tone: "warn", text: warning });
+    messages.push({
+      tone: !hasWhen && !hasCheck ? "attention" : "info",
+      text: warning
+    });
   }
 
   if (parsed.unsupported.length > 0) {
     messages.push({
-      tone: "warn",
+      tone: "blocking",
       text: `${parsed.unsupported.length} unsupported DSL line(s) ignored locally`
     });
   }

@@ -23,6 +23,7 @@ export function PolicyInspector({
   editorSource,
   localNote,
   onChangeLocalNote,
+  onCreateNewDraftForChanges,
   onSaveDraft,
   onSubmitReview,
   onValidate,
@@ -55,6 +56,7 @@ export function PolicyInspector({
   editorSource: PolicyStudioEditorSource;
   localNote: string;
   onChangeLocalNote: (note: string) => void;
+  onCreateNewDraftForChanges: () => void;
   onSaveDraft: () => void;
   onSubmitReview: () => void;
   onValidate: () => void;
@@ -99,10 +101,12 @@ export function PolicyInspector({
     ? reviewStateLabel(selectedDraftReviewState.review_status)
     : reviewStateFallbackLabel(versionReviewState);
   const reviewStateMessage =
-    selectedDraftReviewState?.message ||
-    (versionReviewState.status === "error"
-      ? versionReviewState.message
-      : "Review state is not loaded for this draft.");
+    selectedDraftReviewState?.review_status === "pending"
+      ? "This draft is locked while review is pending. Create a new draft for additional changes."
+      : selectedDraftReviewState?.message ||
+        (versionReviewState.status === "error"
+          ? versionReviewState.message
+          : "Review state is not loaded for this draft.");
   const submitDisabledReason = submitReviewDisabledReason({
     currentActorState,
     editorSource,
@@ -111,6 +115,14 @@ export function PolicyInspector({
     saveState,
     selectedDraftReviewState,
     selectedDraftVersion
+  });
+  const hasPendingReview =
+    selectedDraftReviewState?.review_status === "pending";
+  const createDraftDisabledReason = createDraftForChangesDisabledReason({
+    parsed,
+    saveState,
+    selectedPolicy,
+    selectedRuleUnsupportedFields
   });
 
   return (
@@ -231,6 +243,12 @@ export function PolicyInspector({
               value={currentActorRolesLabel(currentActorState)}
             />
             <ReviewRow label="Review status" value={reviewStatusLabelText} />
+            {hasPendingReview ? (
+              <ReviewRow
+                label="Draft lock"
+                value="Locked while review is pending"
+              />
+            ) : null}
             <ReviewRow
               label="Review request"
               value={
@@ -291,7 +309,7 @@ export function PolicyInspector({
             <div className="ps2-review-diff">
               <strong>Policy Review Diff</strong>
               <span>{policyStudioBaselineLabel(reviewDiffState.diff)}</span>
-              <p>{reviewDiffState.diff.runtime_effect_summary.join(" ")}</p>
+              <p>{policyStudioRuntimeEffectSummary(reviewDiffState.diff)}</p>
               <small>
                 Changed fields: {policyStudioChangedFields(reviewDiffState.diff)}
               </small>
@@ -315,19 +333,26 @@ export function PolicyInspector({
 
       <div className="ps2-insp-actions">
         {saveDisabledReason ? (
-          <div className="ps2-save-state error">{saveDisabledReason}</div>
+          <div className={`ps2-save-state ${stateMessageClass(saveDisabledReason)}`}>
+            {saveDisabledReason}
+          </div>
         ) : saveState.status === "save_error" || saveState.status === "saved" ? (
           <div
-            className={`ps2-save-state ${
-              saveState.status === "save_error" ? "error" : "success"
-            }`}
+            className={`ps2-save-state ${saveStateClass(saveState)}`}
           >
             {saveState.message}
           </div>
         ) : null}
         {reviewState.status === "error" || reviewState.status === "success" ? (
-          <div className={`ps2-save-state ${reviewState.status}`}>
+          <div className={`ps2-save-state ${reviewStateClass(reviewState)}`}>
             {reviewState.message}
+          </div>
+        ) : null}
+        {hasPendingReview ? (
+          <div className="ps2-save-state info">
+            <strong>Pending review</strong>
+            <span>This draft is locked while review is pending.</span>
+            <span>Create a new draft for additional changes.</span>
           </div>
         ) : null}
         <div className="ps2-act-row">
@@ -359,8 +384,24 @@ export function PolicyInspector({
         >
           {reviewState.status === "submitting" ? "Submitting" : "Submit for review"}
         </button>
+        {hasPendingReview ? (
+          <button
+            className="ps2-act-btn ps2-btn-sim"
+            disabled={Boolean(createDraftDisabledReason)}
+            onClick={onCreateNewDraftForChanges}
+            title={
+              createDraftDisabledReason ||
+              "Create a new draft PolicyVersion from the current editor state. This does not affect runtime."
+            }
+            type="button"
+          >
+            Create new draft for changes
+          </button>
+        ) : null}
         {submitDisabledReason ? (
-          <div className="ps2-save-state error">{submitDisabledReason}</div>
+          <div className={`ps2-save-state ${stateMessageClass(submitDisabledReason)}`}>
+            {submitDisabledReason}
+          </div>
         ) : (
           <div className="ps2-save-state success">
             Review approval does not activate this version.
@@ -402,7 +443,7 @@ function submitReviewDisabledReason({
     return "Backend authorization still applies.";
   }
   if (selectedDraftReviewState?.review_status === "pending") {
-    return "A review request is already pending for this draft.";
+    return "Review request already pending.";
   }
   if (editorSource.kind === "active_version") {
     return "Create a draft before submitting changes for review.";
@@ -430,12 +471,81 @@ function submitReviewDisabledReason({
     (reviewState.message.includes("Review requested") ||
       reviewState.message.includes("already pending"))
   ) {
-    return "A review request is already pending for this draft.";
+    return "Review request already pending.";
   }
   if (selectedDraftReviewState && !selectedDraftReviewState.can_submit_review) {
     return "This PolicyVersion is not a draft.";
   }
   return null;
+}
+
+function createDraftForChangesDisabledReason({
+  parsed,
+  saveState,
+  selectedPolicy,
+  selectedRuleUnsupportedFields
+}: {
+  parsed: ParsedPolicyDsl;
+  saveState: {
+    status: "unsaved" | "saving" | "saved" | "save_error";
+    message: string;
+  };
+  selectedPolicy: PolicyRecord | null;
+  selectedRuleUnsupportedFields: string[];
+}) {
+  if (!selectedPolicy) {
+    return "Save a draft before creating another draft.";
+  }
+  if (parsed.errors.length > 0 || parsed.unsupported.length > 0) {
+    return "Fix validation errors before creating a new draft.";
+  }
+  if (selectedRuleUnsupportedFields.length > 0) {
+    return "Unsupported backend fields must be resolved before creating a new draft.";
+  }
+  if (saveState.status === "saving") {
+    return "Draft creation is already in progress.";
+  }
+  return null;
+}
+
+function stateMessageClass(message: string) {
+  if (
+    message.includes("review is pending") ||
+    message.includes("already pending") ||
+    message.includes("Current actor state is unavailable") ||
+    message.includes("Save a draft before submitting") ||
+    message.includes("Create a draft before submitting")
+  ) {
+    return "info";
+  }
+  if (
+    message.includes("Fix validation errors") ||
+    message.includes("unsupported") ||
+    message.includes("not a draft")
+  ) {
+    return "attention";
+  }
+  return "error";
+}
+
+function saveStateClass(saveState: {
+  status: "unsaved" | "saving" | "saved" | "save_error";
+  message: string;
+}) {
+  if (saveState.status === "saved") {
+    return "success";
+  }
+  return stateMessageClass(saveState.message);
+}
+
+function reviewStateClass(reviewState: {
+  status: "idle" | "submitting" | "success" | "error";
+  message: string;
+}) {
+  if (reviewState.status === "success") {
+    return reviewState.message.includes("already pending") ? "info" : "success";
+  }
+  return stateMessageClass(reviewState.message);
 }
 
 function editorSourceLabel(editorSource: PolicyStudioEditorSource) {
@@ -619,7 +729,20 @@ function policyStudioBaselineLabel(diff: PolicyVersionReviewDiffRecord) {
   if (diff.baseline_type === "live_fallback") {
     return "Baseline live fallback";
   }
-  return "No active baseline found";
+  return "No active baseline yet";
+}
+
+function policyStudioRuntimeEffectSummary(diff: PolicyVersionReviewDiffRecord) {
+  if (diff.baseline_type === "none") {
+    return [
+      "This appears to be the first reviewed version for this policy.",
+      "No runtime effect until activation."
+    ].join(" ");
+  }
+  const backendNoBaselineMessage = ["No active baseline", "found."].join(" ");
+  return diff.runtime_effect_summary
+    .join(" ")
+    .replace(backendNoBaselineMessage, "No active baseline yet.");
 }
 
 function policyStudioChangedFields(diff: PolicyVersionReviewDiffRecord) {
