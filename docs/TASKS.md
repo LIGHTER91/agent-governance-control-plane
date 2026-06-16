@@ -149,7 +149,11 @@ Legacy live Policy and PolicyRule mutation endpoints remain for bootstrap and
 unversioned fallback Policies, but active-versioned Policies now have live-edit
 guardrails: direct Policy and PolicyRule mutations are blocked with
 `policy_live_edit_blocked` audit evidence and guidance to use draft
-PolicyVersion review instead.
+PolicyVersion review instead. Safe Policy archive/delete actions are
+implemented: archive keeps evidence/history and is blocked while an active
+PolicyVersion exists; delete is limited to draft-only Policies with no
+versions, reviews, runtime decisions, linked HumanApproval history, or
+meaningful audit history.
 
 Product assessment: AGCP is now an early governance control plane rather than
 only a runtime decision logger. It can describe Agents, declared access,
@@ -267,6 +271,9 @@ Recommended order:
       PolicyVersion review actions without broad frontend auth.
 - [x] Add legacy live Policy/PolicyRule mutation guardrails for Policies with
       an active PolicyVersion.
+- [x] Add safe Policy archive/delete actions in Policy Studio and the backend,
+      with archive retaining evidence/history and delete limited to draft-only
+      Policies with no governance history.
 - [x] Fix Policy Studio authoring regressions so Save draft preserves the
       saved draft editor state and Blocks mode returns to compact IDE-style
       WHEN/CHECK/THEN/PROVE review blocks; precise V1 edits remain in Code DSL

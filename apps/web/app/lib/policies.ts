@@ -1,4 +1,10 @@
-import { fetchApiArray, fetchApiJson, patchApiJson, postApiJson } from "./api";
+import {
+  deleteApi,
+  fetchApiArray,
+  fetchApiJson,
+  patchApiJson,
+  postApiJson
+} from "./api";
 
 export const POLICY_STATUSES = [
   "draft",
@@ -416,6 +422,29 @@ export async function updatePolicy(
   return patchApiJson<PolicyRecord>(`/policies/${encodeURIComponent(policyId)}`, {
     body: payload,
     errorLabel: "PATCH /policies/{policy_id}",
+    signal
+  });
+}
+
+export async function archivePolicy(
+  policyId: string,
+  signal?: AbortSignal
+): Promise<PolicyRecord> {
+  return postApiJson<PolicyRecord>(
+    `/policies/${encodeURIComponent(policyId)}/archive`,
+    {
+      errorLabel: "POST /policies/{policy_id}/archive",
+      signal
+    }
+  );
+}
+
+export async function deletePolicy(
+  policyId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  return deleteApi(`/policies/${encodeURIComponent(policyId)}`, {
+    errorLabel: "DELETE /policies/{policy_id}",
     signal
   });
 }

@@ -15,8 +15,12 @@ HumanApproval API.
 The Access & Data page reads Access Grants, Source inventory records, and
 Source Data Usage Profiles for governance review workflows. It can transition
 Access Grant statuses through explicit backend lifecycle endpoints while keeping
-grants as declarative governance records. The Human Approvals page reads from
-the backend HumanApproval API as a governance review queue. The Evidence page
+grants as declarative governance records. The Human Approvals route renders a
+Review Inbox experience: Runtime HumanApproval records and PolicyVersion review
+requests appear as unified review work items with a left inbox, selected detail
+pane, and sections for why review is required, policy decision context, policy
+checks, and evidence preview. Unsupported escalation and request-info flows are
+shown honestly as not wired yet. The Evidence page
 manually loads filtered Evidence Bundle JSON for a single Agent, explains the
 human-readable evidence chain, and lets reviewers download the bounded JSON
 artifact returned by the backend. The Runtime Gateway
@@ -199,6 +203,12 @@ Legacy live Policy and PolicyRule endpoints remain available for bootstrap and
 unversioned fallback policies. Once a Policy has an active PolicyVersion,
 direct live Policy/PolicyRule mutations are blocked by the backend with
 guidance to use Save draft to create a reviewed PolicyVersion.
+Policy Studio also exposes compact lifecycle actions in the inspector: Archive
+policy and Delete draft policy. Archive keeps evidence and history and does not
+delete PolicyVersions, reviews, runtime decisions, or audit records. Delete is
+only available for draft-only policies with no governance history; policies
+with versions, reviews, or runtime decisions cannot be deleted and should be
+archived instead.
 The UI intentionally has no direct Publish action.
 
 Policy Studio backlog alignment is tracked in

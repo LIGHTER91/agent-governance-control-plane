@@ -165,7 +165,11 @@ depending on the global reviewer/admin queue. Legacy live
 Policy/PolicyRule mutation endpoints remain for bootstrap and unversioned
 fallback Policies, but active-versioned Policies now block direct live edits
 with `policy_live_edit_blocked` audit evidence and guidance to use draft
-PolicyVersion review instead. Historical PolicyDecision backfill remains a
+PolicyVersion review instead. Safe Policy archive/delete guardrails are also
+implemented: archive is non-destructive, blocked while an active PolicyVersion
+exists, and retains evidence/history; delete is limited to draft-only Policies
+with no versions, reviews, runtime decisions, linked HumanApproval history, or
+meaningful audit history. Historical PolicyDecision backfill remains a
 follow-up.
 
 Policy Studio issue alignment is tracked in
@@ -580,6 +584,9 @@ Planned capabilities:
 - Legacy live Policy/PolicyRule mutation guardrails for active-versioned
   Policies are implemented; fallback Policies without active versions remain
   editable for bootstrap and compatibility.
+- Safe Policy archive/delete actions are implemented in Policy Studio and the
+  backend. Archive retains evidence/history, and delete is limited to
+  draft-only Policies with no governance history.
 - PolicyCheckStep management UI.
 - Evidence Bundle PDF and signing actions.
 - Frontend auth and role-aware UI later.

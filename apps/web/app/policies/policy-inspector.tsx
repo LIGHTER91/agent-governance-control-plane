@@ -14,7 +14,7 @@ import {
   jsonConditionPreview,
   summarizePolicyRule
 } from "./policy-dsl";
-import type { PolicyStudioEditorSource } from "./policy-studio";
+import type { PolicyLifecycleState, PolicyStudioEditorSource } from "./policy-studio";
 
 export function PolicyInspector({
   compiled,
@@ -23,11 +23,14 @@ export function PolicyInspector({
   editorSource,
   localNote,
   onChangeLocalNote,
+  onArchivePolicy,
   onCreateNewDraftForChanges,
+  onDeletePolicy,
   onSaveDraft,
   onSubmitReview,
   onValidate,
   parsed,
+  policyLifecycleState,
   policyVersionsState,
   reviewDiffState,
   reviewState,
@@ -56,11 +59,14 @@ export function PolicyInspector({
   editorSource: PolicyStudioEditorSource;
   localNote: string;
   onChangeLocalNote: (note: string) => void;
+  onArchivePolicy: () => void;
   onCreateNewDraftForChanges: () => void;
+  onDeletePolicy: () => void;
   onSaveDraft: () => void;
   onSubmitReview: () => void;
   onValidate: () => void;
   parsed: ParsedPolicyDsl;
+  policyLifecycleState: PolicyLifecycleState;
   policyVersionsState:
     | { status: "idle" }
     | { status: "loading" }
@@ -123,6 +129,16 @@ export function PolicyInspector({
     saveState,
     selectedPolicy,
     selectedRuleUnsupportedFields
+  });
+  const archiveDisabledReason = archivePolicyDisabledReason({
+    policyLifecycleState,
+    policyVersionsState,
+    selectedPolicy
+  });
+  const deleteDisabledReason = deletePolicyDisabledReason({
+    policyLifecycleState,
+    policyVersionsState,
+    selectedPolicy
   });
 
   return (
@@ -329,6 +345,68 @@ export function PolicyInspector({
             value={localNote}
           />
         </section>
+
+        <section className="ps2-insp-sec">
+          <div className="ps2-insp-sec-title ist2-review">Policy Lifecycle</div>
+          <div className="ps2-lifecycle-card">
+            <div className="ps2-lifecycle-copy">
+              <span>Archive keeps evidence and history.</span>
+              <span>
+                Delete is only available for draft-only policies with no governance
+                history.
+              </span>
+              <span>
+                Policies with versions, reviews, or runtime decisions cannot be
+                deleted.
+              </span>
+            </div>
+            <div className="ps2-lifecycle-actions">
+              <button
+                className="ps2-act-btn ps2-btn-archive"
+                disabled={Boolean(archiveDisabledReason)}
+                onClick={onArchivePolicy}
+                title={
+                  archiveDisabledReason ||
+                  "Archive policy. Evidence, versions, reviews, decisions, and audit history are retained."
+                }
+                type="button"
+              >
+                Archive policy
+              </button>
+              <button
+                className="ps2-act-btn ps2-btn-delete"
+                disabled={Boolean(deleteDisabledReason)}
+                onClick={onDeletePolicy}
+                title={
+                  deleteDisabledReason ||
+                  "Delete draft policy after typing the policy name. Backend safety checks still apply."
+                }
+                type="button"
+              >
+                Delete draft policy
+              </button>
+            </div>
+            {archiveDisabledReason ? (
+              <small className="ps2-lifecycle-reason">
+                Archive unavailable: {archiveDisabledReason}
+              </small>
+            ) : null}
+            {deleteDisabledReason ? (
+              <small className="ps2-lifecycle-reason">
+                Delete unavailable: {deleteDisabledReason}
+              </small>
+            ) : null}
+            {policyLifecycleState.status !== "idle" ? (
+              <div
+                className={`ps2-save-state ${policyLifecycleStateClass(
+                  policyLifecycleState
+                )}`}
+              >
+                {policyLifecycleState.message}
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
 
       <div className="ps2-insp-actions">
@@ -506,6 +584,84 @@ function createDraftForChangesDisabledReason({
     return "Draft creation is already in progress.";
   }
   return null;
+}
+
+function archivePolicyDisabledReason({
+  policyLifecycleState,
+  policyVersionsState,
+  selectedPolicy
+}: {
+  policyLifecycleState: PolicyLifecycleState;
+  policyVersionsState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; versions: PolicyVersionRecord[] };
+  selectedPolicy: PolicyRecord | null;
+}) {
+  if (!selectedPolicy) {
+    return "Select a persisted Policy before archiving.";
+  }
+  if (policyLifecycleState.status === "submitting") {
+    return "Policy lifecycle action is already running.";
+  }
+  if (selectedPolicy.status === "archived") {
+    return "Policy is already archived.";
+  }
+  if (policyVersionsState.status === "loading") {
+    return "PolicyVersion state is still loading.";
+  }
+  if (
+    policyVersionsState.status === "ready" &&
+    policyVersionsState.versions.some((version) => version.status === "active")
+  ) {
+    return "Deactivate or supersede the active PolicyVersion before archiving this policy.";
+  }
+  return null;
+}
+
+function deletePolicyDisabledReason({
+  policyLifecycleState,
+  policyVersionsState,
+  selectedPolicy
+}: {
+  policyLifecycleState: PolicyLifecycleState;
+  policyVersionsState:
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; versions: PolicyVersionRecord[] };
+  selectedPolicy: PolicyRecord | null;
+}) {
+  if (!selectedPolicy) {
+    return "Select a persisted draft Policy before deleting.";
+  }
+  if (policyLifecycleState.status === "submitting") {
+    return "Policy lifecycle action is already running.";
+  }
+  if (selectedPolicy.status !== "draft") {
+    return "Delete is only available for draft-only policies with no governance history.";
+  }
+  if (policyVersionsState.status === "loading") {
+    return "PolicyVersion state is still loading.";
+  }
+  if (
+    policyVersionsState.status === "ready" &&
+    policyVersionsState.versions.length > 0
+  ) {
+    return "Policies with versions, reviews, or runtime decisions cannot be deleted.";
+  }
+  return null;
+}
+
+function policyLifecycleStateClass(policyLifecycleState: PolicyLifecycleState) {
+  if (policyLifecycleState.status === "success") {
+    return "success";
+  }
+  if (policyLifecycleState.status === "submitting") {
+    return "info";
+  }
+  return stateMessageClass(policyLifecycleState.message);
 }
 
 function stateMessageClass(message: string) {

@@ -37,6 +37,9 @@ Already implemented:
   records, including assignment metadata, assignment audit evidence, and a
   decision guard that lets only the assigned reviewer or `platform_admin`
   approve or reject assigned reviews;
+- safe Policy lifecycle cleanup actions: archive retains governance evidence
+  and draft-only delete is blocked once versions, reviews, runtime decisions, or
+  meaningful audit history exist;
 - an IDE-style frontend Policy Studio with Blocks and Code DSL authoring,
   local validation, deterministic `PolicyRule.condition` JSON compilation, no
   Publish button, and backend-backed Submit for review.
@@ -312,6 +315,11 @@ Recommended product semantics:
 - Policies with an active PolicyVersion should be changed through draft
   PolicyVersion snapshots, review, approval, and explicit activation rather
   than legacy live Policy/PolicyRule mutation endpoints.
+- Archiving a Policy should be non-destructive and keep evidence/history.
+  Archiving is blocked while an active PolicyVersion exists because runtime
+  semantics should remain explicit. Delete is only a draft-only/bootstrap
+  cleanup path for Policies with no PolicyVersion, review request, runtime
+  decision, linked HumanApproval history, or meaningful audit history.
 
 ## Review Request Choice
 
@@ -477,6 +485,11 @@ Implemented:
   `PATCH /policy-rules/{rule_id}` mutations are blocked with
   `policy_live_edit_blocked` audit evidence and guidance to create a draft
   PolicyVersion instead.
+- safe Policy archive/delete guardrails. `POST /policies/{policy_id}/archive`
+  writes `policy_archived` and keeps PolicyVersions, PolicyRules,
+  PolicyDecisions, review requests, and AuditLogs. `DELETE /policies/{policy_id}`
+  is only for draft-only Policies with no governance history; governed Policies
+  return a safe conflict instructing callers to archive instead.
 
 Still unresolved:
 

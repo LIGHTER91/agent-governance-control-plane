@@ -33,6 +33,9 @@ Current state:
 - PolicyVersion review requests now expose deterministic metadata-only review
   diffs and activation/supersession audit references. These diffs explain what
   is being reviewed or activated; they do not simulate production impact.
+- Safe Policy lifecycle cleanup is implemented. Archive is non-destructive and
+  blocked while a Policy has an active PolicyVersion. Delete is limited to
+  draft-only Policies with no governance history.
 
 AGCP remains a governance and evidence control plane. It does not execute
 tools, replace orchestrators, provide legal certification, or run a production
@@ -260,6 +263,11 @@ The target runtime/evidence behavior is now partially reached:
   Policy has an active PolicyVersion. Changes to versioned Policies should go
   through draft PolicyVersion snapshots, review, approval, and explicit
   activation.
+- Policy archive/delete actions do not change active-version runtime semantics.
+  Archive keeps evidence/history and refuses active-versioned Policies until
+  the active version is superseded or otherwise deactivated. Delete is only a
+  draft-only cleanup path for Policies with no versions, reviews, runtime
+  decisions, linked HumanApproval history, or meaningful audit history.
 
 Remaining target behavior:
 
@@ -310,7 +318,10 @@ Recommended sequence:
     direct runtime rollback or automatic activation. Implemented.
 13. Add guardrails around legacy live Policy/PolicyRule mutation endpoints so
     active-versioned Policies cannot bypass review. Implemented.
-14. Keep Publish out of the UI.
+14. Add safe Policy archive/delete guardrails without runtime rollback,
+    automatic activation, or destructive governance-history deletion.
+    Implemented.
+15. Keep Publish out of the UI.
 
 ## Implementation Follow-Ups
 

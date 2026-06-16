@@ -133,7 +133,8 @@ packages for enterprise integrations are intentionally not implemented yet.
   `GET /runtime/tool-calls/activity`.
 - Generic runtime adapter example and dependency-free LangGraph adapter spike.
 - Local `ActorContext` abstraction with the default
-  `development/dev-placeholder` actor.
+  `development/dev-placeholder` actor and optional local-only
+  `AGCP_DEV_ACTOR_*` overrides for dev review workflows.
 - Minimal config-based service actor API key authentication for telemetry and
   Runtime Gateway endpoints.
 - Config-based service actor endpoint scopes for telemetry write, runtime
@@ -374,6 +375,18 @@ credentials from `.env.compose.example`, mounts backend and frontend source
 code for hot reload, and keeps dependency caches in Docker named volumes. It
 does not seed fake data by default; run the demo seed manually when you want
 sample records.
+For local review workflow testing, the Compose API service defaults to:
+
+```text
+AGCP_DEV_ACTOR_ID=local-admin
+AGCP_DEV_ACTOR_ROLES=platform_admin,reviewer,auditor
+AGCP_DEV_ACTOR_DISPLAY_NAME=Local Admin
+```
+
+These values affect only the local development actor returned by `GET /me`.
+They are not enterprise auth and do not weaken backend RBAC in production. To
+test restricted UI states, set `AGCP_DEV_ACTOR_ROLES=` in a local `.env` file
+before starting the Compose stack.
 
 Stop the stack:
 
@@ -545,7 +558,7 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Safe audit events for denied service actor scope checks.
 - Full enterprise-auth-backed frontend workflows beyond the current local API
   views and HumanApproval review actions.
-- Frontend login or role-aware UI.
+- Frontend login or broad role-management UI.
 - Agent edit forms.
 - Broad filtering, search, or pagination for Agent and Runtime activity views.
 - Evidence Bundle PDF/download/signature actions in the UI.

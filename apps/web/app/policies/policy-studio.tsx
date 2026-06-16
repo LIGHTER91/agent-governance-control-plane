@@ -13,9 +13,11 @@ import {
   PolicyVersionReviewRequestRecord,
   PolicyVersionReviewStateRecord,
   PolicyVersionRecord,
+  archivePolicy,
   createPolicy,
   createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
+  deletePolicy,
   fetchPolicies,
   fetchPolicyVersionReviewRequestDiff,
   fetchPolicyVersionReviewState,
@@ -90,6 +92,12 @@ type ReviewState = {
   message: string;
 };
 
+export type PolicyLifecycleState = {
+  action: "archive" | "delete" | null;
+  status: "idle" | "submitting" | "success" | "error";
+  message: string;
+};
+
 type ReviewDiffState =
   | { status: "idle" }
   | { status: "loading" }
@@ -140,6 +148,12 @@ export function PolicyStudio() {
     status: "idle",
     message: "Review request not submitted"
   });
+  const [policyLifecycleState, setPolicyLifecycleState] =
+    useState<PolicyLifecycleState>({
+      action: null,
+      status: "idle",
+      message: "No policy lifecycle action submitted"
+    });
   const [reviewDiffState, setReviewDiffState] = useState<ReviewDiffState>({
     status: "idle"
   });
@@ -527,6 +541,11 @@ export function PolicyStudio() {
     setVersionReviewState({ status: "idle" });
     setSaveState({ status: "unsaved", message: "Loading selected Policy rules" });
     setReviewState({ status: "idle", message: "Review request not submitted" });
+    setPolicyLifecycleState({
+      action: null,
+      status: "idle",
+      message: "No policy lifecycle action submitted"
+    });
     setRepositoryMode("policies");
   }
 
@@ -546,6 +565,11 @@ export function PolicyStudio() {
       message: "New unsaved Policy draft"
     });
     setReviewState({ status: "idle", message: "Review request not submitted" });
+    setPolicyLifecycleState({
+      action: null,
+      status: "idle",
+      message: "No policy lifecycle action submitted"
+    });
   }
 
   function handleUseTemplate(template: PolicyTemplate) {
@@ -565,6 +589,11 @@ export function PolicyStudio() {
       message: `${template.name} template loaded locally. Save draft to persist.`
     });
     setReviewState({ status: "idle", message: "Review request not submitted" });
+    setPolicyLifecycleState({
+      action: null,
+      status: "idle",
+      message: "No policy lifecycle action submitted"
+    });
   }
 
   function handleSelectRule(rule: PolicyRuleRecord) {
@@ -887,6 +916,141 @@ export function PolicyStudio() {
     }
   }
 
+  async function handleArchivePolicy() {
+    if (!selectedPolicy) {
+      setPolicyLifecycleState({
+        action: "archive",
+        status: "error",
+        message: "Select a persisted Policy before archiving."
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      [
+        `Archive policy "${selectedPolicy.name}"?`,
+        "Archive keeps evidence and history.",
+        "Policies with an active PolicyVersion must be deactivated or superseded before archiving."
+      ].join("\n\n")
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: "archive",
+      status: "submitting",
+      message: "Archiving Policy while retaining evidence and history"
+    });
+
+    try {
+      const archived = await archivePolicy(selectedPolicy.id);
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: upsertPolicyRecord(current.policies, archived)
+            }
+          : current
+      );
+      setPolicyLifecycleState({
+        action: "archive",
+        status: "success",
+        message: "Policy archived. Archive keeps evidence and history."
+      });
+      setSaveState((current) => ({
+        ...current,
+        message:
+          current.status === "saved"
+            ? "Policy archived. Existing PolicyVersion, decision, review, and audit history was retained."
+            : current.message
+      }));
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: "archive",
+        status: "error",
+        message: errorMessage(error, "Unable to archive Policy.")
+      });
+    }
+  }
+
+  async function handleDeletePolicy() {
+    if (!selectedPolicy) {
+      setPolicyLifecycleState({
+        action: "delete",
+        status: "error",
+        message: "Select a persisted draft Policy before deleting."
+      });
+      return;
+    }
+
+    const typedName = window.prompt(
+      [
+        `Type "${selectedPolicy.name}" to delete this draft-only Policy.`,
+        "Delete is only available for draft-only policies with no governance history.",
+        "Policies with versions, reviews, or runtime decisions cannot be deleted."
+      ].join("\n\n")
+    );
+    if (typedName === null) {
+      return;
+    }
+    if (typedName !== selectedPolicy.name) {
+      setPolicyLifecycleState({
+        action: "delete",
+        status: "error",
+        message: "Delete cancelled. The typed policy name did not match."
+      });
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: "delete",
+      status: "submitting",
+      message: "Deleting draft-only Policy after backend safety checks"
+    });
+
+    try {
+      await deletePolicy(selectedPolicy.id);
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: current.policies.filter(
+                (policy) => policy.id !== selectedPolicy.id
+              )
+            }
+          : current
+      );
+      setPolicyLifecycleState({
+        action: "delete",
+        status: "success",
+        message: "Draft-only Policy deleted. Policies with governance history cannot be deleted."
+      });
+      preserveEditorOnNextRulesLoadRef.current = null;
+      savedEditorPolicyRef.current = null;
+      localEditorDirtyRef.current = false;
+      setSelectedPolicyId(null);
+      setSelectedRuleId(null);
+      setDraftVersion(null);
+      setVersionsState({ status: "idle" });
+      setVersionReviewState({ status: "idle" });
+      setEditorSource({ kind: "local_draft" });
+      setDsl(conditionToDsl("new_policy", defaultCondition()));
+      setSaveState({
+        status: "unsaved",
+        message: "New unsaved Policy draft"
+      });
+      setReviewState({ status: "idle", message: "Review request not submitted" });
+      void loadPolicies();
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: "delete",
+        status: "error",
+        message: errorMessage(error, "Unable to delete draft-only Policy.")
+      });
+    }
+  }
+
   function hydrateEditorFromPolicyVersion(
     version: PolicyVersionRecord,
     kind: "draft_version" | "active_version"
@@ -978,11 +1142,14 @@ export function PolicyStudio() {
           condition={condition}
           localNote={localNote}
           onChangeLocalNote={setLocalNote}
+          onArchivePolicy={handleArchivePolicy}
           onCreateNewDraftForChanges={handleCreateNewDraftForChanges}
+          onDeletePolicy={handleDeletePolicy}
           onSaveDraft={handleSaveDraft}
           onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
           parsed={parsed}
+          policyLifecycleState={policyLifecycleState}
           policyVersionsState={versionsState}
           reviewDiffState={reviewDiffState}
           currentActorState={currentActorState}
@@ -1377,6 +1544,9 @@ function errorMessage(error: unknown, fallback: string) {
         : null;
     if (detail?.includes("Direct live Policy")) {
       return `${detail} Use Save draft to create a reviewed PolicyVersion.`;
+    }
+    if (detail) {
+      return detail;
     }
     return error.message;
   }

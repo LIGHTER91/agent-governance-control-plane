@@ -140,10 +140,25 @@ Agent Registry:
 - `GET /agents/{agent_id}/human-approvals` lists human approvals for one agent.
 - `PATCH /agents/{agent_id}` updates an agent and appends an internal `agent_updated` or `agent_status_changed` audit event.
 
-Agent mutations use the development actor placeholder until authentication exists:
+Agent mutations use the local development actor until authentication exists:
 
 - `actor_type = "development"`
-- `actor_id = "dev-placeholder"`
+- `actor_id = "dev-placeholder"` by default
+
+For local review workflow testing, the development actor can be configured with
+environment variables:
+
+```powershell
+$env:AGCP_DEV_ACTOR_ID = "local-admin"
+$env:AGCP_DEV_ACTOR_ROLES = "platform_admin,reviewer,auditor"
+$env:AGCP_DEV_ACTOR_DISPLAY_NAME = "Local Admin"
+```
+
+`AGCP_DEV_ACTOR_ROLES` accepts only `auditor`, `reviewer`, and
+`platform_admin`. Invalid roles fail configuration clearly. These settings
+apply only to the local development actor returned by `GET /me`; they are not
+enterprise authentication, do not create a user directory, and do not bypass
+backend RBAC. Clear `AGCP_DEV_ACTOR_ROLES` to test restricted frontend states.
 
 The Agent Governance Profile is a read model for product navigation and the
 frontend Agent Governance Profile UI. It does not include full Evidence Bundle
@@ -249,6 +264,15 @@ Policy Management:
 - `GET /policies/{policy_id}/rules` lists PolicyRule records for one Policy.
 - `PATCH /policies/{policy_id}` updates a Policy and appends `policy_updated`
   or `policy_status_changed`.
+- `POST /policies/{policy_id}/archive` sets `Policy.status = archived`,
+  appends `policy_archived`, and retains PolicyVersions, PolicyRules,
+  PolicyDecisions, review requests, and AuditLogs. Policies with an active
+  PolicyVersion are blocked until that version is superseded or otherwise
+  deactivated.
+- `DELETE /policies/{policy_id}` is limited to draft-only/bootstrap cleanup.
+  It succeeds only when the Policy has no PolicyVersion, review request,
+  PolicyDecision, linked HumanApproval history, or meaningful audit history.
+  Governed Policies return a safe 409 telling callers to archive instead.
 - `POST /policy-rules` creates a deterministic PolicyRule and appends
   `policy_rule_created`.
 - `GET /policy-rules` lists PolicyRule records.
@@ -264,7 +288,7 @@ Policy Management:
 - `PATCH /policy-check-steps/{step_id}` updates a PolicyCheckStep and appends
   `policy_check_step_updated` or `policy_check_step_status_changed`.
 - Policy statuses are `draft`, `active`, `disabled`, and `archived`; there is
-  no hard-delete endpoint.
+  no destructive delete for Policies with governance history.
 - PolicyRule conditions must be JSON objects using the deterministic condition
   shape already consumed by the evaluator: required `decision` and `reason`,
   optional `agent_id`, `tool_name`, `environment`, `risk_level`,
@@ -285,8 +309,10 @@ Policy Management:
   the resolved context. Caller-supplied classification and
   personal/sensitive-data flags are declared runtime context, not verified Data
   Usage Profile truth.
-- Versioning, generic policy-language work, and runtime behavior changes remain
-  out of scope.
+- PolicyVersion-backed draft/review/activation is the product path for reviewed
+  runtime policy changes. Legacy live Policy and PolicyRule APIs remain for
+  bootstrap and unversioned fallback policies, and active-versioned policies
+  block direct live edits.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
   AccessGrant status, Data Usage Profile review status, and Source,
