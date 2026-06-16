@@ -316,7 +316,13 @@ Policy Management:
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
   AccessGrant status, Data Usage Profile review status, and Source,
-  Capability, and ModelAsset inventory status. When
+  Capability, and ModelAsset inventory status. The backend also has a formal
+  `agent_governance_api.check_tools` adapter boundary with safe
+  `CheckToolRequest` and `CheckToolResult` objects, execution modes, and a
+  metadata-only adapter for AccessGrant status, Data Usage Profile status,
+  Source status/classification, ModelAsset status/provider type, and
+  Capability status. The adapter boundary does not add public CheckTool APIs,
+  external scanner calls, webhooks, or runtime behavior changes. When
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, Runtime Gateway decision
   requests execute active authored PolicyCheckSteps linked to matched
   PolicyRules and persist linked CheckResults. The flag is disabled by default,

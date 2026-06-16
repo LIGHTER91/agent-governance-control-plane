@@ -126,13 +126,17 @@ AccessGrant, ModelAsset, Capability, and HumanApproval state. A first backend
 persistence and internal helper foundation now exists for CheckTool and
 CheckResult records. Internal helpers can evaluate AccessGrant status, Data
 Usage Profile review status, and Source, Capability, and ModelAsset inventory
-status from persisted metadata only. Runtime Gateway can optionally execute
-active authored PolicyCheckSteps linked to matched PolicyRules and persist
-linked CheckResults behind an explicit disabled-by-default feature flag. No
-scanner integration or automatic enforcement has been implemented. PolicyRules
-can now explicitly match safe CheckResult outcome summaries with deterministic
-`check_*` fields, so CheckResults remain policy context rather than hidden
-decisions. The PolicyCheckStep authoring model is documented in
+status from persisted metadata only. A formal CheckTool adapter boundary now
+defines safe request/result objects, execution modes, and a local
+metadata-only adapter for AccessGrant status, Data Usage Profile review status,
+Source status/classification, ModelAsset status/provider type, and Capability
+status. Runtime Gateway can optionally execute active authored PolicyCheckSteps
+linked to matched PolicyRules and persist linked CheckResults behind an
+explicit disabled-by-default feature flag. No scanner integration, external
+adapter execution, webhooks, or automatic enforcement has been implemented.
+PolicyRules can now explicitly match safe CheckResult outcome summaries with
+deterministic `check_*` fields, so CheckResults remain policy context rather
+than hidden decisions. The PolicyCheckStep authoring model is documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 Policy versioning and review guardrails are now partially implemented and
@@ -361,14 +365,15 @@ Important limitations:
   Pre-Checks and Data Usage Profile-aware runtime enforcement are not
   implemented yet.
 - Policy Pre-Checks have CheckTool and CheckResult persistence, internal
-  metadata-only execution helpers, optional Runtime Gateway execution behind
+  metadata-only execution helpers, a formal CheckTool adapter-boundary module,
+  optional Runtime Gateway execution behind
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, and safe Evidence Bundle
   summaries. Runtime Gateway can execute active authored PolicyCheckSteps
   linked to matched PolicyRules when the feature flag is enabled.
   `failure_behavior` is recorded as evidence intent only. PolicyRules may
   explicitly match safe CheckResult outcome summaries. Scanner adapters,
-  automatic CheckResult-driven enforcement, and external tool execution are not
-  implemented.
+  automatic CheckResult-driven enforcement, external tool execution, and
+  arbitrary webhook/callback execution are not implemented.
 - Production deployment, monitoring, and operational runbooks are not
   implemented.
 

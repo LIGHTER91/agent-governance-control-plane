@@ -84,9 +84,13 @@ optionally execute active authored PolicyCheckSteps linked to matched
 PolicyRules and persist linked CheckResults behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but this is disabled by
 default and does not change final runtime decisions. `failure_behavior` is
-recorded as evidence intent only. Scanner adapters, public CRUD APIs for
-CheckTool/CheckResult management, and pre-check-driven enforcement remain out
-of scope.
+recorded as evidence intent only. A formal CheckTool adapter boundary now
+defines safe request/result objects, execution modes, and metadata-only local
+checks for AccessGrant status, Data Usage Profile status, Source
+status/classification, ModelAsset status/provider type, and Capability status.
+Scanner adapters, public CRUD APIs for CheckTool/CheckResult management,
+arbitrary webhooks/callbacks, and pre-check-driven enforcement remain out of
+scope.
 Runtime Gateway now evaluates active PolicyVersion snapshots where available,
 including versioned PolicyRule conditions and versioned PolicyCheckStep
 snapshots for metadata pre-check selection, while preserving unversioned
@@ -360,6 +364,8 @@ credentials.
 - [x] Add opt-in Runtime Gateway metadata-only pre-check execution.
 - [x] Add deterministic CheckResult outcome matching for explicit PolicyRule
       conditions.
+- [x] Define Policy Pre-Check CheckTool adapter boundary and metadata-only
+      safe request/result contract.
 - [x] Add initial policy versioning and review guardrails foundation.
 - [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
