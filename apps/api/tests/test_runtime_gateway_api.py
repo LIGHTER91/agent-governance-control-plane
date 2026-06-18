@@ -522,6 +522,8 @@ def test_runtime_active_policy_version_matches_check_result_fields(
     [check_result] = fetch_check_results(session_factory)
     assert check_result.policy_decision_id == policy_decision.id
     assert check_result.outcome is CheckResultOutcome.PASS
+    assert check_result.metadata_["policy_version_id"] == str(version_id)
+    assert check_result.metadata_["execution_mode"] == "metadata_only"
 
 
 def test_runtime_contextual_fields_are_accepted_and_safely_persisted(
@@ -874,6 +876,9 @@ def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
         assert check_result.metadata_["policy_check_step_failure_behavior"] == (
             PolicyCheckStepFailureBehavior.RECORD_ONLY.value
         )
+        assert check_result.metadata_["execution_mode"] == "metadata_only"
+        assert "raw_content" not in str(check_result.metadata_)
+        assert "prompt" not in str(check_result.metadata_)
 
 
 def test_runtime_metadata_pre_checks_create_capability_and_model_results(

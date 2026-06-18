@@ -81,7 +81,8 @@ CheckTool and CheckResult persistence and internal execution helpers now exist
 as a backend foundation, and Evidence Bundle export includes safe CheckResult
 summaries for PolicyDecision-linked or Agent-scoped records. Runtime Gateway can
 optionally execute active authored PolicyCheckSteps linked to matched
-PolicyRules and persist linked CheckResults behind
+PolicyRules through the metadata-only CheckTool adapter boundary and persist
+linked CheckResults behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, but this is disabled by
 default and does not change final runtime decisions. `failure_behavior` is
 recorded as evidence intent only. A formal CheckTool adapter boundary now
@@ -366,6 +367,8 @@ credentials.
       conditions.
 - [x] Define Policy Pre-Check CheckTool adapter boundary and metadata-only
       safe request/result contract.
+- [x] Wire Runtime Gateway metadata-only PolicyCheckStep execution through the
+      CheckTool adapter boundary behind the existing feature flag.
 - [x] Add initial policy versioning and review guardrails foundation.
 - [x] Design PolicyCheckStep authoring model.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.

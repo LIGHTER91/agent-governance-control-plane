@@ -322,11 +322,12 @@ Policy Management:
   metadata-only adapter for AccessGrant status, Data Usage Profile status,
   Source status/classification, ModelAsset status/provider type, and
   Capability status. The adapter boundary does not add public CheckTool APIs,
-  external scanner calls, webhooks, or runtime behavior changes. When
+  external scanner calls, webhooks, or AGCP-side tool execution. When
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, Runtime Gateway decision
-  requests execute active authored PolicyCheckSteps linked to matched
-  PolicyRules and persist linked CheckResults. The flag is disabled by default,
-  there are no public CheckTool or CheckResult management APIs yet, and
+  requests execute active authored PolicyCheckSteps through the metadata-only
+  adapter boundary, link results to TraceEvent/PolicyDecision records, and
+  persist linked CheckResults. The flag is disabled by default, there are no
+  public CheckTool or CheckResult management APIs yet, and
   CheckResults do not automatically change the final decision. A CheckResult
   can affect `decision` or `proceed` only when a PolicyRule explicitly matches
   its safe outcome context.

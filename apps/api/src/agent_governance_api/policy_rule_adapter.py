@@ -191,7 +191,10 @@ def convert_policy_version_check_steps(
     policy_version: PolicyVersion,
 ) -> list[RuntimePolicyCheckStep]:
     return [
-        runtime_policy_check_step_from_snapshot(snapshot)
+        runtime_policy_check_step_from_snapshot(
+            snapshot,
+            policy_version_id=policy_version.id,
+        )
         for snapshot in policy_version.check_step_snapshots
     ]
 

@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import TypeVar
@@ -7,6 +7,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from agent_governance_api.check_tools import (
+    ACCESS_GRANT_STATUS,
+    CAPABILITY_STATUS,
+    DATA_USAGE_PROFILE_STATUS,
+    MODEL_ASSET_STATUS,
+    SOURCE_STATUS,
+    CheckToolRequest,
+    CheckToolResult,
+    MetadataOnlyCheckToolAdapter,
+)
 from agent_governance_api.models import (
     AccessGrantTargetType,
     CheckResult,
@@ -26,11 +36,6 @@ from agent_governance_api.models import (
     TraceEventRecord,
 )
 from agent_governance_api.policy_pre_checks import (
-    check_access_grant_status,
-    check_capability_status,
-    check_data_usage_profile_status,
-    check_model_asset_status,
-    check_source_status,
     persist_check_result,
     record_metadata_check_error,
 )
@@ -60,6 +65,7 @@ class RuntimePolicyCheckStep:
     min_confidence: float | None
     status: PolicyCheckStepStatus
     evidence_retention: PolicyCheckStepEvidenceRetention
+    policy_version_id: UUID | None = None
 
 
 PolicyCheckStepSource = PolicyCheckStep | RuntimePolicyCheckStep
@@ -108,6 +114,16 @@ INTERNAL_CHECK_TOOL_SPECS_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.CAPABILITY_STATUS: CAPABILITY_STATUS_CHECK_TOOL,
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: MODEL_ASSET_STATUS_CHECK_TOOL,
 }
+
+CHECK_TOOL_REQUEST_TYPES_BY_STEP_TYPE = {
+    PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: ACCESS_GRANT_STATUS,
+    PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS: DATA_USAGE_PROFILE_STATUS,
+    PolicyCheckStepCheckType.SOURCE_STATUS: SOURCE_STATUS,
+    PolicyCheckStepCheckType.CAPABILITY_STATUS: CAPABILITY_STATUS,
+    PolicyCheckStepCheckType.MODEL_ASSET_STATUS: MODEL_ASSET_STATUS,
+}
+
+METADATA_ONLY_CHECK_TOOL_ADAPTER = MetadataOnlyCheckToolAdapter()
 
 SUPPORTED_SELECTORS_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: {
@@ -184,6 +200,8 @@ def _dedupe_rule_ids(policy_rule_ids: tuple[str | UUID, ...]) -> tuple[UUID, ...
 
 def runtime_policy_check_step_from_snapshot(
     snapshot: Mapping[str, object],
+    *,
+    policy_version_id: UUID | None = None,
 ) -> RuntimePolicyCheckStep:
     return RuntimePolicyCheckStep(
         id=_snapshot_uuid(snapshot, "id"),
@@ -208,6 +226,7 @@ def runtime_policy_check_step_from_snapshot(
             "evidence_retention",
             PolicyCheckStepEvidenceRetention,
         ),
+        policy_version_id=policy_version_id,
     )
 
 
@@ -398,21 +417,12 @@ def _append_data_usage_profile_step_results(
             check_tool=check_tool,
             target_type=CheckResultTargetType.DATA_USAGE_PROFILE,
             target_id=None,
-            check_type=step.check_type.value,
-            agent_id=payload.agent_id,
-            run_id=payload.run_id,
-            trace_event_id=trace_event.id,
-            policy_decision_id=policy_decision_id,
-            run_check=lambda check_tool_id, source_id=source_id: (
-                check_data_usage_profile_status(
-                    session,
-                    check_tool_id=check_tool_id,
-                    source_id=source_id,
-                    agent_id=payload.agent_id,
-                    run_id=payload.run_id,
-                    trace_event_id=trace_event.id,
-                    policy_decision_id=policy_decision_id,
-                )
+            request=_check_tool_request(
+                step=step,
+                payload=payload,
+                trace_event=trace_event,
+                policy_decision_id=policy_decision_id,
+                source_id=source_id,
             ),
         )
 
@@ -451,19 +461,12 @@ def _append_source_step_results(
             check_tool=check_tool,
             target_type=CheckResultTargetType.SOURCE,
             target_id=source_id,
-            check_type=step.check_type.value,
-            agent_id=payload.agent_id,
-            run_id=payload.run_id,
-            trace_event_id=trace_event.id,
-            policy_decision_id=policy_decision_id,
-            run_check=lambda check_tool_id, source_id=source_id: check_source_status(
-                session,
-                check_tool_id=check_tool_id,
-                source_id=source_id,
-                agent_id=payload.agent_id,
-                run_id=payload.run_id,
-                trace_event_id=trace_event.id,
+            request=_check_tool_request(
+                step=step,
+                payload=payload,
+                trace_event=trace_event,
                 policy_decision_id=policy_decision_id,
+                source_id=source_id,
             ),
         )
 
@@ -501,19 +504,12 @@ def _append_capability_step_result(
         check_tool=check_tool,
         target_type=CheckResultTargetType.CAPABILITY,
         target_id=payload.capability_id,
-        check_type=step.check_type.value,
-        agent_id=payload.agent_id,
-        run_id=payload.run_id,
-        trace_event_id=trace_event.id,
-        policy_decision_id=policy_decision_id,
-        run_check=lambda check_tool_id: check_capability_status(
-            session,
-            check_tool_id=check_tool_id,
-            capability_id=payload.capability_id,
-            agent_id=payload.agent_id,
-            run_id=payload.run_id,
-            trace_event_id=trace_event.id,
+        request=_check_tool_request(
+            step=step,
+            payload=payload,
+            trace_event=trace_event,
             policy_decision_id=policy_decision_id,
+            capability_id=payload.capability_id,
         ),
     )
 
@@ -551,19 +547,12 @@ def _append_model_asset_step_result(
         check_tool=check_tool,
         target_type=CheckResultTargetType.MODEL_ASSET,
         target_id=payload.model_id,
-        check_type=step.check_type.value,
-        agent_id=payload.agent_id,
-        run_id=payload.run_id,
-        trace_event_id=trace_event.id,
-        policy_decision_id=policy_decision_id,
-        run_check=lambda check_tool_id: check_model_asset_status(
-            session,
-            check_tool_id=check_tool_id,
-            model_asset_id=payload.model_id,
-            agent_id=payload.agent_id,
-            run_id=payload.run_id,
-            trace_event_id=trace_event.id,
+        request=_check_tool_request(
+            step=step,
+            payload=payload,
+            trace_event=trace_event,
             policy_decision_id=policy_decision_id,
+            model_id=payload.model_id,
         ),
     )
 
@@ -587,22 +576,65 @@ def _append_access_grant_check(
         check_tool=check_tool,
         target_type=CheckResultTargetType.ACCESS_GRANT,
         target_id=None,
-        check_type="access_grant_status",
-        agent_id=payload.agent_id,
-        run_id=payload.run_id,
-        trace_event_id=trace_event.id,
-        policy_decision_id=policy_decision_id,
-        run_check=lambda check_tool_id: check_access_grant_status(
-            session,
-            check_tool_id=check_tool_id,
-            agent_id=payload.agent_id,
-            target_type=target_type,
-            target_id=target_id,
-            run_id=payload.run_id,
-            trace_event_id=trace_event.id,
+        request=_check_tool_request(
+            step=step,
+            payload=payload,
+            trace_event=trace_event,
             policy_decision_id=policy_decision_id,
+            **_access_grant_request_target(target_type, target_id),
         ),
     )
+
+
+def _check_tool_request(
+    *,
+    step: PolicyCheckStepSource,
+    payload: RuntimeToolCallDecisionRequest,
+    trace_event: TraceEventRecord,
+    policy_decision_id: UUID | None,
+    target_type: CheckResultTargetType | None = None,
+    target_id: UUID | None = None,
+    source_id: UUID | None = None,
+    model_id: UUID | None = None,
+    capability_id: UUID | None = None,
+) -> CheckToolRequest:
+    data_classification = (
+        payload.data_classification.value
+        if payload.data_classification is not None
+        else None
+    )
+    return CheckToolRequest(
+        check_type=CHECK_TOOL_REQUEST_TYPES_BY_STEP_TYPE[step.check_type],
+        agent_id=payload.agent_id,
+        run_id=payload.run_id,
+        request_id=payload.request_id,
+        trace_event_id=trace_event.id,
+        policy_decision_id=policy_decision_id,
+        policy_version_id=getattr(step, "policy_version_id", None),
+        policy_rule_id=step.policy_rule_id,
+        policy_check_step_id=step.id,
+        target_type=target_type,
+        target_id=target_id,
+        source_id=source_id,
+        model_id=model_id,
+        capability_id=capability_id,
+        purpose=payload.purpose,
+        data_classification=data_classification,
+        declared_metadata=payload.metadata,
+    )
+
+
+def _access_grant_request_target(
+    target_type: AccessGrantTargetType,
+    target_id: UUID,
+) -> dict[str, object]:
+    if target_type is AccessGrantTargetType.CAPABILITY:
+        return {"capability_id": target_id}
+    if target_type is AccessGrantTargetType.SOURCE:
+        return {"source_id": target_id}
+    if target_type is AccessGrantTargetType.MODEL_ASSET:
+        return {"model_id": target_id}
+    return {"target_id": target_id}
 
 
 def _append_checked_result(
@@ -613,23 +645,24 @@ def _append_checked_result(
     check_tool: CheckTool,
     target_type: CheckResultTargetType,
     target_id: UUID | None,
-    check_type: str,
-    agent_id: UUID,
-    run_id: UUID,
-    trace_event_id: UUID,
-    policy_decision_id: UUID | None,
-    run_check: Callable[[UUID], CheckResult],
+    request: CheckToolRequest,
 ) -> None:
     try:
-        check_result = run_check(check_tool.id)
+        adapter_result = METADATA_ONLY_CHECK_TOOL_ADAPTER.run(session, request)
+        check_result = _persist_check_tool_result(
+            session,
+            check_tool_id=check_tool.id,
+            request=request,
+            result=adapter_result,
+        )
     except Exception:
         check_result = record_metadata_check_error(
             session,
             check_tool_id=check_tool.id,
-            agent_id=agent_id,
-            run_id=run_id,
-            trace_event_id=trace_event_id,
-            policy_decision_id=policy_decision_id,
+            agent_id=request.agent_id,
+            run_id=request.run_id,
+            trace_event_id=request.trace_event_id,
+            policy_decision_id=request.policy_decision_id,
             target_type=target_type,
             target_id=target_id,
             summary="Runtime metadata-only PolicyCheckStep failed.",
@@ -637,10 +670,38 @@ def _append_checked_result(
                 "The authored metadata-only helper failed before completing. "
                 "No raw runtime payload was stored."
             ),
-            metadata={"check_type": f"{check_type}_error"},
+            metadata={"check_type": f"{request.check_type}_error"},
         )
     _attach_policy_check_step_metadata(check_result, step)
     results.append(check_result)
+
+
+def _persist_check_tool_result(
+    session: Session,
+    *,
+    check_tool_id: UUID,
+    request: CheckToolRequest,
+    result: CheckToolResult,
+) -> CheckResult:
+    check_result_payload = result.to_check_result_payload(
+        request,
+        check_tool_id=check_tool_id,
+    )
+    return persist_check_result(
+        session,
+        check_tool_id=check_tool_id,
+        agent_id=request.agent_id,
+        run_id=request.run_id,
+        trace_event_id=request.trace_event_id,
+        policy_decision_id=request.policy_decision_id,
+        target_type=result.target_type,
+        target_id=result.target_id,
+        outcome=result.outcome,
+        confidence=result.confidence,
+        summary=result.summary,
+        reason=result.reason,
+        metadata=check_result_payload["metadata"],
+    )
 
 
 def _append_not_applicable_result(

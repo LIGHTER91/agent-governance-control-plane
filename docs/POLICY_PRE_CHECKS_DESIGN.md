@@ -11,8 +11,9 @@ future adapters, and a metadata-only adapter for AccessGrant status, Data Usage
 Profile review status, Source status/classification, ModelAsset status/provider
 type, and Capability status. Runtime Gateway can optionally execute active
 authored PolicyCheckSteps linked to matched PolicyRules behind
-`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked CheckResults
-without changing the final decision automatically. PolicyRules can now
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` through that metadata-only
+adapter boundary and persist linked CheckResults without changing the final
+decision automatically. PolicyRules can now
 explicitly match safe CheckResult outcome context through deterministic
 `check_*` fields. Scanner integrations, external integrations, automatic
 CheckResult-driven enforcement, public CheckTool/CheckResult management APIs,
@@ -371,6 +372,29 @@ The runtime wrapper or adapter remains responsible for honoring `proceed`.
 AGCP records the check evidence, decision, and approval chain; it does not
 execute the governed action.
 
+## Runtime Gateway V1 Wiring
+
+Runtime Gateway uses `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED` as the
+execution gate:
+
+- when the flag is false, no authored metadata pre-checks run and the existing
+  unversioned or active-PolicyVersion evaluation behavior is preserved;
+- when the flag is true, Runtime Gateway first finds candidate matched rules
+  while ignoring `check_*` conditions, loads active PolicyCheckSteps for those
+  rules from the active PolicyVersion snapshot or unversioned fallback rows,
+  builds safe `CheckToolRequest` objects, runs the
+  `MetadataOnlyCheckToolAdapter`, persists real metadata-derived CheckResults,
+  then evaluates PolicyRules again with safe `check_*` context available;
+- CheckResults are linked to Agent, run, TraceEvent, and final PolicyDecision;
+- versioned PolicyCheckStep execution includes safe PolicyVersion metadata when
+  the step came from an active PolicyVersion snapshot.
+
+This remains conservative: CheckResults do not automatically enforce
+`failure_behavior`; a decision changes only when a PolicyRule explicitly
+matches safe `check_type`, `check_outcome`, `check_target_type`,
+`check_target_id`, `check_tool_id`, or confidence context. Unsupported selectors
+or helper failures create safe error CheckResults instead of fake pass results.
+
 ## Check Execution Modes
 
 ### Metadata-only Check
@@ -571,8 +595,12 @@ Recommended staged implementation:
 4a. Define a formal CheckTool adapter boundary with safe request/result
     objects and metadata-only adapter checks for AccessGrant status,
     Data Usage Profile status, Source status/classification, ModelAsset
-    status/provider type, and Capability status. Implemented without changing
-    Runtime Gateway behavior.
+    status/provider type, and Capability status. Implemented.
+4b. Wire Runtime Gateway metadata pre-check execution through the
+    metadata-only adapter boundary behind
+    `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, while preserving disabled
+    flag behavior and requiring explicit `check_*` PolicyRule matching for
+    decision changes. Implemented.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.
    Evidence Bundle export implemented for safe CheckResult summaries.
 6. Design explicit PolicyCheckStep support for a small set of PolicyRule or
