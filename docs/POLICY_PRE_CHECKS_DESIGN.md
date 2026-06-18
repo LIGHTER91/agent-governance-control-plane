@@ -4,10 +4,12 @@
 
 Design plus first backend foundation. `CheckTool` and `CheckResult`
 persistence, Pydantic create/read schemas, a minimal internal helper for
-persisting CheckResults, and internal metadata-only check helpers now exist.
-The implemented helpers can evaluate AccessGrant status, Data Usage Profile
-review status, and Source, Capability, and ModelAsset inventory status from
-persisted metadata only. Runtime Gateway can optionally execute active
+persisting CheckResults, internal metadata-only check helpers, and a formal
+adapter boundary in `agent_governance_api.check_tools` now exist. The adapter
+boundary defines safe request/result types, execution modes, a protocol for
+future adapters, and a metadata-only adapter for AccessGrant status, Data Usage
+Profile review status, Source status/classification, ModelAsset status/provider
+type, and Capability status. Runtime Gateway can optionally execute active
 authored PolicyCheckSteps linked to matched PolicyRules behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` and persist linked CheckResults
 without changing the final decision automatically. PolicyRules can now
@@ -62,6 +64,13 @@ Data Usage Profile, AccessGrant, ModelAsset, Capability, and HumanApproval
 state. External check adapters can come later, after runtime context and
 Data Usage Profile persistence exist.
 
+Issue #61 should be treated as an adapter-boundary milestone, not a scanner
+integration milestone. The useful V1 work is to define what a CheckTool adapter
+may receive, what it may return, and how those outputs can become safe
+CheckResult evidence. That prepares future catalog, DLP, PII, and scanner
+integrations without adding arbitrary network calls, webhooks, raw payload
+storage, or runtime orchestration today.
+
 ## Problem Statement
 
 Static PolicyRules that match only request fields cannot always answer
@@ -108,6 +117,65 @@ V1 starts with internal metadata-only CheckTools that read existing AGCP
 records. The persistence foundation records the registry entry for such a
 tool; it does not execute arbitrary tools. External CheckTools should be
 adapters with strict input/output contracts, not arbitrary executable code.
+
+The backend now includes a small `CheckToolAdapter` protocol and
+`MetadataOnlyCheckToolAdapter` in `agent_governance_api.check_tools`. This is a
+code boundary rather than a public API. It allows tests and future services to
+construct safe `CheckToolRequest` values and receive safe `CheckToolResult`
+values before deciding whether to persist them as `CheckResult` records.
+
+### Adapter Safe Input
+
+A `CheckToolRequest` may contain only safe identifiers and bounded metadata:
+
+- `agent_id`, `run_id`, `request_id`, and `trace_event_id`;
+- `policy_decision_id`, `policy_version_id`, `policy_rule_id`, and
+  `policy_check_step_id`;
+- `check_type`;
+- `target_type` and `target_id`;
+- `source_id`, `model_id`, and `capability_id`;
+- `purpose` and declared `data_classification`;
+- safe declared metadata and resolved inventory metadata after metadata safety
+  filtering.
+
+The request must not contain raw prompts, raw source contents, chunks,
+credentials, API keys, tokens, private payloads, arbitrary user code, arbitrary
+external URLs, executable arguments, or scanner raw findings.
+
+### Adapter Safe Output
+
+A `CheckToolResult` may contain:
+
+- `check_type`;
+- safe `target_type` and `target_id`;
+- bounded `outcome`;
+- bounded `confidence`;
+- redacted `summary` and `reason`;
+- safe scalar metadata such as status labels, provider labels,
+  classification labels, evidence references, and policy/version references.
+
+It must not contain raw content, raw prompts, credentials, scanner payloads,
+detected secret values, or private customer data. When converted to a
+CheckResult payload, PolicyVersion and PolicyCheckStep references remain safe
+metadata unless the CheckResult schema later gains explicit columns.
+
+### Implemented Metadata-only Adapter Checks
+
+The first adapter supports these local DB metadata checks only:
+
+- `access_grant_status`;
+- `data_usage_profile_status`;
+- `source_status`;
+- `source_classification`;
+- `model_asset_status`;
+- `model_provider_type`;
+- `capability_status`.
+
+They do not call external systems and do not inspect source content. Missing
+context returns `not_applicable`; missing inventory generally returns
+`unknown`; inactive, expired, disabled, revoked, or rejected states return
+`fail` where the domain status is conclusive. Classification and provider type
+checks report available metadata, not approval or legal determinations.
 
 ### PolicyCheckStep
 
@@ -314,7 +382,13 @@ classification labels.
 This should be the V1 default because it is fast, auditable, and safer for
 runtime enforcement.
 
-### Sample Check
+### External Reference Lookup
+
+May later read a safe external reference from a catalog or scanner system and
+return only bounded labels or run IDs. This mode is not implemented in V1 and
+must not accept arbitrary URLs, credentials, or raw scanner payloads.
+
+### Sample-based External Scanner
 
 Uses a bounded sample or preapproved external scanner process. This is riskier
 because samples may contain sensitive data. Any sample-based design must define
@@ -339,6 +413,10 @@ on async work.
 If required checks are missing, unavailable, stale, or low confidence, policies
 can return `require_human_review`. This keeps uncertainty visible instead of
 silently allowing a risky action.
+
+The `human_review_required` execution mode is a representation of this boundary
+state, not an instruction for AGCP to approve, reject, or continue a runtime
+action by itself.
 
 ## Safety And Privacy
 
@@ -370,6 +448,11 @@ CheckResults should store only:
 
 CheckTool adapters must apply metadata safety filtering before persistence,
 audit logging, runtime activity, or Evidence Bundle export.
+
+Adapters must also preserve the AGCP boundary: they may prepare governance
+facts, but they must not execute the governed tool call, run arbitrary user
+code, retrieve raw source documents, or hide `deny`/`require_human_review`
+handling from the caller.
 
 ## Runtime Implications
 
@@ -447,6 +530,12 @@ Before richer authoring UI expands, Policy, PolicyRule, and PolicyCheckStep
 changes should have lightweight versioning, review, activation, and rollback
 guardrails so active runtime policy behavior is not changed casually.
 
+Current Policy Studio CHECK blocks compile to deterministic PolicyRule
+condition fields, including safe `check_*` outcome summaries. They do not
+create CheckTool adapters, run scanners, or author arbitrary check workflows.
+PolicyCheckStep UI authoring remains a separate product step after the adapter
+boundary, review lifecycle, and runtime semantics are stable.
+
 ## Non-goals
 
 - Do not change Runtime Gateway behavior in this foundation.
@@ -454,8 +543,10 @@ guardrails so active runtime policy behavior is not changed casually.
 - Do not add public CRUD APIs in this foundation.
 - Do not add scanners in this foundation.
 - Do not add external integrations in this foundation.
+- Do not add webhooks or arbitrary callback endpoints in this foundation.
 - Do not add frontend UI in this foundation.
 - Do not execute arbitrary tools.
+- Do not send raw source contents to external tools.
 - Do not turn AGCP into an orchestrator or workflow engine.
 - Do not run expensive scans synchronously in runtime enforcement.
 - Do not replace DLP systems, data catalogs, DPOs, legal counsel, or governance
@@ -477,6 +568,11 @@ Recommended staged implementation:
    Implemented as backend persistence and an internal helper.
 4. Support metadata-only checks first for Data Usage Profile, AccessGrant,
    ModelAsset, Capability, and Source status. Implemented as internal helpers.
+4a. Define a formal CheckTool adapter boundary with safe request/result
+    objects and metadata-only adapter checks for AccessGrant status,
+    Data Usage Profile status, Source status/classification, ModelAsset
+    status/provider type, and Capability status. Implemented without changing
+    Runtime Gateway behavior.
 5. Connect CheckResults to PolicyDecision and Evidence Bundle export.
    Evidence Bundle export implemented for safe CheckResult summaries.
 6. Design explicit PolicyCheckStep support for a small set of PolicyRule or
@@ -517,3 +613,6 @@ Runtime Gateway contract.
 - How long should CheckResults remain reusable before they become stale?
 - How should external scanner references be validated without importing unsafe
   scanner payloads?
+- Should the existing runtime metadata pre-check helpers be gradually adapted
+  to call the formal `CheckToolAdapter` contract, or should the contract remain
+  a boundary for future external adapters only?
