@@ -485,6 +485,7 @@ def test_evidence_bundle_includes_check_results_linked_to_policy_decision(
         for item in check_results
         if item["check_result_id"] == str(check_seed.linked_check_result_id)
     )
+    assert linked_result["check_type"] == "data_usage_profile_status"
     assert linked_result["check_tool_id"] == str(check_seed.check_tool_id)
     assert linked_result["check_tool_name"] == "data_usage_profile_checker"
     assert linked_result["check_tool_type"] == "data_usage_profile_check"
@@ -501,6 +502,9 @@ def test_evidence_bundle_includes_check_results_linked_to_policy_decision(
         "check_type": "data_usage_profile_status",
         "review_status": "approved",
     }
+    assert "raw_content" not in response.text
+    assert "prompt" not in response.text
+    assert "secret" not in response.text
 
 
 def test_evidence_bundle_includes_safe_policy_version_summary(

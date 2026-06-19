@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -17,6 +17,13 @@ from agent_governance_api.models import (
     Agent,
     AgentStatus,
     AuditLog,
+    CheckResult,
+    CheckResultConfidence,
+    CheckResultOutcome,
+    CheckResultTargetType,
+    CheckTool,
+    CheckToolStatus,
+    CheckToolType,
     Environment,
     HumanApproval,
     HumanApprovalStatus,
@@ -206,6 +213,47 @@ def test_reviewer_and_auditor_can_list_human_approvals(
 
     assert response.status_code == 200
     assert [item["id"] for item in response.json()] == [str(approval_id)]
+
+
+def test_list_human_approvals_includes_safe_metadata_check_results(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    policy_decision_id = create_policy_decision(session_factory, agent_id)
+    approval_id = insert_human_approval(
+        session_factory,
+        agent_id,
+        policy_decision_id=policy_decision_id,
+    )
+    seed_policy_decision_check_result(
+        session_factory,
+        agent_id=agent_id,
+        policy_decision_id=policy_decision_id,
+    )
+    set_current_actor(auditor_actor())
+
+    response = client.get("/human-approvals")
+
+    assert response.status_code == 200
+    [approval] = response.json()
+    assert approval["id"] == str(approval_id)
+    [check_result] = approval["check_results"]
+    assert check_result["check_type"] == "source_classification"
+    assert check_result["outcome"] == "pass"
+    assert check_result["confidence"] == "high"
+    assert check_result["target_type"] == "source"
+    assert check_result["target_id"] is not None
+    assert check_result["policy_decision_id"] == str(policy_decision_id)
+    assert check_result["created_at"]
+    assert check_result["metadata"] == {
+        "policy_check_step_check_type": "source_classification",
+        "data_classification": "restricted",
+    }
+    assert "raw_content" not in response.text
+    assert "prompt" not in response.text
+    assert "api_key" not in response.text
+    assert "do-not-export" not in response.text
 
 
 def test_actor_without_read_role_cannot_list_human_approvals(
@@ -790,6 +838,58 @@ def create_policy_decision(session_factory: SessionFactory, agent_id: UUID) -> U
         session.add(policy_decision)
         session.commit()
         return policy_decision.id
+
+
+def seed_policy_decision_check_result(
+    session_factory: SessionFactory,
+    *,
+    agent_id: UUID,
+    policy_decision_id: UUID,
+) -> None:
+    with session_factory() as session:
+        check_tool = CheckTool(
+            name="source_classification_checker",
+            description="Metadata-only source classification check.",
+            tool_type=CheckToolType.METADATA_LOOKUP,
+            status=CheckToolStatus.ACTIVE,
+            owner_type=OwnerType.TEAM,
+            owner_id="team:governance",
+            owner_name="Governance",
+            metadata_={},
+        )
+        session.add(check_tool)
+        session.flush()
+        check_result = CheckResult(
+            check_tool_id=check_tool.id,
+            agent_id=agent_id,
+            policy_decision_id=policy_decision_id,
+            target_type=CheckResultTargetType.SOURCE,
+            target_id=agent_id,
+            outcome=CheckResultOutcome.PASS,
+            confidence=CheckResultConfidence.HIGH,
+            summary="Source classification metadata is available.",
+            reason="The Source Data Usage Profile declares restricted data.",
+            metadata_={
+                "policy_check_step_check_type": "source_classification",
+                "data_classification": "restricted",
+            },
+        )
+        session.add(check_result)
+        session.flush()
+        session.execute(
+            update(CheckResult.__table__)
+            .where(CheckResult.__table__.c.id == check_result.id)
+            .values(
+                metadata={
+                    "policy_check_step_check_type": "source_classification",
+                    "data_classification": "restricted",
+                    "raw_content": "do-not-export",
+                    "prompt": "do-not-export",
+                    "api_key": "do-not-export",
+                },
+            )
+        )
+        session.commit()
 
 
 def create_human_approval(client: TestClient, agent_id: UUID) -> UUID:

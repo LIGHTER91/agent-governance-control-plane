@@ -997,6 +997,7 @@ class EvidenceModelAssetReferenceRead(BaseModel):
 
 class EvidenceCheckResultRead(BaseModel):
     check_result_id: UUID
+    check_type: str | None = None
     check_tool_id: UUID
     check_tool_name: str | None = None
     check_tool_type: CheckToolType | None = None
@@ -1619,6 +1620,7 @@ class HumanApprovalRead(HumanApprovalBase):
 
     id: UUID
     created_at: datetime
+    check_results: list[EvidenceCheckResultRead] = Field(default_factory=list)
 
 
 class ServiceActorRead(BaseModel):

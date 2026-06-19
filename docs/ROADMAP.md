@@ -135,11 +135,14 @@ linked to matched PolicyRules through that adapter boundary and persist linked
 CheckResults behind an explicit disabled-by-default feature flag. Persistent
 PolicyCheckStep check types now include `source_classification` and
 `model_provider_type`, wired to the same metadata-only adapter and safe target
-selectors. No scanner integration, external adapter execution, webhooks, or
-automatic enforcement has been implemented. PolicyRules can now explicitly
-match safe CheckResult outcome summaries with deterministic `check_*` fields,
-so CheckResults remain policy context rather than hidden decisions. The
-PolicyCheckStep authoring model is documented in
+selectors. Evidence Bundle and Review Inbox read models expose safe CheckResult
+summaries where linked to PolicyDecisions, including check type, outcome,
+target, confidence, timestamp, and filtered metadata. No scanner integration,
+external adapter execution, webhooks, or automatic enforcement has been
+implemented. PolicyRules can now explicitly match safe CheckResult outcome
+summaries with deterministic `check_*` fields, so CheckResults remain policy
+context rather than hidden decisions. The PolicyCheckStep authoring model is
+documented in
 `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 Policy versioning and review guardrails are now partially implemented and
@@ -465,6 +468,8 @@ Completed foundation:
   Profile, Source status/classification, Capability, and ModelAsset
   status/provider type.
 - Safe CheckResult summaries in Evidence Bundle export.
+- Safe metadata-only CheckResult summaries in Review Inbox Evidence Preview
+  for HumanApproval records linked to PolicyDecisions.
 - Optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`, recorded as safe TraceEvent
   context.

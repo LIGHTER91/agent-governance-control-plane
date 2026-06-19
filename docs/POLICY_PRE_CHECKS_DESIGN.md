@@ -515,6 +515,11 @@ to a PolicyDecision in the Agent evidence chain. Agent-scoped CheckResults
 without a PolicyDecision link may also appear when they safely belong to the
 exported Agent.
 
+Review Inbox read models for Runtime HumanApproval records also surface safe
+metadata-only CheckResults when the HumanApproval is linked to a PolicyDecision
+that has CheckResults. If no CheckResults are linked, the UI should say
+`No metadata pre-check results attached yet.` rather than inventing evidence.
+
 Safe fields may include:
 
 - CheckTool name;

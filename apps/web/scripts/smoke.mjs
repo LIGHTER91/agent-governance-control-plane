@@ -402,6 +402,8 @@ const requiredText = [
   "Policy Decision",
   "Policy Checks",
   "Evidence Preview",
+  "Metadata pre-check results",
+  "No metadata pre-check results attached yet",
   "Approve",
   "Reject",
   "Request info",
@@ -1360,6 +1362,7 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
     check_results: [
       {
         check_result_id: "check-001",
+        check_type: "source_classification",
         outcome: "pass",
         policy_decision_id: policyDecisionId,
         policy_version_id: policyVersionId,
@@ -1402,6 +1405,8 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
     "PolicyVersion references",
     "policy_version_references",
     "CheckResults",
+    "check_type",
+    "source_classification",
     "HumanApprovals",
     "AuditLogs",
     "canonical_json_export",

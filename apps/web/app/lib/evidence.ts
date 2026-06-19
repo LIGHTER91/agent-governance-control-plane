@@ -210,6 +210,7 @@ export type EvidenceModelAssetReference = {
 
 export type EvidenceCheckResult = {
   check_result_id: string;
+  check_type: string | null;
   check_tool_id: string;
   check_tool_name: string | null;
   check_tool_type: string | null;

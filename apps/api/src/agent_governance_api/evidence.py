@@ -651,8 +651,23 @@ def _check_result_response(
         if check_result.policy_decision_id is not None
         else None
     )
+    return evidence_check_result_response(
+        check_result,
+        check_tool=check_tool,
+        policy_version=policy_version,
+    )
+
+
+def evidence_check_result_response(
+    check_result: CheckResult,
+    *,
+    check_tool: CheckTool | None,
+    policy_version: EvidencePolicyVersionReferenceRead | None = None,
+) -> EvidenceCheckResultRead:
+    metadata = filter_safe_metadata(check_result.metadata_)
     return EvidenceCheckResultRead(
         check_result_id=check_result.id,
+        check_type=_check_result_type(metadata),
         check_tool_id=check_result.check_tool_id,
         check_tool_name=(
             redact_sensitive_text(check_tool.name) if check_tool is not None else None
@@ -676,5 +691,13 @@ def _check_result_response(
         trace_event_id=check_result.trace_event_id,
         run_id=check_result.run_id,
         created_at=check_result.created_at,
-        metadata=filter_safe_metadata(check_result.metadata_),
+        metadata=metadata,
     )
+
+
+def _check_result_type(metadata: dict[str, object]) -> str | None:
+    for key in ("policy_check_step_check_type", "check_type"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return redact_sensitive_text(value.strip())
+    return None

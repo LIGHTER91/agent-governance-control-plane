@@ -79,7 +79,9 @@ PolicyDecisions, starting with metadata-only checks over inventory, Data Usage
 Profile, AccessGrant, ModelAsset, Capability, and HumanApproval state.
 CheckTool and CheckResult persistence and internal execution helpers now exist
 as a backend foundation, and Evidence Bundle export includes safe CheckResult
-summaries for PolicyDecision-linked or Agent-scoped records. Runtime Gateway can
+summaries for PolicyDecision-linked or Agent-scoped records. Review Inbox read
+models also surface safe metadata-only CheckResult summaries for Runtime
+HumanApproval records linked to PolicyDecisions. Runtime Gateway can
 optionally execute active authored PolicyCheckSteps linked to matched
 PolicyRules through the metadata-only CheckTool adapter boundary and persist
 linked CheckResults behind
@@ -480,6 +482,8 @@ credentials.
 - [x] Add metadata-only Policy Pre-Check persistence foundation.
 - [x] Add metadata-only Policy Pre-Check execution helpers.
 - [x] Add safe CheckResult summaries to Evidence Bundle export.
+- [x] Expose safe metadata-only CheckResult summaries in Review Inbox Evidence
+      Preview for HumanApproval-linked PolicyDecisions.
 - [x] Add optional contextual runtime request fields from the contextual runtime
       governance design.
 - [x] Add Policy Studio issue alignment and roadmap cleanup for #58, #76, #56,

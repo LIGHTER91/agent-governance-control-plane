@@ -349,6 +349,10 @@ Human Approvals:
 
 - `POST /human-approvals` creates a pending human approval for an existing agent and appends `human_approval_requested`.
 - `GET /human-approvals/{approval_id}` returns one human approval.
+- HumanApproval read responses include safe metadata-only CheckResult summaries
+  when the approval is linked to a PolicyDecision that has CheckResults. These
+  summaries expose bounded evidence fields such as `check_type`, outcome,
+  target, confidence, timestamp, and filtered metadata only.
 - `POST /human-approvals/{approval_id}/approve` approves a pending approval and appends `human_approval_approved`.
 - `POST /human-approvals/{approval_id}/reject` rejects a pending approval and appends `human_approval_rejected`.
 - `POST /human-approvals/{approval_id}/cancel` cancels a pending approval and appends `human_approval_cancelled`.

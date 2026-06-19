@@ -1,4 +1,5 @@
 import { fetchApiArray, postApiJson } from "./api";
+import { EvidenceCheckResult } from "./evidence";
 
 export const HUMAN_APPROVAL_STATUSES = [
   "pending",
@@ -25,6 +26,7 @@ export type HumanApprovalRecord = {
   created_at: string;
   reviewed_at: string | null;
   expires_at: string | null;
+  check_results: EvidenceCheckResult[];
 };
 
 export type HumanApprovalAction = "approve" | "reject" | "cancel";

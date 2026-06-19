@@ -16,9 +16,12 @@ from agent_governance_api.auth import (
     require_role,
 )
 from agent_governance_api.database import get_db_session
+from agent_governance_api.evidence import evidence_check_result_response
 from agent_governance_api.models import (
     ActorType,
     Agent,
+    CheckResult,
+    CheckTool,
     HumanApproval,
     HumanApprovalStatus,
     PolicyDecision,
@@ -30,6 +33,7 @@ from agent_governance_api.openapi_examples import (
     HUMAN_APPROVAL_REJECT_OPENAPI,
 )
 from agent_governance_api.schemas import (
+    EvidenceCheckResultRead,
     HumanApprovalDecisionRequest,
     HumanApprovalRead,
     HumanApprovalRequest,
@@ -48,7 +52,7 @@ def create_human_approval(
     payload: HumanApprovalRequest,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
-) -> HumanApproval:
+) -> HumanApprovalRead:
     _get_agent_or_404(session, payload.agent_id)
     if payload.policy_decision_id is not None:
         policy_decision = _get_policy_decision_or_404(
@@ -79,7 +83,7 @@ def create_human_approval(
     session.commit()
     session.refresh(approval)
 
-    return approval
+    return _human_approval_read(approval, check_results_by_policy_decision_id={})
 
 
 @router.get("/human-approvals", response_model=list[HumanApprovalRead])
@@ -89,7 +93,7 @@ def list_human_approvals(
     policy_decision_id: UUID | None = None,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
-) -> list[HumanApproval]:
+) -> list[HumanApprovalRead]:
     _require_human_approval_reader(actor)
 
     statement = select(HumanApproval)
@@ -106,15 +110,33 @@ def list_human_approvals(
         HumanApproval.created_at.desc(),
         HumanApproval.id.desc(),
     )
-    return list(session.scalars(statement).all())
+    approvals = list(session.scalars(statement).all())
+    check_results_by_policy_decision_id = _load_check_results_by_policy_decision_id(
+        session,
+        approvals,
+    )
+    return [
+        _human_approval_read(
+            approval,
+            check_results_by_policy_decision_id=check_results_by_policy_decision_id,
+        )
+        for approval in approvals
+    ]
 
 
 @router.get("/human-approvals/{approval_id}", response_model=HumanApprovalRead)
 def get_human_approval(
     approval_id: UUID,
     session: Session = Depends(get_db_session),
-) -> HumanApproval:
-    return _get_human_approval_or_404(session, approval_id)
+) -> HumanApprovalRead:
+    approval = _get_human_approval_or_404(session, approval_id)
+    return _human_approval_read(
+        approval,
+        check_results_by_policy_decision_id=_load_check_results_by_policy_decision_id(
+            session,
+            [approval],
+        ),
+    )
 
 
 @router.get(
@@ -124,14 +146,25 @@ def get_human_approval(
 def list_agent_human_approvals(
     agent_id: UUID,
     session: Session = Depends(get_db_session),
-) -> list[HumanApproval]:
+) -> list[HumanApprovalRead]:
     _get_agent_or_404(session, agent_id)
     statement = (
         select(HumanApproval)
         .where(HumanApproval.agent_id == agent_id)
         .order_by(HumanApproval.created_at, HumanApproval.id)
     )
-    return list(session.scalars(statement).all())
+    approvals = list(session.scalars(statement).all())
+    check_results_by_policy_decision_id = _load_check_results_by_policy_decision_id(
+        session,
+        approvals,
+    )
+    return [
+        _human_approval_read(
+            approval,
+            check_results_by_policy_decision_id=check_results_by_policy_decision_id,
+        )
+        for approval in approvals
+    ]
 
 
 @router.post(
@@ -144,7 +177,7 @@ def approve_human_approval(
     payload: HumanApprovalDecisionRequest | None = None,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
-) -> HumanApproval:
+) -> HumanApprovalRead:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
     _require_human_approval_reviewer(actor)
@@ -169,7 +202,13 @@ def approve_human_approval(
     session.commit()
     session.refresh(approval)
 
-    return approval
+    return _human_approval_read(
+        approval,
+        check_results_by_policy_decision_id=_load_check_results_by_policy_decision_id(
+            session,
+            [approval],
+        ),
+    )
 
 
 @router.post(
@@ -182,7 +221,7 @@ def reject_human_approval(
     payload: HumanApprovalDecisionRequest | None = None,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
-) -> HumanApproval:
+) -> HumanApprovalRead:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
     _require_human_approval_reviewer(actor)
@@ -207,7 +246,13 @@ def reject_human_approval(
     session.commit()
     session.refresh(approval)
 
-    return approval
+    return _human_approval_read(
+        approval,
+        check_results_by_policy_decision_id=_load_check_results_by_policy_decision_id(
+            session,
+            [approval],
+        ),
+    )
 
 
 @router.post(
@@ -219,7 +264,7 @@ def cancel_human_approval(
     approval_id: UUID,
     session: Session = Depends(get_db_session),
     actor: ActorContext = Depends(get_current_actor),
-) -> HumanApproval:
+) -> HumanApprovalRead:
     approval = _get_human_approval_or_404(session, approval_id)
     _ensure_pending(approval)
     _require_human_approval_canceller(actor, approval)
@@ -235,7 +280,62 @@ def cancel_human_approval(
     session.commit()
     session.refresh(approval)
 
-    return approval
+    return _human_approval_read(
+        approval,
+        check_results_by_policy_decision_id=_load_check_results_by_policy_decision_id(
+            session,
+            [approval],
+        ),
+    )
+
+
+def _human_approval_read(
+    approval: HumanApproval,
+    *,
+    check_results_by_policy_decision_id: dict[UUID, list[EvidenceCheckResultRead]],
+) -> HumanApprovalRead:
+    check_results = (
+        check_results_by_policy_decision_id.get(approval.policy_decision_id, [])
+        if approval.policy_decision_id is not None
+        else []
+    )
+    return HumanApprovalRead.model_validate(approval).model_copy(
+        update={"check_results": check_results},
+    )
+
+
+def _load_check_results_by_policy_decision_id(
+    session: Session,
+    approvals: list[HumanApproval],
+) -> dict[UUID, list[EvidenceCheckResultRead]]:
+    policy_decision_ids = {
+        approval.policy_decision_id
+        for approval in approvals
+        if approval.policy_decision_id is not None
+    }
+    if not policy_decision_ids:
+        return {}
+
+    statement = (
+        select(CheckResult, CheckTool)
+        .outerjoin(CheckTool, CheckResult.check_tool_id == CheckTool.id)
+        .where(CheckResult.policy_decision_id.in_(policy_decision_ids))
+        .order_by(CheckResult.created_at, CheckResult.id)
+    )
+    check_results_by_policy_decision_id: dict[UUID, list[EvidenceCheckResultRead]] = {}
+    for check_result, check_tool in session.execute(statement).all():
+        if check_result.policy_decision_id is None:
+            continue
+        check_results_by_policy_decision_id.setdefault(
+            check_result.policy_decision_id,
+            [],
+        ).append(
+            evidence_check_result_response(
+                check_result,
+                check_tool=check_tool,
+            ),
+        )
+    return check_results_by_policy_decision_id
 
 
 def _get_agent_or_404(session: Session, agent_id: UUID) -> Agent:

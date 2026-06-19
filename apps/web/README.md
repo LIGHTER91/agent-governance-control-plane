@@ -19,8 +19,10 @@ grants as declarative governance records. The Human Approvals route renders a
 Review Inbox experience: Runtime HumanApproval records and PolicyVersion review
 requests appear as unified review work items with a left inbox, selected detail
 pane, and sections for why review is required, policy decision context, policy
-checks, and evidence preview. Unsupported escalation and request-info flows are
-shown honestly as not wired yet. The Evidence page
+checks, and evidence preview. Runtime HumanApproval evidence previews show safe
+metadata-only CheckResult summaries when the linked PolicyDecision has them,
+and otherwise show an honest empty state. Unsupported escalation and
+request-info flows are shown honestly as not wired yet. The Evidence page
 manually loads filtered Evidence Bundle JSON for a single Agent, explains the
 human-readable evidence chain, and lets reviewers download the bounded JSON
 artifact returned by the backend. The Runtime Gateway
