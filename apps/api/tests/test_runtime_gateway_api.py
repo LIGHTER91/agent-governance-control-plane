@@ -781,6 +781,12 @@ def test_runtime_metadata_pre_checks_disabled_keeps_behavior_unchanged(
     create_policy_check_step(
         session_factory,
         policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_CLASSIFICATION,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
         check_type=PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS,
         target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
     )
@@ -833,6 +839,12 @@ def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
     create_policy_check_step(
         session_factory,
         policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.SOURCE_CLASSIFICATION,
+        target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
         check_type=PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS,
         target_selector=PolicyCheckStepTargetSelector.SOURCE_IDS,
     )
@@ -879,6 +891,17 @@ def test_runtime_metadata_pre_checks_create_source_and_data_usage_results(
         assert check_result.metadata_["execution_mode"] == "metadata_only"
         assert "raw_content" not in str(check_result.metadata_)
         assert "prompt" not in str(check_result.metadata_)
+    classification_results = [
+        result
+        for result in check_results
+        if result.metadata_.get("policy_check_step_check_type")
+        == "source_classification"
+    ]
+    assert len(classification_results) == 1
+    assert classification_results[0].target_type is (
+        CheckResultTargetType.DATA_USAGE_PROFILE
+    )
+    assert classification_results[0].metadata_["data_classification"] == "restricted"
 
 
 def test_runtime_metadata_pre_checks_create_capability_and_model_results(
@@ -905,6 +928,12 @@ def test_runtime_metadata_pre_checks_create_capability_and_model_results(
         session_factory,
         policy_rule_id=rule_id,
         check_type=PolicyCheckStepCheckType.MODEL_ASSET_STATUS,
+        target_selector=PolicyCheckStepTargetSelector.MODEL_ID,
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE,
         target_selector=PolicyCheckStepTargetSelector.MODEL_ID,
     )
     create_policy_check_step(
@@ -947,7 +976,17 @@ def test_runtime_metadata_pre_checks_create_capability_and_model_results(
     assert [result.outcome for result in capability_results] == [
         CheckResultOutcome.PASS
     ]
-    assert [result.outcome for result in model_results] == [CheckResultOutcome.PASS]
+    assert [result.outcome for result in model_results] == [
+        CheckResultOutcome.PASS,
+        CheckResultOutcome.PASS,
+    ]
+    provider_results = [
+        result
+        for result in model_results
+        if result.metadata_.get("policy_check_step_check_type") == "model_provider_type"
+    ]
+    assert len(provider_results) == 1
+    assert provider_results[0].metadata_["model_provider_type"] == "openai"
     assert [result.outcome for result in access_grant_results] == [
         CheckResultOutcome.PASS,
         CheckResultOutcome.PASS,
@@ -1074,6 +1113,64 @@ def test_runtime_check_result_rule_matches_authored_pre_check_outcome(
     assert check_result.run_id == run_id
     assert check_result.policy_decision_id == policy_decision.id
     assert check_result.metadata_["policy_check_step_check_type"] == "source_status"
+
+
+def test_runtime_check_result_rule_matches_model_provider_type_pre_check(
+    api_client: tuple[TestClient, SessionFactory],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_runtime_metadata_pre_checks(monkeypatch)
+    client, session_factory = api_client
+    agent_id = create_agent(session_factory)
+    inventory = seed_runtime_inventory_context(session_factory, agent_id=agent_id)
+    create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.ALLOW,
+        reason="Fallback policy would otherwise allow model use.",
+        tool_name="vectorize_source",
+    )
+    policy_id, rule_id = create_policy_rule(
+        session_factory,
+        decision=PolicyDecisionValue.REQUIRE_HUMAN_REVIEW,
+        reason="External model provider metadata requires review.",
+        condition={
+            "decision": "require_human_review",
+            "reason": "External model provider metadata requires review.",
+            "tool_name": "vectorize_source",
+            "check_type": "model_provider_type",
+            "check_outcome": "pass",
+            "check_target_type": "model_asset",
+        },
+    )
+    create_policy_check_step(
+        session_factory,
+        policy_rule_id=rule_id,
+        check_type=PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE,
+        target_selector=PolicyCheckStepTargetSelector.MODEL_ID,
+    )
+    payload = runtime_decision_payload(
+        agent_id,
+        action_summary="Vectorize a governed source for semantic search.",
+        tool_name="vectorize_source",
+    )
+    payload.update({"model_id": str(inventory["model_id"])})
+
+    response = client.post("/runtime/tool-calls/decision", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["decision"] == "require_human_review"
+    assert body["reason"] == "External model provider metadata requires review."
+    [policy_decision] = fetch_policy_decisions(session_factory)
+    assert policy_decision.policy_id == policy_id
+    assert policy_decision.rule_id == rule_id
+    [check_result] = fetch_check_results(session_factory)
+    assert check_result.target_type is CheckResultTargetType.MODEL_ASSET
+    assert check_result.outcome is CheckResultOutcome.PASS
+    assert check_result.metadata_["policy_check_step_check_type"] == (
+        "model_provider_type"
+    )
+    assert check_result.metadata_["model_provider_type"] == "openai"
 
 
 def test_runtime_check_result_rule_does_not_match_without_check_results(

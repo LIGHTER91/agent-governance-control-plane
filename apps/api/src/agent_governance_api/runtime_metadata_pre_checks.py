@@ -12,6 +12,8 @@ from agent_governance_api.check_tools import (
     CAPABILITY_STATUS,
     DATA_USAGE_PROFILE_STATUS,
     MODEL_ASSET_STATUS,
+    MODEL_PROVIDER_TYPE,
+    SOURCE_CLASSIFICATION,
     SOURCE_STATUS,
     CheckToolRequest,
     CheckToolResult,
@@ -96,6 +98,16 @@ MODEL_ASSET_STATUS_CHECK_TOOL = RuntimeMetadataPreCheckToolSpec(
     description="Runtime metadata-only ModelAsset status check.",
     tool_type=CheckToolType.MODEL_STATUS_CHECK,
 )
+SOURCE_CLASSIFICATION_CHECK_TOOL = RuntimeMetadataPreCheckToolSpec(
+    name="runtime_source_classification_checker",
+    description="Runtime metadata-only Source classification check.",
+    tool_type=CheckToolType.METADATA_LOOKUP,
+)
+MODEL_PROVIDER_TYPE_CHECK_TOOL = RuntimeMetadataPreCheckToolSpec(
+    name="runtime_model_provider_type_checker",
+    description="Runtime metadata-only ModelAsset provider type check.",
+    tool_type=CheckToolType.METADATA_LOOKUP,
+)
 
 CHECK_TOOL_TYPES_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: CheckToolType.ACCESS_GRANT_CHECK,
@@ -103,24 +115,30 @@ CHECK_TOOL_TYPES_BY_STEP_TYPE = {
         CheckToolType.DATA_USAGE_PROFILE_CHECK
     ),
     PolicyCheckStepCheckType.SOURCE_STATUS: CheckToolType.SOURCE_STATUS_CHECK,
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: CheckToolType.METADATA_LOOKUP,
     PolicyCheckStepCheckType.CAPABILITY_STATUS: CheckToolType.CAPABILITY_STATUS_CHECK,
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: CheckToolType.MODEL_STATUS_CHECK,
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: CheckToolType.METADATA_LOOKUP,
 }
 
 INTERNAL_CHECK_TOOL_SPECS_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: ACCESS_GRANT_CHECK_TOOL,
     PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS: DATA_USAGE_PROFILE_CHECK_TOOL,
     PolicyCheckStepCheckType.SOURCE_STATUS: SOURCE_STATUS_CHECK_TOOL,
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: SOURCE_CLASSIFICATION_CHECK_TOOL,
     PolicyCheckStepCheckType.CAPABILITY_STATUS: CAPABILITY_STATUS_CHECK_TOOL,
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: MODEL_ASSET_STATUS_CHECK_TOOL,
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: MODEL_PROVIDER_TYPE_CHECK_TOOL,
 }
 
 CHECK_TOOL_REQUEST_TYPES_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.ACCESS_GRANT_STATUS: ACCESS_GRANT_STATUS,
     PolicyCheckStepCheckType.DATA_USAGE_PROFILE_STATUS: DATA_USAGE_PROFILE_STATUS,
     PolicyCheckStepCheckType.SOURCE_STATUS: SOURCE_STATUS,
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: SOURCE_CLASSIFICATION,
     PolicyCheckStepCheckType.CAPABILITY_STATUS: CAPABILITY_STATUS,
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: MODEL_ASSET_STATUS,
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: MODEL_PROVIDER_TYPE,
 }
 
 METADATA_ONLY_CHECK_TOOL_ADAPTER = MetadataOnlyCheckToolAdapter()
@@ -135,10 +153,16 @@ SUPPORTED_SELECTORS_BY_STEP_TYPE = {
     PolicyCheckStepCheckType.SOURCE_STATUS: {
         PolicyCheckStepTargetSelector.SOURCE_IDS,
     },
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: {
+        PolicyCheckStepTargetSelector.SOURCE_IDS,
+    },
     PolicyCheckStepCheckType.CAPABILITY_STATUS: {
         PolicyCheckStepTargetSelector.CAPABILITY_ID,
     },
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: {
+        PolicyCheckStepTargetSelector.MODEL_ID,
+    },
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: {
         PolicyCheckStepTargetSelector.MODEL_ID,
     },
 }
@@ -294,7 +318,10 @@ def _append_policy_check_step_results(
         )
         return
 
-    if step.check_type is PolicyCheckStepCheckType.SOURCE_STATUS:
+    if step.check_type in {
+        PolicyCheckStepCheckType.SOURCE_STATUS,
+        PolicyCheckStepCheckType.SOURCE_CLASSIFICATION,
+    }:
         _append_source_step_results(
             results,
             session=session,

@@ -38,8 +38,10 @@ def test_policy_check_step_enums_have_expected_values() -> None:
         "access_grant_status",
         "data_usage_profile_status",
         "source_status",
+        "source_classification",
         "capability_status",
         "model_asset_status",
+        "model_provider_type",
     ]
     assert [item.value for item in PolicyCheckStepTargetSelector] == [
         "agent",
@@ -85,6 +87,30 @@ def test_policy_check_step_create_schema_accepts_valid_values() -> None:
     assert step.status is PolicyCheckStepStatus.ACTIVE
     assert step.evidence_retention is PolicyCheckStepEvidenceRetention.EVIDENCE_BUNDLE
     assert step.metadata == {"purpose": "runtime_metadata_pre_check"}
+
+
+@pytest.mark.parametrize(
+    ("check_type", "target_selector"),
+    [
+        ("source_classification", "source_ids"),
+        ("model_provider_type", "model_id"),
+    ],
+)
+def test_policy_check_step_create_schema_accepts_metadata_only_check_types(
+    check_type: str,
+    target_selector: str,
+) -> None:
+    step = PolicyCheckStepCreate(
+        **{
+            **policy_check_step_payload(policy_rule_id=uuid4()),
+            "check_type": check_type,
+            "target_selector": target_selector,
+            "check_tool_id": None,
+        }
+    )
+
+    assert step.check_type.value == check_type
+    assert step.target_selector.value == target_selector
 
 
 def test_policy_check_step_update_schema_accepts_partial_updates() -> None:
@@ -252,6 +278,20 @@ def test_policy_check_step_migration_declares_expected_table() -> None:
     assert '"failure_behavior"' in migration_text
     assert '"min_confidence"' in migration_text
     assert '"metadata"' in migration_text
+
+
+def test_policy_check_step_metadata_check_type_migration_declares_new_values() -> None:
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "202606180001_add_policy_check_step_metadata_types.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert "source_classification" in migration_text
+    assert "model_provider_type" in migration_text
+    assert "policy_check_step_type" in migration_text
 
 
 def test_policy_check_step_persists_with_rule_and_check_tool_relationships() -> None:

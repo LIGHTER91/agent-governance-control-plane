@@ -38,8 +38,10 @@ CHECK_TOOL_TYPES_BY_STEP_TYPE = {
         CheckToolType.DATA_USAGE_PROFILE_CHECK
     ),
     PolicyCheckStepCheckType.SOURCE_STATUS: CheckToolType.SOURCE_STATUS_CHECK,
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: CheckToolType.METADATA_LOOKUP,
     PolicyCheckStepCheckType.CAPABILITY_STATUS: (CheckToolType.CAPABILITY_STATUS_CHECK),
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: CheckToolType.MODEL_STATUS_CHECK,
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: CheckToolType.METADATA_LOOKUP,
 }
 
 

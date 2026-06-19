@@ -315,8 +315,9 @@ Policy Management:
   block direct live edits.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
-  AccessGrant status, Data Usage Profile review status, and Source,
-  Capability, and ModelAsset inventory status. The backend also has a formal
+  AccessGrant status, Data Usage Profile review status, Source
+  status/classification, Capability status, and ModelAsset
+  status/provider type. The backend also has a formal
   `agent_governance_api.check_tools` adapter boundary with safe
   `CheckToolRequest` and `CheckToolResult` objects, execution modes, and a
   metadata-only adapter for AccessGrant status, Data Usage Profile status,
@@ -336,8 +337,10 @@ Policy Management:
   prompts, scanner raw payloads, or credentials.
 - PolicyCheckStep records are authoring/configuration only. They declare
   expected metadata-only checks for PolicyRules using constrained check types
-  and target selectors. Runtime Gateway executes active authored steps only
-  when `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; the recorded
+  and target selectors. Persistent check types include `source_classification`
+  using Source selectors and `model_provider_type` using ModelAsset selectors.
+  Runtime Gateway executes active authored steps only when
+  `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; the recorded
   CheckResults remain evidence inputs and affect runtime decisions only through
   explicit deterministic PolicyRule matching. PolicyCheckStep
   `failure_behavior` is not automatically enforced.
@@ -384,11 +387,12 @@ Runtime Gateway:
   Set `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` to execute active
   authored PolicyCheckSteps linked to matched PolicyRules and persist safe
   CheckResults for referenced Capability, Source, Data Usage Profile,
-  ModelAsset, and AccessGrant status checks. These checks read persisted
-  metadata only, do not execute tools or scanners, and do not directly change
-  `decision` or `proceed`; active PolicyRules may explicitly match their safe
-  CheckResult outcome context, while `failure_behavior` is recorded as
-  evidence intent only.
+  ModelAsset, and AccessGrant checks, including Source classification and
+  ModelAsset provider type. These checks read persisted metadata only, do not
+  execute tools or scanners, and do not directly change `decision` or
+  `proceed`; active PolicyRules may explicitly match their safe CheckResult
+  outcome context, while `failure_behavior` is recorded as evidence intent
+  only.
 - `mode = "simulation"` is enabled by default and records the decision/evidence chain without claiming action blocking.
 - `mode = "enforcement"` is disabled by default. Set `AGCP_RUNTIME_ENFORCEMENT_ENABLED=true` to accept enforcement requests.
 - Enforcement mode reuses the simulation evidence workflow and returns `proceed = true` only for `allow`. `deny`, `require_human_review`, and `not_applicable` return `proceed = false`.

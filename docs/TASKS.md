@@ -89,9 +89,10 @@ recorded as evidence intent only. A formal CheckTool adapter boundary now
 defines safe request/result objects, execution modes, and metadata-only local
 checks for AccessGrant status, Data Usage Profile status, Source
 status/classification, ModelAsset status/provider type, and Capability status.
-Scanner adapters, public CRUD APIs for CheckTool/CheckResult management,
-arbitrary webhooks/callbacks, and pre-check-driven enforcement remain out of
-scope.
+Persistent PolicyCheckStep check types now include `source_classification` and
+`model_provider_type`, wired through the same metadata-only adapter. Scanner
+adapters, public CRUD APIs for CheckTool/CheckResult management, arbitrary
+webhooks/callbacks, and pre-check-driven enforcement remain out of scope.
 Runtime Gateway now evaluates active PolicyVersion snapshots where available,
 including versioned PolicyRule conditions and versioned PolicyCheckStep
 snapshots for metadata pre-check selection, while preserving unversioned
@@ -374,6 +375,8 @@ credentials.
 - [x] Add PolicyCheckStep persistence and API support for metadata-only checks.
 - [x] Wire optional Runtime Gateway metadata pre-check execution to authored
       active PolicyCheckSteps behind the existing disabled feature flag.
+- [x] Add persistent metadata-only PolicyCheckStep check types for Source
+      classification and ModelAsset provider type.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

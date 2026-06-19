@@ -99,6 +99,39 @@ def test_create_policy_check_step_allows_builtin_check_type_without_check_tool(
     assert response.json()["check_tool_id"] is None
 
 
+@pytest.mark.parametrize(
+    ("check_type", "target_selector"),
+    [
+        ("source_classification", "source_ids"),
+        ("model_provider_type", "model_id"),
+    ],
+)
+def test_create_policy_check_step_allows_metadata_only_check_types(
+    api_client: tuple[TestClient, SessionFactory],
+    check_type: str,
+    target_selector: str,
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    rule_id = create_policy_rule(client, policy_id=policy_id)
+
+    response = client.post(
+        "/policy-check-steps",
+        json={
+            **policy_check_step_payload(policy_rule_id=rule_id),
+            "check_tool_id": None,
+            "check_type": check_type,
+            "target_selector": target_selector,
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["check_tool_id"] is None
+    assert body["check_type"] == check_type
+    assert body["target_selector"] == target_selector
+
+
 def test_list_policy_check_steps(api_client: tuple[TestClient, SessionFactory]) -> None:
     client, _ = api_client
     policy_id = create_policy(client)

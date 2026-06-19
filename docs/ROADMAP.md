@@ -132,12 +132,15 @@ metadata-only adapter for AccessGrant status, Data Usage Profile review status,
 Source status/classification, ModelAsset status/provider type, and Capability
 status. Runtime Gateway can optionally execute active authored PolicyCheckSteps
 linked to matched PolicyRules through that adapter boundary and persist linked
-CheckResults behind an explicit disabled-by-default feature flag. No scanner
-integration, external adapter execution, webhooks, or automatic enforcement has
-been implemented. PolicyRules can now explicitly match safe CheckResult
-outcome summaries with deterministic `check_*` fields, so CheckResults remain
-policy context rather than hidden decisions. The PolicyCheckStep authoring
-model is documented in `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
+CheckResults behind an explicit disabled-by-default feature flag. Persistent
+PolicyCheckStep check types now include `source_classification` and
+`model_provider_type`, wired to the same metadata-only adapter and safe target
+selectors. No scanner integration, external adapter execution, webhooks, or
+automatic enforcement has been implemented. PolicyRules can now explicitly
+match safe CheckResult outcome summaries with deterministic `check_*` fields,
+so CheckResults remain policy context rather than hidden decisions. The
+PolicyCheckStep authoring model is documented in
+`docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`.
 
 Policy versioning and review guardrails are now partially implemented and
 re-scoped in `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. A minimal backend
@@ -371,6 +374,8 @@ Important limitations:
   summaries. Runtime Gateway can execute active authored PolicyCheckSteps
   linked to matched PolicyRules through the metadata-only adapter boundary when
   the feature flag is enabled.
+  Persistent check types include Source classification and ModelAsset provider
+  type metadata checks as bounded lookup evidence.
   `failure_behavior` is recorded as evidence intent only. PolicyRules may
   explicitly match safe CheckResult outcome summaries. Scanner adapters,
   automatic CheckResult-driven enforcement, external tool execution, and
@@ -457,7 +462,8 @@ Completed foundation:
 - Metadata-only Policy Pre-Check persistence foundation for CheckTool and
   CheckResult records.
 - Metadata-only Policy Pre-Check execution helpers for AccessGrant, Data Usage
-  Profile, Source, Capability, and ModelAsset status.
+  Profile, Source status/classification, Capability, and ModelAsset
+  status/provider type.
 - Safe CheckResult summaries in Evidence Bundle export.
 - Optional contextual runtime request fields from
   `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`, recorded as safe TraceEvent

@@ -206,8 +206,10 @@ class PolicyCheckStepCheckType(StrEnum):
     ACCESS_GRANT_STATUS = "access_grant_status"
     DATA_USAGE_PROFILE_STATUS = "data_usage_profile_status"
     SOURCE_STATUS = "source_status"
+    SOURCE_CLASSIFICATION = "source_classification"
     CAPABILITY_STATUS = "capability_status"
     MODEL_ASSET_STATUS = "model_asset_status"
+    MODEL_PROVIDER_TYPE = "model_provider_type"
 
 
 class PolicyCheckStepTargetSelector(StrEnum):

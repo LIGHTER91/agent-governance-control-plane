@@ -13,11 +13,14 @@ type, and Capability status. Runtime Gateway can optionally execute active
 authored PolicyCheckSteps linked to matched PolicyRules behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` through that metadata-only
 adapter boundary and persist linked CheckResults without changing the final
-decision automatically. PolicyRules can now
-explicitly match safe CheckResult outcome context through deterministic
-`check_*` fields. Scanner integrations, external integrations, automatic
-CheckResult-driven enforcement, public CheckTool/CheckResult management APIs,
-and frontend UI remain out of scope.
+decision automatically. Persistent PolicyCheckStep check types now include
+`source_classification` and `model_provider_type`, so authored runtime
+pre-checks can request these safe metadata lookups without scanner integration
+or raw content inspection. PolicyRules can now explicitly match safe
+CheckResult outcome context through deterministic `check_*` fields. Scanner
+integrations, external integrations, automatic CheckResult-driven enforcement,
+public CheckTool/CheckResult management APIs, and frontend UI remain out of
+scope.
 
 Policy versioning and review guardrails are designed separately in
 `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`. PolicyCheckStep authoring should
@@ -200,9 +203,12 @@ metadata-only built-ins, and records evidence intent without directly changing
 Runtime Gateway decisions.
 
 PolicyCheckStep persistence and CRUD-style API support now exist for this V1
-authoring shape. Runtime Gateway can execute active authored steps only when
-`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; execution records evidence and
-does not directly change `decision` or `proceed`.
+authoring shape. The persistent metadata-only check types are
+`access_grant_status`, `data_usage_profile_status`, `source_status`,
+`source_classification`, `capability_status`, `model_asset_status`, and
+`model_provider_type`. Runtime Gateway can execute active authored steps only
+when `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`; execution records
+evidence and does not directly change `decision` or `proceed`.
 
 ### CheckResult
 
@@ -230,9 +236,9 @@ full scanner payloads, or raw tool/model payloads.
 The first backend foundation persists CheckResults with safe references,
 outcome, optional confidence label, summary, reason, and safe metadata.
 Internal helpers can now produce CheckResults for metadata-only AccessGrant,
-Data Usage Profile, Source, Capability, and ModelAsset status checks. They do
-not execute external scanners or inspect source contents. Runtime Gateway can
-optionally execute these helpers behind
+Data Usage Profile, Source status/classification, Capability, and ModelAsset
+status/provider-type checks. They do not execute external scanners or inspect
+source contents. Runtime Gateway can optionally execute these helpers behind
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=false` by default and link resulting
 CheckResults to the Agent, run, TraceEvent, and PolicyDecision where available.
 CheckResults remain evidence inputs; they do not directly change Runtime
@@ -385,6 +391,10 @@ execution gate:
   builds safe `CheckToolRequest` objects, runs the
   `MetadataOnlyCheckToolAdapter`, persists real metadata-derived CheckResults,
   then evaluates PolicyRules again with safe `check_*` context available;
+- persistent `source_classification` steps use source selectors and produce
+  metadata-only Source/Data Usage Profile classification evidence;
+- persistent `model_provider_type` steps use model selectors and produce
+  metadata-only ModelAsset provider-type evidence;
 - CheckResults are linked to Agent, run, TraceEvent, and final PolicyDecision;
 - versioned PolicyCheckStep execution includes safe PolicyVersion metadata when
   the step came from an active PolicyVersion snapshot.
@@ -614,12 +624,14 @@ Recommended staged implementation:
 9. Add deterministic CheckResult outcome matching for PolicyRules. Implemented
    with explicit `check_*` condition fields and no automatic
    `failure_behavior` enforcement.
-10. Add async check handling and HumanApproval fallback behavior.
-11. Later add external checker adapters for catalogs, DLP, PII scanners, and
+10. Add persistent PolicyCheckStep check types for `source_classification` and
+   `model_provider_type`, wired to the metadata-only adapter. Implemented.
+11. Add async check handling and HumanApproval fallback behavior.
+12. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-12. Implement lightweight policy versioning and review guardrails before
+13. Implement lightweight policy versioning and review guardrails before
     expanding PolicyCheckStep or check-based authoring UI.
-13. Later add a constrained Policy Studio UI for check-based policy authoring.
+14. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current

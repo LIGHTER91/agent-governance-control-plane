@@ -746,10 +746,16 @@ POLICY_CHECK_STEP_TARGET_SELECTORS = {
     PolicyCheckStepCheckType.SOURCE_STATUS: {
         PolicyCheckStepTargetSelector.SOURCE_IDS,
     },
+    PolicyCheckStepCheckType.SOURCE_CLASSIFICATION: {
+        PolicyCheckStepTargetSelector.SOURCE_IDS,
+    },
     PolicyCheckStepCheckType.CAPABILITY_STATUS: {
         PolicyCheckStepTargetSelector.CAPABILITY_ID,
     },
     PolicyCheckStepCheckType.MODEL_ASSET_STATUS: {
+        PolicyCheckStepTargetSelector.MODEL_ID,
+    },
+    PolicyCheckStepCheckType.MODEL_PROVIDER_TYPE: {
         PolicyCheckStepTargetSelector.MODEL_ID,
     },
 }
