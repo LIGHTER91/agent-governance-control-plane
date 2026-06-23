@@ -35,10 +35,12 @@ page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
 Bundle APIs, a read-only Access & Data page backed by AccessGrant, Source, and
 DataUsageProfile APIs, a workflow-first Runtime Decisions timeline backed by
 `GET /runtime/tool-calls/activity`, a Human Approvals page with pending review
-actions, and an Evidence Bundle page backed by the backend Evidence Bundle export API. The Evidence page now loads
-bundles only by manual user action, explains the evidence chain, shows safe
-export warnings and metadata, and downloads the bounded JSON artifact returned
-by the backend. The frontend also has an Integration Hub page for Custom
+actions, and an Evidence & Audit explorer backed by the backend Evidence Bundle
+export API. The Evidence & Audit page now loads bundles only by manual user
+action, organizes Subject, Policy Decision, Metadata CheckResults, Human
+Review, Policy Review, Audit Trail, and Export bundle sections, shows safe
+export warnings and metadata, filters unsafe metadata keys defensively, and
+downloads the bounded JSON artifact returned by the backend. The frontend also has an Integration Hub page for Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
 connection guidance, with optional read-only Service Actor registry summary
 metadata when registry admin APIs are enabled. It does not have login,
@@ -213,6 +215,10 @@ decision lifecycle timeline. It uses real runtime activity records only, shows
 honest empty states when metadata CheckResults are not present in the read
 model, and links to Review Inbox and Evidence Bundle instead of simulating
 production impact.
+The Evidence & Audit page now implements the evidence blueprint follow-up as a
+workflow-first explorer over real Evidence Bundle API data. It has no general
+evidence list endpoint yet, no PDF/signature export, and no legal certification
+claims.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should

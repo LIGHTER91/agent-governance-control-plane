@@ -427,6 +427,8 @@ const requiredText = [
   "expired",
   "Human Approval",
   "Evidence Bundle",
+  "Evidence & Audit",
+  "Export and inspect the evidence trail",
   "GET /agents/{agent_id}/evidence-bundle",
   "Loading Evidence Bundle",
   "Unable to load Evidence Bundle",
@@ -1498,7 +1500,12 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
         outcome: "pass",
         policy_decision_id: policyDecisionId,
         policy_version_id: policyVersionId,
-        summary: "Data Usage Profile is approved."
+        summary: "Data Usage Profile is approved.",
+        metadata: {
+          data_classification: "confidential",
+          raw_prompt: "do-not-render",
+          api_key: "do-not-render"
+        }
       }
     ],
     human_approvals: [
@@ -1517,12 +1524,14 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
   };
 
   const renderedWorkflow = renderEvidenceBundleWorkflowFixture(fixture);
-  const rawArtifact = JSON.stringify(fixture);
 
   for (const expectedText of [
+    "Evidence & Audit",
+    "Export and inspect the evidence trail",
     "Evidence Bundle is an audit/review package",
     "does not certify legal compliance",
     "Download Evidence Bundle JSON",
+    "Export bundle",
     "safe_export_metadata",
     "exported_at",
     "exported_by",
@@ -1531,10 +1540,16 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
     "Agent",
     "Access Grants",
     "Data Usage Profile summaries",
+    "Policy Decision",
+    "Metadata CheckResults",
+    "Human Review",
+    "Policy Review",
+    "Audit Trail",
     "data_usage_profile_summaries",
     "TraceEvents",
     "PolicyDecisions",
     "PolicyVersion references",
+    "Export bundle",
     "policy_version_references",
     "CheckResults",
     "check_type",
@@ -1549,6 +1564,7 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
     "model_asset_references",
     "check_results",
     "policy_version_id",
+    "data_classification",
     policyVersionId,
     agentId
   ]) {
@@ -1562,9 +1578,10 @@ function runEvidenceBundleWorkflowFixtureSmoke() {
     "authorization",
     "password",
     "raw_prompt",
-    "raw_payload"
+    "raw_payload",
+    "api_key"
   ]) {
-    if (rawArtifact.toLowerCase().includes(unsafeText)) {
+    if (renderedWorkflow.toLowerCase().includes(unsafeText)) {
       throw new Error(`Unsafe Evidence Bundle fixture text rendered: ${unsafeText}`);
     }
   }
@@ -1587,9 +1604,12 @@ function renderEvidenceBundleWorkflowFixture(bundle) {
   };
 
   return [
+    "Evidence & Audit",
+    "Export and inspect the evidence trail behind agent governance decisions.",
     "Evidence Bundle is an audit/review package; it does not certify legal compliance.",
     "The Evidence Bundle excludes raw prompts, source contents, secrets, tokens, credentials, and unsafe payloads.",
     "Download Evidence Bundle JSON",
+    "Export bundle",
     "safe_export_metadata",
     "exported_at",
     "exported_by",
@@ -1600,6 +1620,11 @@ function renderEvidenceBundleWorkflowFixture(bundle) {
     bundle.agent.name,
     "Access Grants",
     "Data Usage Profile summaries",
+    "Policy Decision",
+    "Metadata CheckResults",
+    "Human Review",
+    "Policy Review",
+    "Audit Trail",
     "data_usage_profile_summaries",
     "TraceEvents",
     "PolicyDecisions",
@@ -1610,8 +1635,40 @@ function renderEvidenceBundleWorkflowFixture(bundle) {
     "AuditLogs",
     "canonical_json_export",
     ...Object.keys(counts),
-    JSON.stringify(bundle)
+    JSON.stringify(sanitizeEvidenceFixture(bundle))
   ].join("\n");
+}
+
+function sanitizeEvidenceFixture(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeEvidenceFixture(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => isSafeEvidenceMetadataKey(key))
+        .map(([key, nestedValue]) => [key, sanitizeEvidenceFixture(nestedValue)])
+    );
+  }
+
+  return value;
+}
+
+function isSafeEvidenceMetadataKey(key) {
+  const normalizedKey = key.toLowerCase();
+  return ![
+    "api_key",
+    "authorization",
+    "credential",
+    "password",
+    "private_payload",
+    "prompt",
+    "raw",
+    "secret",
+    "source_content",
+    "token"
+  ].some((unsafeTerm) => normalizedKey.includes(unsafeTerm));
 }
 
 function evidencePolicyVersionCount(bundle) {

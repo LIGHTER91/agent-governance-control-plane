@@ -24,10 +24,12 @@ pane, and sections for why review is required, policy decision context, policy
 checks, and evidence preview. Runtime HumanApproval evidence previews show safe
 metadata-only CheckResult summaries when the linked PolicyDecision has them,
 and otherwise show an honest empty state. Unsupported escalation and
-request-info flows are shown honestly as not wired yet. The Evidence page
-manually loads filtered Evidence Bundle JSON for a single Agent, explains the
-human-readable evidence chain, and lets reviewers download the bounded JSON
-artifact returned by the backend. The Runtime Decisions page is a workflow-first
+request-info flows are shown honestly as not wired yet. The Evidence & Audit
+page is now a workflow-first evidence explorer: it manually loads a real
+Evidence Bundle for one Agent, organizes Subject, Policy Decision, Metadata
+CheckResults, Human Review, Policy Review, Audit Trail, and Export bundle
+sections, filters unsafe metadata keys defensively, and lets reviewers download
+the bounded JSON artifact returned by the backend. The Runtime Decisions page is a workflow-first
 timeline backed by `GET /runtime/tool-calls/activity`; it explains request
 receipt, resolved context, active PolicyVersion or fallback policy selection,
 metadata checks, HumanApproval linkage, and Evidence Bundle access without
@@ -339,8 +341,9 @@ npm run build
 - Access Grant status transition actions are available, but they are not
   role-aware and do not create IAM permissions or runtime enforcement.
 - Human Approvals is a read-oriented review queue in the current UI.
-- Evidence Bundle viewer is manual JSON review and download only; PDF export,
-  cryptographic signing, and external GRC/SIEM integrations are not implemented.
+- Evidence & Audit is a manual Evidence Bundle explorer and JSON download
+  workflow only; it does not provide a general evidence list, PDF export,
+  cryptographic signing, or external GRC/SIEM integrations.
 - No create, edit, or delete Agent forms.
 - No dedicated Agent runtime or policy drill-down page is wired into the
   frontend yet.

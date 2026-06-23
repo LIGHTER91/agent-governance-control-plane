@@ -1,30 +1,23 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
 import {
   AGCPBadge,
   AGCPEmptyState,
   AGCPErrorState,
+  AGCPMetaGrid,
   AGCPPanel,
   AGCPSectionHeader
 } from "../agcp-studio/primitives";
 import { ApiRequestError, getApiBaseUrl } from "../lib/api";
 import {
-  EvidenceAccessGrant,
-  EvidenceAgent,
-  EvidenceAgentRun,
   EvidenceAuditLog,
   EvidenceBundle,
-  EvidenceCapabilityReference,
   EvidenceCheckResult,
-  EvidenceDataUsageProfile,
   EvidenceHumanApproval,
   EvidenceMetadata,
-  EvidenceModelAssetReference,
   EvidencePolicyDecision,
   EvidencePolicyVersionReference,
-  EvidenceSourceReference,
-  EvidenceTraceEvent,
   fetchEvidenceBundle
 } from "../lib/evidence";
 
@@ -60,6 +53,19 @@ const EXPORT_WARNINGS = [
   "JSON remains the canonical bounded export for now; PDF export, cryptographic signing, and external GRC/SIEM integrations are out of scope."
 ];
 
+const UNSAFE_METADATA_TERMS = [
+  "api_key",
+  "authorization",
+  "credential",
+  "password",
+  "private_payload",
+  "prompt",
+  "raw",
+  "secret",
+  "source_content",
+  "token"
+];
+
 function formatValue(value: string | null | undefined) {
   if (!value) {
     return "Not set";
@@ -77,6 +83,14 @@ function plainValue(value: string | number | boolean | null | undefined) {
     : String(value);
 }
 
+function shortId(value: string | null | undefined) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value.length > 14 ? `${value.slice(0, 10)}...` : value;
+}
+
 function formatTimestamp(value: string | null | undefined) {
   if (!value) {
     return "Not set";
@@ -91,18 +105,41 @@ function formatTimestamp(value: string | null | undefined) {
   return date.toLocaleString();
 }
 
-function metadataText(metadata: EvidenceMetadata) {
-  const entries = Object.entries(metadata);
+function unsafeMetadataKey(key: string) {
+  const normalizedKey = key.toLowerCase();
+  return UNSAFE_METADATA_TERMS.some((term) => normalizedKey.includes(term));
+}
 
-  if (entries.length === 0) {
+function safeMetadata(metadata: EvidenceMetadata | null | undefined) {
+  return Object.fromEntries(
+    Object.entries(metadata || {}).filter(([key]) => !unsafeMetadataKey(key))
+  );
+}
+
+function metadataText(metadata: EvidenceMetadata | null | undefined) {
+  const filtered = safeMetadata(metadata);
+
+  if (Object.keys(filtered).length === 0) {
     return "No safe metadata";
   }
 
-  return JSON.stringify(metadata, null, 2);
+  return JSON.stringify(filtered, null, 2);
 }
 
-function joinList(values: string[]) {
-  return values.length > 0 ? values.join(", ") : "None";
+function sanitizeForEvidenceDisplay(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeForEvidenceDisplay(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !unsafeMetadataKey(key))
+        .map(([key, nestedValue]) => [key, sanitizeForEvidenceDisplay(nestedValue)])
+    );
+  }
+
+  return value;
 }
 
 function errorMessage(error: unknown) {
@@ -166,14 +203,18 @@ export function EvidenceBundleViewer() {
   }
 
   return (
-    <div className="agcp-evidence-workspace">
-      <AGCPPanel aria-label="Evidence Bundle lookup">
+    <div className="evidence-explorer-workspace">
+      <AGCPPanel className="evidence-lookup-panel" aria-label="Evidence Bundle lookup">
         <AGCPSectionHeader
-          eyebrow="manual export"
+          eyebrow="evidence explorer"
           title="Evidence Bundle lookup"
           description={`Requests GET /agents/{agent_id}/evidence-bundle from ${getApiBaseUrl()} only after this manual action.`}
-          meta={<AGCPBadge tone="ok">canonical JSON</AGCPBadge>}
+          meta={<AGCPBadge tone="ok">real API only</AGCPBadge>}
         />
+        <p className="evidence-helper-copy">
+          Select an agent or decision with an available Evidence Bundle. AGCP will
+          display only records returned by the backend.
+        </p>
         <form className="agcp-evidence-lookup" onSubmit={handleSubmit}>
           <label htmlFor="evidence-agent-id">
             <span>agent_id</span>
@@ -196,9 +237,10 @@ export function EvidenceBundleViewer() {
 
       {state.status === "idle" ? (
         <AGCPPanel>
-          <AGCPEmptyState title="No Evidence Bundle loaded">
-            Enter an Agent ID to review the bounded JSON evidence package and
-            download the canonical artifact returned by the backend.
+          <AGCPEmptyState title="No evidence bundle available yet">
+            No evidence bundle available yet. Run .\scripts\dev-demo.ps1 to
+            create a local metadata pre-check decision, then load the Agent ID
+            returned by the demo.
           </AGCPEmptyState>
         </AGCPPanel>
       ) : null}
@@ -220,7 +262,7 @@ export function EvidenceBundleViewer() {
       ) : null}
 
       {state.status === "ready" ? (
-        <EvidenceBundleSections
+        <EvidenceExplorerSections
           agentId={state.agentId}
           bundle={state.bundle}
           exportedAt={state.exportedAt}
@@ -230,7 +272,7 @@ export function EvidenceBundleViewer() {
   );
 }
 
-function EvidenceBundleSections({
+function EvidenceExplorerSections({
   agentId,
   bundle,
   exportedAt
@@ -243,53 +285,336 @@ function EvidenceBundleSections({
   const counts = evidenceCounts(bundle, policyVersions.length);
 
   return (
-    <div className="evidence-layout agcp-evidence-workspace">
+    <div className="evidence-review-workspace">
       <ExportWarnings />
-      <ExportMetadataSection
+      <EvidenceChainOverview bundle={bundle} counts={counts} />
+      <SubjectSection
+        agentId={agentId}
+        bundle={bundle}
+        exportedAt={exportedAt}
+      />
+      <PolicyDecisionSection policyDecisions={bundle.policy_decisions} />
+      <CheckResultsSection checkResults={bundle.check_results} />
+      <HumanReviewSection humanApprovals={bundle.human_approvals} />
+      <PolicyReviewEvidenceSection policyVersions={policyVersions} />
+      <AuditTrailSection auditLogs={bundle.audit_logs} />
+      <ExportBundleSection
         agentId={agentId}
         bundle={bundle}
         counts={counts}
         exportedAt={exportedAt}
       />
-      <EvidenceChainSummary bundle={bundle} counts={counts} />
-      <CanonicalJsonSection
-        agentId={agentId}
-        bundle={bundle}
-        exportedAt={exportedAt}
-      />
-      <AgentSection agent={bundle.agent} />
-      <AccessGrantsSection accessGrants={bundle.access_grants} />
-      <InventoryReferencesSection
-        capabilities={bundle.capability_references}
-        modelAssets={bundle.model_asset_references}
-        sources={bundle.source_references}
-      />
-      <DataUsageProfilesSection profiles={bundle.data_usage_profiles} />
-      <AgentRunsSection agentRuns={bundle.agent_runs} />
-      <TraceEventsSection traceEvents={bundle.trace_events} />
-      <PolicyDecisionsSection policyDecisions={bundle.policy_decisions} />
-      <PolicyVersionsSection policyVersions={policyVersions} />
-      <CheckResultsSection checkResults={bundle.check_results} />
-      <HumanApprovalsSection humanApprovals={bundle.human_approvals} />
-      <AuditLogsSection auditLogs={bundle.audit_logs} />
     </div>
   );
 }
 
 function ExportWarnings() {
   return (
-    <section className="evidence-section evidence-warning-panel">
-      <SectionHeader title="export_warnings" count={EXPORT_WARNINGS.length} />
+    <AGCPPanel className="evidence-warning-panel">
+      <AGCPSectionHeader
+        eyebrow="export_warnings"
+        title="Evidence safety boundaries"
+        meta={<AGCPBadge tone="warn">{EXPORT_WARNINGS.length}</AGCPBadge>}
+      />
       <ul className="evidence-warning-list">
         {EXPORT_WARNINGS.map((warning) => (
           <li key={warning}>{warning}</li>
         ))}
       </ul>
-    </section>
+    </AGCPPanel>
   );
 }
 
-function ExportMetadataSection({
+function EvidenceChainOverview({
+  bundle,
+  counts
+}: {
+  bundle: EvidenceBundle;
+  counts: EvidenceCounts;
+}) {
+  const items = [
+    ["Agent", "agent", bundle.agent.name],
+    ["Access Grants", "access_grants", `${counts.access_grants} records`],
+    [
+      "Data Usage Profile summaries",
+      "data_usage_profile_summaries",
+      `${counts.data_usage_profiles} records`
+    ],
+    ["TraceEvents", "trace_events", `${counts.trace_events} records`],
+    ["PolicyDecisions", "policy_decisions", `${counts.policy_decisions} records`],
+    [
+      "PolicyVersion references",
+      "policy_version_references",
+      `${counts.policy_versions} references`
+    ],
+    ["CheckResults", "check_results", `${counts.check_results} records`],
+    ["HumanApprovals", "human_approvals", `${counts.human_approvals} records`],
+    ["AuditLogs", "audit_logs", `${counts.audit_logs} records`]
+  ];
+
+  return (
+    <AGCPPanel className="evidence-chain-panel">
+      <AGCPSectionHeader
+        eyebrow="human_readable_evidence_chain"
+        title="What happened?"
+        description="A bounded evidence chain assembled from the backend Evidence Bundle response."
+      />
+      <div className="evidence-chain-cards">
+        {items.map(([label, key, value]) => (
+          <article className="evidence-chain-card" key={label}>
+            <span>{label}</span>
+            <em>{key}</em>
+            <strong>{value}</strong>
+          </article>
+        ))}
+      </div>
+    </AGCPPanel>
+  );
+}
+
+function SubjectSection({
+  agentId,
+  bundle,
+  exportedAt
+}: {
+  agentId: string;
+  bundle: EvidenceBundle;
+  exportedAt: string;
+}) {
+  const trace = bundle.trace_events[0];
+  const run = bundle.agent_runs[0];
+  const decision = bundle.policy_decisions[0];
+
+  return (
+    <EvidenceSection
+      eyebrow="safe_export_metadata"
+      title="Subject"
+      count={1}
+      description="Agent and request identifiers attached to this Evidence Bundle."
+    >
+      <AGCPMetaGrid
+        items={[
+          { label: "agent", value: bundle.agent.name },
+          { label: "agent_id", value: bundle.agent.id || agentId },
+          { label: "environment", value: bundle.agent.environment || run?.environment || "Not set" },
+          { label: "generated_at", value: formatTimestamp(exportedAt) },
+          { label: "run_id", value: run?.run_id || trace?.run_id || "Not included" },
+          { label: "trace_id", value: trace?.id || decision?.trace_event_id || "Not included" },
+          { label: "policy_decision_id", value: decision?.id || "Not included" }
+        ]}
+      />
+    </EvidenceSection>
+  );
+}
+
+function PolicyDecisionSection({
+  policyDecisions
+}: {
+  policyDecisions: EvidencePolicyDecision[];
+}) {
+  return (
+    <EvidenceSection
+      eyebrow="evidence"
+      title="Policy Decision"
+      count={policyDecisions.length}
+      description="Decision records explain which policy or fallback rule allowed, denied, or escalated the action."
+    >
+      {policyDecisions.length === 0 ? (
+        <EvidenceEmpty>No PolicyDecision evidence attached.</EvidenceEmpty>
+      ) : (
+        <div className="evidence-card-grid">
+          {policyDecisions.map((decision) => (
+            <article className="evidence-record-card" key={decision.id}>
+              <RecordCardHeader
+                badge={formatValue(decision.decision)}
+                title={decision.policy?.name || "Policy decision"}
+                tone={decision.decision === "deny" ? "danger" : "purple"}
+              />
+              <p>{decision.reason || "No reason recorded."}</p>
+              <AGCPMetaGrid
+                items={[
+                  { label: "decision_id", value: decision.id },
+                  { label: "proceed", value: "Not exposed by current evidence response" },
+                  { label: "policy_id", value: plainValue(decision.policy_id) },
+                  { label: "policy_version_id", value: plainValue(decision.policy_version_id) },
+                  { label: "rule", value: decision.rule?.name || plainValue(decision.rule_id) },
+                  { label: "created_at", value: formatTimestamp(decision.created_at) }
+                ]}
+              />
+            </article>
+          ))}
+        </div>
+      )}
+    </EvidenceSection>
+  );
+}
+
+function CheckResultsSection({
+  checkResults
+}: {
+  checkResults: EvidenceCheckResult[];
+}) {
+  return (
+    <EvidenceSection
+      eyebrow="evidence"
+      title="Metadata CheckResults"
+      count={checkResults.length}
+      description="Metadata-only pre-check results are evidence inputs. They are not fake scanner output."
+    >
+      {checkResults.length === 0 ? (
+        <EvidenceEmpty>No metadata pre-check results attached.</EvidenceEmpty>
+      ) : (
+        <div className="evidence-card-grid">
+          {checkResults.map((result) => (
+            <article className="evidence-record-card" key={result.check_result_id}>
+              <RecordCardHeader
+                badge={formatValue(result.outcome)}
+                title={result.check_type || result.check_tool_name || "Metadata check"}
+                tone={result.outcome === "pass" || result.outcome === "passed" ? "ok" : "warn"}
+              />
+              <AGCPMetaGrid
+                items={[
+                  { label: "check_type", value: plainValue(result.check_type) },
+                  { label: "outcome", value: formatValue(result.outcome) },
+                  { label: "target_type", value: formatValue(result.target_type) },
+                  { label: "target_id", value: shortId(result.target_id) },
+                  { label: "confidence", value: plainValue(result.confidence) },
+                  { label: "policy_decision_id", value: shortId(result.policy_decision_id) },
+                  { label: "created_at", value: formatTimestamp(result.created_at) }
+                ]}
+              />
+              <SafeMetadataBlock metadata={result.metadata} />
+            </article>
+          ))}
+        </div>
+      )}
+    </EvidenceSection>
+  );
+}
+
+function HumanReviewSection({
+  humanApprovals
+}: {
+  humanApprovals: EvidenceHumanApproval[];
+}) {
+  return (
+    <EvidenceSection
+      eyebrow="evidence"
+      title="Human Review"
+      count={humanApprovals.length}
+      description="HumanApproval records show whether oversight was required and how it was resolved."
+    >
+      {humanApprovals.length === 0 ? (
+        <EvidenceEmpty>No human review evidence attached.</EvidenceEmpty>
+      ) : (
+        <div className="evidence-card-grid">
+          {humanApprovals.map((approval) => (
+            <article className="evidence-record-card" key={approval.id}>
+              <RecordCardHeader
+                badge={formatValue(approval.status)}
+                title="HumanApproval"
+                tone={approval.status === "approved" ? "ok" : "warn"}
+              />
+              <AGCPMetaGrid
+                items={[
+                  { label: "approval_id", value: approval.id },
+                  { label: "policy_decision_id", value: shortId(approval.policy_decision_id) },
+                  { label: "requester", value: `${approval.requested_by_actor_type}:${approval.requested_by_actor_id}` },
+                  {
+                    label: "reviewer",
+                    value: approval.reviewed_by_actor_type
+                      ? `${approval.reviewed_by_actor_type}:${approval.reviewed_by_actor_id}`
+                      : "Not set"
+                  },
+                  { label: "created_at", value: formatTimestamp(approval.created_at) },
+                  { label: "reviewed_at", value: formatTimestamp(approval.reviewed_at) }
+                ]}
+              />
+            </article>
+          ))}
+        </div>
+      )}
+    </EvidenceSection>
+  );
+}
+
+function PolicyReviewEvidenceSection({
+  policyVersions
+}: {
+  policyVersions: EvidencePolicyVersionReference[];
+}) {
+  return (
+    <EvidenceSection
+      eyebrow="policy_version_references"
+      title="Policy Review"
+      count={policyVersions.length}
+      description="Policy version evidence is shown only when the Evidence Bundle read model includes it."
+    >
+      {policyVersions.length === 0 ? (
+        <EvidenceEmpty>No PolicyVersionReviewRequest evidence included in this bundle.</EvidenceEmpty>
+      ) : (
+        <div className="evidence-card-grid">
+          {policyVersions.map((version) => (
+            <article className="evidence-record-card" key={version.policy_version_id}>
+              <RecordCardHeader
+                badge={`v${version.version_number}`}
+                title="PolicyVersion reference"
+                tone={version.status === "active" ? "ok" : "purple"}
+              />
+              <AGCPMetaGrid
+                items={[
+                  { label: "policy_version_id", value: version.policy_version_id },
+                  { label: "policy_id", value: version.policy_id },
+                  { label: "status", value: formatValue(version.status) },
+                  { label: "activated_at", value: formatTimestamp(version.activated_at) },
+                  { label: "change_summary", value: plainValue(version.change_summary) }
+                ]}
+              />
+            </article>
+          ))}
+        </div>
+      )}
+    </EvidenceSection>
+  );
+}
+
+function AuditTrailSection({ auditLogs }: { auditLogs: EvidenceAuditLog[] }) {
+  return (
+    <EvidenceSection
+      eyebrow="evidence"
+      title="Audit Trail"
+      count={auditLogs.length}
+      description="Audit events provide append-only context for governance actions and exports."
+    >
+      {auditLogs.length === 0 ? (
+        <EvidenceEmpty>No audit events included in this bundle.</EvidenceEmpty>
+      ) : (
+        <div className="evidence-card-grid">
+          {auditLogs.map((log) => (
+            <article className="evidence-record-card" key={log.id}>
+              <RecordCardHeader
+                badge={formatValue(log.event_type)}
+                title={log.summary || "Audit event"}
+                tone="info"
+              />
+              <AGCPMetaGrid
+                items={[
+                  { label: "event_type", value: log.event_type },
+                  { label: "actor", value: `${log.actor_type}:${log.actor_id}` },
+                  { label: "entity", value: `${log.entity_type}:${log.entity_id}` },
+                  { label: "timestamp", value: formatTimestamp(log.created_at) }
+                ]}
+              />
+              <SafeMetadataBlock metadata={log.metadata} />
+            </article>
+          ))}
+        </div>
+      )}
+    </EvidenceSection>
+  );
+}
+
+function ExportBundleSection({
   agentId,
   bundle,
   counts,
@@ -300,821 +625,101 @@ function ExportMetadataSection({
   counts: EvidenceCounts;
   exportedAt: string;
 }) {
-  const metadataRows = [
-    ["exported_at", formatTimestamp(exportedAt)],
-    ["exported_by", "Not exposed by current backend response"],
-    ["agent_id", bundle.agent.id || agentId],
-    ["agent_name", bundle.agent.name],
-    ["warning_count", String(EXPORT_WARNINGS.length)]
-  ];
+  const displayBundle = sanitizeForEvidenceDisplay(bundle);
 
   return (
-    <section className="evidence-section">
-      <SectionHeader title="safe_export_metadata" count={metadataRows.length} />
-      <dl className="evidence-fields">
-        {metadataRows.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd className={label.endsWith("_id") ? "id-cell" : undefined}>
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <div className="evidence-count-grid" aria-label="Evidence Bundle counts">
-        {Object.entries(counts).map(([label, count]) => (
-          <div key={label}>
-            <span>{label}</span>
-            <strong>{count}</strong>
-          </div>
-        ))}
-      </div>
-    </section>
+    <EvidenceSection
+      eyebrow="artifact"
+      title="Export bundle"
+      count={1}
+      description="Download the bounded JSON artifact. The frontend also filters unsafe metadata keys defensively before display."
+      actions={
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() => downloadEvidenceBundle(agentId, displayBundle, exportedAt)}
+        >
+          Download Evidence Bundle JSON
+        </button>
+      }
+    >
+      <AGCPMetaGrid
+        items={[
+          { label: "exported_at", value: formatTimestamp(exportedAt) },
+          { label: "exported_by", value: "Not exposed by current backend response" },
+          { label: "agent_id", value: agentId },
+          { label: "policy_decisions", value: String(counts.policy_decisions) },
+          { label: "check_results", value: String(counts.check_results) },
+          { label: "audit_logs", value: String(counts.audit_logs) }
+        ]}
+      />
+      <details className="evidence-json-details">
+        <summary>canonical_json_export</summary>
+        <pre className="evidence-json-block">
+          {JSON.stringify(displayBundle, null, 2)}
+        </pre>
+      </details>
+    </EvidenceSection>
   );
 }
 
-function EvidenceChainSummary({
-  bundle,
-  counts
+function EvidenceSection({
+  actions,
+  children,
+  count,
+  description,
+  eyebrow,
+  title
 }: {
-  bundle: EvidenceBundle;
-  counts: EvidenceCounts;
+  actions?: ReactNode;
+  children: ReactNode;
+  count: number;
+  description: string;
+  eyebrow: string;
+  title: string;
 }) {
-  const chainItems = [
-    {
-      title: "Agent",
-      summary: `${bundle.agent.name} in ${formatValue(
-        bundle.agent.environment
-      )} with ${formatValue(bundle.agent.risk_level)} risk.`
-    },
-    {
-      title: "Access Grants",
-      summary: `${counts.access_grants} declared grants, ${counts.capability_references} Capability references, ${counts.source_references} Source references, and ${counts.model_asset_references} ModelAsset references.`
-    },
-    {
-      title: "Data Usage Profile summaries",
-      summary: `${counts.data_usage_profiles} safe Source usage profiles for granted Sources.`
-    },
-    {
-      title: "TraceEvents",
-      summary: `${counts.trace_events} runtime or telemetry events linked to this Agent.`
-    },
-    {
-      title: "PolicyDecisions",
-      summary: `${counts.policy_decisions} persisted decisions explain allow, deny, review, or not-applicable outcomes.`
-    },
-    {
-      title: "PolicyVersion references",
-      summary: `${counts.policy_versions} compact active PolicyVersion references are included where decisions or checks recorded them.`
-    },
-    {
-      title: "CheckResults",
-      summary: `${counts.check_results} bounded check summaries are evidence inputs, not standalone enforcement decisions.`
-    },
-    {
-      title: "HumanApprovals",
-      summary: `${counts.human_approvals} human oversight records show requested and reviewed decisions.`
-    },
-    {
-      title: "AuditLogs",
-      summary: `${counts.audit_logs} append-only audit entries provide mutation and export context.`
-    }
-  ];
-
   return (
-    <section className="evidence-section">
-      <SectionHeader title="human_readable_evidence_chain" count={chainItems.length} />
-      <ol className="evidence-chain">
-        {chainItems.map((item) => (
-          <li key={item.title}>
-            <strong>{item.title}</strong>
-            <p>{item.summary}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function CanonicalJsonSection({
-  agentId,
-  bundle,
-  exportedAt
-}: {
-  agentId: string;
-  bundle: EvidenceBundle;
-  exportedAt: string;
-}) {
-  const jsonText = JSON.stringify(bundle, null, 2);
-
-  return (
-    <section className="evidence-section">
+    <AGCPPanel className="evidence-explorer-section">
       <AGCPSectionHeader
-        eyebrow="artifact"
-        title="canonical_json_export"
-        description="Raw JSON remains the canonical Evidence Bundle artifact returned by the backend."
-        actions={
-          <button
-            className="secondary-action"
-            type="button"
-            onClick={() => downloadEvidenceBundle(agentId, bundle, exportedAt)}
-          >
-            Download Evidence Bundle JSON
-          </button>
-        }
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        meta={<AGCPBadge tone={count > 0 ? "purple" : "muted"}>{count}</AGCPBadge>}
+        actions={actions}
       />
-      <pre className="evidence-json-block">{jsonText}</pre>
-    </section>
+      {children}
+    </AGCPPanel>
   );
 }
 
-function AgentSection({ agent }: { agent: EvidenceAgent }) {
-  const fields = [
-    ["id", agent.id],
-    ["name", agent.name],
-    ["description", agent.description],
-    ["owner_type", agent.owner_type],
-    ["owner_id", agent.owner_id],
-    ["owner_name", agent.owner_name],
-    ["owner_contact_email", agent.owner_contact_email],
-    ["environment", agent.environment],
-    ["status", agent.status],
-    ["risk_level", agent.risk_level],
-    ["framework", agent.framework],
-    ["created_at", formatTimestamp(agent.created_at)],
-    ["updated_at", formatTimestamp(agent.updated_at)]
-  ];
-
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="agent" count={1} />
-      <dl className="evidence-fields">
-        {fields.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{plainValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function AccessGrantsSection({
-  accessGrants
+function RecordCardHeader({
+  badge,
+  title,
+  tone
 }: {
-  accessGrants: EvidenceAccessGrant[];
+  badge: string;
+  title: string;
+  tone: "danger" | "info" | "ok" | "purple" | "warn";
 }) {
   return (
-    <section className="evidence-section">
-      <SectionHeader title="access_grants" count={accessGrants.length} />
-      {accessGrants.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Target</th>
-                <th>Status</th>
-                <th>Risk</th>
-                <th>Reason</th>
-                <th>Granted By</th>
-                <th>Expires</th>
-                <th>Metadata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accessGrants.map((grant) => (
-                <tr key={grant.id}>
-                  <td className="id-cell">{grant.id}</td>
-                  <td>{grant.name}</td>
-                  <td>
-                    <span className="table-pill">
-                      {formatValue(grant.target_type)}
-                    </span>
-                    <div className="id-cell">
-                      {grant.target_id || grant.external_ref || "Not set"}
-                    </div>
-                  </td>
-                  <td>{formatValue(grant.status)}</td>
-                  <td>{formatValue(grant.risk_level)}</td>
-                  <td>{plainValue(grant.reason)}</td>
-                  <td className="id-cell">
-                    {grant.granted_by_actor_type}:{grant.granted_by_actor_id}
-                  </td>
-                  <td>{formatTimestamp(grant.expires_at)}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(grant.metadata)}
-                    </pre>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <header className="evidence-record-card-header">
+      <strong>{title}</strong>
+      <AGCPBadge tone={tone}>{badge}</AGCPBadge>
+    </header>
   );
 }
 
-function InventoryReferencesSection({
-  capabilities,
-  modelAssets,
-  sources
-}: {
-  capabilities: EvidenceCapabilityReference[];
-  modelAssets: EvidenceModelAssetReference[];
-  sources: EvidenceSourceReference[];
-}) {
+function SafeMetadataBlock({ metadata }: { metadata: EvidenceMetadata }) {
   return (
-    <section className="evidence-section">
-      <SectionHeader
-        title="inventory_references"
-        count={capabilities.length + sources.length + modelAssets.length}
-      />
-      <div className="evidence-reference-grid">
-        <CapabilityReferences capabilities={capabilities} />
-        <SourceReferences sources={sources} />
-        <ModelAssetReferences modelAssets={modelAssets} />
-      </div>
-    </section>
+    <details className="evidence-metadata-details">
+      <summary>safe metadata</summary>
+      <pre className="metadata-block">{metadataText(metadata)}</pre>
+    </details>
   );
 }
 
-function CapabilityReferences({
-  capabilities
-}: {
-  capabilities: EvidenceCapabilityReference[];
-}) {
-  return (
-    <section className="evidence-reference-group">
-      <h4>Capability references</h4>
-      {capabilities.length === 0 ? (
-        <p>No Capability references in this Evidence Bundle.</p>
-      ) : (
-        <ul>
-          {capabilities.map((capability) => (
-            <li key={capability.id}>
-              <strong>{capability.name}</strong>
-              <span>{formatValue(capability.capability_type)}</span>
-              <span>{formatValue(capability.status)}</span>
-              <span className="id-cell">{capability.id}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function SourceReferences({ sources }: { sources: EvidenceSourceReference[] }) {
-  return (
-    <section className="evidence-reference-group">
-      <h4>Source references</h4>
-      {sources.length === 0 ? (
-        <p>No Source references in this Evidence Bundle.</p>
-      ) : (
-        <ul>
-          {sources.map((source) => (
-            <li key={source.id}>
-              <strong>{source.name}</strong>
-              <span>{formatValue(source.source_type)}</span>
-              <span>{formatValue(source.status)}</span>
-              <span className="id-cell">{source.id}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function ModelAssetReferences({
-  modelAssets
-}: {
-  modelAssets: EvidenceModelAssetReference[];
-}) {
-  return (
-    <section className="evidence-reference-group">
-      <h4>ModelAsset references</h4>
-      {modelAssets.length === 0 ? (
-        <p>No ModelAsset references in this Evidence Bundle.</p>
-      ) : (
-        <ul>
-          {modelAssets.map((modelAsset) => (
-            <li key={modelAsset.id}>
-              <strong>{modelAsset.name}</strong>
-              <span>{formatValue(modelAsset.model_type)}</span>
-              <span>{formatValue(modelAsset.provider)}</span>
-              <span className="id-cell">{modelAsset.id}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function DataUsageProfilesSection({
-  profiles
-}: {
-  profiles: EvidenceDataUsageProfile[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader
-        title="data_usage_profile_summaries"
-        count={profiles.length}
-      />
-      {profiles.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Source ID</th>
-                <th>Classification</th>
-                <th>Personal</th>
-                <th>Sensitive</th>
-                <th>Review</th>
-                <th>Allowed Purposes</th>
-                <th>Prohibited Purposes</th>
-                <th>DPIA</th>
-                <th>Review Expires</th>
-                <th>Metadata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map((profile) => (
-                <tr key={profile.id}>
-                  <td className="id-cell">{profile.id}</td>
-                  <td className="id-cell">{profile.source_id}</td>
-                  <td>{formatValue(profile.data_classification)}</td>
-                  <td>{plainValue(profile.contains_personal_data)}</td>
-                  <td>{plainValue(profile.contains_sensitive_data)}</td>
-                  <td>{formatValue(profile.review_status)}</td>
-                  <td>{joinList(profile.allowed_purposes)}</td>
-                  <td>{joinList(profile.prohibited_purposes)}</td>
-                  <td>
-                    {profile.dpia_required
-                      ? plainValue(profile.dpia_reference)
-                      : "Not required"}
-                  </td>
-                  <td>{formatTimestamp(profile.review_expires_at)}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(profile.metadata)}
-                    </pre>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function AgentRunsSection({ agentRuns }: { agentRuns: EvidenceAgentRun[] }) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="agent_runs" count={agentRuns.length} />
-      {agentRuns.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Run ID</th>
-                <th>Correlation ID</th>
-                <th>Environment</th>
-                <th>Status</th>
-                <th>Summary</th>
-                <th>Metadata</th>
-                <th>Started</th>
-                <th>Ended</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agentRuns.map((run) => (
-                <tr key={run.id}>
-                  <td className="id-cell">{run.id}</td>
-                  <td className="id-cell">{run.run_id}</td>
-                  <td className="id-cell">{run.correlation_id}</td>
-                  <td>{formatValue(run.environment)}</td>
-                  <td>{formatValue(run.status)}</td>
-                  <td>{plainValue(run.summary)}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(run.metadata)}
-                    </pre>
-                  </td>
-                  <td>{formatTimestamp(run.started_at)}</td>
-                  <td>{formatTimestamp(run.ended_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TraceEventsSection({
-  traceEvents
-}: {
-  traceEvents: EvidenceTraceEvent[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="trace_events" count={traceEvents.length} />
-      {traceEvents.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Run ID</th>
-                <th>External Event ID</th>
-                <th>Correlation ID</th>
-                <th>Event Type</th>
-                <th>Summary</th>
-                <th>Metadata</th>
-                <th>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody>
-              {traceEvents.map((event) => (
-                <tr key={event.id}>
-                  <td className="id-cell">{event.id}</td>
-                  <td className="id-cell">{event.run_id}</td>
-                  <td className="id-cell">{event.external_event_id}</td>
-                  <td className="id-cell">{event.correlation_id}</td>
-                  <td>{formatValue(event.event_type)}</td>
-                  <td>{event.summary}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(event.metadata)}
-                    </pre>
-                  </td>
-                  <td>{formatTimestamp(event.timestamp)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PolicyDecisionsSection({
-  policyDecisions
-}: {
-  policyDecisions: EvidencePolicyDecision[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="policy_decisions" count={policyDecisions.length} />
-      {policyDecisions.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Decision</th>
-                <th>Reason</th>
-                <th>Trace Event ID</th>
-                <th>Policy</th>
-                <th>Rule</th>
-                <th>PolicyVersion</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policyDecisions.map((decision) => (
-                <tr key={decision.id}>
-                  <td className="id-cell">{decision.id}</td>
-                  <td>
-                    <span className={`table-pill decision-${decision.decision}`}>
-                      {formatValue(decision.decision)}
-                    </span>
-                  </td>
-                  <td>{decision.reason}</td>
-                  <td className="id-cell">
-                    {plainValue(decision.trace_event_id)}
-                  </td>
-                  <td>{policyLabel(decision)}</td>
-                  <td>{ruleLabel(decision)}</td>
-                  <td>{policyVersionLabel(decision.policy_version)}</td>
-                  <td>{formatTimestamp(decision.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function CheckResultsSection({
-  checkResults
-}: {
-  checkResults: EvidenceCheckResult[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="check_results" count={checkResults.length} />
-      {checkResults.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Outcome</th>
-                <th>Confidence</th>
-                <th>Check Tool</th>
-                <th>Target</th>
-                <th>Policy Decision ID</th>
-                <th>PolicyVersion</th>
-                <th>Summary</th>
-                <th>Reason</th>
-                <th>Metadata</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {checkResults.map((result) => (
-                <tr key={result.check_result_id}>
-                  <td className="id-cell">{result.check_result_id}</td>
-                  <td>{formatValue(result.outcome)}</td>
-                  <td>{formatValue(result.confidence)}</td>
-                  <td>
-                    {plainValue(result.check_tool_name)}
-                    <div>{formatValue(result.check_tool_type)}</div>
-                  </td>
-                  <td>
-                    <span className="table-pill">
-                      {formatValue(result.target_type)}
-                    </span>
-                    <div className="id-cell">
-                      {plainValue(result.target_id)}
-                    </div>
-                  </td>
-                  <td className="id-cell">
-                    {plainValue(result.policy_decision_id)}
-                  </td>
-                  <td>{policyVersionLabel(result.policy_version)}</td>
-                  <td>{result.summary}</td>
-                  <td>{plainValue(result.reason)}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(result.metadata)}
-                    </pre>
-                  </td>
-                  <td>{formatTimestamp(result.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PolicyVersionsSection({
-  policyVersions
-}: {
-  policyVersions: EvidencePolicyVersionReference[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="policy_version_references" count={policyVersions.length} />
-      {policyVersions.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>PolicyVersion ID</th>
-                <th>Policy ID</th>
-                <th>Version</th>
-                <th>Status</th>
-                <th>Activated</th>
-                <th>Change Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policyVersions.map((version) => (
-                <tr key={version.policy_version_id}>
-                  <td className="id-cell">{version.policy_version_id}</td>
-                  <td className="id-cell">{version.policy_id}</td>
-                  <td>{version.version_number}</td>
-                  <td>{formatValue(version.status)}</td>
-                  <td>{formatTimestamp(version.activated_at)}</td>
-                  <td>{plainValue(version.change_summary)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function HumanApprovalsSection({
-  humanApprovals
-}: {
-  humanApprovals: EvidenceHumanApproval[];
-}) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="human_approvals" count={humanApprovals.length} />
-      {humanApprovals.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Policy Decision ID</th>
-                <th>Status</th>
-                <th>Requester</th>
-                <th>Reviewer</th>
-                <th>Reason</th>
-                <th>Decision Note</th>
-                <th>Created</th>
-                <th>Reviewed</th>
-                <th>Expires</th>
-              </tr>
-            </thead>
-            <tbody>
-              {humanApprovals.map((approval) => (
-                <tr key={approval.id}>
-                  <td className="id-cell">{approval.id}</td>
-                  <td className="id-cell">
-                    {plainValue(approval.policy_decision_id)}
-                  </td>
-                  <td>
-                    <span className={`table-pill approval-${approval.status}`}>
-                      {formatValue(approval.status)}
-                    </span>
-                  </td>
-                  <td className="id-cell">
-                    {approval.requested_by_actor_type}:
-                    {approval.requested_by_actor_id}
-                  </td>
-                  <td className="id-cell">
-                    {approval.reviewed_by_actor_type
-                      ? `${approval.reviewed_by_actor_type}:${approval.reviewed_by_actor_id}`
-                      : "Not set"}
-                  </td>
-                  <td>{plainValue(approval.reason)}</td>
-                  <td>{plainValue(approval.decision_note)}</td>
-                  <td>{formatTimestamp(approval.created_at)}</td>
-                  <td>{formatTimestamp(approval.reviewed_at)}</td>
-                  <td>{formatTimestamp(approval.expires_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function AuditLogsSection({ auditLogs }: { auditLogs: EvidenceAuditLog[] }) {
-  return (
-    <section className="evidence-section">
-      <SectionHeader title="audit_logs" count={auditLogs.length} />
-      {auditLogs.length === 0 ? (
-        <EmptySection />
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table evidence-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Event Type</th>
-                <th>Actor</th>
-                <th>Entity</th>
-                <th>Summary</th>
-                <th>Metadata</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.map((log) => (
-                <tr key={log.id}>
-                  <td className="id-cell">{log.id}</td>
-                  <td>{formatValue(log.event_type)}</td>
-                  <td className="id-cell">
-                    {log.actor_type}:{log.actor_id}
-                  </td>
-                  <td className="id-cell">
-                    {log.entity_type}:{log.entity_id}
-                  </td>
-                  <td>{log.summary}</td>
-                  <td>
-                    <pre className="metadata-block">
-                      {metadataText(log.metadata)}
-                    </pre>
-                  </td>
-                  <td>{formatTimestamp(log.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <AGCPSectionHeader
-      eyebrow="evidence"
-      title={title}
-      meta={<AGCPBadge tone={count > 0 ? "purple" : "muted"}>{count}</AGCPBadge>}
-    />
-  );
-}
-
-function EmptySection() {
-  return (
-    <AGCPEmptyState title="No records in this section">
-      The backend returned an empty list for this evidence category.
-    </AGCPEmptyState>
-  );
-}
-
-function policyLabel(decision: EvidencePolicyDecision) {
-  if (decision.policy) {
-    return `${decision.policy.name} (${decision.policy.status})`;
-  }
-
-  return plainValue(decision.policy_id);
-}
-
-function ruleLabel(decision: EvidencePolicyDecision) {
-  if (decision.rule) {
-    return decision.rule.name;
-  }
-
-  return plainValue(decision.rule_id);
-}
-
-function policyVersionLabel(
-  policyVersion: EvidencePolicyVersionReference | null | undefined
-) {
-  if (!policyVersion) {
-    return "Not recorded";
-  }
-
-  return `v${policyVersion.version_number} (${policyVersion.status})`;
-}
-
-function evidenceCounts(
-  bundle: EvidenceBundle,
-  policyVersionReferenceCount: number
-): EvidenceCounts {
-  return {
-    access_grants: bundle.access_grants.length,
-    agent_runs: bundle.agent_runs.length,
-    audit_logs: bundle.audit_logs.length,
-    capability_references: bundle.capability_references.length,
-    check_results: bundle.check_results.length,
-    data_usage_profiles: bundle.data_usage_profiles.length,
-    human_approvals: bundle.human_approvals.length,
-    model_asset_references: bundle.model_asset_references.length,
-    policy_decisions: bundle.policy_decisions.length,
-    policy_versions: policyVersionReferenceCount,
-    source_references: bundle.source_references.length,
-    trace_events: bundle.trace_events.length
-  };
+function EvidenceEmpty({ children }: { children: ReactNode }) {
+  return <div className="evidence-empty-copy">{children}</div>;
 }
 
 function policyVersionReferences(bundle: EvidenceBundle) {
@@ -1141,9 +746,29 @@ function policyVersionReferences(bundle: EvidenceBundle) {
   return Array.from(policyVersions.values());
 }
 
+function evidenceCounts(
+  bundle: EvidenceBundle,
+  policyVersionReferenceCount: number
+): EvidenceCounts {
+  return {
+    access_grants: bundle.access_grants.length,
+    agent_runs: bundle.agent_runs.length,
+    audit_logs: bundle.audit_logs.length,
+    capability_references: bundle.capability_references.length,
+    check_results: bundle.check_results.length,
+    data_usage_profiles: bundle.data_usage_profiles.length,
+    human_approvals: bundle.human_approvals.length,
+    model_asset_references: bundle.model_asset_references.length,
+    policy_decisions: bundle.policy_decisions.length,
+    policy_versions: policyVersionReferenceCount,
+    source_references: bundle.source_references.length,
+    trace_events: bundle.trace_events.length
+  };
+}
+
 function downloadEvidenceBundle(
   agentId: string,
-  bundle: EvidenceBundle,
+  bundle: unknown,
   exportedAt: string
 ) {
   const blob = new Blob([JSON.stringify(bundle, null, 2)], {

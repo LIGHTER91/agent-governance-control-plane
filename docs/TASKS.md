@@ -112,14 +112,14 @@ Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
 `GET /agents/{agent_id}/human-approvals`, a read-only Runtime Decisions
 timeline backed by `GET /runtime/tool-calls/activity`, a Human Approvals page
-with pending review actions, and a read-only Evidence Bundle page backed by
-`GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
+with pending review actions, and a workflow-first Evidence & Audit explorer
+backed by `GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
 that explains Custom Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and
 generic webhook/API connection patterns without making AGCP execute tools or
 replace orchestrators, but no login/auth UI, no broad enterprise role-aware
 frontend behavior, no Agent edit form, no dedicated inventory or
 PolicyCheckStep management UI, no broad activity filtering or pagination, and
-no Evidence Bundle PDF/download/signature actions.
+no Evidence Bundle PDF/signature actions.
 The `/policies` route is now an IDE-style Policy Studio rather than a raw
 Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
 static templates, Blocks and Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`,
@@ -469,6 +469,9 @@ credentials.
 - [x] Add read-only frontend Runtime Gateway page.
 - [x] Add read-only frontend Human Approvals page.
 - [x] Add read-only frontend Evidence Bundle page.
+- [x] Consolidate Evidence & Audit into a workflow-first evidence explorer with
+      Subject, Policy Decision, Metadata CheckResults, Human Review, Policy
+      Review, Audit Trail, and Export bundle sections.
 - [x] Add Agent activity/timeline backend endpoint.
 - [x] Add Agent activity/timeline frontend section.
 - [x] Add HumanApproval review actions UI for pending approvals.
