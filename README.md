@@ -467,9 +467,32 @@ credential only and is not production configuration.
 
 The seed command creates local-only demo records for one Agent, one active
 Policy and PolicyRule, one runtime TraceEvent, one PolicyDecision, one pending
-HumanApproval, and related AuditLogs. It does not create secrets, raw prompts,
-source contents, credentials, or personal data. The frontend pages keep calling
-the backend; no demo data is hardcoded in the web app.
+HumanApproval, and related AuditLogs. It also creates a local metadata-only
+runtime pre-check scenario with a production demo Agent, confidential Source
+metadata, an external ModelAsset, active AccessGrants, authored
+PolicyCheckSteps, and an active PolicyVersion snapshot. It does not create
+secrets, raw prompts, source contents, credentials, or personal data. The
+frontend pages keep calling the backend; no demo data is hardcoded in the web
+app.
+
+Optional metadata-only Runtime Gateway validation:
+
+```powershell
+# Start the backend with the opt-in flag before calling the Runtime Gateway.
+$env:AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED = "true"
+uv run uvicorn --app-dir src agent_governance_api.main:app --reload
+
+# In another terminal, call the seeded scenario.
+curl.exe -X POST http://localhost:8000/runtime/tool-calls/decision `
+  -H "Content-Type: application/json" `
+  -d '{ "request_id": "metadata-precheck-demo-001", "agent_id": "00000000-0000-4000-8000-000000001101", "run_id": "00000000-0000-4000-8000-000000001a01", "correlation_id": "metadata-precheck-demo", "tool_name": "vectorize_source", "action_summary": "Vectorize a confidential demo source with an external embedding model.", "metadata": { "demo": "metadata_pre_check" }, "mode": "simulation", "action_type": "vectorize", "capability_id": "00000000-0000-4000-8000-000000001201", "source_ids": ["00000000-0000-4000-8000-000000001301"], "model_id": "00000000-0000-4000-8000-000000001401", "purpose": "semantic_search_indexing", "data_classification": "confidential", "contains_personal_data": false, "contains_sensitive_data": true }'
+```
+
+Expected result: `require_human_review`, `proceed=false`, a pending
+HumanApproval, PolicyDecision linked to the active PolicyVersion, and safe
+metadata-only CheckResult summaries visible from the Review Inbox and Evidence
+Bundle. The checks read AGCP inventory metadata only; they do not scan or store
+source contents.
 
 Troubleshooting:
 

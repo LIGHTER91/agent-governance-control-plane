@@ -379,6 +379,8 @@ credentials.
       active PolicyCheckSteps behind the existing disabled feature flag.
 - [x] Add persistent metadata-only PolicyCheckStep check types for Source
       classification and ModelAsset provider type.
+- [x] Add deterministic local demo seed and documentation for metadata-only
+      Runtime Gateway pre-check validation with active PolicyVersion evidence.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

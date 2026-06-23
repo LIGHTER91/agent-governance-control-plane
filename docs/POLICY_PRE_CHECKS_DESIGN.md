@@ -405,6 +405,40 @@ matches safe `check_type`, `check_outcome`, `check_target_type`,
 `check_target_id`, `check_tool_id`, or confidence context. Unsupported selectors
 or helper failures create safe error CheckResults instead of fake pass results.
 
+### Local Metadata Pre-check Demo
+
+`apps/api/scripts/seed_full_stack_demo.py --apply` now seeds a deterministic
+local-only metadata pre-check scenario in addition to the basic full-stack demo
+chain. The scenario creates:
+
+- one production demo Agent;
+- one active Capability for `vectorize_source`;
+- one active Source with a confidential Data Usage Profile;
+- one active external ModelAsset;
+- active AccessGrants for the Capability, Source, and ModelAsset;
+- one active Policy and PolicyRule;
+- active PolicyCheckSteps for Source status, Source classification, Data Usage
+  Profile status, Capability status, ModelAsset status, ModelAsset provider
+  type, and AccessGrant status;
+- one active PolicyVersion snapshot containing the Policy, PolicyRule, and
+  PolicyCheckStep configuration.
+
+To validate the flow, start the API with
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`, run the seed, and call
+`POST /runtime/tool-calls/decision` with the seeded Agent, Capability, Source,
+and ModelAsset IDs. The policy is designed to return
+`require_human_review` only after a real metadata-only
+`model_provider_type` CheckResult is produced and matched through explicit
+`check_*` PolicyRule fields. Additional CheckResults provide safe evidence for
+the confidential Source metadata, Data Usage Profile, Capability, ModelAsset,
+and AccessGrants.
+
+The seed does not create fake CheckResults. CheckResults are created only by
+the Runtime Gateway request. It does not store raw source content, raw prompts,
+scanner findings, credentials, or provider payloads. The Review Inbox and
+Evidence Bundle show safe summaries for the resulting CheckResults when they
+are linked to the PolicyDecision.
+
 ## Check Execution Modes
 
 ### Metadata-only Check
@@ -631,12 +665,14 @@ Recommended staged implementation:
    `failure_behavior` enforcement.
 10. Add persistent PolicyCheckStep check types for `source_classification` and
    `model_provider_type`, wired to the metadata-only adapter. Implemented.
-11. Add async check handling and HumanApproval fallback behavior.
-12. Later add external checker adapters for catalogs, DLP, PII scanners, and
+11. Add a deterministic local demo seed and run path for metadata-only Runtime
+    Gateway pre-check validation. Implemented.
+12. Add async check handling and HumanApproval fallback behavior.
+13. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
-13. Implement lightweight policy versioning and review guardrails before
+14. Implement lightweight policy versioning and review guardrails before
     expanding PolicyCheckStep or check-based authoring UI.
-14. Later add a constrained Policy Studio UI for check-based policy authoring.
+15. Later add a constrained Policy Studio UI for check-based policy authoring.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current

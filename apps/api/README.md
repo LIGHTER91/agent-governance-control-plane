@@ -78,12 +78,39 @@ local-only records for one Agent, one active Policy and PolicyRule, one
 AgentRunRecord, one TraceEventRecord, one PolicyDecision, one pending
 HumanApproval, and related AuditLogs. This gives the frontend real backend data
 for the Agent list, Agent detail page, Human Approvals page, Activity timeline,
-and Evidence Bundle page. The seed is deterministic and safe to rerun; existing
+and Evidence Bundle page. It also creates a second local-only metadata
+pre-check scenario with one production demo Agent, confidential Source metadata,
+an external ModelAsset, active AccessGrants, PolicyCheckSteps, and an active
+PolicyVersion snapshot. The seed is deterministic and safe to rerun; existing
 demo records are reused by ID.
 
 The demo seed does not create secrets, API keys, credentials, raw prompts, raw
 source contents, raw runtime payloads, or personal data. It is local/dev data
 only and is not production provisioning.
+
+To validate metadata-only runtime pre-checks end to end, enable the opt-in flag
+before starting the API:
+
+```powershell
+$env:AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED = "true"
+uv run uvicorn --app-dir src agent_governance_api.main:app --reload
+```
+
+Then call the Runtime Gateway with the seeded metadata demo IDs:
+
+```powershell
+curl.exe -X POST http://localhost:8000/runtime/tool-calls/decision `
+  -H "Content-Type: application/json" `
+  -d '{ "request_id": "metadata-precheck-demo-001", "agent_id": "00000000-0000-4000-8000-000000001101", "run_id": "00000000-0000-4000-8000-000000001a01", "correlation_id": "metadata-precheck-demo", "tool_name": "vectorize_source", "action_summary": "Vectorize a confidential demo source with an external embedding model.", "metadata": { "demo": "metadata_pre_check" }, "mode": "simulation", "action_type": "vectorize", "capability_id": "00000000-0000-4000-8000-000000001201", "source_ids": ["00000000-0000-4000-8000-000000001301"], "model_id": "00000000-0000-4000-8000-000000001401", "purpose": "semantic_search_indexing", "data_classification": "confidential", "contains_personal_data": false, "contains_sensitive_data": true }'
+```
+
+Expected result: the response is `require_human_review` with a pending
+HumanApproval. Real metadata-only CheckResults are created for Source status,
+Source classification, Data Usage Profile status, Capability status, ModelAsset
+status, ModelAsset provider type, and AccessGrant status. The Review Inbox and
+Evidence Bundle show safe CheckResult summaries; they do not include source
+contents, prompts, credentials, scanner findings, or raw payloads. Use a new
+`request_id` and `run_id` if you want to create another fresh runtime decision.
 
 Troubleshooting:
 
