@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { fetchAgents } from "../lib/agents";
 import { fetchHumanApprovals, transitionHumanApproval } from "../lib/human-approvals";
-import { fetchPolicies } from "../lib/policies";
+import { fetchPolicies, fetchPolicyVersionReviewRequests } from "../lib/policies";
 import { fetchAccessGrants, fetchSources } from "../lib/sources";
 import { fetchRuntimeToolCallActivity } from "../lib/runtime";
+import { fetchCurrentActor } from "../lib/current-actor";
 
 /* ─── DESIGN TOKENS ─── */
 const CSS = `
@@ -352,6 +353,265 @@ const CSS = `
   .page-header { margin-bottom: 16px; }
   .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.015em; color: #eeeef8; margin-bottom: 3px; }
   .page-sub { font-size: 12.5px; color: var(--text-muted); }
+  .overview-page {
+    display: grid;
+    gap: 14px;
+  }
+  .overview-hero {
+    background:
+      linear-gradient(135deg, rgba(124,109,240,.16), rgba(54,184,246,.06)),
+      var(--bg-panel);
+    border: 1px solid var(--purple-brd);
+    border-radius: var(--radius-lg);
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+    overflow: hidden;
+    padding: 18px 20px;
+  }
+  .overview-kicker {
+    color: var(--purple-lt);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .overview-title {
+    color: #eeeef8;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.08;
+    margin-bottom: 10px;
+  }
+  .overview-copy {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 760px;
+  }
+  .overview-promises {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+  }
+  .overview-promise {
+    align-items: center;
+    color: var(--text);
+    display: flex;
+    font-size: 12.5px;
+    gap: 8px;
+  }
+  .overview-promise span:first-child {
+    border-radius: 999px;
+    height: 7px;
+    width: 7px;
+  }
+  .overview-actor-card {
+    align-self: stretch;
+    background: rgba(10,10,20,.38);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: grid;
+    gap: 9px;
+    padding: 13px;
+  }
+  .overview-actor-card h2,
+  .overview-panel-title {
+    color: #eeeef8;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .overview-actor-meta {
+    display: grid;
+    gap: 6px;
+  }
+  .overview-actor-meta div {
+    display: grid;
+    gap: 2px;
+  }
+  .overview-actor-meta dt,
+  .overview-metric-label,
+  .overview-item-meta,
+  .overview-demo-command {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .overview-actor-meta dd {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    margin: 0;
+    word-break: break-word;
+  }
+  .overview-role-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .overview-chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    padding: 3px 7px;
+  }
+  .overview-chip.ok { background: var(--green-dim); border-color: var(--green-brd); color: var(--green); }
+  .overview-chip.warn { background: var(--orange-dim); border-color: var(--orange-brd); color: var(--orange); }
+  .overview-chip.info { background: var(--sky-dim); border-color: var(--sky-brd); color: var(--sky); }
+  .overview-chip.purple { background: var(--purple-dim); border-color: var(--purple-brd); color: var(--purple-lt); }
+  .overview-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .overview-workflow-card,
+  .overview-panel,
+  .overview-demo-card,
+  .overview-shortcuts {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .overview-workflow-card {
+    color: inherit;
+    display: grid;
+    gap: 12px;
+    min-height: 180px;
+    padding: 14px;
+    text-decoration: none;
+    transition: border-color .14s, transform .14s;
+  }
+  .overview-workflow-card:hover {
+    border-color: var(--purple-brd);
+    transform: translateY(-1px);
+  }
+  .overview-card-head {
+    align-items: center;
+    display: flex;
+    gap: 9px;
+  }
+  .overview-icon {
+    align-items: center;
+    border-radius: 9px;
+    display: flex;
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+  }
+  .overview-icon.purple { background: var(--purple-dim); border: 1px solid var(--purple-brd); color: var(--purple-lt); }
+  .overview-icon.orange { background: var(--orange-dim); border: 1px solid var(--orange-brd); color: var(--orange); }
+  .overview-icon.green { background: var(--green-dim); border: 1px solid var(--green-brd); color: var(--green); }
+  .overview-card-title {
+    color: #eeeef8;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .overview-card-body {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .overview-metric {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 10px;
+  }
+  .overview-metric-value {
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+  }
+  .overview-row {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .overview-panel-head {
+    align-items: center;
+    border-bottom: 1px solid var(--border2);
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    padding: 12px 14px;
+  }
+  .overview-panel-body {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px 14px;
+  }
+  .overview-item {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: 5px;
+    padding: 10px;
+  }
+  .overview-item strong {
+    color: var(--text);
+    font-size: 12px;
+  }
+  .overview-item p {
+    color: var(--text-muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+    margin: 0;
+  }
+  .overview-error {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+  .overview-empty {
+    background: rgba(255,255,255,.02);
+    border-style: dashed;
+  }
+  .overview-demo-card {
+    align-items: center;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px;
+  }
+  .overview-demo-command {
+    background: #080811;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--green);
+    padding: 9px 10px;
+  }
+  .overview-shortcuts {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding: 10px;
+  }
+  .overview-shortcut {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 9px;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color .14s, color .14s;
+  }
+  .overview-shortcut:hover {
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+  }
 
   /* ── [2] DECISION INBOX en hero ── */
   .inbox-hero {
@@ -1043,7 +1303,7 @@ const CSS = `
 
 /* ─── DATA ─── */
 const NAV_COMMAND = [
-  { id: "command",      label: "Command",      short: "01", icon: "grid" },
+  { id: "command",      label: "Overview",     short: "01", icon: "grid" },
   { id: "systems",      label: "Systems",      short: "02", icon: "box" },
   { id: "policies",     label: "Policies",     short: "03", icon: "shield" },
   { id: "reviews",      label: "Reviews",      short: "04", icon: "star", badge: 37 },
@@ -1255,8 +1515,10 @@ const CodeToken = ({ cls, text }) => {
 const initialStudioData = {
   loading: true,
   errors: [],
+  currentActor: null,
   agents: [],
   approvals: [],
+  policyReviewRequests: [],
   policies: [],
   sources: [],
   accessGrants: [],
@@ -1312,7 +1574,9 @@ function useAGCPStudioData() {
       fetchPolicies(signal),
       fetchSources(signal),
       fetchAccessGrants(signal),
-      fetchRuntimeToolCallActivity(signal)
+      fetchRuntimeToolCallActivity(signal),
+      fetchCurrentActor(signal),
+      fetchPolicyVersionReviewRequests("pending", signal)
     ]);
 
     if (signal?.aborted) return;
@@ -1323,7 +1587,9 @@ function useAGCPStudioData() {
       "GET /policies",
       "GET /sources",
       "GET /access-grants",
-      "GET /runtime/tool-calls/activity"
+      "GET /runtime/tool-calls/activity",
+      "GET /me",
+      "GET /policy-version-review-requests?status=pending"
     ];
 
     const values = requests.map((result) =>
@@ -1338,8 +1604,10 @@ function useAGCPStudioData() {
     setData({
       loading: false,
       errors,
+      currentActor: requests[6]?.status === "fulfilled" ? requests[6].value : null,
       agents: values[0],
       approvals: values[1],
+      policyReviewRequests: values[7],
       policies: values[2],
       sources: values[3],
       accessGrants: values[4],
@@ -1507,7 +1775,7 @@ function approvalToReview(approval, agents) {
 }
 
 /* ─── COMMAND VIEW ─── */
-const CommandView = ({ data }) => {
+const LegacyCommandView = ({ data }) => {
   const [activeInbox, setActiveInbox] = useState(0);
   const [activeMapNode, setActiveMapNode] = useState(null); // [5]
   const [bcMode, setBcMode] = useState("blocks"); // [3] blocks | code
@@ -1796,6 +2064,374 @@ const CommandView = ({ data }) => {
    PS_SimConsole, PS_Inspector, PS_TemplateDrawer
    All scoped with "ps2-" prefix to avoid CSS collision with Command.
 ════════════════════════════════════════════════════════════ */
+
+function overviewEndpointError(data, label) {
+  return data.errors.find((error) => error.startsWith(label)) || null;
+}
+
+function overviewMetricValue({ data, errorLabel, count, fallback = "Unavailable" }) {
+  if (data.loading) return "Loading";
+  if (overviewEndpointError(data, errorLabel)) return fallback;
+  return compactCount(count);
+}
+
+function overviewEndpointCopy(data, label) {
+  const error = overviewEndpointError(data, label);
+  if (!error) return label;
+  if (error.includes("status 403")) return `${label} returned 403`;
+  return `${label} unavailable`;
+}
+
+function overviewRoles(actor) {
+  if (!actor) return [];
+  return Array.isArray(actor.roles) ? actor.roles : [];
+}
+
+function buildOverviewAttentionItems(data) {
+  if (data.loading) {
+    return [{
+      tone: "info",
+      title: "Loading review queues",
+      meta: "GET /human-approvals and GET /policy-version-review-requests",
+      body: "AGCP is requesting real pending review state from the backend."
+    }];
+  }
+
+  const items = [];
+  const humanApprovalError = overviewEndpointError(data, "GET /human-approvals");
+  const policyReviewError = overviewEndpointError(
+    data,
+    "GET /policy-version-review-requests?status=pending"
+  );
+
+  if (humanApprovalError) {
+    items.push({
+      tone: humanApprovalError.includes("status 403") ? "warn" : "danger",
+      title: humanApprovalError.includes("status 403")
+        ? "Runtime reviews unavailable for this actor"
+        : "Unable to load runtime reviews",
+      meta: overviewEndpointCopy(data, "GET /human-approvals"),
+      body: humanApprovalError.includes("status 403")
+        ? "The backend denied this queue. Backend authorization still applies."
+        : humanApprovalError
+    });
+  }
+
+  if (policyReviewError) {
+    items.push({
+      tone: policyReviewError.includes("status 403") ? "warn" : "danger",
+      title: policyReviewError.includes("status 403")
+        ? "Policy review queue unavailable for this actor"
+        : "Unable to load policy reviews",
+      meta: overviewEndpointCopy(data, "GET /policy-version-review-requests?status=pending"),
+      body: policyReviewError.includes("status 403")
+        ? "The current actor cannot fetch this reviewer/admin queue. Backend authorization still applies."
+        : policyReviewError
+    });
+  }
+
+  for (const approval of data.approvals.filter((item) => item.status === "pending").slice(0, 3)) {
+    items.push({
+      tone: "warn",
+      title: approval.reason || `Runtime HumanApproval ${approval.id.slice(0, 8)}`,
+      meta: `HumanApproval - ${relativeTime(approval.created_at)}`,
+      body: `Agent ${approval.agent_id}. PolicyDecision ${approval.policy_decision_id || "not linked"}.`
+    });
+  }
+
+  for (const review of data.policyReviewRequests.filter((item) => item.status === "pending").slice(0, 3)) {
+    items.push({
+      tone: "purple",
+      title: review.policy_name || `PolicyVersion review ${review.id.slice(0, 8)}`,
+      meta: `Policy review - ${relativeTime(review.created_at)}`,
+      body: `Draft version ${review.policy_version_number || "unknown"} is waiting for reviewer decision.`
+    });
+  }
+
+  if (items.length === 0) {
+    return [{
+      tone: "ok",
+      title: "No pending reviews found.",
+      meta: "Real empty state",
+      body: "The backend returned no pending runtime HumanApprovals or PolicyVersion review requests."
+    }];
+  }
+
+  return items;
+}
+
+function buildOverviewActivityItems(data) {
+  if (data.loading) {
+    return [{
+      tone: "info",
+      title: "Loading runtime activity",
+      meta: "GET /runtime/tool-calls/activity",
+      body: "AGCP is requesting recent Runtime Gateway activity from the backend."
+    }];
+  }
+
+  const runtimeError = overviewEndpointError(data, "GET /runtime/tool-calls/activity");
+  if (runtimeError) {
+    return [{
+      tone: runtimeError.includes("status 403") ? "warn" : "danger",
+      title: runtimeError.includes("status 403")
+        ? "Runtime activity unavailable for this actor"
+        : "Unable to load runtime activity",
+      meta: overviewEndpointCopy(data, "GET /runtime/tool-calls/activity"),
+      body: runtimeError.includes("status 403")
+        ? "The backend denied this overview read. Backend authorization still applies."
+        : runtimeError
+    }];
+  }
+
+  if (data.runtimeActivity.length === 0) {
+    return [{
+      tone: "info",
+      title: "Recent governance activity is not wired on the Overview yet.",
+      meta: "No runtime activity returned",
+      body: "The Overview uses the existing Runtime activity endpoint and does not invent activity."
+    }];
+  }
+
+  return data.runtimeActivity.slice(0, 4).map((item) => ({
+    tone: statusClass(item.decision || item.type),
+    title: item.tool_name || formatLabel(item.type),
+    meta: `${formatLabel(item.decision || item.type)} - ${relativeTime(item.timestamp)}`,
+    body: `Agent ${item.agent_id}. Request ${item.request_id || "not set"}. Proceed ${item.proceed === null ? "not set" : String(item.proceed)}.`
+  }));
+}
+
+function OverviewWorkflowCard({ tone, icon, title, href, children, metrics }) {
+  return (
+    <Link className="overview-workflow-card" href={href}>
+      <div className="overview-card-head">
+        <div className={`overview-icon ${tone}`}>
+          <Icon name={icon} size={15} />
+        </div>
+        <div className="overview-card-title">{title}</div>
+      </div>
+      <div className="overview-card-body">{children}</div>
+      <div style={{ display: "grid", gap: 7 }}>
+        {metrics.map((metric) => (
+          <div key={metric.label} className="overview-metric">
+            <span className="overview-metric-label">{metric.label}</span>
+            <span className="overview-metric-value">{metric.value}</span>
+          </div>
+        ))}
+      </div>
+    </Link>
+  );
+}
+
+function OverviewItem({ item }) {
+  return (
+    <div className={`overview-item ${item.tone === "danger" ? "overview-error" : item.tone === "ok" ? "overview-empty" : ""}`}>
+      <div className={`overview-chip ${item.tone}`}>{item.meta}</div>
+      <strong>{item.title}</strong>
+      <p>{item.body}</p>
+    </div>
+  );
+}
+
+function CurrentActorCard({ data }) {
+  const actorError = overviewEndpointError(data, "GET /me");
+  const actor = data.currentActor;
+  const roles = overviewRoles(actor);
+
+  return (
+    <aside className="overview-actor-card">
+      <h2>Current actor</h2>
+      {data.loading ? (
+        <div className="overview-item overview-empty">
+          <strong>Loading actor state</strong>
+          <p>GET /me is used for the local development actor context.</p>
+        </div>
+      ) : actor ? (
+        <>
+          <dl className="overview-actor-meta">
+            <div>
+              <dt>Display name</dt>
+              <dd>{actor.display_name || actor.actor_id}</dd>
+            </div>
+            <div>
+              <dt>Actor id</dt>
+              <dd>{actor.actor_id}</dd>
+            </div>
+            <div>
+              <dt>Environment</dt>
+              <dd>{actor.environment || actor.actor_type}</dd>
+            </div>
+          </dl>
+          <div className="overview-role-row">
+            {roles.length > 0
+              ? roles.map((role) => <span key={role} className="overview-chip purple">{role}</span>)
+              : <span className="overview-chip warn">no roles returned</span>}
+          </div>
+          {actor.dev_mode_caveat ? (
+            <p className="overview-copy" style={{ fontSize: 11 }}>{actor.dev_mode_caveat}</p>
+          ) : null}
+        </>
+      ) : (
+        <div className="overview-item overview-error">
+          <strong>Current actor unavailable</strong>
+          <p>{actorError || "GET /me did not return actor state."}</p>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+const CommandView = ({ data }) => {
+  const pendingRuntimeApprovals = data.approvals.filter((approval) => approval.status === "pending").length;
+  const pendingPolicyReviews = data.policyReviewRequests.filter((review) => review.status === "pending").length;
+  const runtimeDecisionCount = data.runtimeActivity.filter((item) => item.type === "tool_call_decision").length;
+  const activePolicies = data.policies.filter((policy) => policy.status === "active").length;
+  const attentionItems = buildOverviewAttentionItems(data);
+  const activityItems = buildOverviewActivityItems(data);
+
+  return (
+    <div className="content overview-page">
+      <section className="overview-hero">
+        <div>
+          <div className="overview-kicker">Governance and evidence control plane</div>
+          <h1 className="overview-title">Agent Governance Control Plane</h1>
+          <p className="overview-copy">
+            AGCP helps teams govern agents that run in external runtimes. It is a governance/evidence control plane,
+            not an orchestrator, and not a legal compliance certification tool.
+          </p>
+          <div className="overview-promises">
+            <div className="overview-promise">
+              <span style={{ background: "var(--purple-lt)" }} />
+              <strong>Know which agents exist.</strong>
+            </div>
+            <div className="overview-promise">
+              <span style={{ background: "var(--orange)" }} />
+              <strong>Control risky actions before they happen.</strong>
+            </div>
+            <div className="overview-promise">
+              <span style={{ background: "var(--green)" }} />
+              <strong>Prove decisions with policy, review, and evidence trails.</strong>
+            </div>
+          </div>
+        </div>
+        <CurrentActorCard data={data} />
+      </section>
+
+      <section className="overview-grid" aria-label="Primary governance workflows">
+        <OverviewWorkflowCard
+          tone="purple"
+          icon="box"
+          title="Know your agents"
+          href="/agents"
+          metrics={[
+            {
+              label: overviewEndpointCopy(data, "GET /agents"),
+              value: overviewMetricValue({ data, errorLabel: "GET /agents", count: data.agents.length })
+            },
+            {
+              label: "Environments returned",
+              value: data.loading || overviewEndpointError(data, "GET /agents")
+                ? "Unavailable"
+                : compactCount(new Set(data.agents.map((agent) => agent.environment)).size)
+            }
+          ]}
+        >
+          Start from the Agent registry to see owners, environments, risk levels, activity, approvals, and evidence access.
+        </OverviewWorkflowCard>
+
+        <OverviewWorkflowCard
+          tone="orange"
+          icon="shield"
+          title="Control risky actions"
+          href="/policies"
+          metrics={[
+            {
+              label: overviewEndpointCopy(data, "GET /policies"),
+              value: data.loading || overviewEndpointError(data, "GET /policies")
+                ? "Unavailable"
+                : `${compactCount(activePolicies)} active`
+            },
+            {
+              label: "Reviews waiting",
+              value: data.loading
+                ? "Loading"
+                : compactCount(pendingRuntimeApprovals + pendingPolicyReviews)
+            }
+          ]}
+        >
+          Use Policy Studio, metadata pre-checks, Runtime Decisions, and Review Inbox to prepare reviewed governance decisions.
+        </OverviewWorkflowCard>
+
+        <OverviewWorkflowCard
+          tone="green"
+          icon="archive"
+          title="Prove what happened"
+          href="/evidence"
+          metrics={[
+            {
+              label: "Runtime decisions",
+              value: overviewMetricValue({
+                data,
+                errorLabel: "GET /runtime/tool-calls/activity",
+                count: runtimeDecisionCount
+              })
+            },
+            {
+              label: "Evidence export",
+              value: "Manual JSON"
+            }
+          ]}
+        >
+          Review bounded Evidence Bundles, PolicyDecision context, CheckResults, HumanApprovals, TraceEvents, and AuditLogs.
+        </OverviewWorkflowCard>
+      </section>
+
+      <section className="overview-row">
+        <div className="overview-panel">
+          <div className="overview-panel-head">
+            <h2 className="overview-panel-title">Needs attention</h2>
+            <span className="overview-chip warn">
+              {data.loading ? "loading" : `${pendingRuntimeApprovals + pendingPolicyReviews} pending`}
+            </span>
+          </div>
+          <div className="overview-panel-body">
+            {attentionItems.map((item, index) => <OverviewItem key={`${item.title}-${index}`} item={item} />)}
+          </div>
+        </div>
+
+        <div className="overview-panel">
+          <div className="overview-panel-head">
+            <h2 className="overview-panel-title">Recent governance activity</h2>
+            <Link className="overview-chip info" href="/runtime-gateway">Runtime Decisions</Link>
+          </div>
+          <div className="overview-panel-body">
+            {activityItems.map((item, index) => <OverviewItem key={`${item.title}-${index}`} item={item} />)}
+          </div>
+        </div>
+      </section>
+
+      <section className="overview-demo-card">
+        <div>
+          <h2 className="overview-panel-title">Run the metadata pre-check demo</h2>
+          <p className="overview-card-body" style={{ marginTop: 6 }}>
+            Local/demo-only path for real metadata-only CheckResults, a require_human_review decision, and Evidence Bundle inspection.
+            This is no fake production simulation.
+          </p>
+        </div>
+        <code className="overview-demo-command">.\scripts\dev-demo.ps1</code>
+      </section>
+
+      <nav className="overview-shortcuts" aria-label="Overview shortcuts">
+        <Link className="overview-shortcut" href="/policies">Policy Studio</Link>
+        <Link className="overview-shortcut" href="/human-approvals">Review Inbox</Link>
+        <Link className="overview-shortcut" href="/evidence">Evidence & Audit</Link>
+        <Link className="overview-shortcut" href="/agents">Agents</Link>
+        <Link className="overview-shortcut" href="/access-data">Access & Data</Link>
+        <Link className="overview-shortcut" href="/runtime-gateway">Runtime Decisions</Link>
+      </nav>
+    </div>
+  );
+};
 
 const CSS_STUDIO = `
   /* ── Studio-specific tokens (prefixed to avoid collision) ── */
@@ -2154,6 +2790,32 @@ const CSS_STUDIO = `
   .ps2-review-diff small {
     color:var(--text-dim); font-family:var(--mono); font-size:10px;
     overflow-wrap:anywhere;
+  }
+  .ps2-lifecycle-card {
+    background:var(--bg-card); border:1px solid var(--border2);
+    border-radius:var(--radius-sm); padding:9px 10px; display:grid; gap:8px;
+  }
+  .ps2-lifecycle-copy {
+    display:grid; gap:4px; color:var(--text-muted); font-size:10.5px;
+    line-height:1.45;
+  }
+  .ps2-lifecycle-copy span {
+    padding-left:8px; border-left:2px solid rgba(255,255,255,.08);
+  }
+  .ps2-lifecycle-actions { display:flex; gap:5px; }
+  .ps2-btn-archive {
+    background:var(--orange-dim); color:var(--orange);
+    border:1px solid var(--orange-brd);
+  }
+  .ps2-btn-archive:hover { background:rgba(240,135,58,.14); }
+  .ps2-btn-delete {
+    background:var(--red-dim); color:var(--red);
+    border:1px solid var(--red-brd);
+  }
+  .ps2-btn-delete:hover { background:rgba(255,91,116,.13); }
+  .ps2-lifecycle-reason {
+    color:var(--text-muted); font-family:var(--mono); font-size:9.5px;
+    line-height:1.45; overflow-wrap:anywhere;
   }
 
   /* Inspector footer */
@@ -3860,7 +4522,7 @@ const AdminView = () => {
 };
 
 const AGCP_ROUTE_VIEW_BY_PATH = [
-  { path: "/", view: "command", label: "Command Center" },
+  { path: "/", view: "command", label: "Overview" },
   { path: "/agents", view: "systems", label: "AI Systems" },
   { path: "/human-approvals", view: "reviews", label: "Human Reviews" },
   { path: "/evidence", view: "evidence", label: "Evidence" },
@@ -4897,6 +5559,519 @@ const AGCP_CONNECTED_CSS = `
     opacity: .5;
   }
 
+  .agcp-connected-content:has(.review-inbox-route) {
+    padding: 0;
+  }
+
+  .review-inbox-route {
+    background:
+      radial-gradient(ellipse 55% 38% at 18% -12%, rgba(124,109,240,.08), transparent 62%),
+      radial-gradient(ellipse 42% 26% at 100% 105%, rgba(45,216,145,.055), transparent 60%);
+    display: flex;
+    height: calc(100vh - 48px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .review-inbox-pane {
+    background: rgba(15,15,26,.94);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-width: 320px;
+    overflow: hidden;
+    width: 360px;
+  }
+
+  .review-inbox-header {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border2);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 18px 18px 14px;
+  }
+
+  .review-kicker {
+    color: var(--orange);
+    display: block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .review-inbox-header h2 {
+    color: #eeeef8;
+    font-size: 19px;
+    letter-spacing: -.015em;
+    margin: 0 0 4px;
+  }
+
+  .review-inbox-header p,
+  .review-current-actor small,
+  .review-section-body p,
+  .review-disabled-reason {
+    color: var(--text-muted);
+    font-size: 11.5px;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .review-current-actor {
+    background: rgba(255,255,255,.025);
+    border-bottom: 1px solid var(--border2);
+    display: grid;
+    gap: 6px;
+    padding: 12px 18px;
+  }
+
+  .review-current-actor.warning {
+    background: var(--orange-dim);
+  }
+
+  .review-current-actor strong {
+    color: #eeeef8;
+    font-size: 11px;
+  }
+
+  .review-current-actor span {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10.5px;
+  }
+
+  .review-inbox-tabs {
+    border-bottom: 1px solid var(--border2);
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 10px;
+  }
+
+  .review-inbox-tab {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    gap: 4px;
+    min-height: 46px;
+    padding: 6px 4px;
+    text-transform: uppercase;
+    transition: all .14s;
+  }
+
+  .review-inbox-tab span {
+    color: var(--text-faint);
+    font-size: 10px;
+  }
+
+  .review-inbox-tab.active,
+  .review-inbox-tab:hover {
+    background: var(--purple-dim);
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+  }
+
+  .review-inbox-list {
+    display: grid;
+    gap: 8px;
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .review-inbox-item {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: inherit;
+    cursor: pointer;
+    display: grid;
+    gap: 7px;
+    padding: 12px;
+    text-align: left;
+    transition: all .14s;
+    width: 100%;
+  }
+
+  .review-inbox-item:hover,
+  .review-inbox-item.selected {
+    background: rgba(124,109,240,.08);
+    border-color: var(--purple-brd);
+    box-shadow: var(--glow-purple);
+  }
+
+  .review-inbox-item-top {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .review-inbox-item-top > span {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .review-inbox-item strong {
+    color: #eeeef8;
+    display: block;
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+
+  .review-inbox-item p {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .review-inbox-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .review-inbox-item-meta span {
+    background: rgba(10,10,20,.5);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    padding: 3px 6px;
+  }
+
+  .review-inbox-warning {
+    background: var(--orange-dim);
+    border-bottom: 1px solid var(--orange-brd);
+    color: var(--orange);
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 10px 14px;
+  }
+
+  .review-inbox-warning p {
+    margin: 0;
+  }
+
+  .review-detail-pane {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    overflow: auto;
+    padding: 18px 20px;
+  }
+
+  .review-detail-header {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+  }
+
+  .review-detail-header h1 {
+    color: #eeeef8;
+    font-size: 24px;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    margin: 0 0 6px;
+  }
+
+  .review-detail-header p {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    margin: 0;
+  }
+
+  .review-detail-status {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 140px;
+  }
+
+  .review-detail-status span:last-child {
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .review-detail-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .review-section-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: grid;
+    gap: 10px;
+    min-height: 190px;
+    padding: 14px;
+  }
+
+  .review-section-head {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+  }
+
+  .review-section-head span {
+    border-radius: 2px;
+    height: 3px;
+    width: 14px;
+  }
+
+  .review-section-card.orange .review-section-head span { background: var(--orange); }
+  .review-section-card.purple .review-section-head span { background: var(--purple-lt); }
+  .review-section-card.sky .review-section-head span { background: var(--sky); }
+  .review-section-card.green .review-section-head span { background: var(--green); }
+
+  .review-section-head h3 {
+    color: #eeeef8;
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .review-section-body {
+    display: grid;
+    gap: 10px;
+  }
+
+  .review-mini-meta {
+    display: grid;
+    gap: 7px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    margin: 0;
+  }
+
+  .review-mini-meta div {
+    background: rgba(10,10,20,.45);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+  }
+
+  .review-mini-meta dt {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: .08em;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+
+  .review-mini-meta dd {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .review-field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .review-field-list li,
+  .review-code-line {
+    background: rgba(10,10,20,.45);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    color: var(--sky);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+
+  .review-check-results {
+    display: grid;
+    gap: 8px;
+  }
+
+  .review-check-result-card {
+    background: rgba(10,10,20,.36);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .review-check-result-top {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .review-check-result-top strong {
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    word-break: break-word;
+  }
+
+  .review-decision-note,
+  .review-reassign-box,
+  .review-activation-check {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    margin-top: 12px;
+    padding: 12px;
+  }
+
+  .review-decision-note label,
+  .review-reassign-box label {
+    display: grid;
+    gap: 5px;
+  }
+
+  .review-reassign-box {
+    align-items: end;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(180px, 1.1fr) repeat(4, minmax(130px, 1fr));
+  }
+
+  .review-reassign-box strong {
+    color: #eeeef8;
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .review-reassign-box p {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .review-decision-note span,
+  .review-reassign-box span {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .review-decision-note textarea,
+  .review-reassign-box input,
+  .review-reassign-box select {
+    background: rgba(10,10,20,.55);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    min-height: 34px;
+    padding: 8px 9px;
+  }
+
+  .review-decision-note textarea {
+    min-height: 70px;
+    resize: vertical;
+  }
+
+  .review-activation-check {
+    align-items: center;
+    color: var(--text-dim);
+    display: flex;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    gap: 8px;
+  }
+
+  .review-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
+
+  .review-action-btn {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    min-height: 34px;
+    padding: 8px 13px;
+    text-transform: uppercase;
+    transition: all .14s;
+  }
+
+  .review-action-btn.approve {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .review-action-btn.reject {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .review-action-btn.secondary {
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .review-action-btn:hover:not(:disabled) {
+    box-shadow: var(--glow-purple);
+    transform: translateY(-1px);
+  }
+
+  .review-action-btn:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+  }
+
+  .review-disabled-reason {
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  .review-detail-empty {
+    margin: auto;
+    max-width: 520px;
+    width: 100%;
+  }
+
   .agcp-connected-content:has(.policy-studio-route) {
     padding: 0;
   }
@@ -5164,7 +6339,7 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
     {
       label: "Core",
       items: [
-        { id: "command",   label: "Command",    icon: "grid",    badge: pendingApprovals, orange: true, href: "/" },
+        { id: "command",   label: "Overview",   icon: "grid",    badge: pendingApprovals, orange: true, href: "/" },
         { id: "systems",   label: "AI Systems", icon: "box",     badge: null, href: "/agents" },
         { id: "policies",  label: "Policies",   icon: "shield",  badge: null, href: "/policies" },
         { id: "reviews",   label: "Reviews",    icon: "star",    badge: pendingApprovals, href: "/human-approvals" },
@@ -5265,7 +6440,7 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
 /* ─── EXTENDED TOPBAR ─── */
 const ExtendedTopbar = ({ view, title, mode, setMode, theme, setTheme }) => {
   const breadcrumbs = {
-    command: "Command Center", systems: "AI Systems", policies: "Policy Studio",
+    command: "Overview", systems: "AI Systems", policies: "Policy Studio",
     reviews: "Reviews", evidence: "Evidence", risk: "Risk Register",
     data: "Data Governance", models: "Model Inventory", vendors: "Vendors",
     monitoring: "Monitoring", integrations: "Integrations", admin: "Admin",
@@ -5281,7 +6456,7 @@ const ExtendedTopbar = ({ view, title, mode, setMode, theme, setTheme }) => {
 
       <div className="mode-switcher">
         <button className={`mode-btn ${mode === "live" ? "on" : ""}`} onClick={() => setMode("live")}>Live</button>
-        <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>Simulation</button>
+        <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>{view === "command" ? "Review" : "Simulation"}</button>
       </div>
       <div className="topbar-actions">
         <button className="icon-btn" aria-label="Search"><Icon name="search" size={13} /></button>

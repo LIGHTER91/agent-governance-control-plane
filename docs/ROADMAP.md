@@ -203,6 +203,11 @@ as validated AGCPStudio product surfaces, while Overview, Access & Data,
 Runtime Decisions, Evidence & Audit, Integrations, and Settings/Admin are
 tracked as workflow-first follow-ups that must avoid fake metrics, fake
 compliance claims, and API-shaped CRUD regressions.
+The Overview page now implements the first blueprint follow-up as a product
+narrative entry point: it explains AGCP as a governance/evidence control plane,
+uses real current-actor, Agent, HumanApproval, Policy, PolicyVersion review, and
+Runtime activity endpoints where available, and renders unavailable or empty
+states honestly instead of synthetic dashboard metrics.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -608,6 +613,10 @@ Planned capabilities:
 - Frontend product blueprint. Completed as a documentation baseline for #74:
   Policy Studio and Review Inbox are validated surfaces, future pages should be
   workflow-first, and AGCPStudio UX must not regress into API-shaped CRUD.
+- Overview product narrative. Completed as the root app entry point for #74:
+  it presents know/control/prove workflows, current actor context, attention
+  queues, runtime activity, local metadata pre-check demo guidance, and route
+  shortcuts without fake metrics or legal certification claims.
 - Legacy live Policy/PolicyRule mutation guardrails for active-versioned
   Policies are implemented; fallback Policies without active versions remain
   editable for bootstrap and compatibility.

@@ -6,12 +6,14 @@ The shared product chrome uses the AGCP Studio visual shell: dark control-plane
 sidebar, compact topbar, dense panels, badges, and bounded review/export
 surfaces. The connected Agent, Agent detail, Human Approvals, and Evidence
 pages use the same AGCP Studio visual language instead of a generic CRUD shell.
-The root dashboard is the connected app entry point: it links to the real
-governance routes, reads Agent and HumanApproval summary data from existing
-backend endpoints, and shows an explicit unavailable state instead of synthetic
-metrics when the backend cannot be reached. The Agents page and Agent detail
-page read from the backend Agent Registry API, Agent activity API, and
-HumanApproval API.
+The Overview page is the connected product narrative entry point. It explains
+AGCP as a governance/evidence control plane for knowing agents, controlling
+risky actions, and proving decisions. It reads current actor, Agent,
+HumanApproval, Policy, PolicyVersion review, and Runtime activity data from
+existing backend endpoints where available, and shows honest unavailable or
+empty states instead of synthetic metrics when an API cannot be reached. The
+Agents page and Agent detail page read from the backend Agent Registry API,
+Agent activity API, and HumanApproval API.
 The Access & Data page reads Access Grants, Source inventory records, and
 Source Data Usage Profiles for governance review workflows. It can transition
 Access Grant statuses through explicit backend lifecycle endpoints while keeping

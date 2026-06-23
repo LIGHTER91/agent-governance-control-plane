@@ -293,6 +293,10 @@ Recommended order:
 - [x] Add frontend product blueprint for #74, documenting Policy Studio and
       Review Inbox as validated surfaces plus remaining workflow-first frontend
       gaps.
+- [x] Implement the Overview page product narrative from #74 with
+      know/control/prove workflow cards, current actor context, attention queue,
+      runtime activity state, local metadata pre-check demo guidance, and no
+      fake dashboard metrics.
 - [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
