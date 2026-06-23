@@ -413,6 +413,22 @@ Optional safe demo seed, after the stack is running:
 docker compose -f compose.dev.yml exec api uv run python scripts/seed_full_stack_demo.py --apply
 ```
 
+One-command metadata-only pre-check demo, after the stack is running:
+
+```powershell
+.\scripts\dev-demo.ps1
+```
+
+The demo script checks the Docker Compose services, verifies API health,
+confirms `GET /me` returns the local `Local Admin` actor with
+`platform_admin`, `reviewer`, and `auditor`, applies migrations, runs the
+deterministic full-stack seed, calls the seeded Runtime Gateway scenario, and
+prints the real decision, `policy_version_id`, CheckResult count, and
+HumanApproval ID. The Compose dev API enables
+`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` by default for this local demo.
+If your stack was already running before that setting was added, restart it
+with `.\scripts\dev-down.ps1` and `.\scripts\dev-up.ps1`.
+
 Troubleshooting the Compose stack:
 
 - Docker Desktop not running: start Docker Desktop, then rerun
@@ -493,6 +509,13 @@ HumanApproval, PolicyDecision linked to the active PolicyVersion, and safe
 metadata-only CheckResult summaries visible from the Review Inbox and Evidence
 Bundle. The checks read AGCP inventory metadata only; they do not scan or store
 source contents.
+
+For the Docker Compose stack, prefer the one-command wrapper from the repository
+root:
+
+```powershell
+.\scripts\dev-demo.ps1
+```
 
 Troubleshooting:
 

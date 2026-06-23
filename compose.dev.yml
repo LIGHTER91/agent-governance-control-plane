@@ -32,6 +32,10 @@ services:
       AGCP_DATABASE_URL: ${AGCP_DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/agent_governance_control_plane?connect_timeout=5}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/agent_governance_control_plane?connect_timeout=5}
       AGCP_CORS_ALLOWED_ORIGINS: ${AGCP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      AGCP_DEV_ACTOR_ID: ${AGCP_DEV_ACTOR_ID:-local-admin}
+      AGCP_DEV_ACTOR_ROLES: ${AGCP_DEV_ACTOR_ROLES:-platform_admin,reviewer,auditor}
+      AGCP_DEV_ACTOR_DISPLAY_NAME: ${AGCP_DEV_ACTOR_DISPLAY_NAME:-Local Admin}
+      AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED: ${AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED:-true}
       PYTHONUNBUFFERED: "1"
     ports:
       - "8000:8000"

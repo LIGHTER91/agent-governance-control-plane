@@ -381,6 +381,7 @@ credentials.
       classification and ModelAsset provider type.
 - [x] Add deterministic local demo seed and documentation for metadata-only
       Runtime Gateway pre-check validation with active PolicyVersion evidence.
+- [x] Add one-command Docker Compose local metadata pre-check demo script.
 - [x] Add PolicyRule adapter for persisted rules.
 - [x] Add PolicyDecision persistence service.
 - [x] Define telemetry AgentRun and TraceEvent schemas.

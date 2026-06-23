@@ -112,6 +112,20 @@ Evidence Bundle show safe CheckResult summaries; they do not include source
 contents, prompts, credentials, scanner findings, or raw payloads. Use a new
 `request_id` and `run_id` if you want to create another fresh runtime decision.
 
+When using the Docker Compose development stack, run the one-command local demo
+from the repository root:
+
+```powershell
+.\scripts\dev-demo.ps1
+```
+
+The script verifies the stack, API health, local admin actor, and metadata
+pre-check feature flag; applies migrations; runs the seed; calls the Runtime
+Gateway with the safe helper payload; and prints the real decision,
+PolicyVersion reference, linked CheckResult count, and HumanApproval ID.
+The Compose dev API sets `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` by
+default for this local-only demo path.
+
 Troubleshooting:
 
 - `ModuleNotFoundError: agent_governance_api`: include `--app-dir src` in the
