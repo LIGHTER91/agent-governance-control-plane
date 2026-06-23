@@ -169,7 +169,9 @@ packages for enterprise integrations are intentionally not implemented yet.
   repository navigation, static templates, Blocks and Code DSL modes,
   deterministic local validation, explicit `check_*` outcome fields, Save draft
   through existing APIs, no Publish action, and no fake production simulation.
-- Read-only frontend Runtime Gateway overview and activity pages.
+- Read-only frontend Runtime Decisions page backed by runtime activity data,
+  showing request, context, policy evaluation, metadata checks, human review,
+  and evidence milestones without fake production simulation.
 - Frontend Human Approvals page backed by `GET /human-approvals`, with review
   actions shown only for pending approvals.
 - Read-only frontend Evidence Bundle page backed by

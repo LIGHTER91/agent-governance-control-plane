@@ -33,9 +33,9 @@ still missing. The frontend now has a minimal dashboard shell, a read-only Agent
 list page backed by the backend Agent Registry API, a read-only Agent detail
 page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
 Bundle APIs, a read-only Access & Data page backed by AccessGrant, Source, and
-DataUsageProfile APIs, read-only Runtime Gateway overview and activity pages, a
-Human Approvals page with pending review actions, and an Evidence Bundle page
-backed by the backend Evidence Bundle export API. The Evidence page now loads
+DataUsageProfile APIs, a workflow-first Runtime Decisions timeline backed by
+`GET /runtime/tool-calls/activity`, a Human Approvals page with pending review
+actions, and an Evidence Bundle page backed by the backend Evidence Bundle export API. The Evidence page now loads
 bundles only by manual user action, explains the evidence chain, shows safe
 export warnings and metadata, and downloads the bounded JSON artifact returned
 by the backend. The frontend also has an Integration Hub page for Custom
@@ -208,6 +208,11 @@ narrative entry point: it explains AGCP as a governance/evidence control plane,
 uses real current-actor, Agent, HumanApproval, Policy, PolicyVersion review, and
 Runtime activity endpoints where available, and renders unavailable or empty
 states honestly instead of synthetic dashboard metrics.
+The Runtime Decisions page now implements the runtime blueprint follow-up as a
+decision lifecycle timeline. It uses real runtime activity records only, shows
+honest empty states when metadata CheckResults are not present in the read
+model, and links to Review Inbox and Evidence Bundle instead of simulating
+production impact.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should

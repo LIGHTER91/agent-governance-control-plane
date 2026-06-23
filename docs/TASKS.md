@@ -110,9 +110,9 @@ The frontend has a minimal dashboard shell, a read-only Agent list page backed
 by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
-`GET /agents/{agent_id}/human-approvals`, read-only Runtime Gateway overview
-and Runtime activity pages, a Human Approvals page with pending review actions,
-and a read-only Evidence Bundle page backed by
+`GET /agents/{agent_id}/human-approvals`, a read-only Runtime Decisions
+timeline backed by `GET /runtime/tool-calls/activity`, a Human Approvals page
+with pending review actions, and a read-only Evidence Bundle page backed by
 `GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
 that explains Custom Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and
 generic webhook/API connection patterns without making AGCP execute tools or
@@ -478,7 +478,9 @@ credentials.
 - [x] Add denied Evidence Bundle export audit event for known Agents.
 - [x] Add direct user owner access for Evidence Bundle export.
 - [x] Add Runtime activity backend endpoint.
-- [x] Add Runtime activity frontend page.
+- [x] Add Runtime Decisions frontend timeline for request, context, active
+      PolicyVersion or fallback policy, metadata checks, HumanApproval, and
+      Evidence Bundle milestones.
 - [x] Add Capability inventory API.
 - [x] Add Source inventory API.
 - [x] Add ModelAsset inventory API.

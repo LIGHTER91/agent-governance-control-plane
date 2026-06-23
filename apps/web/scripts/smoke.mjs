@@ -459,14 +459,27 @@ const requiredText = [
   "simulation",
   "enforcement",
   "resume",
-  "Decision requests",
-  "Resume checks",
+  "Runtime Decisions",
+  "Trace how AGCP evaluated agent actions",
+  "AGCP records and governs decisions",
   "GET /runtime/tool-calls/activity",
   "Loading Runtime activity",
   "Unable to load Runtime activity",
   "No Runtime activity records",
   "Runtime activity requires reviewer, auditor, or platform_admin role",
-  "Runtime decisions activity",
+  "Runtime request received",
+  "Context resolved",
+  "Policy evaluated",
+  "Metadata checks",
+  "Human review",
+  "Evidence",
+  "No metadata pre-check results attached",
+  "Run a local metadata pre-check decision",
+  ".\\scripts\\dev-demo.ps1",
+  "not executing the tool",
+  "no fake production simulation",
+  "Open Evidence Bundle",
+  "Open Review Inbox",
   "tool_call_decision",
   "tool_call_resume",
   "tool_name",
@@ -999,6 +1012,7 @@ function runRuntimeActivityFixtureSmoke() {
   const policyDecisionId = "22222222-2222-4222-8222-222222222222";
   const humanApprovalId = "33333333-3333-4333-8333-333333333333";
   const runId = "44444444-4444-4444-8444-444444444444";
+  const policyVersionId = "77777777-7777-4777-8777-777777777777";
 
   const fixture = [
     {
@@ -1016,10 +1030,34 @@ function runRuntimeActivityFixtureSmoke() {
       trace_event_id: traceEventId,
       policy_decision_id: policyDecisionId,
       human_approval_id: humanApprovalId,
+      human_approval_status: "pending",
+      policy_version_id: policyVersionId,
+      environment: "production",
+      action_type: "external_tool_call",
+      source_ids: ["source-confidential"],
+      model_id: "model-external",
+      purpose: "customer_notification",
+      source_data_classification: "confidential",
+      check_results: [
+        {
+          id: "88888888-8888-4888-8888-888888888888",
+          check_type: "source_classification",
+          outcome: "passed",
+          target_type: "source",
+          target_id: "source-confidential",
+          confidence: 1,
+          created_at: "2026-01-15T12:04:59Z",
+          metadata: {
+            data_classification: "confidential",
+            raw_source_content: "do-not-render"
+          }
+        }
+      ],
       related_ids: {
         trace_event_id: traceEventId,
         policy_decision_id: policyDecisionId,
         human_approval_id: humanApprovalId,
+        policy_version_id: policyVersionId,
         run_id: runId
       }
     },
@@ -1059,6 +1097,26 @@ function runRuntimeActivityFixtureSmoke() {
     "proceed=true",
     "Email tool use requires human review.",
     "Human approval is approved and the resume context matches.",
+    "Runtime request received",
+    "Context resolved",
+    "Policy evaluated",
+    "Metadata checks",
+    "Human review",
+    "Evidence",
+    "AGCP does not execute the tool",
+    "PolicyVersion",
+    policyVersionId,
+    "production",
+    "external_tool_call",
+    "source-confidential",
+    "model-external",
+    "customer_notification",
+    "confidential",
+    "source_classification",
+    "passed",
+    "No metadata pre-check results attached",
+    "Open Review Inbox",
+    "Open Evidence Bundle",
     "trace_event_id",
     "policy_decision_id",
     "human_approval_id",
@@ -1075,6 +1133,10 @@ function runRuntimeActivityFixtureSmoke() {
 
   if (!emptyActivity.includes("No Runtime activity records")) {
     throw new Error("Runtime activity fixture did not cover the empty state.");
+  }
+
+  if (!emptyActivity.includes(".\\scripts\\dev-demo.ps1")) {
+    throw new Error("Runtime activity fixture did not cover the local demo command.");
   }
 
   for (const unsafeText of [
@@ -1095,7 +1157,7 @@ function runRuntimeActivityFixtureSmoke() {
 
 function renderRuntimeActivityFixture(items) {
   if (items.length === 0) {
-    return "No Runtime activity records";
+    return "No Runtime activity records\nNo runtime decisions recorded yet. Run .\\scripts\\dev-demo.ps1 to create a local metadata pre-check decision.";
   }
 
   return items.map(renderRuntimeActivityFixtureItem).join("\n");
@@ -1108,8 +1170,46 @@ function renderRuntimeActivityFixtureItem(item) {
     item.mode || "Not persisted",
     item.decision || "Not persisted",
     `proceed=${item.proceed === null ? "Not persisted" : String(item.proceed)}`,
-    item.reason || "No reason was persisted for this activity record."
+    item.reason || "No reason was persisted for this activity record.",
+    "Runtime request received",
+    "AGCP does not execute the tool",
+    "Context resolved",
+    item.environment || "No resolved inventory context attached.",
+    item.action_type || "",
+    (item.source_ids || []).join(", "),
+    item.model_id || "",
+    item.purpose || "",
+    item.source_data_classification || item.data_classification || "",
+    "Policy evaluated",
+    "PolicyVersion",
+    item.policy_version_id || item.related_ids?.policy_version_id || "No active PolicyVersion reference attached",
+    "Metadata checks",
+    "Human review",
+    item.human_approval_id ? "Open Review Inbox" : "No human review was required for this decision.",
+    "Evidence",
+    "Open Evidence Bundle"
   ];
+
+  const checkResults = item.check_results || [];
+  if (checkResults.length === 0) {
+    parts.push("No metadata pre-check results attached");
+  }
+
+  for (const result of checkResults) {
+    parts.push(
+      result.check_type,
+      result.outcome,
+      result.target_type || "Not attached",
+      result.target_id || "Not attached",
+      String(result.confidence ?? "Not attached")
+    );
+
+    for (const [key, value] of Object.entries(result.metadata || {})) {
+      if (isSafeRuntimeMetadataKey(key)) {
+        parts.push(key, String(value));
+      }
+    }
+  }
 
   for (const field of ["agent_id", "run_id", "request_id"]) {
     parts.push(field, item[field] || "Not persisted");
@@ -1124,6 +1224,23 @@ function renderRuntimeActivityFixtureItem(item) {
   }
 
   return parts.join("\n");
+}
+
+function isSafeRuntimeMetadataKey(key) {
+  const normalizedKey = key.toLowerCase();
+  return ![
+    "api_key",
+    "authorization",
+    "chunk",
+    "content",
+    "credential",
+    "password",
+    "payload",
+    "prompt",
+    "raw",
+    "secret",
+    "token"
+  ].some((unsafeTerm) => normalizedKey.includes(unsafeTerm));
 }
 
 function runAgentGovernanceProfileFixtureSmoke() {

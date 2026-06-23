@@ -27,9 +27,11 @@ and otherwise show an honest empty state. Unsupported escalation and
 request-info flows are shown honestly as not wired yet. The Evidence page
 manually loads filtered Evidence Bundle JSON for a single Agent, explains the
 human-readable evidence chain, and lets reviewers download the bounded JSON
-artifact returned by the backend. The Runtime Gateway
-page is a static read-only overview of runtime modes, endpoints, configuration
-flags, and current limitations. The Policies page is an IDE-style Policy Studio:
+artifact returned by the backend. The Runtime Decisions page is a workflow-first
+timeline backed by `GET /runtime/tool-calls/activity`; it explains request
+receipt, resolved context, active PolicyVersion or fallback policy selection,
+metadata checks, HumanApproval linkage, and Evidence Bundle access without
+inventing runtime results. The Policies page is an IDE-style Policy Studio:
 it reads existing Policy and PolicyRule records, offers block and Code DSL
 authoring modes, and compiles local editor state back to deterministic
 PolicyRule condition JSON before calling the existing Policy APIs. Its Validate
@@ -350,6 +352,8 @@ npm run build
   activate or publish the version. Activation is a separate approved-review
   action.
 - No PDF or signed Evidence Bundle export in the UI.
-- Runtime Gateway page is read-only and does not call runtime endpoints.
+- Runtime Decisions is read-only and calls the existing runtime activity
+  endpoint only; when CheckResult details are not present in that read model,
+  it points users to Evidence Bundle instead of inventing pre-check results.
 - No charts or metrics.
 - No production deployment configuration.
