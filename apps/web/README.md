@@ -221,6 +221,11 @@ layer that compiles to deterministic PolicyRule condition JSON, not a runtime
 engine or production simulation language. Backend review workflow refinements
 should continue to follow the #56 versioning/review guardrail contract and #68
 active PolicyVersion rollout decisions before adding publish-like semantics.
+The broader frontend product direction for #74 is documented in
+`docs/FRONTEND_PRODUCT_BLUEPRINT.md`. It treats Policy Studio and Review Inbox
+as validated AGCPStudio surfaces, captures the remaining workflow-first
+frontend gaps, and explicitly rejects API-shaped CRUD regressions, fake metrics,
+fake compliance scores, and fake production simulations.
 
 ## Local Full-Stack Demo
 

@@ -197,6 +197,12 @@ and the single-active-version invariant is enforced by API validation plus a
 database-level partial unique index. Remaining #68 implementation follow-ups
 should land before any publish-like or complete historical-backfill semantics
 are exposed as product workflow.
+The frontend product blueprint for #74 is documented in
+`docs/FRONTEND_PRODUCT_BLUEPRINT.md`: Policy Studio and Review Inbox are treated
+as validated AGCPStudio product surfaces, while Overview, Access & Data,
+Runtime Decisions, Evidence & Audit, Integrations, and Settings/Admin are
+tracked as workflow-first follow-ups that must avoid fake metrics, fake
+compliance claims, and API-shaped CRUD regressions.
 
 LangGraph integration now has a focused adapter boundary design in
 `docs/LANGGRAPH_ADAPTER_DESIGN.md`. It defines where a LangGraph wrapper should
@@ -549,6 +555,7 @@ References:
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
+- `docs/FRONTEND_PRODUCT_BLUEPRINT.md`
 - `docs/LANGGRAPH_ADAPTER_DESIGN.md`
 - `docs/IDENTITY_AUTH_RBAC_DESIGN.md`
 - `docs/SERVICE_ACTOR_API_KEY_DESIGN.md`
@@ -598,6 +605,9 @@ Planned capabilities:
   Minimal reviewer assignment is implemented without automatic approval,
   activation, notification, or runtime changes. A minimal `/me`-backed current
   actor display now disables unavailable review actions with explicit reasons.
+- Frontend product blueprint. Completed as a documentation baseline for #74:
+  Policy Studio and Review Inbox are validated surfaces, future pages should be
+  workflow-first, and AGCPStudio UX must not regress into API-shaped CRUD.
 - Legacy live Policy/PolicyRule mutation guardrails for active-versioned
   Policies are implemented; fallback Policies without active versions remain
   editable for bootstrap and compatibility.

@@ -183,6 +183,7 @@ References:
 - `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`
 - `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md`
 - `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`
+- `docs/FRONTEND_PRODUCT_BLUEPRINT.md`
 - `docs/RUNTIME_GATEWAY_DESIGN.md`
 - `docs/RUNTIME_GATEWAY_ENFORCEMENT_MODE.md`
 - `docs/RUNTIME_GATEWAY_RESUME_ENDPOINT.md`
@@ -218,29 +219,32 @@ Recommended order:
    wording.
 6. Add guided PolicyCheckStep UI support only after versioning, review, and
    simulation semantics have a safe implementation path.
-7. Use Access Grants as optional policy context without replacing
+7. Use `docs/FRONTEND_PRODUCT_BLUEPRINT.md` as the #74 frontend product
+   baseline: preserve validated Policy Studio and Review Inbox UX, and keep new
+   pages workflow-first instead of API-shaped CRUD.
+8. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-8. Add focused AccessGrant and inventory review workflows only where they
+9. Add focused AccessGrant and inventory review workflows only where they
    support approval, evidence, or policy decisions.
-9. Add Permission domain model only if AccessGrant target semantics prove
+10. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
-10. Add frontend auth and role-aware UI later.
-11. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-12. Add OpenAPI examples for `GET /human-approvals` if missing.
-13. Design team and organization-unit ownership resolution for Evidence Bundle
+11. Add frontend auth and role-aware UI later.
+12. Add CORS/proxy setup guidance if needed for local frontend/backend use.
+13. Add OpenAPI examples for `GET /human-approvals` if missing.
+14. Design team and organization-unit ownership resolution for Evidence Bundle
     export.
-14. Add owner-based service actor scopes design.
-15. Add safe denied-scope audit events.
-16. Add admin management for persisted service actor scope and rule records.
-17. Implement service actor API key rotation and admin workflows after registry
+15. Add owner-based service actor scopes design.
+16. Add safe denied-scope audit events.
+17. Add admin management for persisted service actor scope and rule records.
+18. Implement service actor API key rotation and admin workflows after registry
     management behavior is designed.
-18. Add tests for overriding the Actor dependency with a non-development actor.
-19. Add deeper separation-of-duties checks for HumanApproval review.
-20. Add broad filtering and pagination for Runtime and Agent activity only
+19. Add tests for overriding the Actor dependency with a non-development actor.
+20. Add deeper separation-of-duties checks for HumanApproval review.
+21. Add broad filtering and pagination for Runtime and Agent activity only
     after the backend read models need it.
-21. Turn Integration Hub guidance into focused adapter packages only after
+22. Turn Integration Hub guidance into focused adapter packages only after
     stronger auth, caller enforcement, and packaging boundaries are designed.
-22. Prototype a minimal dependency-free LangGraph adapter helper with fake tool
+23. Prototype a minimal dependency-free LangGraph adapter helper with fake tool
     tests before adding any LangGraph dependency.
 
 ## Backlog
@@ -286,6 +290,9 @@ Recommended order:
       saved draft editor state and Blocks mode returns to compact IDE-style
       WHEN/CHECK/THEN/PROVE review blocks; precise V1 edits remain in Code DSL
       until full bidirectional Blocks editing is designed.
+- [x] Add frontend product blueprint for #74, documenting Policy Studio and
+      Review Inbox as validated surfaces plus remaining workflow-first frontend
+      gaps.
 - [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.
