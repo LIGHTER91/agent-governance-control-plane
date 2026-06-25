@@ -376,6 +376,10 @@ Policy Management:
   CheckResults store safe outcomes, confidence labels, summaries, reasons,
   references, and safe metadata only; they must not store source contents,
   prompts, scanner raw payloads, or credentials.
+  Data Usage Profile results store only `dpia_reference_present` for DPIA
+  reference state, and model provider results store the provider label in
+  `model_provider` plus the deterministic `model_provider_type`
+  classification: `external`, `local`, or `unknown`.
 - PolicyCheckStep records are authoring/configuration only. They declare
   expected metadata-only checks for PolicyRules using constrained check types
   and target selectors. Persistent check types include `source_classification`

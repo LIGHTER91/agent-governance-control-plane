@@ -156,7 +156,8 @@ A `CheckToolResult` may contain:
 - bounded `confidence`;
 - redacted `summary` and `reason`;
 - safe scalar metadata such as status labels, provider labels,
-  classification labels, evidence references, and policy/version references.
+  provider classifications, classification labels, evidence reference presence
+  flags, and policy/version references.
 
 It must not contain raw content, raw prompts, credentials, scanner payloads,
 detected secret values, or private customer data. When converted to a
@@ -180,6 +181,10 @@ context returns `not_applicable`; missing inventory generally returns
 `unknown`; inactive, expired, disabled, revoked, or rejected states return
 `fail` where the domain status is conclusive. Classification and provider type
 checks report available metadata, not approval or legal determinations.
+Data Usage Profile results expose `dpia_reference_present` rather than copying
+the DPIA reference into CheckResult metadata. Model provider checks expose the
+raw provider label as `model_provider` and the deterministic provider class as
+`model_provider_type` with values `external`, `local`, or `unknown`.
 
 ### PolicyCheckStep
 
@@ -394,7 +399,8 @@ execution gate:
 - persistent `source_classification` steps use source selectors and produce
   metadata-only Source/Data Usage Profile classification evidence;
 - persistent `model_provider_type` steps use model selectors and produce
-  metadata-only ModelAsset provider-type evidence;
+  metadata-only ModelAsset provider-type evidence using `external`, `local`,
+  or `unknown` classifications;
 - CheckResults are linked to Agent, run, TraceEvent, and final PolicyDecision;
 - versioned PolicyCheckStep execution includes safe PolicyVersion metadata when
   the step came from an active PolicyVersion snapshot.

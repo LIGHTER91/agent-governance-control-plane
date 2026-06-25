@@ -986,7 +986,8 @@ def test_runtime_metadata_pre_checks_create_capability_and_model_results(
         if result.metadata_.get("policy_check_step_check_type") == "model_provider_type"
     ]
     assert len(provider_results) == 1
-    assert provider_results[0].metadata_["model_provider_type"] == "openai"
+    assert provider_results[0].metadata_["model_provider"] == "openai"
+    assert provider_results[0].metadata_["model_provider_type"] == "external"
     assert [result.outcome for result in access_grant_results] == [
         CheckResultOutcome.PASS,
         CheckResultOutcome.PASS,
@@ -1170,7 +1171,8 @@ def test_runtime_check_result_rule_matches_model_provider_type_pre_check(
     assert check_result.metadata_["policy_check_step_check_type"] == (
         "model_provider_type"
     )
-    assert check_result.metadata_["model_provider_type"] == "openai"
+    assert check_result.metadata_["model_provider"] == "openai"
+    assert check_result.metadata_["model_provider_type"] == "external"
 
 
 def test_runtime_check_result_rule_does_not_match_without_check_results(

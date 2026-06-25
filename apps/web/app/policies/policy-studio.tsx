@@ -105,7 +105,7 @@ type ReviewDiffState =
   | { status: "ready"; diff: PolicyVersionReviewDiffRecord };
 
 const INITIAL_TEMPLATE =
-  POLICY_TEMPLATES.find((template) => template.id === "governance_review_gate") ||
+  POLICY_TEMPLATES.find((template) => template.id === "data_exfiltration_prevention") ||
   POLICY_TEMPLATES[0];
 
 export function PolicyStudio() {
@@ -160,6 +160,30 @@ export function PolicyStudio() {
   const [validationRun, setValidationRun] = useState(0);
   const localEditorDirtyRef = useRef(false);
   const savedEditorPolicyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const syncModeFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setEditorMode(params.get("mode") === "code" ? "code" : "blocks");
+    };
+
+    syncModeFromUrl();
+    window.addEventListener("popstate", syncModeFromUrl);
+
+    return () => window.removeEventListener("popstate", syncModeFromUrl);
+  }, []);
+
+  const handleSetEditorMode = useCallback((mode: "blocks" | "code") => {
+    setEditorMode(mode);
+
+    const url = new URL(window.location.href);
+    if (mode === "code") {
+      url.searchParams.set("mode", "code");
+    } else {
+      url.searchParams.delete("mode");
+    }
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const selectedPolicy = useMemo(() => {
     if (policiesState.status !== "ready" || !selectedPolicyId) {
@@ -220,6 +244,17 @@ export function PolicyStudio() {
   const condition = parsed.condition || defaultCondition();
   const blocks = useMemo(() => policyBlocksFromCondition(condition), [condition]);
   const compiled = useMemo(() => compilePolicyRulePreview(parsed), [parsed]);
+  const editorPolicyTitle =
+    titleFromSlug(parsed.policyName || selectedPolicy?.name || INITIAL_TEMPLATE.name);
+  const editorPolicyDescription =
+    selectedPolicy?.description || INITIAL_TEMPLATE.description;
+  const editorStatusLabel =
+    selectedDraftVersion?.status || selectedPolicy?.status || "draft";
+  const editorVersionLabel = selectedDraftVersion
+    ? `v${selectedDraftVersion.version_number}`
+    : editorSource.kind === "local_draft"
+      ? "local draft"
+      : "backend policy";
   const saveDisabledReason = useMemo(() => {
     if (parsed.errors.length > 0) {
       return parsed.errors.join(" ");
@@ -1100,17 +1135,22 @@ export function PolicyStudio() {
   return (
     <div className="policy-studio-route">
       <div className="ps2-shell">
+        <PolicyStudioRail />
+
         <PolicyRepository
           mode={repositoryMode}
           onModeChange={setRepositoryMode}
           onNewPolicy={handleNewPolicy}
           onOpenTemplates={() => setShowTemplates(true)}
+          onRefresh={() => void loadPolicies()}
           onSelectPolicy={handleSelectPolicy}
           onSelectRule={handleSelectRule}
           onUseTemplate={handleUseTemplate}
           policiesState={policiesState}
+          policyVersionsState={versionsState}
           query={repositoryQuery}
           rulesState={rulesState}
+          selectedDraftVersion={selectedDraftVersion}
           selectedPolicyId={selectedPolicyId}
           selectedRuleId={selectedRuleId}
           setQuery={setRepositoryQuery}
@@ -1121,6 +1161,11 @@ export function PolicyStudio() {
           compiled={compiled}
           dsl={dsl}
           editorMode={editorMode}
+          policyDescription={editorPolicyDescription}
+          policyStatus={editorStatusLabel}
+          policyTitle={editorPolicyTitle}
+          policyVersion={editorVersionLabel}
+          validationRunCount={validationRun}
           onChangeDsl={(nextDsl) => {
             localEditorDirtyRef.current = true;
             setDsl(nextDsl);
@@ -1130,9 +1175,12 @@ export function PolicyStudio() {
               message: "Review request not submitted"
             });
           }}
+          onSaveDraft={handleSaveDraft}
           onSelectBlock={setSelectedBlockId}
-          onSetEditorMode={setEditorMode}
+          onSetEditorMode={handleSetEditorMode}
+          onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
+          saveDisabledReason={saveDisabledReason}
           selectedBlockId={selectedBlockId}
           validationMessages={validationMessages}
         />
@@ -1328,6 +1376,149 @@ function studioStateMessages({
   }
 
   return messages;
+}
+
+function PolicyStudioRail() {
+  const items = [
+    { href: "/", label: "Overview", icon: "grid" },
+    { href: "/agents", label: "Agents", icon: "agent" },
+    { href: "/policies", label: "Policy Studio", icon: "policy", active: true },
+    { href: "/access-data", label: "Access & Inventory", icon: "matrix" },
+    { href: "/human-approvals", label: "Human Approvals", icon: "approval" },
+    { href: "/evidence", label: "Evidence & Audit", icon: "evidence" },
+    { href: "/runtime-gateway", label: "Runtime Trace", icon: "trace" },
+    { href: "/integrations", label: "Integrations", icon: "integration" }
+  ];
+
+  return (
+    <aside className="ps2-icon-rail" aria-label="Policy Studio navigation">
+      <div className="ps2-rail-brand" aria-hidden="true">
+        <PolicyRailIcon name="logo" />
+      </div>
+      <nav className="ps2-rail-nav">
+        {items.map((item) => (
+          <a
+            aria-current={item.active ? "page" : undefined}
+            aria-label={item.label}
+            className={`ps2-rail-btn ${item.active ? "active" : ""}`}
+            href={item.href}
+            key={item.label}
+            title={item.label}
+          >
+            <PolicyRailIcon name={item.icon} />
+          </a>
+        ))}
+      </nav>
+      <a
+        aria-label="Settings"
+        className="ps2-rail-btn ps2-rail-settings"
+        href="/settings"
+        title="Settings"
+      >
+        <PolicyRailIcon name="settings" />
+      </a>
+    </aside>
+  );
+}
+
+function PolicyRailIcon({ name }: { name: string }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 1.55
+  };
+
+  if (name === "logo") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M10 2.1 16.8 6v8L10 17.9 3.2 14V6L10 2.1Z" {...common} />
+        <path d="M10 6.1 13.3 8v3.9L10 13.9 6.7 12V8L10 6.1Z" fill="currentColor" opacity=".42" />
+      </svg>
+    );
+  }
+
+  if (name === "grid") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <rect x="3.5" y="3.5" width="5" height="5" rx="1.2" {...common} />
+        <rect x="11.5" y="3.5" width="5" height="5" rx="1.2" {...common} />
+        <rect x="3.5" y="11.5" width="5" height="5" rx="1.2" {...common} />
+        <rect x="11.5" y="11.5" width="5" height="5" rx="1.2" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "agent") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <circle cx="10" cy="7" r="3" {...common} />
+        <path d="M4.5 16c.8-3.1 2.7-4.7 5.5-4.7s4.7 1.6 5.5 4.7" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "policy") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M10 2.8 15.8 5.5v4.2c0 3.2-2.3 6.1-5.8 7.5-3.5-1.4-5.8-4.3-5.8-7.5V5.5L10 2.8Z" {...common} />
+        <path d="m7.5 10 1.8 1.8 3.4-4" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "matrix") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M4 4h12v12H4zM8 4v12M12 4v12M4 8h12M4 12h12" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "approval") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M5.2 10.7 8.4 14 15.2 6" {...common} />
+        <circle cx="10" cy="10" r="7" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "evidence") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M6 3.5h6l3 3V16.5H6z" {...common} />
+        <path d="M12 3.5V7h3M8.2 10h4.6M8.2 13h4.6" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "trace") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <circle cx="5" cy="10" r="2" {...common} />
+        <circle cx="15" cy="5" r="2" {...common} />
+        <circle cx="15" cy="15" r="2" {...common} />
+        <path d="M7 9.2 13.2 5.8M7 10.8l6.2 3.4" {...common} />
+      </svg>
+    );
+  }
+
+  if (name === "integration") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M7 4v4M13 4v4M6 8h8l-1 4H7zM10 12v4" {...common} />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20">
+      <circle cx="10" cy="10" r="3" {...common} />
+      <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" {...common} />
+    </svg>
+  );
 }
 
 function upsertPolicyRecord(policies: PolicyRecord[], policy: PolicyRecord) {

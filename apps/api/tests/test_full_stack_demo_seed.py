@@ -380,7 +380,8 @@ def test_metadata_pre_check_demo_runtime_flow_creates_review_evidence(
         assert model_provider_result.metadata_["policy_version_id"] == (
             str(METADATA_PRE_CHECK_DEMO_POLICY_VERSION_ID)
         )
-        assert model_provider_result.metadata_["model_provider_type"] == "openai"
+        assert model_provider_result.metadata_["model_provider"] == "openai"
+        assert model_provider_result.metadata_["model_provider_type"] == "external"
 
         classification_results = [
             result

@@ -99,6 +99,7 @@ const FIELD_ALIASES: Record<string, string> = {
   "action.capability_id": "capability_id",
   "action.risk": "risk_level",
   "action.type": "action_type",
+  "AgentActionEvent.action": "action_type",
   "agent.id": "agent_id",
   "capability.id": "capability_id",
   "capability.status": "capability_status",
@@ -112,9 +113,12 @@ const FIELD_ALIASES: Record<string, string> = {
   "data.classification": "data_classification",
   "data.contains_personal_data": "contains_personal_data",
   "data.contains_sensitive_data": "contains_sensitive_data",
+  "DataClassificationCheck": "data_classification",
   "data_usage.allowed_purpose": "data_usage_allowed_purpose",
   "data_usage.prohibited_purpose": "data_usage_prohibited_purpose",
   "data_usage.review_status": "data_usage_review_status",
+  "DestinationAllowlistCheck": "data_usage_review_status",
+  "DLPContentCheck": "check_type",
   "model.id": "model_id",
   "model.provider": "model_provider",
   "model.provider_type": "model_provider_type",
@@ -128,7 +132,8 @@ const FIELD_ALIASES: Record<string, string> = {
   "source.ids": "source_ids",
   "source.status": "source_status",
   "system.environment": "environment",
-  "tool.name": "tool_name"
+  "tool.name": "tool_name",
+  "VolumeThresholdCheck": "check_outcome"
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -168,6 +173,26 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export const POLICY_TEMPLATES: PolicyTemplate[] = [
+  {
+    id: "data_exfiltration_prevention",
+    name: "Data Exfiltration Prevention",
+    className: "ps2-tc-access",
+    description:
+      "Prevent unauthorized outbound transfer of sensitive data through agent actions and tool use.",
+    tags: ["data-protection", "exfiltration", "dlp"],
+    condition: {
+      decision: "deny",
+      reason: "Unauthorized outbound transfer of sensitive data is blocked.",
+      action_type: "transfer_data",
+      data_classification: "sensitive",
+      contains_sensitive_data: true,
+      access_grant_status: "active",
+      source_status: "active",
+      data_usage_review_status: "approved",
+      check_type: "data_loss_prevention",
+      check_outcome: "pass"
+    }
+  },
   {
     id: "require_active_grant",
     name: "Require Active Grant",
@@ -338,6 +363,13 @@ export function templateToDsl(template: PolicyTemplate) {
 
 export function conditionToDsl(policyName: string, condition: PolicyCondition) {
   const slug = slugifyPolicyName(policyName);
+  if (
+    slug === "data_exfiltration_prevention" &&
+    isDataExfiltrationCondition(condition)
+  ) {
+    return dataExfiltrationPreventionDsl();
+  }
+
   const whenLines = entriesForFields(condition, WHEN_FIELDS).map((entry, index) =>
     `${index === 0 ? "  when" : "    and"} ${fieldLabel(entry.key)} ${operatorForValue(
       entry.value
@@ -370,6 +402,30 @@ export function conditionToDsl(policyName: string, condition: PolicyCondition) {
   ].join("\n");
 }
 
+function isDataExfiltrationCondition(condition: PolicyCondition) {
+  return condition.action_type === "transfer_data" && condition.decision === "deny";
+}
+
+function dataExfiltrationPreventionDsl() {
+  return [
+    'policy "Data Exfiltration Prevention"',
+    "",
+    'when AgentActionEvent.action == "transfer_data"',
+    "",
+    'check DataClassificationCheck == "sensitive" required',
+    'check DestinationAllowlistCheck == "approved" required',
+    'check DLPContentCheck == "data_loss_prevention" required',
+    'check VolumeThresholdCheck == "below_threshold" required',
+    "",
+    'then DenyAction reason "unauthorized outbound transfer"',
+    'then RequireApproval reviewer_group "security-governance"',
+    "",
+    "prove LogDecision",
+    "prove LogEvidence include check_results",
+    "prove Retention days 365"
+  ].join("\n");
+}
+
 export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -383,7 +439,9 @@ export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
     .filter((line) => !line.startsWith("//"));
 
   const policyLine = lines.find((line) => line.startsWith("policy "));
-  const policyNameMatch = policyLine?.match(/^policy\s+([a-zA-Z0-9_ -]+)/);
+  const policyNameMatch =
+    policyLine?.match(/^policy\s+"([^"]+)"/) ||
+    policyLine?.match(/^policy\s+([a-zA-Z0-9_ -]+)/);
   const policyName = policyNameMatch
     ? slugifyPolicyName(policyNameMatch[1])
     : "untitled_policy";
@@ -419,6 +477,11 @@ export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
     }
 
     if (line.startsWith("then ")) {
+      if (line.startsWith("then RequireApproval")) {
+        structural.push(rawLine);
+        continue;
+      }
+
       const decision = parseDecision(line.replace(/^then\s+/, ""));
       if (!decision) {
         unsupported.push(rawLine);
@@ -478,6 +541,10 @@ export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
 }
 
 export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlock[] {
+  if (isDataExfiltrationCondition(condition)) {
+    return dataExfiltrationBlocks();
+  }
+
   const whenBlocks = entriesForFields(condition, WHEN_FIELDS).map(
     (entry, index) => ({
       id: `when-${entry.key}`,
@@ -536,6 +603,101 @@ export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlo
       expr: "decision, checks, reviewer, evidence_bundle",
       detail: "AGCP records policy decisions, check results, approvals, and evidence bundles when available",
       status: "metadata",
+      statusClass: "ps2-st-col"
+    }
+  ];
+}
+
+function dataExfiltrationBlocks(): PolicyBlock[] {
+  return [
+    {
+      id: "when-agent-action-event",
+      group: "when",
+      kind: "when",
+      expr: "AgentActionEvent",
+      detail: "Agent attempts to transfer data",
+      status: "event",
+      statusClass: "ps2-st-col"
+    },
+    {
+      id: "check-data-classification",
+      group: "check",
+      kind: "check",
+      expr: "DataClassificationCheck",
+      detail: "Classify data sensitivity",
+      status: "required",
+      statusClass: "ps2-st-req"
+    },
+    {
+      id: "check-destination-allowlist",
+      group: "check",
+      kind: "check",
+      expr: "DestinationAllowlistCheck",
+      detail: "Destination is in approved allowlist",
+      status: "required",
+      statusClass: "ps2-st-req"
+    },
+    {
+      id: "check-dlp-content",
+      group: "check",
+      kind: "check",
+      expr: "DLPContentCheck",
+      detail: "Content does not contain sensitive data",
+      status: "required",
+      statusClass: "ps2-st-req"
+    },
+    {
+      id: "check-volume-threshold",
+      group: "check",
+      kind: "check",
+      expr: "VolumeThresholdCheck",
+      detail: "Data volume is below threshold",
+      status: "required",
+      statusClass: "ps2-st-req"
+    },
+    {
+      id: "then-deny-action",
+      group: "then",
+      kind: "then",
+      expr: "DenyAction",
+      detail: "Block the data transfer",
+      status: "block",
+      statusClass: "ps2-st-req"
+    },
+    {
+      id: "then-require-approval",
+      group: "then",
+      kind: "then",
+      expr: "RequireApproval",
+      detail: "Require security review for exception",
+      status: "review",
+      statusClass: "ps2-st-pnd"
+    },
+    {
+      id: "prove-log-decision",
+      group: "prove",
+      kind: "prove",
+      expr: "LogDecision",
+      detail: "Record decision and context",
+      status: "record",
+      statusClass: "ps2-st-col"
+    },
+    {
+      id: "prove-log-evidence",
+      group: "prove",
+      kind: "prove",
+      expr: "LogEvidence",
+      detail: "Capture check results",
+      status: "capture",
+      statusClass: "ps2-st-col"
+    },
+    {
+      id: "prove-retention",
+      group: "prove",
+      kind: "prove",
+      expr: "Retention",
+      detail: "Retain evidence for 365 days",
+      status: "365d",
       statusClass: "ps2-st-col"
     }
   ];
@@ -618,11 +780,11 @@ export function localValidationMessages(parsed: ParsedPolicyDsl) {
 
   messages.push({
     tone: "info",
-    text: "Backend simulation unavailable; this is local validation only"
+    text: "Local validation only; no runtime decision request is executed"
   });
   messages.push({
     tone: "info",
-    text: "No backend simulation endpoint wired; Save draft creates a draft PolicyVersion and does not affect runtime until activation"
+    text: "Save draft creates a draft PolicyVersion and does not affect runtime until activation"
   });
 
   return messages;
@@ -698,6 +860,8 @@ function isStructuralDslLine(line: string) {
   return (
     line === "}" ||
     line.endsWith("{") ||
+    line.startsWith("owner ") ||
+    line.startsWith("description ") ||
     line.startsWith("policy ") ||
     line.startsWith("scope ") ||
     line.startsWith("prove ")
@@ -749,6 +913,14 @@ function parseValue(rawValue: string): ConditionValue {
 function parseDecision(expression: string):
   | { decision: PolicyRuleDecision; reason: string }
   | null {
+  const denyActionMatch = expression.match(/^DenyAction\s+reason\s+(.+)$/);
+  if (denyActionMatch) {
+    return {
+      decision: "deny",
+      reason: String(parseValue(denyActionMatch[1]))
+    };
+  }
+
   const match = expression.match(/^([a-z_]+)(?:\((.*)\))?$/);
   if (!match) {
     return null;

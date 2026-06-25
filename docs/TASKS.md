@@ -92,9 +92,12 @@ defines safe request/result objects, execution modes, and metadata-only local
 checks for AccessGrant status, Data Usage Profile status, Source
 status/classification, ModelAsset status/provider type, and Capability status.
 Persistent PolicyCheckStep check types now include `source_classification` and
-`model_provider_type`, wired through the same metadata-only adapter. Scanner
-adapters, public CRUD APIs for CheckTool/CheckResult management, arbitrary
-webhooks/callbacks, and pre-check-driven enforcement remain out of scope.
+`model_provider_type`, wired through the same metadata-only adapter. Adapter
+metadata keeps provider labels separate from `external`/`local`/`unknown`
+provider type classifications and records DPIA reference presence without
+copying DPIA references into CheckResult metadata. Scanner adapters, public
+CRUD APIs for CheckTool/CheckResult management, arbitrary webhooks/callbacks,
+and pre-check-driven enforcement remain out of scope.
 Runtime Gateway now evaluates active PolicyVersion snapshots where available,
 including versioned PolicyRule conditions and versioned PolicyCheckStep
 snapshots for metadata pre-check selection, while preserving unversioned
@@ -122,15 +125,18 @@ PolicyCheckStep management UI, no broad activity filtering or pagination, and
 no Evidence Bundle PDF/signature actions.
 The `/policies` route is now an IDE-style Policy Studio rather than a raw
 Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
-static templates, Blocks and Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`,
-deterministic frontend compilation to supported `PolicyRule.condition` JSON,
-compact IDE-style Blocks review, Code DSL as the precise V1 editing path, local
-validation, generated JSON preview, unsupported-DSL save blocking, and Save
-draft through draft `PolicyVersion` snapshots. Saved drafts no longer
+honest Local backend / Policy repository labeling, static templates, Blocks and
+Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`, deterministic frontend
+compilation to supported `PolicyRule.condition` JSON, compact IDE-style Blocks
+review with consistent icons and visible connectors, Code DSL as the precise V1
+editing path, local validation, generated JSON preview, unsupported-DSL save
+blocking, and Save draft through draft `PolicyVersion` snapshots. Saved drafts no longer
 rehydrate the editor from live PolicyRule fallback state; reload prefers the
 latest draft PolicyVersion snapshot, then active PolicyVersion baseline, then
 live PolicyRule fallback. Templates are static helpers, not backend records.
-Local validation is not runtime simulation. Draft versions do not affect runtime
+Policy folder/category/tag metadata is not persisted yet, so Policy Studio must
+keep repository grouping and tags honest instead of rendering mock folders or
+fake repositories, fake synced workspace state, or fake tag chips. Local validation is not runtime simulation. Draft versions do not affect runtime
 until explicit activation. Draft PolicyVersions with pending review requests are
 immutable and require a new draft for additional changes. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft

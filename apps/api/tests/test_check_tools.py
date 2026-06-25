@@ -1,3 +1,4 @@
+import socket
 from collections.abc import Iterator
 from dataclasses import fields
 from datetime import UTC, datetime, timedelta
@@ -174,6 +175,9 @@ def test_metadata_only_data_usage_profile_status_passes_for_approved_profile(
     assert result.target_id == profile.id
     assert result.outcome is CheckResultOutcome.PASS
     assert result.metadata["review_status"] == "approved"
+    assert result.metadata["dpia_required"] is True
+    assert result.metadata["dpia_reference_present"] is True
+    assert "dpia_reference" not in result.metadata
 
 
 def test_metadata_only_source_status_pass_fail_and_unknown(
@@ -243,7 +247,28 @@ def test_metadata_only_model_asset_status_and_provider_type(
     assert status_result.outcome is CheckResultOutcome.PASS
     assert status_result.metadata["model_asset_status"] == "active"
     assert provider_result.outcome is CheckResultOutcome.PASS
-    assert provider_result.metadata["model_provider_type"] == "openai"
+    assert provider_result.metadata["model_provider"] == "openai"
+    assert provider_result.metadata["model_provider_type"] == "external"
+
+
+def test_metadata_only_model_provider_type_classifies_local_model(
+    session: Session,
+) -> None:
+    adapter = MetadataOnlyCheckToolAdapter()
+    model_asset = create_model_asset(
+        session,
+        status=ModelAssetStatus.ACTIVE,
+        provider=ModelProvider.LOCAL,
+    )
+
+    result = adapter.run(
+        session,
+        CheckToolRequest(check_type=MODEL_PROVIDER_TYPE, model_id=model_asset.id),
+    )
+
+    assert result.outcome is CheckResultOutcome.PASS
+    assert result.metadata["model_provider"] == "local"
+    assert result.metadata["model_provider_type"] == "local"
 
 
 def test_metadata_only_capability_status_pass_fail_and_unknown(
@@ -304,6 +329,26 @@ def test_adapter_rejects_non_metadata_only_execution_mode(session: Session) -> N
                 execution_mode=CheckToolExecutionMode.SAMPLE_BASED_EXTERNAL_SCANNER,
             ),
         )
+
+
+def test_metadata_only_adapter_does_not_open_network_connections(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = MetadataOnlyCheckToolAdapter()
+    source = create_source(session, status=DataSourceStatus.ACTIVE)
+
+    def fail_connect(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("metadata-only CheckTool adapter opened a socket")
+
+    monkeypatch.setattr(socket.socket, "connect", fail_connect)
+
+    result = adapter.run(
+        session,
+        CheckToolRequest(check_type=SOURCE_STATUS, source_id=source.id),
+    )
+
+    assert result.outcome is CheckResultOutcome.PASS
 
 
 def test_result_to_check_result_payload_contains_only_safe_context() -> None:
@@ -447,13 +492,14 @@ def create_model_asset(
     session: Session,
     *,
     status: ModelAssetStatus,
+    provider: ModelProvider = ModelProvider.OPENAI,
 ) -> ModelAsset:
     model_asset = ModelAsset(
         id=uuid4(),
         name=f"Model {uuid4()}",
         description="Governed model.",
         model_type=ModelAssetType.LLM,
-        provider=ModelProvider.OPENAI,
+        provider=provider,
         model_ref="model:test",
         owner_type=OwnerType.TEAM,
         owner_id="team:model",

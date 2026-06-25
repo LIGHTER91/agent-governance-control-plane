@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { CurrentActorRecord } from "../lib/current-actor";
 import {
   PolicyRecord,
@@ -14,6 +15,7 @@ import {
   jsonConditionPreview,
   summarizePolicyRule
 } from "./policy-dsl";
+import { PolicyIcon } from "./policy-icons";
 import type { PolicyLifecycleState, PolicyStudioEditorSource } from "./policy-studio";
 
 export function PolicyInspector({
@@ -98,7 +100,18 @@ export function PolicyInspector({
   selectedRuleUnsupportedFields: string[];
 }) {
   const reviewStatus = selectedDraftVersion?.status || selectedPolicy?.status || "local_draft";
-  const humanApprovalRequired = compiled.decision === "require_human_review";
+  const policyDisplayName =
+    selectedPolicy?.name || titleizePolicyName(parsed.policyName);
+  const policyVersionLabel = selectedDraftVersion
+    ? `v${selectedDraftVersion.version_number}`
+    : "Local draft";
+  const humanApprovalRequired = hasApprovalRequirement(parsed, compiled.decision);
+  const modifiedAt =
+    selectedDraftVersion?.updated_at ||
+    selectedRule?.updated_at ||
+    selectedPolicy?.updated_at ||
+    null;
+  const retentionDays = evidenceRetentionDays(parsed);
   const versionCount =
     policyVersionsState.status === "ready"
       ? String(policyVersionsState.versions.length)
@@ -140,20 +153,118 @@ export function PolicyInspector({
     policyVersionsState,
     selectedPolicy
   });
+  const [activeTab, setActiveTab] = useState<"inspector" | "references">(
+    "inspector"
+  );
 
   return (
     <aside className="ps2-inspector" aria-label="Policy inspector">
+      <div className="ps2-inspector-topbar" aria-label="Policy Studio utilities">
+        <button type="button" aria-label="Help">
+          <PolicyIcon name="help" size={13} />
+        </button>
+        <button type="button" aria-label="Settings">
+          <PolicyIcon name="settings" size={13} />
+        </button>
+      </div>
       <div className="ps2-insp-top">
-        <div className="ps2-insp-title">Inspector</div>
-        <span className={`chip ${reviewStatusChip(reviewStatus)}`}>
-          {reviewStatus}
-        </span>
+        <button
+          className={`ps2-insp-tab ${activeTab === "inspector" ? "active" : ""}`}
+          onClick={() => setActiveTab("inspector")}
+          type="button"
+        >
+          Inspector
+        </button>
+        <button
+          className={`ps2-insp-tab ${activeTab === "references" ? "active" : ""}`}
+          onClick={() => setActiveTab("references")}
+          type="button"
+        >
+          References
+        </button>
       </div>
 
+      {activeTab === "references" ? (
+        <ReferencesTab
+          selectedDraftReviewState={selectedDraftReviewState}
+          selectedDraftVersion={selectedDraftVersion}
+          selectedPolicy={selectedPolicy}
+          selectedRule={selectedRule}
+        />
+      ) : (
       <div className="ps2-insp-scroll">
         <section className="ps2-insp-sec">
-          <div className="ps2-insp-sec-title ist2-summary">Summary</div>
+          <div className="ps2-insp-sec-title ist2-summary">Policy details</div>
+          <div className="ps2-review-card">
+            <ReviewRow
+              label="Policy ID"
+              value={selectedPolicy?.id || "Not persisted"}
+            />
+            <ReviewRow label="Name" value={policyDisplayName} />
+            <ReviewRow label="Version" value={policyVersionLabel} />
+            <ReviewRow
+              label="Status"
+              value={reviewStatus === "local_draft" ? "Local draft" : reviewStatus}
+            />
+            <ReviewRow label="Owner" value={currentActorLabel(currentActorState)} />
+            <ReviewRow
+              label="Last modified"
+              value={modifiedAt ? formatDateTime(modifiedAt) : "Local only"}
+            />
+          </div>
           <div className="ps2-summary-box">{summarizePolicyRule(condition)}</div>
+        </section>
+
+        <section className="ps2-insp-sec">
+          <div className="ps2-insp-sec-title ist2-review">Governance</div>
+          <div className="ps2-review-card">
+            <ReviewRow label="Lifecycle" value={lifecycleLabel(reviewStatus)} />
+            <ReviewRow
+              label="Next step"
+              value={governanceNextStep({
+                editorSource,
+                selectedDraftReviewState,
+                selectedDraftVersion,
+                selectedPolicy
+              })}
+            />
+            <ReviewRow
+              label="Reviewers"
+              value={selectedDraftReviewState?.reviewer_actor_id || "Not assigned"}
+            />
+            <ReviewRow
+              label="Review channel"
+              value={
+                selectedDraftReviewState?.latest_review_request_id
+                  ? "PolicyVersion review request"
+                  : "Not submitted"
+              }
+            />
+          </div>
+        </section>
+
+        <section className="ps2-insp-sec">
+          <div className="ps2-insp-sec-title ist2-compiled">Policy settings</div>
+          <div className="ps2-review-card">
+            <ReviewRow
+              label="Effect on violation"
+              value={compiled.decision === "deny" ? "Block" : compiled.decision}
+            />
+            <ReviewRow label="Default action" value={decisionLabel(compiled.decision)} />
+            <ReviewRow
+              label="Exception handling"
+              value={humanApprovalRequired ? "Require approval" : "Not configured"}
+            />
+            <ReviewRow
+              label="Evidence retention"
+              value={retentionDays ? `${retentionDays} days` : "Not configured"}
+            />
+            <ReviewRow
+              label="Data sensitivity scope"
+              value={dataSensitivityScope(condition)}
+            />
+            <ReviewRow label="Applies to" value={appliesToScope(condition)} />
+          </div>
         </section>
 
         <section className="ps2-insp-sec">
@@ -161,7 +272,7 @@ export function PolicyInspector({
           <div className="ps2-dflow">
             <div className="ps2-dflow-row">
               <FlowNode color="#8b78f6" label="WHEN" sub="runtime fields" />
-              <div className="ps2-darrow">→</div>
+              <div className="ps2-darrow">-&gt;</div>
               <FlowNode
                 color="#38b4f5"
                 label="CHECK"
@@ -175,7 +286,7 @@ export function PolicyInspector({
             </div>
             <div className="ps2-dflow-row">
               <FlowNode color="#f0873a" label="THEN" sub={compiled.decision} />
-              <div className="ps2-darrow">→</div>
+              <div className="ps2-darrow">-&gt;</div>
               <FlowNode color="#22d37a" label="PROVE" sub="evidence intent" />
             </div>
           </div>
@@ -304,7 +415,13 @@ export function PolicyInspector({
             />
             <ReviewRow
               label="Updated"
-              value={selectedRule?.updated_at || selectedPolicy?.updated_at || "Local only"}
+              value={
+                selectedRule?.updated_at
+                  ? formatDateTime(selectedRule.updated_at)
+                  : selectedPolicy?.updated_at
+                    ? formatDateTime(selectedPolicy.updated_at)
+                    : "Local only"
+              }
             />
             <ReviewRow
               label="Save state"
@@ -344,6 +461,27 @@ export function PolicyInspector({
             rows={3}
             value={localNote}
           />
+          {hasPendingReview ? (
+            <button
+              className="ps2-inline-review-action"
+              disabled={Boolean(createDraftDisabledReason)}
+              onClick={onCreateNewDraftForChanges}
+              title={
+                createDraftDisabledReason ||
+                "Create a new draft PolicyVersion from the current editor state. This does not affect runtime."
+              }
+              type="button"
+            >
+              Create new draft for changes
+            </button>
+          ) : null}
+        </section>
+
+        <section className="ps2-insp-sec">
+          <div className="ps2-insp-sec-title ist2-review">Tags</div>
+          <div className="ps2-tag-row">
+            <span>No tags configured</span>
+          </div>
         </section>
 
         <section className="ps2-insp-sec">
@@ -408,86 +546,190 @@ export function PolicyInspector({
           </div>
         </section>
       </div>
-
-      <div className="ps2-insp-actions">
-        {saveDisabledReason ? (
-          <div className={`ps2-save-state ${stateMessageClass(saveDisabledReason)}`}>
-            {saveDisabledReason}
-          </div>
-        ) : saveState.status === "save_error" || saveState.status === "saved" ? (
-          <div
-            className={`ps2-save-state ${saveStateClass(saveState)}`}
-          >
-            {saveState.message}
-          </div>
-        ) : null}
-        {reviewState.status === "error" || reviewState.status === "success" ? (
-          <div className={`ps2-save-state ${reviewStateClass(reviewState)}`}>
-            {reviewState.message}
-          </div>
-        ) : null}
-        {hasPendingReview ? (
-          <div className="ps2-save-state info">
-            <strong>Pending review</strong>
-            <span>This draft is locked while review is pending.</span>
-            <span>Create a new draft for additional changes.</span>
-          </div>
-        ) : null}
-        <div className="ps2-act-row">
-          <button
-            className="ps2-act-btn ps2-btn-save"
-            disabled={saveState.status === "saving" || Boolean(saveDisabledReason)}
-            onClick={onSaveDraft}
-            type="button"
-          >
-            {saveState.status === "saving" ? "Saving" : "Save draft"}
-          </button>
-          <button
-            className="ps2-act-btn ps2-btn-sim"
-            onClick={onValidate}
-            type="button"
-          >
-            Validate
-          </button>
-        </div>
-        <button
-          className="ps2-act-btn ps2-btn-submit"
-          disabled={Boolean(submitDisabledReason)}
-          onClick={onSubmitReview}
-          title={
-            submitDisabledReason ||
-            "Submit creates a PolicyVersion review request. Approval does not activate this version."
-          }
-          type="button"
-        >
-          {reviewState.status === "submitting" ? "Submitting" : "Submit for review"}
-        </button>
-        {hasPendingReview ? (
-          <button
-            className="ps2-act-btn ps2-btn-sim"
-            disabled={Boolean(createDraftDisabledReason)}
-            onClick={onCreateNewDraftForChanges}
-            title={
-              createDraftDisabledReason ||
-              "Create a new draft PolicyVersion from the current editor state. This does not affect runtime."
-            }
-            type="button"
-          >
-            Create new draft for changes
-          </button>
-        ) : null}
-        {submitDisabledReason ? (
-          <div className={`ps2-save-state ${stateMessageClass(submitDisabledReason)}`}>
-            {submitDisabledReason}
-          </div>
-        ) : (
-          <div className="ps2-save-state success">
-            Review approval does not activate this version.
-          </div>
-        )}
-      </div>
+      )}
     </aside>
   );
+}
+
+function titleizePolicyName(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function ReferencesTab({
+  selectedDraftReviewState,
+  selectedDraftVersion,
+  selectedPolicy,
+  selectedRule
+}: {
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
+  selectedDraftVersion: PolicyVersionRecord | null;
+  selectedPolicy: PolicyRecord | null;
+  selectedRule: PolicyRuleRecord | null;
+}) {
+  const checkStepCount = selectedDraftVersion?.check_step_snapshots.length || 0;
+  const references = [
+    selectedPolicy
+      ? {
+          label: "Policy",
+          value: selectedPolicy.id,
+          meta: selectedPolicy.status
+        }
+      : null,
+    selectedDraftVersion
+      ? {
+          label: "PolicyVersion",
+          value: selectedDraftVersion.id,
+          meta: `v${selectedDraftVersion.version_number} / ${selectedDraftVersion.status}`
+        }
+      : null,
+    selectedRule
+      ? {
+          label: "PolicyRule",
+          value: selectedRule.id,
+          meta: selectedRule.name
+        }
+      : null,
+    checkStepCount > 0
+      ? {
+          label: "PolicyCheckSteps",
+          value: String(checkStepCount),
+          meta: "snapshot records"
+        }
+      : null,
+    selectedDraftReviewState?.latest_review_request_id
+      ? {
+          label: "Review request",
+          value: selectedDraftReviewState.latest_review_request_id,
+          meta: selectedDraftReviewState.review_status
+        }
+      : null
+  ].filter(Boolean) as Array<{ label: string; meta: string; value: string }>;
+
+  return (
+    <div className="ps2-insp-scroll">
+      <section className="ps2-insp-sec">
+        <div className="ps2-insp-sec-title ist2-review">References</div>
+        {references.length > 0 ? (
+          <div className="ps2-compiled-list">
+            {references.map((reference) => (
+              <CompiledItem
+                color="var(--purple-lt)"
+                key={`${reference.label}-${reference.value}`}
+                name={`${reference.value} / ${reference.meta}`}
+                type={reference.label}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="ps2-review-card">
+            <ReviewRow
+              label="Linked objects"
+              value="No persisted references loaded"
+            />
+            <ReviewRow
+              label="Evidence Bundle"
+              value="Not available from current Policy Studio context"
+            />
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function hasApprovalRequirement(parsed: ParsedPolicyDsl, decision: string) {
+  return (
+    decision === "require_human_review" ||
+    parsed.structural.some((line) => line.includes("RequireApproval"))
+  );
+}
+
+function evidenceRetentionDays(parsed: ParsedPolicyDsl) {
+  const retentionLine = parsed.structural.find((line) =>
+    /Retention\s+days\s+\d+/i.test(line)
+  );
+  const match = retentionLine?.match(/Retention\s+days\s+(\d+)/i);
+  return match?.[1] || null;
+}
+
+function lifecycleLabel(status: string) {
+  if (status === "local_draft") {
+    return "Local authoring";
+  }
+  return status.replace(/_/g, " ");
+}
+
+function governanceNextStep({
+  editorSource,
+  selectedDraftReviewState,
+  selectedDraftVersion,
+  selectedPolicy
+}: {
+  editorSource: PolicyStudioEditorSource;
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
+  selectedDraftVersion: PolicyVersionRecord | null;
+  selectedPolicy: PolicyRecord | null;
+}) {
+  if (selectedDraftReviewState?.review_status === "pending") {
+    return "Wait for review decision";
+  }
+  if (selectedDraftVersion?.status === "draft") {
+    return "Submit for review";
+  }
+  if (editorSource.kind === "active_version") {
+    return "Create draft for changes";
+  }
+  if (selectedPolicy) {
+    return "Save draft PolicyVersion";
+  }
+  return "Save draft";
+}
+
+function decisionLabel(decision: string) {
+  return decision.replace(/_/g, " ");
+}
+
+function dataSensitivityScope(condition: PolicyCondition) {
+  const fields = [
+    condition.data_classification,
+    condition.source_data_classification
+  ].filter(Boolean);
+  if (fields.length > 0) {
+    return fields.map(String).join(", ");
+  }
+  if (condition.contains_sensitive_data === true) {
+    return "contains sensitive data";
+  }
+  if (condition.contains_personal_data === true) {
+    return "contains personal data";
+  }
+  return "Not configured";
+}
+
+function appliesToScope(condition: PolicyCondition) {
+  if (condition.agent_id) {
+    return `Agent ${String(condition.agent_id)}`;
+  }
+  if (condition.environment) {
+    return `Environment ${String(condition.environment)}`;
+  }
+  return "Matching runtime requests";
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(undefined, {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
 }
 
 function submitReviewDisabledReason({
@@ -515,7 +757,7 @@ function submitReviewDisabledReason({
   selectedDraftVersion: PolicyVersionRecord | null;
 }) {
   if (currentActorState.status !== "ready") {
-    return "Current actor state is unavailable.";
+    return "Current actor is not configured.";
   }
   if (currentActorState.actor.actor_type === "service") {
     return "Backend authorization still applies.";
@@ -668,7 +910,7 @@ function stateMessageClass(message: string) {
   if (
     message.includes("review is pending") ||
     message.includes("already pending") ||
-    message.includes("Current actor state is unavailable") ||
+    message.includes("Current actor is not configured") ||
     message.includes("Save a draft before submitting") ||
     message.includes("Create a draft before submitting")
   ) {
@@ -738,10 +980,10 @@ function currentActorLabel(
     return "Loading current actor from GET /me";
   }
   if (currentActorState.status === "error") {
-    return "Current actor state is unavailable.";
+    return "Not configured";
   }
   if (currentActorState.status === "idle") {
-    return "Current actor state is unavailable.";
+    return "Not configured";
   }
 
   const actor = currentActorState.actor;
@@ -758,7 +1000,7 @@ function currentActorRolesLabel(
     | { status: "ready"; actor: CurrentActorRecord }
 ) {
   if (currentActorState.status !== "ready") {
-    return "Current actor state is unavailable.";
+    return "Not configured";
   }
   return currentActorState.actor.roles.length > 0
     ? currentActorState.actor.roles.join(", ")

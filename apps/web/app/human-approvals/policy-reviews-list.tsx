@@ -720,7 +720,10 @@ function CurrentActorSummary({
 }) {
   if (actorState.status === "loading") {
     return (
-      <div className="policy-review-actor-bar">
+      <div
+        className="policy-review-actor-bar"
+        title="Compose dev stack can show Local Admin when AGCP_DEV_ACTOR_DISPLAY_NAME is configured."
+      >
         <strong>Current actor</strong>
         <span>Loading current actor from GET /me</span>
         <AGCPBadge tone="muted">Backend authorization still enforced</AGCPBadge>
@@ -745,7 +748,11 @@ function CurrentActorSummary({
     <div className="policy-review-actor-bar">
       <strong>Current actor</strong>
       <span>
-        {formatValue(actor.actor_type)} / {actor.actor_id}
+        {actor.display_name
+          ? `${actor.display_name} (${formatValue(actor.actor_type)} / ${
+              actor.actor_id
+            })`
+          : `${formatValue(actor.actor_type)} / ${actor.actor_id}`}
       </span>
       <AGCPBadge tone={canReviewPolicies(actor) ? "ok" : "warn"}>
         {rolesLabel}
@@ -1023,7 +1030,7 @@ function policyReviewBaselineLabel(diff: PolicyVersionReviewDiffRecord) {
   if (diff.baseline_type === "live_fallback") {
     return "Baseline live fallback";
   }
-  return "No active baseline found";
+  return "No active baseline yet";
 }
 
 function rollbackSourceVersionId(diff: PolicyVersionReviewDiffRecord) {

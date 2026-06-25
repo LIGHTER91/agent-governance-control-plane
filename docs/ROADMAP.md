@@ -69,16 +69,20 @@ classification, personal/sensitive data flags, allowed and prohibited purposes,
 processing constraints, review status, DPIA references, safe metadata, and
 Source-targeting Access Grants. Policy and PolicyRule management now have an
 IDE-style Policy Studio frontend surface. The Studio uses a repository sidebar,
-static authoring templates, Blocks and Code DSL modes, a
-`WHEN -> CHECK -> THEN -> PROVE` structure, local validation, deterministic
-compilation to supported `PolicyRule.condition` fields, compact IDE-style
-Blocks review, an inspector, and Save draft through draft `PolicyVersion`
+honest Local backend / Policy repository labeling, static authoring templates,
+Blocks and Code DSL modes, a `WHEN -> CHECK -> THEN -> PROVE` structure, local
+validation, deterministic compilation to supported `PolicyRule.condition`
+fields, compact IDE-style Blocks review with consistent icons and visible
+connectors, an inspector, and Save draft through draft `PolicyVersion`
 snapshots. Code DSL remains the precise V1 editing path. Unsupported DSL lines block
 saving. Saved drafts remain visible in the editor instead of resetting to live
 PolicyRule fallback state; reload prefers the latest draft PolicyVersion
 snapshot, then an active PolicyVersion baseline, then live PolicyRule fallback.
-Templates are static helpers, not backend records. Local validation is not
-runtime simulation. Draft versions do not affect runtime until explicit
+Templates are static helpers, not backend records. Policy folder/category/tag
+metadata is not persisted yet, so the frontend must keep repository grouping
+and tags honest instead of rendering mock policy folders, fake repositories,
+fake synced workspace state, or fake tag chips.
+Local validation is not runtime simulation. Draft versions do not affect runtime until explicit
 activation, and drafts with pending review requests are immutable so reviews do
 not point to moving content. Submit for review now creates a dedicated
 PolicyVersionReviewRequest for a saved draft snapshot; approval or rejection
@@ -137,7 +141,9 @@ linked to matched PolicyRules through that adapter boundary and persist linked
 CheckResults behind an explicit disabled-by-default feature flag. Persistent
 PolicyCheckStep check types now include `source_classification` and
 `model_provider_type`, wired to the same metadata-only adapter and safe target
-selectors. Evidence Bundle and Review Inbox read models expose safe CheckResult
+selectors; adapter metadata reports provider labels separately from
+`external`/`local`/`unknown` provider type classifications and records only DPIA
+reference presence. Evidence Bundle and Review Inbox read models expose safe CheckResult
 summaries where linked to PolicyDecisions, including check type, outcome,
 target, confidence, timestamp, and filtered metadata. No scanner integration,
 external adapter execution, webhooks, or automatic enforcement has been

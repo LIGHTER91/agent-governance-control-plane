@@ -50,7 +50,7 @@ product concepts:
 | --- | --- | --- | --- | --- |
 | Overview | Enter the product, see real operating status, and move to key workflows. | Root page is the app entry point and links to real connected routes. It avoids fake metrics when backend data is unavailable. | Better real summaries for agents, reviews, runtime activity, and evidence once stable backend read models exist. | Do not add fake charts, compliance scores, or production metrics. |
 | Agents | Understand registered agents, owners, risk, environment, activity, approvals, and evidence. | Agent list and detail routes are backend-connected and use AGCP Studio visual language. Agent detail includes profile, activity, approvals, and evidence actions. | Agent onboarding/editing, stronger filtering, inventory relationships, and deeper runtime drill-down. | Do not turn this into a generic Agent CRUD table. |
-| Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with repository sidebar, center editor, Blocks/Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Full bidirectional no-code Blocks editing, PolicyCheckStep authoring UI, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake simulations, or fake impact metrics. |
+| Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with honest Local backend / Policy repository labels, repository sidebar, center editor, Blocks/Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Full bidirectional no-code Blocks editing, backend-backed repository/workspace metadata if the domain model adds it, PolicyCheckStep authoring UI, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake repositories/workspaces, fake simulations, or fake impact metrics. |
 | Access & Data | Review declared agent access, source usage metadata, and governance constraints. | Read/review surfaces exist for Access Grants, Sources, and DataUsageProfiles. Access Grant transitions are explicit governance status changes. | More polished relationship views across agents, sources, models, capabilities, policies, and evidence. | Do not imply Access Grants are IAM credentials or automatic runtime enforcement. |
 | Runtime Decisions | Understand Runtime Gateway decisions and runtime activity. | Runtime overview and activity pages are read-oriented. Runtime decisions can use active PolicyVersion snapshots with fallback to unversioned policy state. | Better timeline, filtering, and links from decisions to policy version, checks, approvals, evidence, and agent runs. | Do not make AGCP execute tools or become a runtime/orchestrator. |
 | Reviews | Resolve runtime HumanApprovals and PolicyVersion review requests. | Review Inbox is implemented with unified work items, selected review detail, assignment, policy decision context, checks, evidence preview, approve/reject, and explicit activation when applicable. | Request-info and escalation flows, notifications, richer assignment, and enterprise identity integration. | Do not make reviews backend resource tables or add a fake reviewer directory. |
@@ -68,10 +68,15 @@ IDE-like product surface, not a CRUD admin page.
 Validated structure:
 
 - Repository-style policy sidebar.
+- Honest Local backend / Policy repository state until backend repository or
+  workspace concepts exist.
+- Dedicated slim Policy Studio icon rail instead of the wider global app
+  navigation shell.
 - Center editor.
 - `WHEN -> CHECK -> THEN -> PROVE` policy structure bar.
 - Blocks and Code DSL toggle.
-- Compact Blocks review surface.
+- Compact Blocks review surface with consistent icons and visible section
+  connectors.
 - Code DSL as the precise V1 authoring path.
 - Compile bar.
 - Local validation console.
@@ -90,6 +95,13 @@ Validated behavior:
 - There is no direct Publish button by design.
 - Local validation is parser/compile validation only, not runtime simulation.
 - Templates are authoring helpers, not backend records.
+- Repository folders, tags, owners, and version rows must be backend-backed or
+  explicitly local/empty. If the backend lacks policy folder/category/tag
+  metadata, Policy Studio should group persisted records honestly instead of
+  showing mock categories or fake tag chips.
+- The frontend must not invent Policy repositories, workspaces, folders, sync
+  state, versions, validation errors, or tags. Search and refresh are allowed
+  only when wired to real backend list behavior.
 
 Future Policy Studio work must preserve the existing AGCPStudio layout and
 product direction unless a human explicitly requests a redesign.

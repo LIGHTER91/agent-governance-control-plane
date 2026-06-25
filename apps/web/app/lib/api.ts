@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
 export function getApiBaseUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_AGCP_API_BASE_URL;
@@ -16,12 +16,16 @@ export async function fetchApiArray<T>(
   const query = options.searchParams?.toString();
   const url = `${getApiBaseUrl()}${path}${query ? `?${query}` : ""}`;
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json"
+  const response = await fetchAgcpApi(
+    url,
+    {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: options.signal
     },
-    signal: options.signal
-  });
+    options.errorLabel
+  );
 
   if (!response.ok) {
     throw new Error(`${options.errorLabel} failed with status ${response.status}`);
@@ -45,6 +49,35 @@ export class ApiRequestError extends Error {
     this.name = "ApiRequestError";
     this.status = status;
     this.detail = detail;
+  }
+}
+
+export class ApiNetworkError extends Error {
+  url: string;
+
+  constructor(message: string, url: string) {
+    super(message);
+    this.name = "ApiNetworkError";
+    this.url = url;
+  }
+}
+
+async function fetchAgcpApi(
+  url: string,
+  init: RequestInit,
+  errorLabel: string
+) {
+  try {
+    return await fetch(url, init);
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    throw new ApiNetworkError(
+      `${errorLabel} could not reach AGCP API at ${getApiBaseUrl()}.`,
+      url
+    );
   }
 }
 
@@ -73,12 +106,17 @@ export async function fetchApiJson<T>(
     signal?: AbortSignal;
   }
 ): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    headers: {
-      Accept: "application/json"
+  const url = `${getApiBaseUrl()}${path}`;
+  const response = await fetchAgcpApi(
+    url,
+    {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: options.signal
     },
-    signal: options.signal
-  });
+    options.errorLabel
+  );
 
   if (!response.ok) {
     const detail = await errorDetail(response);
@@ -110,12 +148,17 @@ export async function postApiJson<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    body,
-    headers,
-    method: "POST",
-    signal: options.signal
-  });
+  const url = `${getApiBaseUrl()}${path}`;
+  const response = await fetchAgcpApi(
+    url,
+    {
+      body,
+      headers,
+      method: "POST",
+      signal: options.signal
+    },
+    options.errorLabel
+  );
 
   if (!response.ok) {
     const detail = await errorDetail(response);
@@ -137,15 +180,20 @@ export async function patchApiJson<T>(
     signal?: AbortSignal;
   }
 ): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    body: JSON.stringify(options.body),
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json"
+  const url = `${getApiBaseUrl()}${path}`;
+  const response = await fetchAgcpApi(
+    url,
+    {
+      body: JSON.stringify(options.body),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      method: "PATCH",
+      signal: options.signal
     },
-    method: "PATCH",
-    signal: options.signal
-  });
+    options.errorLabel
+  );
 
   if (!response.ok) {
     const detail = await errorDetail(response);
@@ -157,4 +205,34 @@ export async function patchApiJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+export async function deleteApi(
+  path: string,
+  options: {
+    errorLabel: string;
+    signal?: AbortSignal;
+  }
+): Promise<void> {
+  const url = `${getApiBaseUrl()}${path}`;
+  const response = await fetchAgcpApi(
+    url,
+    {
+      headers: {
+        Accept: "application/json"
+      },
+      method: "DELETE",
+      signal: options.signal
+    },
+    options.errorLabel
+  );
+
+  if (!response.ok) {
+    const detail = await errorDetail(response);
+    throw new ApiRequestError(
+      `${options.errorLabel} failed with status ${response.status}`,
+      response.status,
+      detail
+    );
+  }
 }

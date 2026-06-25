@@ -32,6 +32,7 @@ from agent_governance_api.models import (
     DataUsageReviewStatus,
     ModelAsset,
     ModelAssetStatus,
+    ModelProvider,
 )
 
 
@@ -166,6 +167,9 @@ SOURCE_CLASSIFICATION = "source_classification"
 MODEL_ASSET_STATUS = "model_asset_status"
 MODEL_PROVIDER_TYPE = "model_provider_type"
 CAPABILITY_STATUS = "capability_status"
+MODEL_PROVIDER_CLASS_EXTERNAL = "external"
+MODEL_PROVIDER_CLASS_LOCAL = "local"
+MODEL_PROVIDER_CLASS_UNKNOWN = "unknown"
 
 SUPPORTED_METADATA_ONLY_CHECK_TYPES = frozenset(
     {
@@ -810,6 +814,7 @@ def _data_usage_profile_metadata(
         "contains_personal_data": profile.contains_personal_data,
         "contains_sensitive_data": profile.contains_sensitive_data,
         "dpia_required": profile.dpia_required,
+        "dpia_reference_present": profile.dpia_reference is not None,
     }
 
 
@@ -818,9 +823,18 @@ def _model_asset_metadata(model_asset: ModelAsset) -> dict[str, object]:
         "model_id": str(model_asset.id),
         "model_asset_status": model_asset.status.value,
         "model_type": model_asset.model_type.value,
-        "model_provider_type": model_asset.provider.value,
+        "model_provider": model_asset.provider.value,
+        "model_provider_type": _model_provider_type(model_asset.provider),
         "risk_level": model_asset.risk_level.value,
     }
+
+
+def _model_provider_type(provider: ModelProvider) -> str:
+    if provider is ModelProvider.LOCAL:
+        return MODEL_PROVIDER_CLASS_LOCAL
+    if provider is ModelProvider.OTHER:
+        return MODEL_PROVIDER_CLASS_UNKNOWN
+    return MODEL_PROVIDER_CLASS_EXTERNAL
 
 
 def _is_datetime_expired(value: datetime | None) -> bool:

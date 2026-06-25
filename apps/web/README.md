@@ -38,7 +38,7 @@ it reads existing Policy and PolicyRule records, offers block and Code DSL
 authoring modes, and compiles local editor state back to deterministic
 PolicyRule condition JSON before calling the existing Policy APIs. Its Validate
 action is local parser/compile validation, not production simulation. Review and
-publish workflows remain constrained by backend lifecycle support. The
+activation workflows remain constrained by backend lifecycle support. The
 Integration Hub page explains Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
 connection patterns without turning AGCP into an orchestrator. It can show a
@@ -122,13 +122,13 @@ GET /policy-version-review-requests/{review_request_id}/diff
 Configure the backend base URL with:
 
 ```bash
-NEXT_PUBLIC_AGCP_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_AGCP_API_BASE_URL=http://localhost:8000
 ```
 
 If this variable is not set, the web app defaults to:
 
 ```text
-http://127.0.0.1:8000
+http://localhost:8000
 ```
 
 The backend API must be running for the root dashboard summary, Agent list,
@@ -152,18 +152,29 @@ states that runtime callers, not AGCP, execute tools and honor `proceed`.
 The Policy Studio uses existing Policy APIs for the Policy container and saves
 editor output as draft PolicyVersion snapshots. Code DSL is the precise V1
 authoring surface and compiles to deterministic PolicyRule condition JSON
-inside the version snapshot. Blocks mode is a compact IDE-style projection of
-the same compiled condition surface: it groups WHEN, CHECK, THEN, and PROVE
-rows for review and selection, while precise condition edits remain in Code DSL
-until fuller bidirectional Blocks editing is designed. After Save draft
+inside the version snapshot. The `/policies` route follows the attached Policy
+Studio Refinement mockup direction: dedicated slim Policy Studio icon rail,
+repository sidebar, policy structure strip, Blocks canvas, Code DSL editor,
+local validation console, and right inspector. It does not render the wider
+global workspace navigation shell used by the other connected routes.
+It keeps repository/workspace labels honest: until a backend Policy Repository
+or Workspace model exists, the sidebar says Local backend and Policy repository,
+and states that Policies are loaded from the AGCP API. It does not show fake
+repositories, folders, synced state, or repository creation affordances.
+Persisted records render under backend-backed groups and tags show an explicit
+empty state instead of mock folder or tag chips. Blocks mode is a compact
+IDE-style projection of the same compiled condition surface: it groups WHEN,
+CHECK, THEN, and PROVE rows for review and selection, with dedicated icons,
+structure arrows, and canvas connectors. Precise condition edits remain in Code
+DSL until fuller bidirectional Blocks editing is designed. After Save draft
 succeeds, the editor keeps the saved draft content visible while the inspector
 updates the draft PolicyVersion id and status. On page reload, Policy Studio
 hydrates the editor from the latest draft PolicyVersion snapshot when one
 exists, then from the active PolicyVersion baseline when available, and only
 falls back to live PolicyRule rows for unversioned/bootstrap policies. Local
 validation checks parser support, required fields, unsupported DSL syntax,
-selected Policy/PolicyRule state, and generated JSON shape; it does not simulate
-runtime impact or claim production enforcement coverage. Built-in templates are
+selected Policy/PolicyRule state, and generated JSON shape; it does not execute
+runtime decisions or claim production enforcement coverage. Built-in templates are
 static authoring helpers, not backend records, and they never save
 automatically. Draft versions do not affect runtime until explicit activation.
 Save draft only creates or updates the draft PolicyVersion snapshot; it does not
