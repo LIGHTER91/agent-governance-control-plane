@@ -173,8 +173,8 @@ const requiredText = [
   "GET /policies/{policy_id}/rules",
   "Policy Studio",
   "Policy Studio Refinement",
-  "PolicyStudioRail",
-  "ps2-icon-rail",
+  "AGCPStudioShell",
+  "ExtendedSidebar",
   "ps2-code-highlight",
   "Repository",
   "Policy repository",
@@ -788,6 +788,14 @@ async function runPolicyDslRoundTripSmoke() {
     .filter((entry) => entry.file.startsWith("app/policies/"))
     .map((entry) => entry.source)
     .join("\n");
+  assertSmoke(
+    !policyStudioSource.includes("PolicyStudioRail"),
+    "Policy Studio source still contains the old route-local navigation rail"
+  );
+  assertSmoke(
+    !policyStudioSource.includes("ps2-icon-rail"),
+    "Policy Studio source still contains the old compact icon navigation rail"
+  );
   assertSmoke(
     !policyStudioSource.includes("Publish"),
     "Policy Studio source contains a Publish action"

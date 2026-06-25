@@ -7045,108 +7045,13 @@ const AGCP_CONNECTED_CSS = `
     transform: none;
   }
 
-  .shell[data-policy-chrome="immersive"] .agcp-connected-content:has(.policy-studio-route) {
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  .shell[data-policy-chrome="immersive"] > .policy-studio-route {
-    flex: 1;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .shell[data-policy-chrome="immersive"] .policy-studio-route,
-  .shell[data-policy-chrome="immersive"] .policy-studio-route .ps2-shell,
-  .shell[data-policy-chrome="immersive"] .policy-studio-route .ps2-list-pane,
-  .shell[data-policy-chrome="immersive"] .policy-studio-route .ps2-editor-pane,
-  .shell[data-policy-chrome="immersive"] .policy-studio-route .ps2-inspector {
-    height: 100vh;
-  }
-
-  .shell[data-policy-chrome="immersive"] .nav-item.active {
-    background: rgba(147, 116, 255, .26);
-    border: 1px solid rgba(147, 116, 255, .52);
-    box-shadow: 0 0 18px rgba(147, 116, 255, .24), inset 3px 0 0 #a78bfa;
-    color: #c9bbff;
-  }
-
   .policy-studio-route .ps2-shell {
     background:
       linear-gradient(135deg, rgba(91, 132, 153, .08), transparent 34%),
       linear-gradient(180deg, #0a1117 0%, #071017 100%);
     display: grid;
-    grid-template-columns: 46px 272px minmax(720px, 1fr) 224px;
-    min-width: 1262px;
-  }
-
-  .policy-studio-route .ps2-icon-rail {
-    align-items: center;
-    background: rgba(6, 12, 18, .98);
-    border-right: 1px solid rgba(170, 190, 205, .16);
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    overflow: hidden;
-    padding: 14px 6px 10px;
-  }
-
-  .ps2-rail-brand,
-  .ps2-rail-btn {
-    align-items: center;
-    border-radius: 6px;
-    color: #8f9aaa;
-    display: inline-flex;
-    height: 32px;
-    justify-content: center;
-    text-decoration: none;
-    transition:
-      background .14s,
-      border-color .14s,
-      box-shadow .14s,
-      color .14s;
-    width: 32px;
-  }
-
-  .ps2-rail-brand {
-    color: #a78bfa;
-    margin-bottom: 16px;
-  }
-
-  .ps2-rail-brand svg,
-  .ps2-rail-btn svg {
-    height: 17px;
-    width: 17px;
-  }
-
-  .ps2-rail-nav {
-    align-items: center;
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 7px;
-    width: 100%;
-  }
-
-  .ps2-rail-btn {
-    border: 1px solid transparent;
-  }
-
-  .ps2-rail-btn:hover {
-    background: rgba(255, 255, 255, .045);
-    color: #d8e1ec;
-  }
-
-  .ps2-rail-btn.active {
-    background: rgba(147, 116, 255, .24);
-    border-color: rgba(147, 116, 255, .46);
-    box-shadow: 0 0 18px rgba(147, 116, 255, .18);
-    color: #c9bbff;
-  }
-
-  .ps2-rail-settings {
-    color: #aeb8c5;
-    margin-top: 12px;
+    grid-template-columns: 272px minmax(720px, 1fr) 224px;
+    min-width: 1216px;
   }
 
   .policy-studio-route .ps2-list-pane {
@@ -8487,11 +8392,7 @@ export function AGCPStudioShell({ children }) {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const pathname = usePathname() || "/";
   const routeView = getRouteView(pathname);
-  const navDensity =
-    routeView.view === "policies" || routeView.view === "data"
-      ? "compact"
-      : "full";
-  const policyChrome = routeView.view === "policies" ? "immersive" : "standard";
+  const navDensity = "full";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -8511,7 +8412,7 @@ export function AGCPStudioShell({ children }) {
 
   const shellData = { pendingApprovals, approvals: [] };
   const content =
-    policyChrome === "immersive" || pathname === "/"
+    pathname === "/"
       ? children
       : <main className="content agcp-connected-content">{children}</main>;
 
@@ -8524,19 +8425,12 @@ export function AGCPStudioShell({ children }) {
         className="shell"
         data-theme={theme}
         data-nav-density={navDensity}
-        data-policy-chrome={policyChrome}
       >
-        {policyChrome === "standard" ? (
-          <>
-            <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} />
-            <div className="main">
-              <ExtendedTopbar view={routeView.view} title={routeView.label} mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} />
-              {content}
-            </div>
-          </>
-        ) : (
-          content
-        )}
+        <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} />
+        <div className="main">
+          <ExtendedTopbar view={routeView.view} title={routeView.label} mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} />
+          {content}
+        </div>
       </div>
     </>
   );
