@@ -190,17 +190,125 @@ const CSS = `
       radial-gradient(ellipse 35% 25% at 82% 105%, rgba(45,216,145,.04) 0%, transparent 60%);
     pointer-events: none; z-index: 0;
   }
+  .app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
 
   /* ── SIDEBAR ── */
   .sidebar {
-    width: 214px; flex-shrink: 0;
+    width: 318px; flex-shrink: 0;
     background: var(--bg-panel);
     border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
+    display: flex;
     position: relative; z-index: 10;
   }
-  .logo-area { padding: 20px 16px 14px; border-bottom: 1px solid var(--border); }
-  .logo-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .sidebar.rail-only {
+    width: 54px;
+    background: #090913;
+    border-right: 0;
+  }
+  .sidebar-rail {
+    width: 54px; flex-shrink: 0;
+    background: #090913;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 7px;
+  }
+  .sidebar-rail-mark {
+    width: 39px; height: 39px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--purple-lt);
+    margin-bottom: 8px;
+  }
+  .sidebar-rail-nav {
+    display: grid; gap: 9px;
+    width: 100%;
+  }
+  .sidebar-rail-link {
+    width: 39px; height: 39px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: #8b8ba6;
+    text-decoration: none;
+    transition: all .13s;
+    position: relative;
+  }
+  .sidebar-rail-link::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 46px;
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    min-width: max-content;
+    max-width: 180px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 80;
+    border: 1px solid rgba(168,146,248,.26);
+    border-radius: 7px;
+    background: rgba(13,18,27,.96);
+    box-shadow: 0 10px 28px rgba(0,0,0,.35);
+    color: #eef1f8;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+    padding: 9px 10px;
+    transition: opacity .13s ease, transform .13s ease;
+    white-space: nowrap;
+  }
+  .sidebar-rail-link:hover::after,
+  .sidebar-rail-link:focus-visible::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+  .sidebar-rail-link:hover {
+    background: rgba(255,255,255,.035);
+    color: var(--text-dim);
+  }
+  .sidebar-rail-link.active {
+    background: var(--purple-dim);
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+    box-shadow: inset 0 0 0 1px rgba(168,146,248,.08);
+  }
+  .sidebar-rail-link.active::before {
+    content: "";
+    position: absolute;
+    left: -8px; top: 9px; bottom: 9px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--purple-lt);
+  }
+  .sidebar-rail-spacer { flex: 1; }
+  .sidebar-rail-footer {
+    width: 39px; height: 39px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+  }
+  .sidebar-context {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar.rail-only .sidebar-context {
+    display: none;
+  }
+  .logo-area {
+    height: 62px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+  .logo-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
   .logo-icon {
     width: 32px; height: 32px;
     background: linear-gradient(135deg, #5c4ed4, #9278f0);
@@ -209,7 +317,7 @@ const CSS = `
     box-shadow: 0 0 18px rgba(92,78,212,.3), inset 0 1px 0 rgba(255,255,255,.12);
     flex-shrink: 0;
   }
-  .logo-text .brand { font-size: 14px; font-weight: 700; letter-spacing: .06em; color: #eeeef8; }
+  .logo-text .brand { font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: #f4f5fb; }
   .logo-text .tagline { font-size: 9px; color: var(--text-muted); letter-spacing: .12em; margin-top: 1px; font-family: var(--mono); }
   .status-pill {
     display: flex; align-items: center; gap: 7px;
@@ -225,16 +333,16 @@ const CSS = `
   }
   .status-pill span { font-family: var(--mono); font-size: 9px; color: var(--green); letter-spacing: .08em; }
 
-  .sidebar-nav { flex: 1; padding: 8px 7px; overflow: auto; }
+  .sidebar-nav { flex: 1; padding: 18px 10px 10px; overflow: auto; }
   .nav-section-label {
     font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
-    color: var(--text-faint); text-transform: uppercase; padding: 8px 10px 4px;
+    color: var(--text-faint); text-transform: uppercase; padding: 11px 14px 7px;
   }
   .nav-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7.5px 10px; border-radius: 7px; cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-radius: 7px; cursor: pointer;
     transition: all .13s; color: var(--text-muted);
-    font-size: 12.5px; font-weight: 500; margin-bottom: 1px;
+    font-size: 14px; font-weight: 500; margin-bottom: 2px;
     border: 1px solid transparent; position: relative; user-select: none;
     text-decoration: none;
   }
@@ -245,9 +353,9 @@ const CSS = `
   }
   .nav-item.active::before {
     content: '';
-    position: absolute; left: -7px; top: 50%;
+    position: absolute; left: -11px; top: 50%;
     transform: translateY(-50%);
-    width: 3px; height: 55%;
+    width: 3px; height: 60%;
     background: var(--purple-lt);
     border-radius: 0 2px 2px 0;
   }
@@ -276,17 +384,17 @@ const CSS = `
   .nav-item.active .nav-shortcut { color: rgba(168,146,248,.35); }
   .nav-item-icon {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 16px; height: 16px; flex-shrink: 0;
+    width: 18px; height: 18px; flex-shrink: 0;
   }
   .nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-branch { margin-bottom: 2px; }
   .nav-subtree {
-    display: grid; gap: 1px; margin: 2px 0 7px 24px;
-    border-left: 1px solid var(--border2); padding-left: 8px;
+    display: grid; gap: 3px; margin: 4px 0 9px 42px;
+    border-left: 0; padding-left: 0;
   }
   .nav-subitem {
     color: var(--text-muted); display: flex; align-items: center; gap: 7px;
-    border-radius: 6px; font-size: 11.5px; padding: 6px 8px;
+    border-radius: 6px; font-size: 13px; padding: 8px 10px;
     text-decoration: none; transition: all .12s;
   }
   .nav-subitem::before {
@@ -299,8 +407,357 @@ const CSS = `
   }
   .nav-subitem.active::before { background: var(--purple-lt); box-shadow: 0 0 8px rgba(168,146,248,.45); }
 
+  .sidebar-context .nav-subitem[aria-current="false"] {
+    background: transparent;
+    color: var(--text-muted);
+  }
+  .sidebar-context .nav-subitem[aria-current="false"]::before {
+    background: var(--text-faint);
+    box-shadow: none;
+  }
+
+  .context-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .context-module {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 24px 22px 20px;
+  }
+  .context-module-icon {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--purple-lt);
+  }
+  .context-module-title {
+    color: #f4f5fb;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+  .context-module-sub {
+    color: #8d94a8;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .context-tabs {
+    display: grid;
+    gap: 8px;
+    padding: 0 8px 22px;
+  }
+  .context-tab {
+    min-height: 52px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    color: #9aa1b5;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 0 18px;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all .13s;
+    position: relative;
+  }
+  .context-tab:hover {
+    background: rgba(255,255,255,.035);
+    color: #cdd2df;
+  }
+  .context-tab.active {
+    background: var(--purple-dim);
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+    box-shadow: inset 0 0 0 1px rgba(168,146,248,.08);
+  }
+  .context-tab.active::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--purple-lt);
+  }
+  .sidebar-rail-link.disabled {
+    opacity: .38;
+    cursor: not-allowed;
+  }
+  .sidebar-rail-badge {
+    position: absolute;
+    right: -3px;
+    top: -3px;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--purple-lt);
+    color: white;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(168,146,248,.5);
+  }
+  .context-tab-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .context-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0;
+  }
+  .context-filters {
+    padding: 22px 20px;
+    display: grid;
+    gap: 16px;
+  }
+  .context-filter-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #f0f2f7;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .context-filter-head button {
+    border: 0;
+    background: transparent;
+    color: var(--purple-lt);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .context-field {
+    display: grid;
+    gap: 8px;
+  }
+  .context-field > span {
+    color: #c7cad6;
+    font-size: 12px;
+  }
+  .context-field select,
+  .context-field input {
+    width: 100%;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255,255,255,.035);
+    color: var(--text);
+    padding: 0 12px;
+    font: inherit;
+    outline: none;
+  }
+  .context-field select:focus,
+  .context-field input:focus {
+    border-color: rgba(168,146,248,.34);
+    background: rgba(255,255,255,.05);
+  }
+  .context-field.search div {
+    position: relative;
+  }
+  .context-field.search input {
+    padding-right: 36px;
+  }
+  .context-field.search svg {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+  }
+  .context-quick {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    display: grid;
+    gap: 10px;
+  }
+  .context-quick button {
+    border: 0;
+    background: transparent;
+    color: #8f96aa;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    padding: 0;
+    text-align: left;
+  }
+  .context-quick .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    margin-right: 2px;
+  }
+  .context-quick button {
+    justify-content: flex-start;
+  }
+  .dot-0 { color: var(--green); }
+  .dot-1 { color: var(--orange); }
+  .dot-2 { color: var(--red); }
+  .dot-3 { color: #9aa3b5; }
+  .context-note {
+    border: 1px solid var(--purple-brd);
+    border-radius: 7px;
+    background: rgba(124,109,240,.08);
+    color: #8d94a8;
+    font-size: 12px;
+    line-height: 1.45;
+    padding: 12px;
+  }
+  .policy-context-stack {
+    display: grid;
+    gap: 14px;
+    padding: 22px 20px;
+  }
+  .policy-context-label {
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+  .policy-repo-card {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: rgba(255,255,255,.035);
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .policy-repo-card svg { color: #a892f8; flex-shrink: 0; }
+  .policy-repo-name {
+    color: #f2f4fb;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .policy-repo-sub {
+    color: #7d8498;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .policy-command-row {
+    display: grid;
+    grid-template-columns: 1fr 36px 36px 36px;
+    gap: 7px;
+  }
+  .policy-command-row .policy-search {
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255,255,255,.035);
+    color: var(--text);
+    padding: 0 11px;
+    min-width: 0;
+    outline: none;
+  }
+  .policy-command-row button {
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255,255,255,.035);
+    color: #cfd3df;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .policy-command-row button:hover {
+    border-color: rgba(168,146,248,.3);
+    color: var(--purple-lt);
+  }
+  .policy-workbench-list,
+  .policy-version-list {
+    display: grid;
+    gap: 7px;
+  }
+  .policy-workbench-item {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: rgba(255,255,255,.025);
+    padding: 10px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #dce1ed;
+    font-size: 12px;
+  }
+  .policy-workbench-item.active {
+    border-color: var(--purple-brd);
+    background: rgba(124,109,240,.14);
+    box-shadow: inset 3px 0 0 rgba(168,146,248,.95);
+  }
+  .policy-workbench-item svg { color: var(--purple-lt); flex-shrink: 0; }
+  .policy-empty-note {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: rgba(255,255,255,.025);
+    color: #737c92;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.45;
+    padding: 11px;
+  }
+  .policy-new-btn {
+    min-height: 38px;
+    border: 1px dashed var(--purple-brd);
+    border-radius: 7px;
+    background: rgba(124,109,240,.08);
+    color: var(--purple-lt);
+    font-weight: 700;
+  }
+  .context-page-summary {
+    border-top: 1px solid var(--border);
+    padding: 18px 20px;
+    display: grid;
+    gap: 10px;
+  }
+  .context-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #8f96aa;
+    font-size: 12px;
+  }
+  .context-summary-row strong {
+    color: #f1f3fb;
+    font-weight: 700;
+  }
+  .context-save {
+    margin: auto 20px 24px;
+    min-height: 42px;
+    border: 1px solid var(--purple-brd);
+    border-radius: 7px;
+    background: rgba(124,109,240,.08);
+    color: var(--purple-lt);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .context-save:hover {
+    background: rgba(124,109,240,.14);
+  }
+
   .shell[data-nav-density="compact"] .sidebar {
-    width: 48px;
+    width: 280px;
   }
   .shell[data-nav-density="compact"] .logo-area {
     padding: 12px 7px 10px;
@@ -389,57 +846,170 @@ const CSS = `
 
   /* ── TOPBAR ── */
   .topbar {
-    height: 48px; border-bottom: 1px solid var(--border);
+    height: 62px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center;
-    padding: 0 20px; gap: 12px; flex-shrink: 0;
-    background: rgba(10,10,20,.85);
+    padding: 0 26px; gap: 16px; flex-shrink: 0;
+    background: rgba(10,17,25,.88);
     backdrop-filter: blur(14px);
+    position: relative;
+    z-index: 20;
+  }
+  .topbar-brand {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    min-width: 245px;
+    text-decoration: none;
+  }
+  .topbar-logo {
+    align-items: center;
+    color: var(--purple-lt);
+    display: flex;
+    height: 36px;
+    justify-content: center;
+    width: 36px;
+  }
+  .topbar-brand-title {
+    display: block;
+    color: #f1f3fb;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -.015em;
+    line-height: 1.05;
+  }
+  .topbar-brand-sub {
+    display: block;
+    color: #a4a9b8;
+    font-size: 12px;
+    line-height: 1.15;
+    margin-top: 2px;
   }
   .breadcrumb {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 11px; color: var(--text-muted); font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #8991a3;
+    font-size: 14px;
+    min-width: 240px;
   }
-  .breadcrumb .active { color: #aaaac4; }
-  .bc-sep { color: var(--text-faint); }
-
-  .mode-switcher {
-    display: flex; align-items: center; gap: 3px;
-    background: rgba(255,255,255,.04);
+  .breadcrumb .active { color: #dfe3ec; font-weight: 500; }
+  .bc-sep { color: #5f6878; }
+  .topbar-spacer { flex: 1; }
+  .workspace-switcher {
+    align-items: center;
+    background: rgba(255,255,255,.035);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 3px;
+    color: var(--text);
+    display: flex;
+    gap: 10px;
+    min-height: 42px;
+    min-width: 208px;
+    padding: 7px 12px;
+    text-decoration: none;
   }
-  .mode-btn {
-    font-family: var(--mono); font-size: 10px; letter-spacing: .05em;
-    padding: 3px 11px; border-radius: 4px; cursor: pointer;
-    border: none; background: transparent; transition: all .14s;
-    color: var(--text-muted);
+  .workspace-switcher:hover,
+  .topbar-search:focus-within {
+    border-color: rgba(168,146,248,.28);
+    background: rgba(255,255,255,.05);
   }
-  .mode-btn.on  { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-brd); }
-  .mode-btn.sim { background: var(--sky-dim);   color: var(--sky);   border: 1px solid var(--sky-brd); }
-
-  .topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+  .workspace-icon {
+    align-items: center;
+    background: rgba(45,216,145,.12);
+    border: 1px solid rgba(45,216,145,.18);
+    border-radius: 6px;
+    color: #52d8b0;
+    display: flex;
+    height: 24px;
+    justify-content: center;
+    width: 24px;
+  }
+  .workspace-copy {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  .workspace-name {
+    color: #f0f2f7;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.05;
+  }
+  .workspace-env {
+    color: #8d94a8;
+    font-size: 12px;
+  }
+  .workspace-chevron { margin-left: auto; color: #b8bdc8; }
+  .topbar-search {
+    align-items: center;
+    background: rgba(255,255,255,.035);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    gap: 9px;
+    height: 38px;
+    min-width: 292px;
+    padding: 0 10px 0 13px;
+  }
+  .topbar-search input {
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    flex: 1;
+    font-size: 13px;
+    min-width: 0;
+    outline: none;
+  }
+  .topbar-search input::placeholder { color: #777d8f; }
+  .topbar-kbd {
+    background: rgba(255,255,255,.055);
+    border-radius: 5px;
+    color: #9da3b3;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .topbar-actions { display: flex; align-items: center; gap: 14px; margin-left: 10px; }
   .icon-btn {
-    width: 30px; height: 30px; border: 1px solid var(--border);
-    border-radius: var(--radius-sm); background: transparent; cursor: pointer;
+    width: 30px; height: 30px; border: 0;
+    border-radius: 999px; background: transparent; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    color: var(--text-muted); position: relative; transition: all .12s;
+    color: #d7dbe6; position: relative; transition: all .12s;
   }
-  .icon-btn:hover { border-color: rgba(255,255,255,.13); color: var(--text-dim); background: rgba(255,255,255,.04); }
+  .icon-btn:hover { color: #fff; background: rgba(255,255,255,.055); }
   .notif-dot {
-    position: absolute; top: 5px; right: 5px;
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--red); box-shadow: 0 0 5px rgba(240,63,90,.8);
+    position: absolute; top: -4px; right: -3px;
+    min-width: 18px; height: 18px; border-radius: 999px;
+    align-items: center; display: flex; justify-content: center;
+    background: var(--purple-lt);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(168,146,248,.5);
   }
-  .new-policy-btn {
-    display: flex; align-items: center; gap: 6px;
-    background: linear-gradient(135deg, #5c4ed4, #7c6df0);
-    color: #fff; border: none; border-radius: var(--radius-sm);
-    padding: 6px 13px; font-size: 12px; font-weight: 600;
-    cursor: pointer; letter-spacing: .02em; transition: all .15s;
-    box-shadow: 0 2px 10px rgba(92,78,212,.35);
+  .topbar-profile {
+    align-items: center;
+    color: inherit;
+    display: flex;
+    gap: 10px;
+    text-decoration: none;
   }
-  .new-policy-btn:hover { box-shadow: 0 4px 16px rgba(92,78,212,.5); transform: translateY(-1px); }
+  .topbar-avatar {
+    align-items: center;
+    background: linear-gradient(135deg, #6867d9, #8d79f0);
+    border-radius: 999px;
+    color: #fff;
+    display: flex;
+    font-size: 13px;
+    font-weight: 700;
+    height: 36px;
+    justify-content: center;
+    width: 36px;
+  }
+  .topbar-profile-copy { display: grid; gap: 1px; }
+  .topbar-profile-name { color: #f0f2f7; font-size: 13px; font-weight: 600; }
+  .topbar-profile-role { color: #8d94a8; font-size: 12px; }
+  .topbar-profile-chevron { color: #b8bdc8; margin-left: 4px; }
 
   /* ── CONTENT ── */
   .content { flex: 1; overflow: auto; padding: 20px 22px; animation: fadeUp .2s ease; }
@@ -1534,7 +2104,16 @@ const Icon = ({ name, size = 15, stroke = "currentColor" }) => {
     monitor: <svg style={s} viewBox="0 0 16 16" fill="none" stroke={stroke} strokeWidth="1.5"><rect x="1" y="2" width="14" height="9" rx="1.5"/><path d="M5 13h6M8 11v2"/></svg>,
     plug: <svg style={s} viewBox="0 0 16 16" fill="none" stroke={stroke} strokeWidth="1.5"><path d="M6 2v4M10 2v4M5 6h6l-1 4H6L5 6Z"/><path d="M8 10v4"/></svg>,
     bell: <svg style={s} viewBox="0 0 16 16" fill="none" stroke={stroke} strokeWidth="1.5"><path d="M8 1a5 5 0 015 5c0 4 1 5 1 5H2s1-1 1-5a5 5 0 015-5Z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg>,
+    help: <svg style={s} viewBox="0 0 16 16" fill="none" stroke={stroke} strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M6.4 6.2A1.8 1.8 0 018 5.2c1.1 0 1.9.7 1.9 1.7 0 .8-.4 1.2-1.1 1.7-.5.4-.8.7-.8 1.4"/><path d="M8 12h.01"/></svg>,
     search: <svg style={s} viewBox="0 0 14 14" fill="none" stroke={stroke} strokeWidth="1.5"><circle cx="5.5" cy="5.5" r="4"/><path d="M9.5 9.5L13 13"/></svg>,
+    chevron_down: <svg style={s} viewBox="0 0 12 12" fill="none" stroke={stroke} strokeWidth="1.5"><path d="M3 4.5L6 7.5L9 4.5"/></svg>,
+    workspace: <svg style={s} viewBox="0 0 14 14" fill="none"><rect x="3" y="2" width="8" height="10" rx="2" fill="currentColor" opacity=".9"/><path d="M5 2.5V1.8h4v.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+    brand_logo: (
+      <svg style={s} viewBox="0 0 32 32" fill="none">
+        <path d="M16 2.8L27.3 9.2v13.6L16 29.2L4.7 22.8V9.2L16 2.8Z" stroke="#a276ff" strokeWidth="2.4" strokeLinejoin="round"/>
+        <path d="M16 9.7L21.5 12.9v6.2L16 22.3l-5.5-3.2v-6.2L16 9.7Z" stroke="#8f7aff" strokeWidth="1.7" fill="rgba(162,118,255,.16)" strokeLinejoin="round"/>
+      </svg>
+    ),
     settings: <svg style={s} viewBox="0 0 16 16" fill="none" stroke={stroke} strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/></svg>,
     check: <svg style={s} viewBox="0 0 12 12" fill="none" stroke={stroke} strokeWidth="1.8"><path d="M1.5 6l3 3 6-6"/></svg>,
     arrow_right: <svg style={s} viewBox="0 0 14 14" fill="none" stroke={stroke} strokeWidth="1.5"><path d="M3 7h8M8 4l3 3-3 3"/></svg>,
@@ -3465,59 +4044,8 @@ const PolicyStudioView = () => {
 };
 
 /* ─── TOPBAR ─── */
-const Topbar = ({ view, mode, setMode }) => {
-  const isStudio = view === "policies";
-  return (
-    <div className="topbar">
-      <div className="breadcrumb">
-        <span>AGCP</span>
-        <span className="bc-sep">›</span>
-        <span className="active">{isStudio ? "Policy Studio" : "Command"}</span>
-        {isStudio && <><span className="bc-sep">›</span><span style={{ color:"var(--text-dim)" }}>external_action_control</span></>}
-      </div>
+const Topbar = () => null;
 
-      {isStudio ? (
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 12 }}>
-            <span className="chip chip-draft" style={{ fontSize:9.5, padding:"2px 7px" }}>draft</span>
-            <span className="chip chip-unsaved" style={{ fontSize:9.5, padding:"2px 7px" }}>unsaved</span>
-          </div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems:"center" }}>
-            <button className="btn-secondary" style={{ padding: "5px 12px", fontSize: 11 }}>Run simulation</button>
-            <button className="btn-primary" style={{ padding: "5px 12px", fontSize: 11 }}>Submit review</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mode-switcher">
-            <button className={`mode-btn ${mode === "live" ? "on" : ""}`} onClick={() => setMode("live")}>Live</button>
-            <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>Simulation</button>
-          </div>
-          <div className="topbar-actions">
-            <button className="icon-btn"><Icon name="search" size={13} /></button>
-            <button className="icon-btn">
-              <Icon name="bell" size={13} />
-              <span className="notif-dot" />
-            </button>
-            <button className="icon-btn"><Icon name="settings" size={13} /></button>
-          </div>
-          <button className="new-policy-btn" style={{ marginLeft: 7 }}>
-            <Icon name="plus" size={12} />
-            New policy
-          </button>
-        </>
-      )}
-    </div>
-  );
-};
-
-
-/* ════════════════════════════════════════════════════════════
-   EXTENDED VIEWS — AI Systems, Reviews, Evidence, Risk,
-   Data, Models, Vendors, Monitoring, Integrations, Admin
-════════════════════════════════════════════════════════════ */
-
-/* ─── MOCK DATA ─── */
 const AI_SYSTEMS = [
   { id: "s1", name: "prod-agent-14", owner: "Platform Eng", env: "production", risk: "high", riskCls: "danger", coverage: "96%", openReviews: 3, decisions: 142, status: "active",
     capabilities: ["external_api_call", "data_read", "report_write"],
@@ -6874,19 +7402,35 @@ const AGCP_CONNECTED_CSS = `
     grid-template-columns: 46px minmax(0, 1fr);
     min-height: 100%;
     overflow: hidden;
+    overflow: clip;
+    overscroll-behavior: contain;
+    --ps2-code-font-size: 12.5px;
+    --ps2-code-line-height: 1.75;
+    --ps2-code-pad-y: 12px;
+    --ps2-code-pad-x: 14px;
   }
 
   .ps2-code-gutter {
     background: rgba(255,255,255,.02);
     border-right: 1px solid var(--border2);
     color: var(--text-faint);
-    display: grid;
+    display: block;
     font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.75;
+    font-size: var(--ps2-code-font-size);
+    line-height: var(--ps2-code-line-height);
+    overflow: auto;
     padding: 12px 10px 12px 0;
+    scrollbar-width: none;
     text-align: right;
     user-select: none;
+  }
+
+  .ps2-code-gutter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ps2-code-gutter span {
+    display: block;
   }
 
   .ps2-code-input-layer {
@@ -6898,14 +7442,22 @@ const AGCP_CONNECTED_CSS = `
   .ps2-code-highlight {
     color: #cfd8e3;
     font-family: var(--mono);
-    font-size: 12.5px;
-    line-height: 1.75;
+    font-size: var(--ps2-code-font-size);
+    inset: 0;
+    line-height: var(--ps2-code-line-height);
     margin: 0;
     min-height: 460px;
-    padding: 12px 14px;
+    overflow: auto;
+    padding: var(--ps2-code-pad-y) var(--ps2-code-pad-x);
     pointer-events: none;
+    position: absolute;
+    scrollbar-width: none;
     tab-size: 2;
-    white-space: pre-wrap;
+    white-space: pre;
+  }
+
+  .ps2-code-highlight::-webkit-scrollbar {
+    display: none;
   }
 
   .ps2-code-highlight-line {
@@ -6928,16 +7480,18 @@ const AGCP_CONNECTED_CSS = `
     caret-color: #d9e3ef;
     color: transparent;
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: var(--ps2-code-font-size);
     inset: 0;
     height: 100%;
-    line-height: 1.75;
+    line-height: var(--ps2-code-line-height);
     min-height: 460px;
     outline: none;
-    padding: 12px 14px;
+    overflow: auto;
+    padding: var(--ps2-code-pad-y) var(--ps2-code-pad-x);
     position: absolute;
     resize: none;
     tab-size: 2;
+    white-space: pre;
     width: 100%;
   }
 
@@ -7057,6 +7611,9 @@ const AGCP_CONNECTED_CSS = `
   .policy-studio-route .ps2-list-pane {
     background: rgba(10, 18, 25, .96);
     border-right: 1px solid rgba(170, 190, 205, .16);
+    border-left: 1px solid rgba(170, 190, 205, .08);
+    box-sizing: border-box;
+    padding-left: 8px;
     width: auto;
   }
 
@@ -7129,7 +7686,11 @@ const AGCP_CONNECTED_CSS = `
 
   .policy-studio-route .ps2-pane-head {
     border-bottom: 1px solid rgba(170, 190, 205, .14);
-    padding: 0 12px 10px;
+    padding: 0 12px 10px 14px;
+  }
+
+  .policy-studio-route .ps2-repo-label {
+    padding-left: 1px;
   }
 
   .policy-studio-route .ps2-mode-row {
@@ -7852,7 +8413,7 @@ const AGCP_CONNECTED_CSS = `
   .policy-studio-route .ps2-code-gutter {
     background: rgba(255,255,255,.018);
     color: #778493;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.85;
     padding: 14px 12px 14px 0;
   }
@@ -8244,141 +8805,209 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
       ]
     }
   ];
+  const navItems = sections.flatMap((section) => section.items);
+  const activeItem = navItems.find((item) => item.id === active) ?? navItems[0];
+  const isDataContext = activeItem.id === "data";
+  const isPolicyContext = activeItem.id === "policies";
+  const isEvidenceContext = activeItem.id === "evidence";
+  const isReviewContext = activeItem.id === "reviews";
+  const isIntegrationContext = activeItem.id === "integrations";
+  const hasSavedView = activeItem.id === "data";
+  const quickFilters = isEvidenceContext
+    ? ["Runs with approvals", "Denied decisions", "Runs with escalations", "Exports created"]
+    : isReviewContext
+    ? ["Pending review", "Needs owner", "Exception request", "Recently approved"]
+    : isIntegrationContext
+    ? ["Connected", "Design-only", "Service actors", "Audit linked"]
+    : ["Active", "Pending Review", "Suspended", "Expired"];
 
   return (
-    <aside className="sidebar">
-      <div className="logo-area">
-        <div className="logo-mark">
-          <div className="logo-icon"><Icon name="logo" size={16} /></div>
-          <div className="logo-text">
-            <div className="brand">AGCP Studio</div>
-            <div className="tagline">CONTROL PLANE</div>
-          </div>
-        </div>
-        <div className="status-pill">
-          <span className="status-dot" />
-          <span>LOCAL DEV</span>
-        </div>
-      </div>
+    <aside className={`sidebar ${isPolicyContext ? "rail-only" : ""}`}>
+      <div className="sidebar-rail" aria-label="Primary navigation">
+        <Link className="sidebar-rail-mark" href="/" aria-label="AGCP Studio overview">
+          <Icon name="brand_logo" size={36} />
+        </Link>
+        <nav className="sidebar-rail-nav">
+          {navItems.map((item) => {
+            const isActive = active === item.id;
+            const icon = <Icon name={item.icon} size={15} />;
 
-      <nav className="sidebar-nav">
-        {sections.map(sec => (
-          <div key={sec.label}>
-            <div className="nav-section-label">{sec.label}</div>
-            {sec.items.map(n => {
-              const isActive = active === n.id;
-              const content = (
-                <>
-                  <span className="nav-item-icon"><Icon name={n.icon} size={14} /></span>
-                  <span className="nav-item-label">{n.label}</span>
-                  {n.orange
-                    ? <span className="nav-badge-orange">{pendingApprovals}</span>
-                    : n.badge
-                    ? <span className="nav-badge">{n.badge}</span>
-                    : null
-                  }
-                </>
-              );
-
+            if (item.disabled || !item.href) {
               return (
-                <div className="nav-branch" key={n.id}>
-                  {n.href ? (
-                    <Link
-                      href={n.href}
-                      className={`nav-item ${isActive ? "active" : ""}`}
-                      aria-label={n.label}
-                      title={n.label}
-                    >
-                      {content}
-                    </Link>
-                  ) : n.disabled ? (
-                    <div
-                      className={`nav-item disabled ${isActive ? "active" : ""}`}
-                      aria-disabled="true"
-                      title={`${n.label} is planned`}
-                    >
-                      {content}
-                    </div>
-                  ) : (
-                    <div
-                      className={`nav-item ${isActive ? "active" : ""}`}
-                      onClick={() => onNav(n.id)}
-                      aria-label={n.label}
-                      title={n.label}
-                    >
-                      {content}
-                    </div>
-                  )}
-                  {isActive && n.children ? (
-                    <div className="nav-subtree" aria-label={`${n.label} sections`}>
-                      {n.children.map((child, index) => (
-                        <Link
-                          className={`nav-subitem ${index === 0 ? "active" : ""}`}
-                          href={child.href}
-                          key={`${n.id}-${child.label}`}
-                        >
-                          {child.label}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <span
+                  aria-disabled={item.disabled ? "true" : undefined}
+                  className={`sidebar-rail-link disabled ${isActive ? "active" : ""}`}
+                  data-label={`${item.label} is planned`}
+                  key={`rail-${item.id}`}
+                  title={item.disabled ? `${item.label} is planned` : item.label}
+                >
+                  {icon}
+                </span>
               );
-            })}
-          </div>
-        ))}
-      </nav>
+            }
 
-      <div className="sidebar-footer">
-        <div className="avatar">AU</div>
-        <div>
-          <div className="user-name">Admin User</div>
-          <div className="user-role">Security Operator</div>
-        </div>
+            return (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                aria-label={item.label}
+                className={`sidebar-rail-link ${isActive ? "active" : ""}`}
+                data-label={item.label}
+                href={item.href}
+                key={`rail-${item.id}`}
+                title={item.label}
+              >
+                {icon}
+                {item.badge ? <span className="sidebar-rail-badge">{item.badge}</span> : null}
+              </Link>
+            );
+          })}
+        </nav>
+        <span className="sidebar-rail-spacer" />
+        <Link className="sidebar-rail-footer" href="/settings" aria-label="Settings" title="Settings">
+          <Icon name="settings" size={15} />
+        </Link>
       </div>
+
+      {isPolicyContext ? null : (
+      <div className="sidebar-context">
+        <div className="logo-area">
+          <div className="logo-mark">
+            <div className="logo-text">
+              <div className="brand">AGCP Studio</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="context-panel">
+          <div className="context-module">
+            <span className="context-module-icon"><Icon name={activeItem.icon} size={24} /></span>
+            <div>
+              <div className="context-module-title">{activeItem.label}</div>
+              <div className="context-module-sub">Agent Governance Control Plane</div>
+            </div>
+          </div>
+
+          <div className="context-divider" />
+
+          {isPolicyContext ? (
+            <div className="policy-context-stack">
+              <div className="policy-context-label">Studio focus</div>
+              <div className="policy-repo-card">
+                <Icon name="shield" size={18} />
+                <div>
+                  <div className="policy-repo-name">Policy authoring</div>
+                  <div className="policy-repo-sub">Repository, blocks, code, versions, compile, and inspector live in the editor workspace.</div>
+                </div>
+              </div>
+              <div className="policy-empty-note">Use the editor controls inside Policy Studio for search, refresh, save draft, submit review, compile, and new policy actions.</div>
+            </div>
+          ) : (
+            <>
+              <div className="context-filters">
+                <div className="context-filter-head">
+                  <span>Filters</span>
+                  <button type="button">Clear</button>
+                </div>
+
+                {isDataContext ? (
+                  <>
+                    <label className="context-field">
+                      <span>Agent</span>
+                      <select defaultValue="all"><option value="all">All agents</option></select>
+                    </label>
+                    <label className="context-field search">
+                      <span>Search</span>
+                      <div><input placeholder="Search agents..." /><Icon name="search" size={14} /></div>
+                    </label>
+                    <label className="context-field">
+                      <span>Access Grant status</span>
+                      <select defaultValue="all"><option value="all">All</option></select>
+                    </label>
+                    <label className="context-field">
+                      <span>Governance boundary</span>
+                      <select defaultValue="all"><option value="all">All</option></select>
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <label className="context-field">
+                      <span>Environment</span>
+                      <select defaultValue="production">
+                        <option value="production">Production</option>
+                        <option value="development">Development</option>
+                      </select>
+                    </label>
+                    <label className="context-field">
+                      <span>{isEvidenceContext ? "Policy Decision" : "Status"}</span>
+                      <select defaultValue="all"><option value="all">All</option></select>
+                    </label>
+                  </>
+                )}
+
+                <div className="context-quick">
+                  {quickFilters.map((filter, index) => (
+                    <button type="button" key={filter}>
+                      <span className={`dot dot-${index % 4}`} />
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {hasSavedView ? (
+                <button type="button" className="context-save">
+                  <Icon name="archive" size={16} />
+                  Save view
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+
+      </div>
+      )}
     </aside>
   );
 };
 
 /* ─── EXTENDED TOPBAR ─── */
-const ExtendedTopbar = ({ view, title, mode, setMode, theme, setTheme }) => {
-  const breadcrumbs = {
-    command: "Overview", systems: "Agents", policies: "Policy Studio",
-    reviews: "Human Approvals", evidence: "Evidence & Audit", runtime: "Runtime Trace", risk: "Risk Register",
-    data: "Access & Inventory", models: "Model Inventory", vendors: "Vendors",
-    monitoring: "Monitoring", integrations: "Integrations", admin: "Admin",
-  };
+const ExtendedTopbar = ({ title }) => (
+  <header className="topbar" aria-label="AGCP Studio page header">
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <span>AGCP</span>
+      <span className="bc-sep">{">"}</span>
+      <span className="active">{title || "Overview"}</span>
+    </nav>
 
-  return (
-    <div className="topbar">
-      <div className="breadcrumb">
-        <span>AGCP</span>
-        <span className="bc-sep">›</span>
-        <span className="active">{title || breadcrumbs[view] || view}</span>
-      </div>
+    <span className="topbar-spacer" />
 
-      <div className="mode-switcher">
-        <button className={`mode-btn ${mode === "live" ? "on" : ""}`} onClick={() => setMode("live")}>Live</button>
-        <button className={`mode-btn ${mode === "sim" ? "sim" : ""}`} onClick={() => setMode("sim")}>{view === "command" ? "Review" : "Simulation"}</button>
-      </div>
-      <div className="topbar-actions">
-        <button className="icon-btn" aria-label="Search"><Icon name="search" size={13} /></button>
-        <Link className="icon-btn" href="/human-approvals" aria-label="Human approvals">
-          <Icon name="bell" size={13} />
-          <span className="notif-dot" />
-        </Link>
-        <Link className="icon-btn" href="/settings" aria-label="Settings"><Icon name="settings" size={13} /></Link>
-      </div>
-      <button className="theme-toggle" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ marginLeft: 4 }}>
-        {theme === "dark" ? "☀ Light" : "☾ Dark"}
-      </button>
-      <Link className="new-policy-btn" href="/policies" style={{ marginLeft: 7 }}>
-        <Icon name="plus" size={12} />
-        Policies
+    <label className="topbar-search">
+      <Icon name="search" size={15} />
+      <input aria-label="Search AGCP" placeholder="Search AGCP..." />
+      <span className="topbar-kbd">Ctrl K</span>
+    </label>
+
+    <div className="topbar-actions">
+      <Link className="icon-btn" href="/human-approvals" aria-label="Notifications">
+        <Icon name="bell" size={18} />
+        <span className="notif-dot">3</span>
+      </Link>
+      <Link className="icon-btn" href="/settings" aria-label="Help">
+        <Icon name="help" size={18} />
+      </Link>
+      <Link className="topbar-profile" href="/settings" aria-label="User settings">
+        <span className="topbar-avatar">AD</span>
+        <span className="topbar-profile-copy">
+          <span className="topbar-profile-name">Alex Dev</span>
+          <span className="topbar-profile-role">Governance Admin</span>
+        </span>
+        <span className="topbar-profile-chevron" aria-hidden="true">
+          <Icon name="chevron_down" size={12} />
+        </span>
       </Link>
     </div>
-  );
-};
+  </header>
+);
 
 export function AGCPStudioDashboard() {
   const studioData = useAGCPStudioData();
@@ -8428,7 +9057,7 @@ export function AGCPStudioShell({ children }) {
       >
         <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} />
         <div className="main">
-          <ExtendedTopbar view={routeView.view} title={routeView.label} mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} />
+          <ExtendedTopbar title={routeView.label} />
           {content}
         </div>
       </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useLayoutEffect, useRef, type WheelEvent } from "react";
+
 export function PolicyCodeEditor({
   dsl,
   onChange,
@@ -15,6 +17,45 @@ export function PolicyCodeEditor({
   const policyPath = slugifyPathSegment(policyTitle);
   const versionPath = slugifyPathSegment(policyVersion);
   const highlightedLines = dsl.split(/\r?\n/);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const highlightRef = useRef<HTMLPreElement | null>(null);
+  const gutterRef = useRef<HTMLDivElement | null>(null);
+  const editorWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const syncCodeScroll = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    if (editorWrapRef.current) {
+      editorWrapRef.current.scrollTop = 0;
+      editorWrapRef.current.scrollLeft = 0;
+    }
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = textarea.scrollTop;
+      highlightRef.current.scrollLeft = textarea.scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = textarea.scrollTop;
+    }
+  };
+
+  const handleEditorWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const textarea = textareaRef.current;
+    if (!textarea || event.target === textarea) {
+      return;
+    }
+
+    event.preventDefault();
+    textarea.scrollTop += event.deltaY;
+    textarea.scrollLeft += event.deltaX;
+    syncCodeScroll();
+  };
+
+  useLayoutEffect(() => {
+    syncCodeScroll();
+  }, [dsl]);
 
   return (
     <div className="ps2-code-shell">
@@ -25,14 +66,14 @@ export function PolicyCodeEditor({
         <span>/</span>
         <strong>{versionPath}</strong>
       </div>
-      <div className="ps2-code-editor-wrap">
-        <div className="ps2-code-gutter" aria-hidden="true">
+      <div className="ps2-code-editor-wrap" onWheel={handleEditorWheel} ref={editorWrapRef}>
+        <div className="ps2-code-gutter" aria-hidden="true" ref={gutterRef}>
           {Array.from({ length: lines }, (_, index) => (
             <span key={index}>{index + 1}</span>
           ))}
         </div>
         <div className="ps2-code-input-layer">
-          <pre className="ps2-code-highlight" aria-hidden="true">
+          <pre className="ps2-code-highlight" aria-hidden="true" ref={highlightRef}>
             {highlightedLines.map((line, lineIndex) => (
               <span className="ps2-code-highlight-line" key={`${lineIndex}-${line}`}>
                 {renderHighlightedDslLine(line)}
@@ -43,8 +84,11 @@ export function PolicyCodeEditor({
             aria-label="Code DSL editor"
             className="ps2-code-textarea"
             onChange={(event) => onChange(event.target.value)}
+            onScroll={syncCodeScroll}
+            ref={textareaRef}
             spellCheck={false}
             value={dsl}
+            wrap="off"
           />
         </div>
         <div className="ps2-code-minimap" aria-hidden="true">
