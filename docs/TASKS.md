@@ -113,10 +113,18 @@ The frontend has a minimal dashboard shell, a read-only Agent list page backed
 by `GET /agents`, a read-only Agent detail and Agent Governance
 Profile UI backed by `GET /agents/{agent_id}/governance-profile`,
 `GET /agents/{agent_id}/activity`, and
-`GET /agents/{agent_id}/human-approvals`, a read-only Runtime Decisions
-timeline backed by `GET /runtime/tool-calls/activity`, a Human Approvals page
-with pending review actions, and a workflow-first Evidence & Audit explorer
-backed by `GET /agents/{agent_id}/evidence-bundle`. It also has an Integration Hub page
+`GET /agents/{agent_id}/human-approvals`, a workflow-first Access & Data page
+backed by `GET /access-grants`, `GET /sources`,
+`GET /sources/{source_id}/usage-profile`, `GET /models`, and
+`GET /capabilities`, a read-only Runtime Decisions timeline backed by
+`GET /runtime/tool-calls/activity`, a Human Approvals page with pending review
+actions, and a workflow-first Evidence & Audit explorer backed by
+`GET /agents/{agent_id}/evidence-bundle`. Access & Data reviews real governed
+metadata for Sources, Data Usage Profiles, Access Grants, Models, and
+Capabilities; shows metadata check readiness without a score; filters unsafe
+metadata before rendering summaries; preserves explicit Access Grant lifecycle
+transitions; and does not inspect raw source content, run scanners, simulate
+production impact, or certify legal compliance. It also has an Integration Hub page
 that explains Custom Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and
 generic webhook/API connection patterns without making AGCP execute tools or
 replace orchestrators, but no login/auth UI, no broad enterprise role-aware
@@ -238,8 +246,8 @@ Recommended order:
    pages workflow-first instead of API-shaped CRUD.
 8. Use Access Grants as optional policy context without replacing
    PolicyDecision records.
-9. Add focused AccessGrant and inventory review workflows only where they
-   support approval, evidence, or policy decisions.
+9. Continue deepening Access & Data drill-downs only where they support
+   approval, evidence, policy decisions, or metadata-only check authoring.
 10. Add Permission domain model only if AccessGrant target semantics prove
    insufficient.
 11. Add frontend auth and role-aware UI later.
@@ -288,7 +296,7 @@ Recommended order:
       runtime behavior.
 - [ ] Add richer explicit activation UX only after review diff and assignment
       behavior is validated.
-- [ ] Add focused AccessGrant and inventory review workflows only where they
+- [x] Add focused AccessGrant and inventory review workflows only where they
       support approval, evidence, or policy decisions.
 - [ ] Add Evidence Bundle PDF/download/signature actions later.
 - [ ] Add CORS/proxy setup guidance if needed for local frontend/backend use.
@@ -316,6 +324,10 @@ Recommended order:
       know/control/prove workflow cards, current actor context, attention queue,
       runtime activity state, local metadata pre-check demo guidance, and no
       fake dashboard metrics.
+- [x] Polish Access & Data into a workflow-first governed metadata workspace
+      backed by AccessGrant, Source, DataUsageProfile, ModelAsset, and
+      Capability APIs, with metadata check readiness and no raw-content,
+      scanner, compliance-score, or production-simulation claims.
 - [ ] Add full frontend auth and broader role-aware UI later.
 - [ ] Add broad filtering and pagination for Runtime and Agent activity only
       after the backend read models need it.

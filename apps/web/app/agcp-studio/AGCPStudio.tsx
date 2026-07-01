@@ -5954,7 +5954,7 @@ const AGCP_ROUTE_VIEW_BY_PATH = [
   { path: "/evidence", view: "evidence", label: "Evidence & Audit" },
   { path: "/audit", view: "evidence", label: "Audit Logs" },
   { path: "/policies", view: "policies", label: "Policy Studio" },
-  { path: "/access-data", view: "data", label: "Access & Inventory" },
+  { path: "/access-data", view: "data", label: "Access & Data" },
   { path: "/integrations", view: "integrations", label: "Integrations" },
   { path: "/runtime-gateway", view: "runtime", label: "Runtime Trace" },
   { path: "/settings", view: "admin", label: "Settings" }
@@ -6791,6 +6791,628 @@ const AGCP_CONNECTED_CSS = `
 
   .access-state-panel p {
     margin: 0;
+  }
+
+  .agcp-connected-content:has(.access-data-route) {
+    overflow: auto;
+    padding: 0;
+  }
+
+  .access-data-route {
+    background:
+      linear-gradient(180deg, rgba(18,24,32,.96), rgba(10,13,22,.98)),
+      var(--bg);
+    color: var(--text);
+    min-height: calc(100vh - 48px);
+    overflow: auto;
+  }
+
+  .access-data-hero {
+    align-items: start;
+    background: rgba(14,18,27,.96);
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+    padding: 22px;
+  }
+
+  .access-data-eyebrow,
+  .access-data-section-header span,
+  .access-record-card header span,
+  .access-grant-detail header span,
+  .access-readiness-card span,
+  .access-data-api span,
+  .access-grant-tools span,
+  .access-transition-box label span {
+    color: var(--purple-lt);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .access-data-hero h1 {
+    color: #eeeef8;
+    font-size: 28px;
+    font-weight: 760;
+    letter-spacing: 0;
+    line-height: 1.05;
+    margin: 6px 0 9px;
+  }
+
+  .access-data-hero p,
+  .access-data-section-header p,
+  .access-record-card p,
+  .access-data-state p,
+  .access-grant-detail p,
+  .access-readiness-card p,
+  .access-demo-callout p,
+  .access-metadata-preview p,
+  .access-transition-box p {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .access-data-api {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .access-data-api strong,
+  .access-mono,
+  .access-readiness-card span {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    overflow-wrap: anywhere;
+  }
+
+  .access-data-api button,
+  .access-transition,
+  .access-grant-row {
+    cursor: pointer;
+  }
+
+  .access-data-api button,
+  .access-transition {
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 800;
+    min-height: 36px;
+    padding: 8px 10px;
+  }
+
+  .access-data-api button:hover,
+  .access-data-api button:focus-visible,
+  .access-transition:hover:not(:disabled),
+  .access-transition:focus-visible:not(:disabled) {
+    background: var(--purple-dim);
+    border-color: var(--purple-brd);
+    color: var(--purple-lt);
+    outline: none;
+  }
+
+  .access-data-boundary {
+    background: rgba(255,255,255,.018);
+    border-bottom: 1px solid var(--border2);
+    padding: 12px 22px;
+  }
+
+  .access-data-boundary ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .access-data-boundary li,
+  .access-data-nav a,
+  .access-pill,
+  .access-chip-block li {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .access-data-boundary li {
+    background: rgba(47,207,141,.07);
+    border: 1px solid var(--green-brd);
+    color: var(--green);
+    line-height: 1.35;
+    padding: 7px 10px;
+  }
+
+  .access-data-nav {
+    align-items: center;
+    background: rgba(10,13,22,.74);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 22px;
+  }
+
+  .access-data-nav a {
+    background: rgba(124,109,240,.1);
+    border: 1px solid var(--purple-brd);
+    color: var(--purple-lt);
+    padding: 8px 11px;
+    text-decoration: none;
+  }
+
+  .access-data-nav a:hover,
+  .access-data-nav a:focus-visible,
+  .access-reference-links a:hover,
+  .access-reference-links a:focus-visible {
+    background: rgba(124,109,240,.18);
+    color: #eeeef8;
+    outline: none;
+  }
+
+  .access-data-workspace {
+    display: grid;
+    gap: 16px;
+    margin: 0 auto;
+    max-width: 1540px;
+    padding: 18px 22px 30px;
+  }
+
+  .access-data-section,
+  .access-demo-callout {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .access-data-section-header {
+    align-items: start;
+    border-bottom: 1px solid var(--border2);
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+
+  .access-data-section-header h2,
+  .access-demo-callout h2 {
+    color: #eeeef8;
+    font-size: 17px;
+    letter-spacing: 0;
+    line-height: 1.15;
+    margin: 5px 0 7px;
+  }
+
+  .access-record-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .access-record-grid.two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .access-record-card,
+  .access-readiness-card,
+  .access-data-state,
+  .access-grant-list-panel,
+  .access-grant-detail {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    min-width: 0;
+  }
+
+  .access-record-card,
+  .access-readiness-card,
+  .access-grant-detail {
+    display: grid;
+    gap: 11px;
+    padding: 12px;
+  }
+
+  .access-record-card header,
+  .access-grant-row,
+  .access-reference-links,
+  .access-transition-box div {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .access-record-card h3,
+  .access-grant-row strong,
+  .access-grant-detail h3,
+  .access-readiness-card h3 {
+    color: #eeeef8;
+    font-size: 13px;
+    letter-spacing: 0;
+    line-height: 1.25;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .access-pill {
+    align-items: center;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    justify-content: center;
+    line-height: 1;
+    padding: 5px 8px;
+    white-space: nowrap;
+  }
+
+  .access-pill.ok {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .access-pill.warn {
+    background: var(--orange-dim);
+    border-color: var(--orange-brd);
+    color: var(--orange);
+  }
+
+  .access-pill.danger {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .access-pill.info {
+    background: var(--sky-dim);
+    border-color: var(--sky-brd);
+    color: var(--sky);
+  }
+
+  .access-field-grid {
+    display: grid;
+    gap: 7px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+  }
+
+  .access-field-grid.detail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .access-field-grid div {
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px;
+  }
+
+  .access-field-grid dt {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 9.5px;
+  }
+
+  .access-field-grid dd {
+    color: var(--text-dim);
+    font-size: 11.5px;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .access-chip-block {
+    display: grid;
+    gap: 7px;
+  }
+
+  .access-chip-block strong,
+  .access-transition-box strong {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .access-chip-block ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .access-chip-block li {
+    background: var(--green-dim);
+    border: 1px solid var(--green-brd);
+    color: var(--green);
+    padding: 5px 8px;
+  }
+
+  .access-chip-block.danger li {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .access-metadata-preview {
+    border-top: 1px solid var(--border2);
+    color: var(--text-muted);
+    display: grid;
+    gap: 8px;
+    padding-top: 9px;
+  }
+
+  .access-metadata-preview summary {
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+
+  .access-metadata-preview dl {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .access-metadata-preview div {
+    display: grid;
+    gap: 4px;
+    grid-template-columns: minmax(90px, .34fr) minmax(0, 1fr);
+  }
+
+  .access-metadata-preview dt,
+  .access-metadata-preview dd {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .access-metadata-preview dt {
+    color: var(--text-muted);
+  }
+
+  .access-metadata-preview dd {
+    color: var(--text-dim);
+  }
+
+  .access-data-state {
+    display: grid;
+    gap: 6px;
+    margin: 12px;
+    padding: 13px;
+  }
+
+  .access-data-state strong {
+    color: #eeeef8;
+    font-size: 13px;
+  }
+
+  .access-data-state.error {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+  }
+
+  .access-data-state.error strong,
+  .access-data-state.error p {
+    color: var(--red);
+  }
+
+  .access-data-state.warn {
+    background: var(--orange-dim);
+    border-color: var(--orange-brd);
+  }
+
+  .access-data-state.warn strong,
+  .access-data-state.warn p {
+    color: var(--orange);
+  }
+
+  .access-grant-review {
+    align-items: start;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(320px, .9fr) minmax(380px, 1.1fr);
+    padding: 12px;
+  }
+
+  .access-grant-list-panel {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .access-grant-tools {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(160px, .42fr) minmax(0, 1fr);
+  }
+
+  .access-grant-tools label,
+  .access-transition-box label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .access-grant-tools input,
+  .access-grant-tools select,
+  .access-transition-box input {
+    background: rgba(255,255,255,.035);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 12px;
+    min-height: 36px;
+    padding: 8px 10px;
+  }
+
+  .access-grant-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .access-grant-row {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) auto;
+    min-height: 64px;
+    padding: 10px;
+    text-align: left;
+    width: 100%;
+  }
+
+  .access-grant-row:hover,
+  .access-grant-row:focus-visible,
+  .access-grant-row[aria-current="true"] {
+    background: rgba(124,109,240,.08);
+    border-color: var(--purple-brd);
+    outline: none;
+  }
+
+  .access-grant-row em {
+    color: var(--text-muted);
+    display: block;
+    font-size: 11px;
+    font-style: normal;
+    margin-top: 4px;
+  }
+
+  .access-grant-detail header {
+    border-bottom: 1px solid var(--border2);
+    display: grid;
+    gap: 6px;
+    padding-bottom: 10px;
+  }
+
+  .access-detail-copy {
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 9px;
+  }
+
+  .access-reference-links {
+    justify-content: flex-start;
+  }
+
+  .access-reference-links a {
+    background: rgba(124,109,240,.1);
+    border: 1px solid var(--purple-brd);
+    border-radius: var(--radius-sm);
+    color: var(--purple-lt);
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 8px 10px;
+    text-decoration: none;
+  }
+
+  .access-transition-box {
+    border-top: 1px solid var(--border2);
+    display: grid;
+    gap: 9px;
+    padding-top: 11px;
+  }
+
+  .access-transition-box div {
+    justify-content: flex-start;
+  }
+
+  .access-transition.suspend,
+  .access-transition.expire {
+    background: var(--orange-dim);
+    border-color: var(--orange-brd);
+    color: var(--orange);
+  }
+
+  .access-transition.revoke {
+    background: var(--red-dim);
+    border-color: var(--red-brd);
+    color: var(--red);
+  }
+
+  .access-transition.reactivate {
+    background: var(--green-dim);
+    border-color: var(--green-brd);
+    color: var(--green);
+  }
+
+  .access-transition:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+  }
+
+  .access-readiness-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .access-readiness-card strong {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .access-readiness-card.ready {
+    border-color: var(--green-brd);
+  }
+
+  .access-readiness-card.missing,
+  .access-readiness-card.loading {
+    border-color: var(--orange-brd);
+  }
+
+  .access-readiness-card.error {
+    border-color: var(--red-brd);
+  }
+
+  .access-readiness-card.not-wired {
+    border-color: var(--sky-brd);
+  }
+
+  .access-demo-callout {
+    align-items: center;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 16px;
+  }
+
+  .access-demo-callout code {
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    white-space: nowrap;
   }
 
   .agcp-panel {
@@ -9773,11 +10395,51 @@ const AGCP_CONNECTED_CSS = `
   }
 
   @media (max-width: 900px) {
+    .shell:has(.access-data-route) .sidebar {
+      width: 54px;
+    }
+
+    .shell:has(.access-data-route) .sidebar-context {
+      display: none;
+    }
+
+    .shell:has(.access-data-route) .topbar {
+      gap: 8px;
+      padding: 0 12px;
+    }
+
+    .shell:has(.access-data-route) .topbar-search,
+    .shell:has(.access-data-route) .topbar-actions,
+    .shell:has(.access-data-route) .topbar-spacer {
+      display: none;
+    }
+
     .agcp-agent-hero,
     .agcp-evidence-lookup,
     .policy-workbench-grid,
-    .policy-rule-grid {
+    .policy-rule-grid,
+    .access-data-hero,
+    .access-record-grid,
+    .access-record-grid.two-column,
+    .access-grant-review,
+    .access-grant-tools,
+    .access-demo-callout {
       grid-template-columns: 1fr;
+    }
+
+    .access-data-workspace {
+      padding: 14px;
+    }
+
+    .access-field-grid,
+    .access-field-grid.detail,
+    .access-readiness-grid,
+    .access-grant-row {
+      grid-template-columns: 1fr;
+    }
+
+    .access-data-api {
+      width: 100%;
     }
   }
 
@@ -9836,14 +10498,14 @@ const ExtendedSidebar = ({ active, onNav, data, actor }) => {
       items: [
         {
           id: "data",
-          label: "Access & Inventory",
+          label: "Access & Data",
           icon: "db",
           badge: null,
           href: "/access-data",
           children: [
-            { label: "Access Matrix", href: "/access-data" },
+            { label: "Access Grants", href: "/access-data#access-grants" },
             { label: "Data Sources", href: "/access-data" },
-            { label: "Usage Profiles", href: "/access-data" }
+            { label: "Usage Profiles", href: "/access-data#data-usage-profiles" }
           ]
         },
         { id: "runtime", label: "Runtime Trace", icon: "monitor", badge: null, href: "/runtime-gateway" },

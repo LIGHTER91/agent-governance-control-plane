@@ -14,10 +14,15 @@ existing backend endpoints where available, and shows honest unavailable or
 empty states instead of synthetic metrics when an API cannot be reached. The
 Agents page and Agent detail page read from the backend Agent Registry API,
 Agent activity API, and HumanApproval API.
-The Access & Data page reads Access Grants, Source inventory records, and
-Source Data Usage Profiles for governance review workflows. It can transition
-Access Grant statuses through explicit backend lifecycle endpoints while keeping
-grants as declarative governance records. The Human Approvals route renders a
+The Access & Data page is a workflow-first governance metadata workspace. It
+reads Access Grants, Source inventory records, Source Data Usage Profiles,
+Models, and Capabilities from backend APIs; shows metadata check readiness for
+the supported metadata-only check inputs; links to Policy Studio, Runtime
+Decisions, Review Inbox, and Evidence & Audit; and can transition Access Grant
+statuses through explicit backend lifecycle endpoints while keeping grants as
+declarative governance records. It defensively filters unsafe metadata keys
+before rendering safe summaries and does not expose raw source content,
+prompts, secrets, tokens, credentials, or private payloads. The Human Approvals route renders a
 Review Inbox experience: Runtime HumanApproval records and PolicyVersion review
 requests appear as unified review work items with a left inbox, selected detail
 pane, and sections for why review is required, policy decision context, policy
@@ -100,6 +105,8 @@ GET /agents/{agent_id}/human-approvals
 GET /sources
 GET /sources/{source_id}/usage-profile
 GET /access-grants
+GET /models
+GET /capabilities
 POST /access-grants/{access_grant_id}/suspend
 POST /access-grants/{access_grant_id}/revoke
 POST /access-grants/{access_grant_id}/reactivate
@@ -146,6 +153,15 @@ actions update the governance record status only; this does not by itself
 guarantee runtime blocking, because runtime enforcement depends on explicit
 policies.
 DataUsageProfile records remain governance metadata, not legal certification.
+The Metadata Check Readiness panel only reports whether supporting metadata is
+available for metadata-only pre-checks such as AccessGrant status, Data Usage
+Profile status, Source status/classification, Model status/provider type, and
+Capability status. It does not run a Runtime Gateway decision, create
+PolicyCheckSteps, assign a score, or simulate production impact. For a real
+local evidence path, run `.\scripts\dev-demo.ps1` from the repository root; the
+script creates local metadata, calls the Runtime Gateway, persists CheckResults,
+and surfaces the results in Runtime Decisions, Review Inbox, and Evidence &
+Audit without hardcoding frontend demo records.
 The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
 states that runtime callers, not AGCP, execute tools and honor `proceed`.
@@ -353,9 +369,12 @@ npm run build
 - Agent list is read-only.
 - Agent detail page is read-only.
 - Agent activity timeline is read-only and lightweight.
-- Access & Data Source Data Usage workflow is read-only.
+- Access & Data reads governed metadata from existing backend APIs and is not a
+  data catalog, scanner, raw-content inspector, or production simulation.
 - Access Grant status transition actions are available, but they are not
   role-aware and do not create IAM permissions or runtime enforcement.
+- Metadata Check Readiness is a readiness summary only; PolicyCheckStep
+  authoring is not wired into this page.
 - Human Approvals is a read-oriented review queue in the current UI.
 - Evidence & Audit is a manual Evidence Bundle explorer and JSON download
   workflow only; it does not provide a general evidence list, PDF export,

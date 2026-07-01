@@ -32,8 +32,8 @@ team membership resolution, production deployment, and operational hardening are
 still missing. The frontend now has a minimal dashboard shell, a read-only Agent
 list page backed by the backend Agent Registry API, a read-only Agent detail
 page backed by the Agent Registry, Agent activity, HumanApproval, and Evidence
-Bundle APIs, a read-only Access & Data page backed by AccessGrant, Source, and
-DataUsageProfile APIs, a workflow-first Runtime Decisions timeline backed by
+Bundle APIs, a workflow-first Access & Data page backed by AccessGrant, Source,
+DataUsageProfile, ModelAsset, and Capability APIs, a workflow-first Runtime Decisions timeline backed by
 `GET /runtime/tool-calls/activity`, a Human Approvals page with pending review
 actions, and an Evidence & Audit explorer backed by the backend Evidence Bundle
 export API. The Evidence & Audit page now loads bundles only by manual user
@@ -59,15 +59,19 @@ environment, risk level, Access Grants, recent activity, HumanApproval summary,
 inventory references, policy/rule technical references, and an Evidence Bundle
 availability hint.
 
-Several important surfaces remain backend-only: Capability, ModelAsset, and
-PolicyCheckStep management have APIs but no dedicated frontend management
-workflows. Access Grants now have a read-only review UI for declared Agent
-access, target references, reason, risk, grantor, expiration, safe metadata,
-and links to Agent profiles, Evidence Bundle lookup, and Source/Data Usage
-review. Source Data Usage Profiles now have a read-only review UI for
-classification, personal/sensitive data flags, allowed and prohibited purposes,
-processing constraints, review status, DPIA references, safe metadata, and
-Source-targeting Access Grants. Policy and PolicyRule management now have an
+PolicyCheckStep management remains backend-only, and Capability and ModelAsset
+mutation workflows are still backend-only. Access & Data now provides a
+workflow-first frontend review surface across declared Access Grants, Sources,
+Source Data Usage Profiles, Models, and Capabilities. It uses existing backend
+read APIs, keeps Access Grants as governance declarations rather than IAM
+credentials, preserves explicit Access Grant lifecycle transitions, filters
+unsafe metadata before rendering summaries, links to Policy Studio, Runtime
+Decisions, Review Inbox, and Evidence & Audit, and reports metadata check
+readiness for AccessGrant status, Data Usage Profile status, Source
+status/classification, ModelAsset status/provider type, and Capability status.
+The page does not inspect raw source content, run scanners, create
+PolicyCheckSteps, simulate production impact, or certify legal compliance.
+Policy and PolicyRule management now have an
 IDE-style Policy Studio frontend surface. The Studio uses a repository sidebar,
 honest Local backend / Policy repository labeling, backend-backed Policy
 folders, static authoring templates, editable Blocks canvas and Code DSL modes,
@@ -474,9 +478,11 @@ Completed foundation:
 - Read-only Runtime Gateway overview page.
 - Read-only Runtime activity page backed by
   `GET /runtime/tool-calls/activity`.
-- Read-only Access & Data page backed by `GET /access-grants`, `GET /sources`,
-  and `GET /sources/{source_id}/usage-profile` for Access Grant and Source Data
-  Usage Profile review.
+- Workflow-first Access & Data page backed by `GET /access-grants`,
+  `GET /sources`, `GET /sources/{source_id}/usage-profile`, `GET /models`, and
+  `GET /capabilities` for declared access, source usage metadata,
+  model/capability inventory, explicit Access Grant lifecycle transitions, and
+  metadata check readiness.
 - Human Approvals page backed by `GET /human-approvals`, with approve, reject,
   and cancel actions shown only for pending approvals.
 - Evidence Bundle page backed by `GET /agents/{agent_id}/evidence-bundle`,
@@ -563,10 +569,13 @@ Important limitations:
 - Frontend authentication and broad role-aware navigation are not implemented.
   Policy Reviews has a minimal `/me`-backed advisory current actor display.
 - The Agent list, Agent detail page, Access & Data page, Runtime activity, and
-  Evidence Bundle views require the backend API to be running. The Access &
-  Data workflow is read-only. Human Approval review actions are available only
-  for pending approvals.
-- Access Grant status transition actions are not implemented in the frontend.
+  Evidence Bundle views require the backend API to be running. Access & Data
+  remains a governance metadata review workspace; it is not a scanner, raw
+  content viewer, or runtime enforcement surface. Human Approval review actions
+  are available only for pending approvals.
+- Access Grant status transition actions are implemented in Access & Data, but
+  they update governance record status only and do not create IAM permissions or
+  automatic runtime blocking.
 - The Agent detail page has no edit form.
 - Agent and Runtime activity views do not have broad filtering, search, or
   pagination yet.
@@ -613,8 +622,9 @@ Planned capabilities:
 - Runtime Gateway overview page. Completed as read-only.
 - Runtime decisions/activity backend endpoint. Completed as read-only.
 - Runtime decisions/activity page. Completed as read-only.
-- Access Grant review UI. Completed as read-only.
-- Source Data Usage Profile review UI. Completed as read-only.
+- Access & Data workflow. Completed as a backend-connected governance metadata
+  review surface for Access Grants, Sources, Data Usage Profiles, Models,
+  Capabilities, readiness states, and explicit Access Grant lifecycle actions.
 - Human Approvals page. Completed with pending review actions.
 - Evidence Bundle page. Completed with manual review summary and bounded JSON
   download.

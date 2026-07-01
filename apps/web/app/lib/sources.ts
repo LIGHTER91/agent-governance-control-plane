@@ -68,6 +68,38 @@ export type AccessGrantRecord = {
   updated_at: string;
 };
 
+export type ModelAssetRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  model_type: string;
+  provider: string;
+  model_ref: string | null;
+  version: string | null;
+  owner_type: string;
+  owner_id: string;
+  owner_name: string;
+  owner_contact_email: string | null;
+  status: string;
+  risk_level: string;
+  metadata: SourceMetadata;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CapabilityRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  capability_type: string;
+  external_ref: string | null;
+  status: string;
+  risk_level: string;
+  metadata: SourceMetadata;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AccessGrantTransitionAction =
   | "suspend"
   | "revoke"
@@ -99,6 +131,22 @@ export function fetchAccessGrants(
 ): Promise<AccessGrantRecord[]> {
   return fetchApiArray<AccessGrantRecord>("/access-grants", {
     errorLabel: "GET /access-grants",
+    signal
+  });
+}
+
+export function fetchModels(signal?: AbortSignal): Promise<ModelAssetRecord[]> {
+  return fetchApiArray<ModelAssetRecord>("/models", {
+    errorLabel: "GET /models",
+    signal
+  });
+}
+
+export function fetchCapabilities(
+  signal?: AbortSignal
+): Promise<CapabilityRecord[]> {
+  return fetchApiArray<CapabilityRecord>("/capabilities", {
+    errorLabel: "GET /capabilities",
     signal
   });
 }

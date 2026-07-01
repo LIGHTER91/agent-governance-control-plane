@@ -28,7 +28,12 @@ export async function fetchApiArray<T>(
   );
 
   if (!response.ok) {
-    throw new Error(`${options.errorLabel} failed with status ${response.status}`);
+    const detail = await errorDetail(response);
+    throw new ApiRequestError(
+      `${options.errorLabel} failed with status ${response.status}`,
+      response.status,
+      detail
+    );
   }
 
   const data: unknown = await response.json();
