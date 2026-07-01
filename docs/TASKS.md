@@ -137,9 +137,14 @@ latest draft PolicyVersion snapshot, then active PolicyVersion baseline, then
 live PolicyRule fallback. Templates are static helpers, not backend records.
 Policy folder grouping is persisted through `PolicyFolder` records and
 nullable Policy `folder_id`; uncategorized Policies stay honest with
-`folder_id = null`. Tags and repository/workspace metadata are still not
+`folder_id = null`. Compact folder create, rename, move, and delete-empty
+controls are backend-backed; deleting non-empty folders remains blocked until
+Policies are moved elsewhere. Tags and repository/workspace metadata are still not
 persisted, so Policy Studio must not render fake repositories, fake synced
-workspace state, or fake tag chips. Local validation is not runtime simulation. Draft versions do not affect runtime
+workspace state, or fake tag chips. Policy Studio V1 keeps backend references
+secondary in the repository and inspector, and the Blocks canvas, Code DSL,
+compile bar, and local validation console all reflect the current editor state.
+Local validation is not runtime simulation. Draft versions do not affect runtime
 until explicit activation. Draft PolicyVersions with pending review requests are
 immutable and require a new draft for additional changes. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft

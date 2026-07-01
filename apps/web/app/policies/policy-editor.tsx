@@ -32,6 +32,7 @@ export function PolicyEditor({
   onValidate,
   saveDisabledReason,
   selectedBlockId,
+  submitDisabledReason,
   validationMessages
 }: {
   blocks: PolicyBlock[];
@@ -59,6 +60,7 @@ export function PolicyEditor({
   onValidate: () => void;
   saveDisabledReason: string | null;
   selectedBlockId: string | null;
+  submitDisabledReason: string | null;
   validationMessages: PolicyValidationMessage[];
 }) {
   const counts = {
@@ -114,8 +116,8 @@ export function PolicyEditor({
             <PolicyIcon name="code" size={14} />
           </span>
           <span>
-            <strong>Policy Studio Refinement</strong>
-            <small>Agent Governance Control Plane</small>
+            <strong>Policy Studio</strong>
+            <small>Draft authoring, validation, and review</small>
           </span>
         </div>
       </div>
@@ -145,14 +147,13 @@ export function PolicyEditor({
             </button>
             <button
               className="ps2-header-btn primary"
+              disabled={Boolean(submitDisabledReason)}
               onClick={onSubmitReview}
+              title={submitDisabledReason || "Submit the saved draft for review"}
               type="button"
             >
               <PolicyIcon name="send" size={14} />
               Submit for review
-            </button>
-            <button className="ps2-header-icon" type="button" aria-label="More actions">
-              <PolicyIcon name="more" size={14} />
             </button>
           </div>
         </div>
@@ -235,7 +236,12 @@ export function PolicyEditor({
         )}
       </div>
 
-      <CompileBar compiled={compiled} />
+      <CompileBar
+        compiled={compiled}
+        onValidate={onValidate}
+        validationMessages={validationMessages}
+        validationRunCount={validationRunCount}
+      />
       <ValidationConsole
         onValidate={onValidate}
         validationRunCount={validationRunCount}
@@ -268,7 +274,10 @@ function formatPolicyStatus(status: string) {
 }
 
 function CompileBar({
-  compiled
+  compiled,
+  onValidate,
+  validationMessages,
+  validationRunCount
 }: {
   compiled: {
     checkFields: string[];
@@ -277,13 +286,28 @@ function CompileBar({
     policyRuleCount: number;
     usesCheckFields: boolean;
   };
+  onValidate: () => void;
+  validationMessages: PolicyValidationMessage[];
+  validationRunCount: number;
 }) {
   const shape = compileBarShape(compiled);
+  const blockingCount = validationMessages.filter(
+    (message) => message.tone === "blocking"
+  ).length;
+  const attentionCount = validationMessages.filter(
+    (message) => message.tone === "attention"
+  ).length;
+  const status =
+    blockingCount > 0
+      ? { className: "is-blocking", text: `${blockingCount} fix` }
+      : attentionCount > 0
+        ? { className: "is-attention", text: `${attentionCount} warning` }
+        : { className: "is-ready", text: "Ready" };
 
   return (
     <div className="ps2-compile-bar">
-      <span aria-hidden="true">OK</span>
-      <span>Compilation</span>
+      <span className={`ps2-compile-status ${status.className}`}>{status.text}</span>
+      <span>Local compile</span>
       <div className="ps2-compile-pills">
         {shape.map((item) => (
           <span className={`ps2-co-pill chip ${item.className}`} key={item.text}>
@@ -291,7 +315,18 @@ function CompileBar({
           </span>
         ))}
       </div>
-      <button className="ps2-compile-action" type="button">Compile</button>
+      <button
+        className="ps2-compile-action"
+        onClick={onValidate}
+        title={
+          validationRunCount > 0
+            ? "Refresh local validation console"
+            : "Run local validation"
+        }
+        type="button"
+      >
+        Validate
+      </button>
     </div>
   );
 }
@@ -333,10 +368,10 @@ function ValidationConsole({
           </span>
         </div>
         <div className="ps2-console-tabs">
-          <button type="button">All <b>{counts.all}</b></button>
-          <button type="button">Errors <b>{counts.errors}</b></button>
-          <button type="button">Warnings <b>{counts.warnings}</b></button>
-          <button type="button">Info <b>{counts.info}</b></button>
+          <span>All <b>{counts.all}</b></span>
+          <span>Errors <b>{counts.errors}</b></span>
+          <span>Warnings <b>{counts.warnings}</b></span>
+          <span>Info <b>{counts.info}</b></span>
         </div>
         <button className="ps2-sim-run" onClick={onValidate} type="button">Validate</button>
       </div>
@@ -380,7 +415,7 @@ function ValidationConsole({
       <div className="ps2-validation-footer">
         <span>
           {validationRunCount > 0
-            ? "OK Local validation completed"
+            ? "Local validation completed"
             : "Local validation not run"}
         </span>
         <span>Current editor state</span>
@@ -434,25 +469,6 @@ function compileBarShape(compiled: {
   ];
 }
 
-function consoleMessageGroups(messages: PolicyValidationMessage[]) {
-  const groupOrder: Array<{
-    label: string;
-    tone: PolicyValidationMessageTone;
-  }> = [
-    { label: "Success", tone: "success" },
-    { label: "Info", tone: "info" },
-    { label: "Attention", tone: "attention" },
-    { label: "Blocking", tone: "blocking" }
-  ];
-
-  return groupOrder
-    .map((group) => ({
-      ...group,
-      messages: messages.filter((message) => message.tone === group.tone)
-    }))
-    .filter((group) => group.messages.length > 0);
-}
-
 function messageClass(tone: PolicyValidationMessageTone) {
   if (tone === "success") {
     return "ps2-sim-ok";
@@ -502,17 +518,4 @@ function validationIcon(tone: PolicyValidationMessageTone) {
     return "check" as const;
   }
   return "info" as const;
-}
-
-function messageSymbolForTone(tone: PolicyValidationMessageTone) {
-  if (tone === "success") {
-    return "OK";
-  }
-  if (tone === "attention") {
-    return "!";
-  }
-  if (tone === "blocking") {
-    return "x";
-  }
-  return "i";
 }

@@ -63,6 +63,8 @@ export function PolicyCanvas({
     useState<ConditionFieldGroup | null>(null);
   const [draftField, setDraftField] = useState("");
   const [draftValue, setDraftValue] = useState<ConditionValue>("");
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
 
   function openAddMenu(group: ConditionFieldGroup) {
     const definition = conditionFieldDefinitionsForGroup(group)[0];
@@ -93,19 +95,33 @@ export function PolicyCanvas({
         </div>
         <label className="ps2-library-search">
           <PolicyIcon name="search" size={14} />
-          <input placeholder="Search blocks" type="search" />
+          <input
+            onChange={(event) => setLibraryQuery(event.target.value)}
+            placeholder="Search blocks"
+            type="search"
+            value={libraryQuery}
+          />
         </label>
         <div className="ps2-library-groups">
           {CANVAS_GROUPS.map((group) => {
-            const definitions = conditionFieldDefinitionsForGroup(group.key);
+            const definitions = conditionFieldDefinitionsForGroup(group.key).filter(
+              (definition) => libraryDefinitionMatches(
+                definition,
+                normalizedLibraryQuery
+              )
+            );
             return (
               <section className="ps2-library-group" key={group.key}>
                 <div className="ps2-library-group-title">
                   <span>{group.title}</span>
                   <small>{definitions.length}</small>
                 </div>
+                {definitions.length === 0 ? (
+                  <div className="ps2-library-empty">No matching blocks</div>
+                ) : null}
                 {definitions.map((definition) => (
                   <button
+                    aria-label={`Add ${definition.label} block`}
                     className="ps2-library-item"
                     key={definition.field}
                     onClick={() => {
@@ -113,6 +129,7 @@ export function PolicyCanvas({
                       setDraftField(definition.field);
                       setDraftValue(definition.defaultValue);
                     }}
+                    title={definition.help}
                     type="button"
                   >
                     <PolicyIcon name={groupIcon(group.key)} size={13} />
@@ -218,6 +235,7 @@ export function PolicyCanvas({
                   <button
                     className="ps2-add-flow-block"
                     onClick={() => openAddMenu(group.key)}
+                    title={`${group.addLabel} to the ${group.label} lane`}
                     type="button"
                   >
                     <PolicyIcon name="plus" size={13} />
@@ -251,6 +269,8 @@ function CanvasNode({
   return (
     <div
       className={`ps2-flow-block bk-${block.kind} ${selected ? "sel" : ""}`}
+      aria-label={`Select ${block.kind.toUpperCase()} block: ${block.expr}`}
+      aria-pressed={selected}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -270,9 +290,6 @@ function CanvasNode({
       </span>
       <span className={`ps2-flow-status ${block.statusClass}`}>
         {block.status}
-      </span>
-      <span className="ps2-flow-menu" aria-hidden="true">
-        <PolicyIcon name="more" size={13} />
       </span>
       {selected && definition ? (
         <div className="ps2-node-editor" onClick={(event) => event.stopPropagation()}>
@@ -299,6 +316,7 @@ function CanvasNode({
                 onChangeCondition(removeConditionField(condition, definition.field))
               }
               type="button"
+              title={`Remove ${definition.label} from this policy draft`}
             >
               Remove
             </button>
@@ -325,17 +343,19 @@ function PolicyValueControl({
       <span>{definition.label}</span>
       {definition.valueType === "select" ? (
         <select
+          aria-label={definition.label}
           onChange={(event) => onChange(event.target.value)}
           value={stringValue}
         >
           {(definition.options || []).map((option) => (
             <option key={option} value={option}>
-              {option}
+              {formatOptionLabel(option)}
             </option>
           ))}
         </select>
       ) : (
         <input
+          aria-label={definition.label}
           onChange={(event) => onChange(event.target.value)}
           type={definition.valueType === "number" ? "number" : "text"}
           value={stringValue}
@@ -379,4 +399,23 @@ function emptyStateForGroup(group: PolicyBlock["group"]) {
     return "No decision yet";
   }
   return "Evidence intent only";
+}
+
+function libraryDefinitionMatches(
+  definition: ConditionFieldDefinition,
+  normalizedQuery: string
+) {
+  if (!normalizedQuery) {
+    return true;
+  }
+  return `${definition.label} ${definition.field} ${definition.help}`
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+function formatOptionLabel(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

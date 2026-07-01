@@ -153,18 +153,17 @@ The Policy Studio uses existing Policy APIs for the Policy container and saves
 editor output as draft PolicyVersion snapshots. Code DSL is the precise escape
 hatch and compiles to deterministic PolicyRule condition JSON inside the
 version snapshot. The `/policies` route follows the attached Policy Studio
-Refinement mockup direction: dedicated slim Policy Studio icon rail, repository
-sidebar, policy structure strip, editable Blocks canvas, Code DSL editor, local
-validation console, and right inspector. It does not render the wider global
-workspace navigation shell used by the other connected routes.
+mockup direction while preserving the app shell: repository sidebar, policy
+structure strip, editable Blocks canvas, Code DSL editor, local validation
+console, and right inspector. It does not add a route-local navigation rail.
 It keeps repository/workspace labels honest: until a backend Policy Repository
 or Workspace model exists, the sidebar says Local backend and Policy repository,
-and states that Policies are loaded from the AGCP API. It does not show fake
+and states that Policies and folders load from the AGCP backend. It does not show fake
 repositories, synced state, or repository creation affordances. Policy folders
-are real backend records loaded from `/policy-folders`; moving a Policy writes
-its nullable `folder_id`, and Policies without a folder render as
-Uncategorized. Tags show an explicit empty state instead of mock folder or tag
-chips. Blocks mode is an editable compact IDE-style view of the same compiled
+are real backend records loaded from `/policy-folders`; creating, renaming,
+moving, and deleting empty folders use backend APIs, moving a Policy writes its
+nullable `folder_id`, and Policies without a folder render as Uncategorized.
+Tags show an explicit empty state instead of mock folder or tag chips. Blocks mode is an editable compact IDE-style view of the same compiled
 condition surface: it groups WHEN, CHECK, THEN, and PROVE nodes, supports adding
 and editing supported V1 fields, and keeps dedicated icons, structure arrows,
 and canvas connectors. After Save draft succeeds, the editor keeps the saved
@@ -230,6 +229,11 @@ only available for draft-only policies with no governance history; policies
 with versions, reviews, or runtime decisions cannot be deleted and should be
 archived instead.
 The UI intentionally has no direct Publish action.
+Policy repository folders are backend-backed. Create, rename, move, and
+delete-empty folder controls call the PolicyFolder APIs; deleting a non-empty
+folder remains blocked until policies are moved elsewhere. The Blocks canvas and
+Code DSL stay synchronized locally, and Save draft is the persistence boundary
+for draft PolicyVersion snapshots.
 
 Policy Studio backlog alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the

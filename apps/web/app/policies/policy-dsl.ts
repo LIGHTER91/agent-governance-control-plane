@@ -117,7 +117,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "action_type",
     group: "when",
-    label: "action_type",
+    label: "Action type",
     valueType: "text",
     defaultValue: "external_api_call",
     help: "Runtime action type declared by the caller."
@@ -125,7 +125,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "tool_name",
     group: "when",
-    label: "tool_name",
+    label: "Tool name",
     valueType: "text",
     defaultValue: "example_tool",
     help: "Tool name from the runtime request."
@@ -133,7 +133,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "environment",
     group: "when",
-    label: "environment",
+    label: "Environment",
     valueType: "select",
     defaultValue: "production",
     options: ["development", "staging", "production"],
@@ -142,7 +142,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "risk_level",
     group: "when",
-    label: "risk_level",
+    label: "Risk level",
     valueType: "select",
     defaultValue: "high",
     options: ["low", "medium", "high", "critical"],
@@ -151,7 +151,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "source_id",
     group: "when",
-    label: "source_id",
+    label: "Data source reference",
     valueType: "text",
     defaultValue: UUID_PLACEHOLDERS.source_id,
     help: "Source UUID reference. Replace the placeholder before relying on it."
@@ -159,7 +159,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "model_id",
     group: "when",
-    label: "model_id",
+    label: "Model reference",
     valueType: "text",
     defaultValue: UUID_PLACEHOLDERS.model_id,
     help: "Model UUID reference. Replace the placeholder before relying on it."
@@ -167,7 +167,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "capability_id",
     group: "when",
-    label: "capability_id",
+    label: "Capability reference",
     valueType: "text",
     defaultValue: UUID_PLACEHOLDERS.capability_id,
     help: "Capability UUID reference. Replace the placeholder before relying on it."
@@ -175,7 +175,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "purpose",
     group: "when",
-    label: "purpose",
+    label: "Purpose",
     valueType: "text",
     defaultValue: "governed_action",
     help: "Safe purpose label declared by the caller."
@@ -183,7 +183,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "data_classification",
     group: "when",
-    label: "data_classification",
+    label: "Data classification",
     valueType: "select",
     defaultValue: "confidential",
     options: ["public", "internal", "confidential", "restricted"],
@@ -192,7 +192,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "check_type",
     group: "check",
-    label: "check_type",
+    label: "Check type",
     valueType: "select",
     defaultValue: "access_grant_status",
     options: [
@@ -209,7 +209,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "check_outcome",
     group: "check",
-    label: "check_outcome",
+    label: "Check outcome",
     valueType: "select",
     defaultValue: "pass",
     options: ["pass", "fail", "unknown", "error", "not_applicable"],
@@ -218,7 +218,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "access_grant_status",
     group: "check",
-    label: "access_grant_status",
+    label: "Access Grant status",
     valueType: "select",
     defaultValue: "active",
     options: ["pending_review", "active", "suspended", "revoked", "expired", "missing"],
@@ -227,7 +227,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "data_usage_review_status",
     group: "check",
-    label: "data_usage_review_status",
+    label: "Data usage review",
     valueType: "select",
     defaultValue: "approved",
     options: ["draft", "approved", "rejected", "expired", "needs_review", "missing"],
@@ -236,7 +236,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "source_status",
     group: "check",
-    label: "source_status",
+    label: "Data Source status",
     valueType: "select",
     defaultValue: "active",
     options: ["active", "disabled", "retired", "missing"],
@@ -245,7 +245,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "source_data_classification",
     group: "check",
-    label: "source_classification",
+    label: "Source classification",
     valueType: "select",
     defaultValue: "confidential",
     options: ["public", "internal", "confidential", "restricted"],
@@ -254,7 +254,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "model_status",
     group: "check",
-    label: "model_asset_status",
+    label: "Model status",
     valueType: "select",
     defaultValue: "active",
     options: ["active", "disabled", "retired", "missing"],
@@ -263,7 +263,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "model_provider_type",
     group: "check",
-    label: "model_provider_type",
+    label: "Model provider type",
     valueType: "select",
     defaultValue: "external",
     options: ["external", "local", "unknown"],
@@ -272,7 +272,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "capability_status",
     group: "check",
-    label: "capability_status",
+    label: "Capability status",
     valueType: "select",
     defaultValue: "active",
     options: ["active", "disabled", "retired", "missing"],
@@ -281,7 +281,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "decision",
     group: "then",
-    label: "decision",
+    label: "Policy decision",
     valueType: "select",
     defaultValue: "require_human_review",
     options: ["allow", "deny", "require_human_review", "not_applicable"],
@@ -290,7 +290,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "reason",
     group: "then",
-    label: "reason",
+    label: "Decision reason",
     valueType: "text",
     defaultValue: "Policy conditions require human review.",
     help: "Human-readable reason stored on PolicyDecision."
@@ -298,7 +298,7 @@ export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
   {
     field: "prove_intent",
     group: "prove",
-    label: "evidence intent",
+    label: "Evidence intent",
     valueType: "text",
     defaultValue:
       "Evidence comes from PolicyDecision, CheckResults, reviews, AuditLog, and Evidence Bundle.",

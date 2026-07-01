@@ -7,6 +7,7 @@ export type PolicyIconName =
   | "check"
   | "chevronDown"
   | "code"
+  | "edit"
   | "error"
   | "expand"
   | "filter"
@@ -25,6 +26,7 @@ export type PolicyIconName =
   | "settings"
   | "sparkle"
   | "then"
+  | "trash"
   | "warning"
   | "when"
   | "zoom";
@@ -114,6 +116,13 @@ function iconPath(
           <path {...common} d="m9 8-4 4 4 4" />
           <path {...common} d="m15 8 4 4-4 4" />
           <path {...common} d="m13 5-2 14" />
+        </>
+      );
+    case "edit":
+      return (
+        <>
+          <path {...common} d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+          <path {...common} d="m14 7 3 3" />
         </>
       );
     case "error":
@@ -256,6 +265,15 @@ function iconPath(
         <>
           <circle {...common} cx="12" cy="12" r="8.5" />
           <path {...common} d="m8.8 12.2 2 2 4.5-5" />
+        </>
+      );
+    case "trash":
+      return (
+        <>
+          <path {...common} d="M4 7h16" />
+          <path {...common} d="M9 7V5h6v2" />
+          <path {...common} d="M7 7l1 13h8l1-13" />
+          <path {...common} d="M10 11v5M14 11v5" />
         </>
       );
     case "warning":

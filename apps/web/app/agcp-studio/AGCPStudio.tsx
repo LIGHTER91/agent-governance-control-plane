@@ -8096,7 +8096,14 @@ const AGCP_CONNECTED_CSS = `
 
   .ps2-entry-body {
     display: grid;
+    gap: 2px;
     min-width: 0;
+  }
+
+  .policy-studio-route .ps2-entry-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .ps2-template-entry,
@@ -8511,6 +8518,84 @@ const AGCP_CONNECTED_CSS = `
     opacity: .45;
   }
 
+  .ps2-folder-action {
+    align-items: center;
+    background: rgba(255, 255, 255, .025);
+    border: 1px dashed rgba(180, 198, 214, .18);
+    border-radius: 5px;
+    color: #c8d4df;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    gap: 7px;
+    justify-content: center;
+    margin-top: 8px;
+    min-height: 30px;
+    padding: 6px 9px;
+    width: 100%;
+  }
+
+  .ps2-folder-action:hover {
+    background: rgba(147, 116, 255, .12);
+    border-color: rgba(147, 116, 255, .45);
+    color: #d8ccff;
+  }
+
+  .ps2-folder-inline-form,
+  .ps2-folder-confirm {
+    background: rgba(255, 255, 255, .025);
+    border: 1px solid rgba(180, 198, 214, .13);
+    border-radius: 5px;
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+    padding: 7px;
+  }
+
+  .ps2-folder-inline-form.nested,
+  .ps2-folder-confirm {
+    margin: 0 7px 6px 27px;
+  }
+
+  .ps2-folder-inline-form input {
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(180, 198, 214, .15);
+    border-radius: 4px;
+    color: #e3e9f0;
+    font-family: var(--mono);
+    font-size: 10px;
+    min-height: 25px;
+    padding: 4px 6px;
+  }
+
+  .ps2-folder-inline-form button,
+  .ps2-folder-confirm button {
+    align-items: center;
+    background: rgba(255, 255, 255, .035);
+    border: 1px solid rgba(180, 198, 214, .15);
+    border-radius: 4px;
+    color: #cbd5df;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 9px;
+    justify-content: center;
+    min-height: 24px;
+    padding: 4px 7px;
+  }
+
+  .ps2-folder-inline-form button:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+  }
+
+  .ps2-folder-confirm span {
+    color: #c9d4df;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
   .ps2-search svg {
     color: #a78bfa;
     flex-shrink: 0;
@@ -8523,11 +8608,69 @@ const AGCP_CONNECTED_CSS = `
   .ps2-folder-row {
     align-items: center;
     color: #c4ccd7;
+    cursor: pointer;
     display: flex;
     font-size: 11px;
     font-weight: 650;
     gap: 6px;
     padding: 7px 7px 4px;
+  }
+
+  .ps2-policy-folder.has-selected > .ps2-folder-row {
+    background: rgba(147, 116, 255, .08);
+    border-left: 2px solid rgba(147, 116, 255, .68);
+    color: #e4dcff;
+    padding-left: 5px;
+  }
+
+  .ps2-folder-row small {
+    color: #7f8c9b;
+    font-family: var(--mono);
+    margin-left: auto;
+  }
+
+  .ps2-folder-actions {
+    display: grid;
+    gap: 4px;
+    grid-template-columns: 1fr 1fr;
+    margin: 0 7px 6px 27px;
+  }
+
+  .ps2-folder-actions button {
+    align-items: center;
+    background: rgba(255, 255, 255, .024);
+    border: 1px solid rgba(180, 198, 214, .12);
+    border-radius: 4px;
+    color: #aab5c2;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 9px;
+    gap: 5px;
+    justify-content: center;
+    min-height: 23px;
+    padding: 4px 5px;
+  }
+
+  .ps2-folder-actions button:hover {
+    background: rgba(147, 116, 255, .10);
+    border-color: rgba(147, 116, 255, .32);
+    color: #d5caff;
+  }
+
+  .ps2-folder-actions button.danger {
+    color: #e8a6ad;
+  }
+
+  .ps2-folder-actions button:disabled {
+    cursor: not-allowed;
+    opacity: .42;
+  }
+
+  .ps2-policy-entry-row {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 4px;
   }
 
   .policy-studio-route .ps2-entry {
@@ -8538,6 +8681,7 @@ const AGCP_CONNECTED_CSS = `
     gap: 7px;
     margin: 1px 4px;
     padding: 6px 8px;
+    width: calc(100% - 8px);
   }
 
   .policy-studio-route .ps2-entry.active {
@@ -8558,6 +8702,29 @@ const AGCP_CONNECTED_CSS = `
 
   .policy-studio-route .ps2-entry-dot svg {
     display: block;
+  }
+
+  .ps2-folder-move {
+    align-items: center;
+    color: #7f8c9b;
+    display: grid;
+    font-family: var(--mono);
+    font-size: 9px;
+    gap: 4px;
+    grid-template-columns: auto minmax(0, 1fr);
+    margin: 0 8px 2px 28px;
+  }
+
+  .ps2-folder-move select {
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(180, 198, 214, .13);
+    border-radius: 4px;
+    color: #cbd5df;
+    font-family: var(--mono);
+    font-size: 9px;
+    min-height: 24px;
+    min-width: 0;
+    padding: 3px 5px;
   }
 
   .ps2-version-panel {
@@ -8909,6 +9076,17 @@ const AGCP_CONNECTED_CSS = `
     width: 24px;
   }
 
+  .ps2-canvas-badge {
+    background: rgba(94, 168, 255, .10);
+    border: 1px solid rgba(94, 168, 255, .22);
+    border-radius: 999px;
+    color: #9dc7ff;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    text-transform: none;
+  }
+
   .ps2-library-search {
     align-items: center;
     background: rgba(255, 255, 255, .035);
@@ -8965,6 +9143,23 @@ const AGCP_CONNECTED_CSS = `
     padding: 6px;
     text-align: left;
     width: 100%;
+  }
+
+  .ps2-library-item:hover,
+  .ps2-library-item:focus-visible {
+    background: rgba(147, 116, 255, .10);
+    border-color: rgba(147, 116, 255, .35);
+    color: #eee8ff;
+    outline: 0;
+  }
+
+  .ps2-library-empty {
+    border: 1px dashed rgba(180, 198, 214, .14);
+    border-radius: 4px;
+    color: #7f8b99;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 7px;
   }
 
   .ps2-flow-canvas {
@@ -9065,12 +9260,17 @@ const AGCP_CONNECTED_CSS = `
     cursor: pointer;
     display: grid;
     gap: 8px;
-    grid-template-columns: 18px minmax(0, 1fr) 18px;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
     min-height: 42px;
     padding: 9px;
     position: relative;
     text-align: left;
     z-index: 1;
+  }
+
+  .ps2-flow-block:focus-visible {
+    outline: 2px solid rgba(151, 120, 255, .72);
+    outline-offset: 2px;
   }
 
   .ps2-flow-block::before {
@@ -9110,8 +9310,7 @@ const AGCP_CONNECTED_CSS = `
     line-height: 1.25;
   }
 
-  .ps2-flow-icon,
-  .ps2-flow-menu {
+  .ps2-flow-icon {
     color: var(--flow-color);
     font-family: var(--mono);
     font-size: 10px;
@@ -9121,12 +9320,6 @@ const AGCP_CONNECTED_CSS = `
     align-items: center;
     display: inline-flex;
     justify-content: center;
-  }
-
-  .ps2-flow-menu {
-    align-items: center;
-    display: inline-flex;
-    justify-content: flex-end;
   }
 
   .ps2-empty-flow-state {
@@ -9141,13 +9334,14 @@ const AGCP_CONNECTED_CSS = `
   }
 
   .ps2-flow-status {
+    align-items: center;
     border-radius: 4px;
+    display: inline-flex;
     font-family: var(--mono);
     font-size: 9px;
-    display: none;
-    grid-column: 2 / 4;
-    justify-self: start;
+    justify-self: end;
     padding: 2px 6px;
+    white-space: nowrap;
   }
 
   .ps2-add-flow-block {
@@ -9162,6 +9356,82 @@ const AGCP_CONNECTED_CSS = `
     gap: 7px;
     justify-content: center;
     padding: 7px 9px;
+  }
+
+  .ps2-add-popover {
+    background: rgba(9, 20, 28, .96);
+    border: 1px solid color-mix(in srgb, var(--flow-color) 38%, transparent);
+    border-radius: 6px;
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .ps2-add-popover label,
+  .ps2-value-control {
+    color: #aeb9c7;
+    display: grid;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    gap: 4px;
+  }
+
+  .ps2-add-popover input,
+  .ps2-add-popover select,
+  .ps2-value-control input,
+  .ps2-value-control select {
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(180, 198, 214, .16);
+    border-radius: 4px;
+    color: #e7eef5;
+    font-family: var(--mono);
+    font-size: 10px;
+    min-height: 27px;
+    min-width: 0;
+    padding: 4px 6px;
+  }
+
+  .ps2-add-popover small {
+    color: #8793a2;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .ps2-add-popover-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .ps2-add-popover-actions button,
+  .ps2-node-remove {
+    background: rgba(255, 255, 255, .035);
+    border: 1px solid rgba(180, 198, 214, .15);
+    border-radius: 4px;
+    color: #cbd5df;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    min-height: 26px;
+    padding: 4px 7px;
+  }
+
+  .ps2-add-popover-actions button:first-child {
+    background: color-mix(in srgb, var(--flow-color) 18%, transparent);
+    border-color: color-mix(in srgb, var(--flow-color) 42%, transparent);
+    color: #f1f6fb;
+  }
+
+  .ps2-node-editor {
+    border-top: 1px solid rgba(180, 198, 214, .13);
+    display: grid;
+    gap: 7px;
+    grid-column: 1 / -1;
+    margin-top: 2px;
+    padding-top: 8px;
+  }
+
+  .ps2-node-remove {
+    justify-self: start;
   }
 
   .ps2-code-shell {
@@ -9254,8 +9524,33 @@ const AGCP_CONNECTED_CSS = `
     background: rgba(10, 20, 27, .92);
     border-top-color: rgba(170, 190, 205, .14);
     color: #b6c1ce;
+    gap: 8px;
     min-height: 34px;
     padding: 6px 14px;
+  }
+
+  .ps2-compile-status {
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 3px 7px;
+    white-space: nowrap;
+  }
+
+  .ps2-compile-status.is-ready {
+    background: rgba(34, 211, 122, .10);
+    color: #8eeeb9;
+  }
+
+  .ps2-compile-status.is-attention {
+    background: rgba(240, 180, 58, .12);
+    color: #f4c86a;
+  }
+
+  .ps2-compile-status.is-blocking {
+    background: rgba(244, 82, 107, .13);
+    color: #ff9bab;
   }
 
   .ps2-compile-action {
@@ -9309,18 +9604,20 @@ const AGCP_CONNECTED_CSS = `
     margin-left: auto;
   }
 
-  .ps2-console-tabs button {
+  .ps2-console-tabs span {
     background: transparent;
     border: 0;
     border-radius: 4px;
     color: #9da9b6;
-    cursor: pointer;
+    cursor: default;
+    display: inline-flex;
     font-family: var(--mono);
     font-size: 10px;
+    gap: 4px;
     padding: 4px 8px;
   }
 
-  .ps2-console-tabs button:first-child {
+  .ps2-console-tabs span:first-child {
     background: rgba(147, 116, 255, .22);
     color: #c9bbff;
   }
@@ -9377,32 +9674,6 @@ const AGCP_CONNECTED_CSS = `
     background: rgba(10, 18, 25, .97);
     border-left: 1px solid rgba(170, 190, 205, .16);
     width: auto;
-  }
-
-  .ps2-inspector-topbar {
-    align-items: center;
-    border-bottom: 1px solid rgba(170, 190, 205, .16);
-    display: flex;
-    flex-shrink: 0;
-    gap: 12px;
-    height: 48px;
-    justify-content: flex-end;
-    padding: 0 12px;
-  }
-
-  .ps2-inspector-topbar button {
-    align-items: center;
-    background: transparent;
-    border: 1px solid rgba(180, 198, 214, .18);
-    border-radius: 999px;
-    color: #d7e0eb;
-    cursor: pointer;
-    display: inline-flex;
-    font-family: var(--mono);
-    font-size: 11px;
-    height: 20px;
-    justify-content: center;
-    width: 20px;
   }
 
   .policy-studio-route .ps2-insp-top {

@@ -159,14 +159,6 @@ export function PolicyInspector({
 
   return (
     <aside className="ps2-inspector" aria-label="Policy inspector">
-      <div className="ps2-inspector-topbar" aria-label="Policy Studio utilities">
-        <button type="button" aria-label="Help">
-          <PolicyIcon name="help" size={13} />
-        </button>
-        <button type="button" aria-label="Settings">
-          <PolicyIcon name="settings" size={13} />
-        </button>
-      </div>
       <div className="ps2-insp-top">
         <button
           className={`ps2-insp-tab ${activeTab === "inspector" ? "active" : ""}`}
@@ -197,10 +189,19 @@ export function PolicyInspector({
           <div className="ps2-insp-sec-title ist2-summary">Policy details</div>
           <div className="ps2-review-card">
             <ReviewRow
-              label="Policy ID"
-              value={selectedPolicy?.id || "Not persisted"}
+              label="Reference"
+              title={selectedPolicy?.id}
+              value={
+                selectedPolicy
+                  ? referenceLabel("Policy", selectedPolicy.id)
+                  : "Not persisted"
+              }
             />
             <ReviewRow label="Name" value={policyDisplayName} />
+            <ReviewRow
+              label="Folder"
+              value={selectedPolicy?.folder_name || "Uncategorized"}
+            />
             <ReviewRow label="Version" value={policyVersionLabel} />
             <ReviewRow
               label="Status"
@@ -230,7 +231,12 @@ export function PolicyInspector({
             />
             <ReviewRow
               label="Reviewers"
-              value={selectedDraftReviewState?.reviewer_actor_id || "Not assigned"}
+              title={selectedDraftReviewState?.reviewer_actor_id || undefined}
+              value={
+                selectedDraftReviewState?.reviewer_actor_id
+                  ? actorReference(selectedDraftReviewState.reviewer_actor_id)
+                  : "Not assigned"
+              }
             />
             <ReviewRow
               label="Review channel"
@@ -248,7 +254,11 @@ export function PolicyInspector({
           <div className="ps2-review-card">
             <ReviewRow
               label="Effect on violation"
-              value={compiled.decision === "deny" ? "Block" : compiled.decision}
+              value={
+                compiled.decision === "deny"
+                  ? "Block"
+                  : decisionLabel(compiled.decision)
+              }
             />
             <ReviewRow label="Default action" value={decisionLabel(compiled.decision)} />
             <ReviewRow
@@ -338,19 +348,34 @@ export function PolicyInspector({
         <section className="ps2-insp-sec">
           <div className="ps2-insp-sec-title ist2-review">Review Status</div>
           <div className="ps2-review-card">
-            <ReviewRow label="Policy status" value={reviewStatus} />
+            <ReviewRow label="Policy status" value={reviewStatus.replace(/_/g, " ")} />
             <ReviewRow label="Editor source" value={editorSourceLabel(editorSource)} />
             <ReviewRow
-              label="Policy id"
-              value={selectedPolicy?.id || "Not persisted"}
+              label="Policy reference"
+              title={selectedPolicy?.id}
+              value={
+                selectedPolicy
+                  ? referenceLabel("Policy", selectedPolicy.id)
+                  : "Not persisted"
+              }
             />
             <ReviewRow
-              label="Selected rule id"
-              value={selectedRule?.id || "Not persisted"}
+              label="Selected rule"
+              title={selectedRule?.id}
+              value={
+                selectedRule
+                  ? referenceLabel("Rule", selectedRule.id)
+                  : "No persisted source rule"
+              }
             />
             <ReviewRow
-              label="Draft version id"
-              value={selectedDraftVersion?.id || "No draft PolicyVersion saved"}
+              label="Draft version"
+              title={selectedDraftVersion?.id}
+              value={
+                selectedDraftVersion
+                  ? referenceLabel("Draft", selectedDraftVersion.id)
+                  : "No draft PolicyVersion saved"
+              }
             />
             <ReviewRow
               label="Draft status"
@@ -378,24 +403,41 @@ export function PolicyInspector({
             ) : null}
             <ReviewRow
               label="Review request"
+              title={selectedDraftReviewState?.latest_review_request_id || undefined}
               value={
                 selectedDraftReviewState?.latest_review_request_id
-                  ? `${selectedDraftReviewState.latest_review_request_id} / ${reviewStatusLabelText}`
+                  ? `${referenceLabel(
+                      "Request",
+                      selectedDraftReviewState.latest_review_request_id
+                    )} / ${reviewStatusLabelText}`
                   : "Not submitted"
               }
             />
             <ReviewRow label="Review state message" value={reviewStateMessage} />
             <ReviewRow
               label="Requested at"
-              value={selectedDraftReviewState?.requested_at || "Not submitted"}
+              value={
+                selectedDraftReviewState?.requested_at
+                  ? formatDateTime(selectedDraftReviewState.requested_at)
+                  : "Not submitted"
+              }
             />
             <ReviewRow
               label="Decided at"
-              value={selectedDraftReviewState?.decided_at || "Not decided"}
+              value={
+                selectedDraftReviewState?.decided_at
+                  ? formatDateTime(selectedDraftReviewState.decided_at)
+                  : "Not decided"
+              }
             />
             <ReviewRow
               label="Reviewer"
-              value={selectedDraftReviewState?.reviewer_actor_id || "Not decided"}
+              title={selectedDraftReviewState?.reviewer_actor_id || undefined}
+              value={
+                selectedDraftReviewState?.reviewer_actor_id
+                  ? actorReference(selectedDraftReviewState.reviewer_actor_id)
+                  : "Not decided"
+              }
             />
             <ReviewRow
               label="Runtime impact"
@@ -573,22 +615,25 @@ function ReferencesTab({
     selectedPolicy
       ? {
           label: "Policy",
-          value: selectedPolicy.id,
-          meta: selectedPolicy.status
+          meta: selectedPolicy.status,
+          title: selectedPolicy.id,
+          value: referenceLabel("Policy", selectedPolicy.id)
         }
       : null,
     selectedDraftVersion
       ? {
           label: "PolicyVersion",
-          value: selectedDraftVersion.id,
-          meta: `v${selectedDraftVersion.version_number} / ${selectedDraftVersion.status}`
+          meta: `v${selectedDraftVersion.version_number} / ${selectedDraftVersion.status}`,
+          title: selectedDraftVersion.id,
+          value: referenceLabel("Version", selectedDraftVersion.id)
         }
       : null,
     selectedRule
       ? {
           label: "PolicyRule",
-          value: selectedRule.id,
-          meta: selectedRule.name
+          meta: selectedRule.name,
+          title: selectedRule.id,
+          value: referenceLabel("Rule", selectedRule.id)
         }
       : null,
     checkStepCount > 0
@@ -601,11 +646,20 @@ function ReferencesTab({
     selectedDraftReviewState?.latest_review_request_id
       ? {
           label: "Review request",
-          value: selectedDraftReviewState.latest_review_request_id,
-          meta: selectedDraftReviewState.review_status
+          meta: selectedDraftReviewState.review_status,
+          title: selectedDraftReviewState.latest_review_request_id,
+          value: referenceLabel(
+            "Request",
+            selectedDraftReviewState.latest_review_request_id
+          )
         }
       : null
-  ].filter(Boolean) as Array<{ label: string; meta: string; value: string }>;
+  ].filter(Boolean) as Array<{
+    label: string;
+    meta: string;
+    title?: string;
+    value: string;
+  }>;
 
   return (
     <div className="ps2-insp-scroll">
@@ -618,6 +672,7 @@ function ReferencesTab({
                 color="var(--purple-lt)"
                 key={`${reference.label}-${reference.value}`}
                 name={`${reference.value} / ${reference.meta}`}
+                title={reference.title}
                 type={reference.label}
               />
             ))}
@@ -688,6 +743,9 @@ function governanceNextStep({
 }
 
 function decisionLabel(decision: string) {
+  if (decision === "uncompiled") {
+    return "Not configured";
+  }
   return decision.replace(/_/g, " ");
 }
 
@@ -710,7 +768,7 @@ function dataSensitivityScope(condition: PolicyCondition) {
 
 function appliesToScope(condition: PolicyCondition) {
   if (condition.agent_id) {
-    return `Agent ${String(condition.agent_id)}`;
+    return `Agent ${shortReference(String(condition.agent_id))}`;
   }
   if (condition.environment) {
     return `Environment ${String(condition.environment)}`;
@@ -977,7 +1035,7 @@ function currentActorLabel(
     | { status: "ready"; actor: CurrentActorRecord }
 ) {
   if (currentActorState.status === "loading") {
-    return "Loading current actor from GET /me";
+    return "Loading current actor";
   }
   if (currentActorState.status === "error") {
     return "Not configured";
@@ -988,8 +1046,8 @@ function currentActorLabel(
 
   const actor = currentActorState.actor;
   return actor.display_name
-    ? `${actor.display_name} (${formatActorType(actor.actor_type)} / ${actor.actor_id})`
-    : `${formatActorType(actor.actor_type)} / ${actor.actor_id}`;
+    ? `${actor.display_name} (${formatActorType(actor.actor_type)} / ${actorReference(actor.actor_id)})`
+    : `${formatActorType(actor.actor_type)} / ${actorReference(actor.actor_id)}`;
 }
 
 function currentActorRolesLabel(
@@ -1072,10 +1130,12 @@ function FlowNode({
 function CompiledItem({
   color,
   name,
+  title,
   type
 }: {
   color: string;
   name: string;
+  title?: string;
   type: string;
 }) {
   return (
@@ -1085,18 +1145,41 @@ function CompiledItem({
         style={{ background: color, boxShadow: `0 0 5px ${color}` }}
       />
       <span className="ps2-ci-type">{type}</span>
-      <span className="ps2-ci-name">{name}</span>
+      <span className="ps2-ci-name" title={title}>{name}</span>
     </div>
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({
+  label,
+  title,
+  value
+}: {
+  label: string;
+  title?: string;
+  value: string;
+}) {
   return (
     <div className="ps2-rc-row">
       <span className="ps2-rc-key">{label}</span>
-      <span className="ps2-rc-val">{value}</span>
+      <span className="ps2-rc-val" title={title}>{value}</span>
     </div>
   );
+}
+
+function referenceLabel(kind: string, id: string) {
+  return `${kind} ref ${shortReference(id)}`;
+}
+
+function actorReference(actorId: string) {
+  return actorId.includes("@") ? actorId : `ref ${shortReference(actorId)}`;
+}
+
+function shortReference(value: string) {
+  if (value.length <= 12) {
+    return value;
+  }
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
 
 function reviewDiffSummary(

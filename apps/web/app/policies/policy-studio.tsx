@@ -19,6 +19,7 @@ import {
   createPolicyFolder,
   createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
+  deletePolicyFolder,
   deletePolicy,
   fetchPolicies,
   listPolicyFolders,
@@ -27,6 +28,7 @@ import {
   fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
   updatePolicy,
+  updatePolicyFolder,
   updatePolicyVersionDraft
 } from "../lib/policies";
 import {
@@ -293,6 +295,27 @@ export function PolicyStudio() {
     selectedDraftReviewState?.review_status,
     selectedRuleUnsupportedFields
   ]);
+  const submitDisabledReason = useMemo(
+    () =>
+      policyEditorSubmitDisabledReason({
+        currentActorState,
+        editorSource,
+        reviewState,
+        saveDisabledReason,
+        saveState,
+        selectedDraftReviewState,
+        selectedDraftVersion
+      }),
+    [
+      currentActorState,
+      editorSource,
+      reviewState,
+      saveDisabledReason,
+      saveState,
+      selectedDraftReviewState,
+      selectedDraftVersion
+    ]
+  );
   const validationMessages = useMemo(
     () => [
       ...localValidationMessages(parsed),
@@ -351,7 +374,7 @@ export function PolicyStudio() {
 
       setPoliciesState({
         status: "error",
-        message: errorMessage(error, "Unable to load Policy records.")
+        message: errorMessage(error, "Unable to load policies.")
       });
     }
   }, []);
@@ -369,7 +392,7 @@ export function PolicyStudio() {
 
       setPolicyFoldersState({
         status: "error",
-        message: errorMessage(error, "Unable to load PolicyFolder records.")
+        message: errorMessage(error, "Unable to load policy folders.")
       });
     }
   }, []);
@@ -387,7 +410,7 @@ export function PolicyStudio() {
 
       setCurrentActorState({
         status: "error",
-        message: errorMessage(error, "Unable to load current actor from GET /me.")
+        message: errorMessage(error, "Unable to load current actor.")
       });
     }
   }, []);
@@ -440,7 +463,7 @@ export function PolicyStudio() {
 
         setRulesState({
           status: "error",
-          message: errorMessage(error, "Unable to load PolicyRule records.")
+          message: errorMessage(error, "Unable to load saved policy rules.")
         });
       }
     },
@@ -493,7 +516,7 @@ export function PolicyStudio() {
 
         setVersionsState({
           status: "error",
-          message: errorMessage(error, "Unable to load PolicyVersion records.")
+          message: errorMessage(error, "Unable to load policy versions.")
         });
         setDraftVersion(null);
       }
@@ -518,7 +541,7 @@ export function PolicyStudio() {
           message:
             error instanceof ApiRequestError && error.status === 403
               ? "Review state unavailable for current actor."
-              : errorMessage(error, "Unable to load PolicyVersion review state.")
+              : errorMessage(error, "Unable to load policy version review state.")
         });
       }
     },
@@ -637,17 +660,13 @@ export function PolicyStudio() {
     });
   }
 
-  async function handleCreateFolder() {
-    const name = window.prompt("New PolicyFolder name");
-    if (name === null) {
-      return;
-    }
+  async function handleCreateFolder(name: string) {
     const normalizedName = name.trim();
     if (!normalizedName) {
       setPolicyLifecycleState({
         action: null,
         status: "error",
-        message: "PolicyFolder name must be non-empty."
+        message: "Policy folder name must be non-empty."
       });
       return;
     }
@@ -655,7 +674,7 @@ export function PolicyStudio() {
     setPolicyLifecycleState({
       action: null,
       status: "submitting",
-      message: "Creating PolicyFolder in the AGCP API"
+      message: "Creating policy folder in the AGCP backend"
     });
 
     try {
@@ -679,13 +698,118 @@ export function PolicyStudio() {
       setPolicyLifecycleState({
         action: null,
         status: "success",
-        message: `PolicyFolder created: ${folder.name}`
+        message: `Policy folder created: ${folder.name}`
       });
     } catch (error: unknown) {
       setPolicyLifecycleState({
         action: null,
         status: "error",
-        message: errorMessage(error, "Unable to create PolicyFolder.")
+        message: errorMessage(error, "Unable to create policy folder.")
+      });
+    }
+  }
+
+  async function handleRenameFolder(folder: PolicyFolderRecord, name: string) {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: "Policy folder name must be non-empty."
+      });
+      return;
+    }
+    if (normalizedName === folder.name) {
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: null,
+      status: "submitting",
+      message: `Renaming policy folder ${folder.name}`
+    });
+
+    try {
+      const updated = await updatePolicyFolder(folder.id, { name: normalizedName });
+      setPolicyFoldersState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              folders: current.folders
+                .map((item) => (item.id === updated.id ? updated : item))
+                .sort(policyFolderSort)
+            }
+          : { status: "ready", folders: [updated] }
+      );
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: current.policies.map((policy) =>
+                policy.folder_id === updated.id
+                  ? { ...policy, folder_name: updated.name }
+                  : policy
+              )
+            }
+          : current
+      );
+      setPolicyLifecycleState({
+        action: null,
+        status: "success",
+        message: `Policy folder renamed: ${updated.name}`
+      });
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: errorMessage(error, "Unable to rename policy folder.")
+      });
+    }
+  }
+
+  async function handleDeleteFolder(folder: PolicyFolderRecord) {
+    const policiesInFolder =
+      policiesState.status === "ready"
+        ? policiesState.policies.filter((policy) => policy.folder_id === folder.id)
+        : [];
+    if (policiesInFolder.length > 0) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: "Move policies out of this folder before deleting it."
+      });
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: null,
+      status: "submitting",
+      message: `Deleting empty policy folder ${folder.name}`
+    });
+
+    try {
+      await deletePolicyFolder(folder.id);
+      setPolicyFoldersState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              folders: current.folders.filter((item) => item.id !== folder.id)
+            }
+          : current
+      );
+      setPolicyLifecycleState({
+        action: null,
+        status: "success",
+        message: `Policy folder deleted: ${folder.name}`
+      });
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: errorMessage(
+          error,
+          "Unable to delete policy folder. Move policies out first if it is not empty."
+        )
       });
     }
   }
@@ -701,7 +825,7 @@ export function PolicyStudio() {
     setPolicyLifecycleState({
       action: null,
       status: "submitting",
-      message: "Moving Policy to backend folder"
+      message: "Moving policy to selected folder"
     });
 
     try {
@@ -725,7 +849,7 @@ export function PolicyStudio() {
       setPolicyLifecycleState({
         action: null,
         status: "error",
-        message: errorMessage(error, "Unable to move Policy to folder.")
+        message: errorMessage(error, "Unable to move policy to folder.")
       });
     }
   }
@@ -1274,11 +1398,19 @@ export function PolicyStudio() {
           mode={repositoryMode}
           onModeChange={setRepositoryMode}
           onNewPolicy={handleNewPolicy}
-          onCreateFolder={handleCreateFolder}
+          onCreateFolder={(name) => {
+            void handleCreateFolder(name);
+          }}
+          onDeleteFolder={(folder) => {
+            void handleDeleteFolder(folder);
+          }}
           onMovePolicyToFolder={(policy, folderId) =>
             void handleMovePolicyToFolder(policy, folderId)
           }
           onOpenTemplates={() => setShowTemplates(true)}
+          onRenameFolder={(folder, name) => {
+            void handleRenameFolder(folder, name);
+          }}
           onRefresh={() => {
             void loadPolicyFolders();
             void loadPolicies();
@@ -1325,6 +1457,7 @@ export function PolicyStudio() {
           onValidate={handleValidate}
           saveDisabledReason={saveDisabledReason}
           selectedBlockId={selectedBlockId}
+          submitDisabledReason={submitDisabledReason}
           validationMessages={validationMessages}
         />
 
@@ -1401,21 +1534,21 @@ function studioStateMessages({
   if (policiesState.status === "error") {
     messages.push({
       tone: "attention",
-      text: `Backend unavailable for GET /policies: ${policiesState.message}`
+      text: `Policy repository could not load from the backend: ${policiesState.message}`
     });
   }
 
   if (rulesState.status === "error") {
     messages.push({
       tone: "attention",
-      text: `Backend unavailable for GET /policies/{policy_id}/rules: ${rulesState.message}`
+      text: `Saved policy rules could not load from the backend: ${rulesState.message}`
     });
   }
 
   if (versionsState.status === "error") {
     messages.push({
       tone: "attention",
-      text: `Backend unavailable for GET /policies/{policy_id}/versions: ${versionsState.message}`
+      text: `Policy versions could not load from the backend: ${versionsState.message}`
     });
   }
 
@@ -1429,13 +1562,17 @@ function studioStateMessages({
   messages.push({
     tone: "info",
     text: selectedPolicy
-      ? `Selected Policy: ${selectedPolicy.id} (${selectedPolicy.status})`
+      ? `Selected policy: ${selectedPolicy.name} (${selectedPolicy.status}, ref ${shortReference(
+          selectedPolicy.id
+        )})`
       : "No persisted Policy selected; Save draft will create a draft Policy container"
   });
   messages.push({
     tone: "info",
     text: selectedRule
-      ? `Selected PolicyRule: ${selectedRule.id}. Save draft snapshots this source rule without patching it.`
+      ? `Selected Policy Rule: ${
+          selectedRule.name || shortReference(selectedRule.id)
+        }. Save draft snapshots this source rule without patching it.`
       : "This draft will save a generated rule snapshot."
   });
   messages.push(editorSourceMessage(editorSource));
@@ -1443,7 +1580,9 @@ function studioStateMessages({
   if (selectedDraftVersion) {
     messages.push({
       tone: "success",
-      text: `Draft PolicyVersion v${selectedDraftVersion.version_number}: ${selectedDraftVersion.id} (not active). No runtime effect until reviewed and activated.`
+      text: `Draft PolicyVersion v${selectedDraftVersion.version_number} saved (ref ${shortReference(
+        selectedDraftVersion.id
+      )}). No runtime effect until reviewed and activated.`
     });
     if (selectedDraftVersion.rule_snapshots.length > 1) {
       messages.push({
@@ -1542,6 +1681,13 @@ function upsertPolicyVersionRecord(
   }
 
   return versions.map((item) => (item.id === version.id ? version : item));
+}
+
+function shortReference(value: string) {
+  if (value.length <= 12) {
+    return value;
+  }
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
 
 function policyFolderSort(left: PolicyFolderRecord, right: PolicyFolderRecord) {
@@ -1724,6 +1870,56 @@ function isPendingReviewLockMessage(message: string | null | undefined) {
   );
 }
 
+function policyEditorSubmitDisabledReason({
+  currentActorState,
+  editorSource,
+  reviewState,
+  saveDisabledReason,
+  saveState,
+  selectedDraftReviewState,
+  selectedDraftVersion
+}: {
+  currentActorState: CurrentActorState;
+  editorSource: PolicyStudioEditorSource;
+  reviewState: ReviewState;
+  saveDisabledReason: string | null;
+  saveState: SaveState;
+  selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
+  selectedDraftVersion: PolicyVersionRecord | null;
+}) {
+  if (currentActorState.status !== "ready") {
+    return "Current actor is not configured.";
+  }
+  if (selectedDraftReviewState?.review_status === "pending") {
+    return "Review request already pending.";
+  }
+  if (editorSource.kind === "active_version") {
+    return "Create a draft before submitting changes for review.";
+  }
+  if (editorSource.kind !== "draft_version") {
+    return "Save a draft before submitting for review.";
+  }
+  if (!selectedDraftVersion) {
+    return "Save a draft before submitting for review.";
+  }
+  if (selectedDraftVersion.status !== "draft") {
+    return "This PolicyVersion is not a draft.";
+  }
+  if (saveDisabledReason || saveState.status === "save_error") {
+    return "Fix validation errors before submitting.";
+  }
+  if (saveState.status === "saving" || reviewState.status === "submitting") {
+    return "Backend authorization still applies.";
+  }
+  if (saveState.status !== "saved" && reviewState.status !== "success") {
+    return "Save a draft before submitting for review.";
+  }
+  if (selectedDraftReviewState && !selectedDraftReviewState.can_submit_review) {
+    return "This PolicyVersion is not a draft.";
+  }
+  return null;
+}
+
 function titleFromSlug(value: string) {
   return slugifyPolicyName(value)
     .split("_")
@@ -1741,15 +1937,42 @@ function errorMessage(error: unknown, fallback: string) {
         ? error.detail.detail
         : null;
     if (detail?.includes("Direct live Policy")) {
-      return `${detail} Use Save draft to create a reviewed PolicyVersion.`;
+      return productSafeApiMessage(
+        `${detail} Use Save draft to create a reviewed PolicyVersion.`,
+        fallback
+      );
     }
     if (detail) {
-      return detail;
+      return productSafeApiMessage(detail, fallback);
     }
-    return error.message;
+    return productSafeApiMessage(error.message, fallback);
   }
 
-  return error instanceof Error ? error.message : fallback;
+  return productSafeApiMessage(error instanceof Error ? error.message : fallback, fallback);
+}
+
+function productSafeApiMessage(message: string, fallback: string) {
+  const normalized = message.trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  return normalized
+    .replace(/GET \/policies\{policy_id\}\/rules/gi, "Saved policy rules request")
+    .replace(/GET \/policies\/\{policy_id\}\/rules/gi, "Saved policy rules request")
+    .replace(/GET \/policies\/\{policy_id\}\/versions/gi, "Policy versions request")
+    .replace(/PATCH \/policy-versions\/\{policy_version_id\}\/draft/gi, "Draft save request")
+    .replace(/POST \/policy-versions\/\{policy_version_id\}\/review-requests/gi, "Review request submission")
+    .replace(/GET \/policy-versions\/\{policy_version_id\}\/review-state/gi, "Review state request")
+    .replace(/GET \/policies/gi, "Policy repository request")
+    .replace(/GET \/policy-folders/gi, "Policy folders request")
+    .replace(/POST \/policy-folders/gi, "Policy folder create request")
+    .replace(/PATCH \/policy-folders\/\{folder_id\}/gi, "Policy folder update request")
+    .replace(/DELETE \/policy-folders\/\{folder_id\}/gi, "Policy folder delete request")
+    .replace(/GET \/me/gi, "Current actor request")
+    .replace(/PolicyFolder/g, "policy folder")
+    .replace(/PolicyRule/g, "Policy Rule")
+    .replace(/PolicyVersion/g, "Policy Version");
 }
 
 function policyDraftLockedErrorMessage(error: unknown) {
