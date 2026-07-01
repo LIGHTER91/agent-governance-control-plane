@@ -373,7 +373,11 @@ def test_audit_log_created_on_policy_create(
     assert audit_log.actor_id == "dev-placeholder"
     assert audit_log.entity_type == "policy"
     assert audit_log.entity_id == response.json()["id"]
-    assert audit_log.metadata_ == {"operation": "create", "status": "draft"}
+    assert audit_log.metadata_ == {
+        "operation": "create",
+        "status": "draft",
+        "folder_id": None,
+    }
 
 
 def test_audit_log_created_on_policy_update(

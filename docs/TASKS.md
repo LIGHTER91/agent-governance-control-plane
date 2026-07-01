@@ -125,18 +125,21 @@ PolicyCheckStep management UI, no broad activity filtering or pagination, and
 no Evidence Bundle PDF/signature actions.
 The `/policies` route is now an IDE-style Policy Studio rather than a raw
 Policy CRUD form. It includes repository-style Policy/PolicyRule navigation,
-honest Local backend / Policy repository labeling, static templates, Blocks and
-Code DSL modes, `WHEN -> CHECK -> THEN -> PROVE`, deterministic frontend
-compilation to supported `PolicyRule.condition` JSON, compact IDE-style Blocks
-review with consistent icons and visible connectors, Code DSL as the precise V1
-editing path, local validation, generated JSON preview, unsupported-DSL save
-blocking, and Save draft through draft `PolicyVersion` snapshots. Saved drafts no longer
+honest Local backend / Policy repository labeling, backend-backed Policy
+folders, static templates, editable Blocks canvas and Code DSL modes,
+`WHEN -> CHECK -> THEN -> PROVE`, deterministic frontend compilation to
+supported `PolicyRule.condition` JSON, compact IDE-style Blocks nodes with
+consistent icons and visible connectors, Code DSL as the precise escape hatch,
+local validation, generated JSON preview, unsupported-DSL save blocking, and
+Save draft through draft `PolicyVersion` snapshots. Saved drafts no longer
 rehydrate the editor from live PolicyRule fallback state; reload prefers the
 latest draft PolicyVersion snapshot, then active PolicyVersion baseline, then
 live PolicyRule fallback. Templates are static helpers, not backend records.
-Policy folder/category/tag metadata is not persisted yet, so Policy Studio must
-keep repository grouping and tags honest instead of rendering mock folders or
-fake repositories, fake synced workspace state, or fake tag chips. Local validation is not runtime simulation. Draft versions do not affect runtime
+Policy folder grouping is persisted through `PolicyFolder` records and
+nullable Policy `folder_id`; uncategorized Policies stay honest with
+`folder_id = null`. Tags and repository/workspace metadata are still not
+persisted, so Policy Studio must not render fake repositories, fake synced
+workspace state, or fake tag chips. Local validation is not runtime simulation. Draft versions do not affect runtime
 until explicit activation. Draft PolicyVersions with pending review requests are
 immutable and require a new draft for additional changes. Submit for review
 creates a dedicated pending PolicyVersionReviewRequest for a saved draft
@@ -209,8 +212,8 @@ References:
 Recommended order:
 
 1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
-   product acceptance bar; otherwise create narrower follow-ups for direct
-   no-code block editing and PolicyCheckStep authoring.
+   product acceptance bar; otherwise create narrower follow-ups for explicit
+   operator persistence and PolicyCheckStep authoring.
 2. Mark #76 implemented for V1 because
    `docs/POLICY_STUDIO_DSL_DESIGN.md` now defines the controlled DSL grammar,
    compile target, PROVE semantics, storage boundary, and diff behavior.
@@ -292,10 +295,15 @@ Recommended order:
 - [x] Add safe Policy archive/delete actions in Policy Studio and the backend,
       with archive retaining evidence/history and delete limited to draft-only
       Policies with no governance history.
+- [x] Add backend-backed Policy folders to Policy Studio, including API-backed
+      folder creation, list, move, and delete behavior with no fake repository
+      folders.
+- [x] Add editable Policy Canvas support for supported V1 condition fields while
+      preserving the compact IDE-style WHEN/CHECK/THEN/PROVE layout and Code DSL
+      escape hatch.
 - [x] Fix Policy Studio authoring regressions so Save draft preserves the
-      saved draft editor state and Blocks mode returns to compact IDE-style
-      WHEN/CHECK/THEN/PROVE review blocks; precise V1 edits remain in Code DSL
-      until full bidirectional Blocks editing is designed.
+      saved draft editor state and Blocks mode remains a compact IDE-style
+      WHEN/CHECK/THEN/PROVE canvas.
 - [x] Add frontend product blueprint for #74, documenting Policy Studio and
       Review Inbox as validated surfaces plus remaining workflow-first frontend
       gaps.

@@ -19,6 +19,7 @@ from agent_governance_api.models import (
     Policy,
     PolicyDecision,
     PolicyDecisionValue,
+    PolicyFolder,
     PolicyRule,
     PolicyStatus,
     PolicyVersion,
@@ -29,6 +30,9 @@ from agent_governance_api.schemas import (
     PolicyCreate,
     PolicyDecisionCreate,
     PolicyDecisionRead,
+    PolicyFolderCreate,
+    PolicyFolderRead,
+    PolicyFolderUpdate,
     PolicyRead,
     PolicyRuleCreate,
     PolicyRuleUpdate,
@@ -52,10 +56,17 @@ def test_policy_enums_have_expected_values() -> None:
 
 
 def test_policy_schemas_accept_valid_enum_values() -> None:
+    folder_id = uuid4()
     policy = PolicyCreate(
         name="Production ownership required",
         description="Production agents must have an accountable owner.",
         status="active",
+        folder_id=folder_id,
+    )
+    folder = PolicyFolderCreate(
+        name="Runtime controls",
+        description=None,
+        color="#8b78f6",
     )
     decision = PolicyDecisionCreate(
         agent_id=None,
@@ -67,14 +78,26 @@ def test_policy_schemas_accept_valid_enum_values() -> None:
     )
 
     assert policy.status is PolicyStatus.ACTIVE
+    assert policy.folder_id == folder_id
+    assert folder.sort_order == 0
     assert decision.decision is PolicyDecisionValue.REQUIRE_HUMAN_REVIEW
 
 
 def test_policy_update_schema_accepts_partial_updates() -> None:
-    update = PolicyUpdate(description=None, status="archived")
+    folder_id = uuid4()
+    update = PolicyUpdate(description=None, folder_id=folder_id, status="archived")
 
     assert update.description is None
+    assert update.folder_id == folder_id
     assert update.status is PolicyStatus.ARCHIVED
+
+
+def test_policy_folder_update_schema_accepts_nullable_optional_fields() -> None:
+    update = PolicyFolderUpdate(description=None, color=None, sort_order=2)
+
+    assert update.description is None
+    assert update.color is None
+    assert update.sort_order == 2
 
 
 def test_policy_rule_schemas_accept_deterministic_conditions() -> None:
@@ -136,6 +159,9 @@ def test_policy_schemas_reject_invalid_enum_values(
     [
         (PolicyCreate, {"name": "", "description": None, "status": "draft"}),
         (PolicyCreate, {"name": "   ", "description": None, "status": "draft"}),
+        (PolicyFolderCreate, {"name": "", "description": None}),
+        (PolicyFolderUpdate, {"name": " "}),
+        (PolicyFolderUpdate, {"sort_order": None}),
         (PolicyUpdate, {"name": ""}),
         (PolicyUpdate, {"name": "   "}),
         (PolicyUpdate, {"name": None}),
@@ -143,7 +169,12 @@ def test_policy_schemas_reject_invalid_enum_values(
     ],
 )
 def test_policy_schemas_reject_blank_or_null_required_fields(
-    schema_class: type[PolicyCreate] | type[PolicyUpdate],
+    schema_class: (
+        type[PolicyCreate]
+        | type[PolicyFolderCreate]
+        | type[PolicyFolderUpdate]
+        | type[PolicyUpdate]
+    ),
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(ValidationError):
@@ -232,11 +263,35 @@ def test_policy_read_schema_validates_from_model_instance() -> None:
 
     assert schema.status is PolicyStatus.DRAFT
     assert schema.name == "Production ownership required"
+    assert schema.folder_id is None
+    assert schema.folder_name is None
+
+
+def test_policy_folder_read_schema_validates_from_model_instance() -> None:
+    timestamp = datetime.now(UTC)
+    folder = PolicyFolder(
+        id=uuid4(),
+        name="Runtime controls",
+        description=None,
+        color="#8b78f6",
+        sort_order=1,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+    schema = PolicyFolderRead.model_validate(folder)
+
+    assert schema.name == "Runtime controls"
+    assert schema.color == "#8b78f6"
+    assert schema.sort_order == 1
 
 
 def test_policy_tables_compile_for_postgresql() -> None:
     policies_ddl = str(
         CreateTable(Policy.__table__).compile(dialect=postgresql.dialect())
+    )
+    policy_folders_ddl = str(
+        CreateTable(PolicyFolder.__table__).compile(dialect=postgresql.dialect())
     )
     rules_ddl = str(
         CreateTable(PolicyRule.__table__).compile(dialect=postgresql.dialect())
@@ -245,8 +300,10 @@ def test_policy_tables_compile_for_postgresql() -> None:
         CreateTable(PolicyDecision.__table__).compile(dialect=postgresql.dialect())
     )
 
+    assert "CREATE TABLE policy_folders" in policy_folders_ddl
     assert "CREATE TABLE policies" in policies_ddl
     assert "policy_status" in policies_ddl
+    assert "FOREIGN KEY(folder_id) REFERENCES policy_folders" in policies_ddl
     assert "CREATE TABLE policy_rules" in rules_ddl
     assert "FOREIGN KEY(policy_id) REFERENCES policies" in rules_ddl
     assert "CREATE TABLE policy_decisions" in decisions_ddl

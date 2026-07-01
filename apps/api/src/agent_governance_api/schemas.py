@@ -1053,10 +1053,85 @@ class AgentActivityItemRead(BaseModel):
     metadata: EvidenceMetadata = Field(default_factory=dict)
 
 
+class PolicyFolderBase(BaseModel):
+    name: str
+    description: str | None = None
+    color: str | None = None
+    sort_order: int = 0
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("PolicyFolder name must be non-empty.")
+        return value
+
+    @field_validator("color")
+    @classmethod
+    def reject_blank_color(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyFolder color must be non-empty when set.")
+        return value
+
+
+class PolicyFolderCreate(PolicyFolderBase):
+    pass
+
+
+class PolicyFolderUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    color: str | None = None
+    sort_order: int | None = None
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyFolder name must be non-empty.")
+        return value
+
+    @field_validator("color")
+    @classmethod
+    def reject_blank_color(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PolicyFolder color must be non-empty when set.")
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_for_required_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        nullable_fields = {"description", "color"}
+        null_required_fields = sorted(
+            field
+            for field, value in data.items()
+            if value is None and field not in nullable_fields
+        )
+        if null_required_fields:
+            joined_fields = ", ".join(null_required_fields)
+            raise ValueError(f"Required fields cannot be null: {joined_fields}")
+
+        return data
+
+
+class PolicyFolderRead(PolicyFolderBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
 class PolicyBase(BaseModel):
     name: str
     description: str | None = None
     status: PolicyStatus
+    folder_id: UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -1076,6 +1151,7 @@ class PolicyUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: PolicyStatus | None = None
+    folder_id: UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -1090,7 +1166,7 @@ class PolicyUpdate(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        nullable_fields = {"description"}
+        nullable_fields = {"description", "folder_id"}
         null_required_fields = sorted(
             field
             for field, value in data.items()
@@ -1107,6 +1183,7 @@ class PolicyRead(PolicyBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    folder_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

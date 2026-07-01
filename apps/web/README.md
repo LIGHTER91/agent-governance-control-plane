@@ -150,25 +150,26 @@ The Integration Hub page treats Service Actor registry data as optional,
 read-only integration metadata. It never displays plaintext API keys and it
 states that runtime callers, not AGCP, execute tools and honor `proceed`.
 The Policy Studio uses existing Policy APIs for the Policy container and saves
-editor output as draft PolicyVersion snapshots. Code DSL is the precise V1
-authoring surface and compiles to deterministic PolicyRule condition JSON
-inside the version snapshot. The `/policies` route follows the attached Policy
-Studio Refinement mockup direction: dedicated slim Policy Studio icon rail,
-repository sidebar, policy structure strip, Blocks canvas, Code DSL editor,
-local validation console, and right inspector. It does not render the wider
-global workspace navigation shell used by the other connected routes.
+editor output as draft PolicyVersion snapshots. Code DSL is the precise escape
+hatch and compiles to deterministic PolicyRule condition JSON inside the
+version snapshot. The `/policies` route follows the attached Policy Studio
+Refinement mockup direction: dedicated slim Policy Studio icon rail, repository
+sidebar, policy structure strip, editable Blocks canvas, Code DSL editor, local
+validation console, and right inspector. It does not render the wider global
+workspace navigation shell used by the other connected routes.
 It keeps repository/workspace labels honest: until a backend Policy Repository
 or Workspace model exists, the sidebar says Local backend and Policy repository,
 and states that Policies are loaded from the AGCP API. It does not show fake
-repositories, folders, synced state, or repository creation affordances.
-Persisted records render under backend-backed groups and tags show an explicit
-empty state instead of mock folder or tag chips. Blocks mode is a compact
-IDE-style projection of the same compiled condition surface: it groups WHEN,
-CHECK, THEN, and PROVE rows for review and selection, with dedicated icons,
-structure arrows, and canvas connectors. Precise condition edits remain in Code
-DSL until fuller bidirectional Blocks editing is designed. After Save draft
-succeeds, the editor keeps the saved draft content visible while the inspector
-updates the draft PolicyVersion id and status. On page reload, Policy Studio
+repositories, synced state, or repository creation affordances. Policy folders
+are real backend records loaded from `/policy-folders`; moving a Policy writes
+its nullable `folder_id`, and Policies without a folder render as
+Uncategorized. Tags show an explicit empty state instead of mock folder or tag
+chips. Blocks mode is an editable compact IDE-style view of the same compiled
+condition surface: it groups WHEN, CHECK, THEN, and PROVE nodes, supports adding
+and editing supported V1 fields, and keeps dedicated icons, structure arrows,
+and canvas connectors. After Save draft succeeds, the editor keeps the saved
+draft content visible while the inspector updates the draft PolicyVersion id
+and status. On page reload, Policy Studio
 hydrates the editor from the latest draft PolicyVersion snapshot when one
 exists, then from the active PolicyVersion baseline when available, and only
 falls back to live PolicyRule rows for unversioned/bootstrap policies. Local

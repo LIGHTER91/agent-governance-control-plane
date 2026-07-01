@@ -310,3 +310,35 @@ Alternatives considered:
 - Require every Policy to have an active version before Runtime Gateway can
   evaluate it.
 - Replace the simple deterministic evaluator with a generic policy language.
+
+## ADR-0011 - Policy folders are lightweight organization metadata
+
+Date: 2026-07-01
+
+Status: accepted
+
+Context:
+Policy Studio needs real repository grouping without inventing fake folders,
+workspaces, sync state, or a repository abstraction that the backend does not
+support. Users also need to move Policies between groups without changing
+PolicyRule conditions or runtime semantics.
+
+Decision:
+Add `PolicyFolder` as a small backend-backed grouping aggregate and nullable
+Policy `folder_id`. Policy folders are managed through dedicated folder APIs,
+while moving a Policy is a Policy update. `folder_id = null` represents an
+uncategorized Policy. Deleting a non-empty folder is blocked until Policies are
+moved elsewhere.
+
+Consequences:
+- Policy Studio can show real folders and an honest Uncategorized group.
+- Folder mutations and Policy moves produce append-only audit records.
+- Folder membership does not affect PolicyVersion activation, runtime
+  evaluation, or PolicyRule matching.
+- Repository/workspace metadata remains out of scope until a separate domain
+  need justifies it.
+
+Alternatives considered:
+- Keep all grouping local-only in the frontend.
+- Add a broader Policy repository/workspace model before a domain need exists.
+- Encode folder names in Policy tags or descriptions.

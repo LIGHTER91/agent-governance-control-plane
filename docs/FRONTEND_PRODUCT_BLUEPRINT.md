@@ -50,7 +50,7 @@ product concepts:
 | --- | --- | --- | --- | --- |
 | Overview | Enter the product, see real operating status, and move to key workflows. | Root page is the app entry point and links to real connected routes. It avoids fake metrics when backend data is unavailable. | Better real summaries for agents, reviews, runtime activity, and evidence once stable backend read models exist. | Do not add fake charts, compliance scores, or production metrics. |
 | Agents | Understand registered agents, owners, risk, environment, activity, approvals, and evidence. | Agent list and detail routes are backend-connected and use AGCP Studio visual language. Agent detail includes profile, activity, approvals, and evidence actions. | Agent onboarding/editing, stronger filtering, inventory relationships, and deeper runtime drill-down. | Do not turn this into a generic Agent CRUD table. |
-| Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with honest Local backend / Policy repository labels, repository sidebar, center editor, Blocks/Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Full bidirectional no-code Blocks editing, backend-backed repository/workspace metadata if the domain model adds it, PolicyCheckStep authoring UI, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake repositories/workspaces, fake simulations, or fake impact metrics. |
+| Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with honest Local backend / Policy repository labels, backend-backed policy folders, repository sidebar, center editor, editable Blocks canvas and Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Backend-backed repository/workspace metadata if the domain model adds it, PolicyCheckStep authoring UI, explicit operator persistence, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake repositories/workspaces, fake simulations, or fake impact metrics. |
 | Access & Data | Review declared agent access, source usage metadata, and governance constraints. | Read/review surfaces exist for Access Grants, Sources, and DataUsageProfiles. Access Grant transitions are explicit governance status changes. | More polished relationship views across agents, sources, models, capabilities, policies, and evidence. | Do not imply Access Grants are IAM credentials or automatic runtime enforcement. |
 | Runtime Decisions | Understand Runtime Gateway decisions and runtime activity. | Runtime overview and activity pages are read-oriented. Runtime decisions can use active PolicyVersion snapshots with fallback to unversioned policy state. | Better timeline, filtering, and links from decisions to policy version, checks, approvals, evidence, and agent runs. | Do not make AGCP execute tools or become a runtime/orchestrator. |
 | Reviews | Resolve runtime HumanApprovals and PolicyVersion review requests. | Review Inbox is implemented with unified work items, selected review detail, assignment, policy decision context, checks, evidence preview, approve/reject, and explicit activation when applicable. | Request-info and escalation flows, notifications, richer assignment, and enterprise identity integration. | Do not make reviews backend resource tables or add a fake reviewer directory. |
@@ -70,14 +70,17 @@ Validated structure:
 - Repository-style policy sidebar.
 - Honest Local backend / Policy repository state until backend repository or
   workspace concepts exist.
+- Backend-backed Policy folders, with uncategorized Policies represented by a
+  null `folder_id` rather than fake folder metadata.
 - Dedicated slim Policy Studio icon rail instead of the wider global app
   navigation shell.
 - Center editor.
 - `WHEN -> CHECK -> THEN -> PROVE` policy structure bar.
 - Blocks and Code DSL toggle.
-- Compact Blocks review surface with consistent icons and visible section
-  connectors.
-- Code DSL as the precise V1 authoring path.
+- Editable compact Blocks canvas for supported V1 condition fields, with
+  consistent icons and visible section connectors.
+- Code DSL as the precise escape hatch for supported deterministic condition
+  JSON.
 - Compile bar.
 - Local validation console.
 - Right inspector.
@@ -95,10 +98,13 @@ Validated behavior:
 - There is no direct Publish button by design.
 - Local validation is parser/compile validation only, not runtime simulation.
 - Templates are authoring helpers, not backend records.
-- Repository folders, tags, owners, and version rows must be backend-backed or
-  explicitly local/empty. If the backend lacks policy folder/category/tag
-  metadata, Policy Studio should group persisted records honestly instead of
-  showing mock categories or fake tag chips.
+- Policy folders are backend-backed through PolicyFolder records and Policy
+  `folder_id`. Creating, listing, moving, and deleting folders must use the API.
+  Deleting a non-empty folder is blocked until Policies are moved elsewhere.
+- Repository tags, owners, and version rows must be backend-backed or explicitly
+  local/empty. If the backend lacks metadata for a category, Policy Studio
+  should group persisted records honestly instead of showing mock categories or
+  fake tag chips.
 - The frontend must not invent Policy repositories, workspaces, folders, sync
   state, versions, validation errors, or tags. Search and refresh are allowed
   only when wired to real backend list behavior.
@@ -136,7 +142,7 @@ Validated behavior:
 ## Policy Studio Wireflow
 
 1. User selects or creates a policy in the repository sidebar.
-2. User edits policy intent in Code DSL or reviews compiled Blocks.
+2. User edits policy intent in the Blocks canvas or Code DSL.
 3. User clicks Validate to run local parser/compile checks.
 4. User clicks Save draft to persist a draft PolicyVersion snapshot.
 5. User clicks Submit for review only after a valid saved draft exists.

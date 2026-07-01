@@ -40,12 +40,25 @@ export type PolicyValidationMessage = {
 
 export type PolicyBlock = {
   id: string;
+  field?: string;
   group: "when" | "check" | "then" | "prove";
   kind: "when" | "check" | "then" | "prove";
   expr: string;
   detail: string;
   status: string;
   statusClass: string;
+};
+
+export type ConditionFieldGroup = "when" | "check" | "then" | "prove";
+
+export type ConditionFieldDefinition = {
+  field: string;
+  group: ConditionFieldGroup;
+  label: string;
+  valueType: "number" | "select" | "text";
+  defaultValue: ConditionValue;
+  options?: readonly string[];
+  help: string;
 };
 
 const WHEN_FIELDS = [
@@ -93,6 +106,205 @@ const SUPPORTED_CONDITION_FIELDS = new Set<string>([
   ...WHEN_FIELDS,
   ...CHECK_FIELDS
 ]);
+
+const UUID_PLACEHOLDERS = {
+  capability_id: "00000000-0000-4000-8000-000000000002",
+  model_id: "00000000-0000-4000-8000-000000000001",
+  source_id: "00000000-0000-4000-8000-000000000000"
+} as const;
+
+export const CONDITION_FIELD_DEFINITIONS: ConditionFieldDefinition[] = [
+  {
+    field: "action_type",
+    group: "when",
+    label: "action_type",
+    valueType: "text",
+    defaultValue: "external_api_call",
+    help: "Runtime action type declared by the caller."
+  },
+  {
+    field: "tool_name",
+    group: "when",
+    label: "tool_name",
+    valueType: "text",
+    defaultValue: "example_tool",
+    help: "Tool name from the runtime request."
+  },
+  {
+    field: "environment",
+    group: "when",
+    label: "environment",
+    valueType: "select",
+    defaultValue: "production",
+    options: ["development", "staging", "production"],
+    help: "Agent environment for the governed request."
+  },
+  {
+    field: "risk_level",
+    group: "when",
+    label: "risk_level",
+    valueType: "select",
+    defaultValue: "high",
+    options: ["low", "medium", "high", "critical"],
+    help: "Risk level attached to the Agent or request context."
+  },
+  {
+    field: "source_id",
+    group: "when",
+    label: "source_id",
+    valueType: "text",
+    defaultValue: UUID_PLACEHOLDERS.source_id,
+    help: "Source UUID reference. Replace the placeholder before relying on it."
+  },
+  {
+    field: "model_id",
+    group: "when",
+    label: "model_id",
+    valueType: "text",
+    defaultValue: UUID_PLACEHOLDERS.model_id,
+    help: "Model UUID reference. Replace the placeholder before relying on it."
+  },
+  {
+    field: "capability_id",
+    group: "when",
+    label: "capability_id",
+    valueType: "text",
+    defaultValue: UUID_PLACEHOLDERS.capability_id,
+    help: "Capability UUID reference. Replace the placeholder before relying on it."
+  },
+  {
+    field: "purpose",
+    group: "when",
+    label: "purpose",
+    valueType: "text",
+    defaultValue: "governed_action",
+    help: "Safe purpose label declared by the caller."
+  },
+  {
+    field: "data_classification",
+    group: "when",
+    label: "data_classification",
+    valueType: "select",
+    defaultValue: "confidential",
+    options: ["public", "internal", "confidential", "restricted"],
+    help: "Declared data classification for the request."
+  },
+  {
+    field: "check_type",
+    group: "check",
+    label: "check_type",
+    valueType: "select",
+    defaultValue: "access_grant_status",
+    options: [
+      "access_grant_status",
+      "data_usage_profile_status",
+      "source_status",
+      "source_classification",
+      "capability_status",
+      "model_asset_status",
+      "model_provider_type"
+    ],
+    help: "Safe CheckResult or metadata check type."
+  },
+  {
+    field: "check_outcome",
+    group: "check",
+    label: "check_outcome",
+    valueType: "select",
+    defaultValue: "pass",
+    options: ["pass", "fail", "unknown", "error", "not_applicable"],
+    help: "CheckResult outcome matched by this PolicyRule."
+  },
+  {
+    field: "access_grant_status",
+    group: "check",
+    label: "access_grant_status",
+    valueType: "select",
+    defaultValue: "active",
+    options: ["pending_review", "active", "suspended", "revoked", "expired", "missing"],
+    help: "Resolved AccessGrant status fact."
+  },
+  {
+    field: "data_usage_review_status",
+    group: "check",
+    label: "data_usage_review_status",
+    valueType: "select",
+    defaultValue: "approved",
+    options: ["draft", "approved", "rejected", "expired", "needs_review", "missing"],
+    help: "Resolved Data Usage Profile review status."
+  },
+  {
+    field: "source_status",
+    group: "check",
+    label: "source_status",
+    valueType: "select",
+    defaultValue: "active",
+    options: ["active", "disabled", "retired", "missing"],
+    help: "Resolved Source inventory status."
+  },
+  {
+    field: "source_data_classification",
+    group: "check",
+    label: "source_classification",
+    valueType: "select",
+    defaultValue: "confidential",
+    options: ["public", "internal", "confidential", "restricted"],
+    help: "Resolved Source Data Usage Profile classification."
+  },
+  {
+    field: "model_status",
+    group: "check",
+    label: "model_asset_status",
+    valueType: "select",
+    defaultValue: "active",
+    options: ["active", "disabled", "retired", "missing"],
+    help: "Resolved Model inventory status."
+  },
+  {
+    field: "model_provider_type",
+    group: "check",
+    label: "model_provider_type",
+    valueType: "select",
+    defaultValue: "external",
+    options: ["external", "local", "unknown"],
+    help: "Resolved model provider type classification."
+  },
+  {
+    field: "capability_status",
+    group: "check",
+    label: "capability_status",
+    valueType: "select",
+    defaultValue: "active",
+    options: ["active", "disabled", "retired", "missing"],
+    help: "Resolved Capability inventory status."
+  },
+  {
+    field: "decision",
+    group: "then",
+    label: "decision",
+    valueType: "select",
+    defaultValue: "require_human_review",
+    options: ["allow", "deny", "require_human_review", "not_applicable"],
+    help: "PolicyDecision value returned when the rule matches."
+  },
+  {
+    field: "reason",
+    group: "then",
+    label: "reason",
+    valueType: "text",
+    defaultValue: "Policy conditions require human review.",
+    help: "Human-readable reason stored on PolicyDecision."
+  },
+  {
+    field: "prove_intent",
+    group: "prove",
+    label: "evidence intent",
+    valueType: "text",
+    defaultValue:
+      "Evidence comes from PolicyDecision, CheckResults, reviews, AuditLog, and Evidence Bundle.",
+    help: "Frontend evidence intent only; not a backend proof engine."
+  }
+];
 
 const FIELD_ALIASES: Record<string, string> = {
   "access_grant.status": "access_grant_status",
@@ -357,6 +569,99 @@ export function defaultCondition(): PolicyCondition {
   };
 }
 
+export function conditionFieldDefinitionsForGroup(group: ConditionFieldGroup) {
+  return CONDITION_FIELD_DEFINITIONS.filter(
+    (definition) => definition.group === group
+  );
+}
+
+export function conditionFieldDefinition(field: string) {
+  return CONDITION_FIELD_DEFINITIONS.find(
+    (definition) => definition.field === normalizeConditionField(field)
+  );
+}
+
+export function conditionToCanvasNodes(condition: PolicyCondition) {
+  return policyBlocksFromCondition(condition);
+}
+
+export function dslToCondition(dsl: string) {
+  return parsePolicyDslToPolicyRule(dsl);
+}
+
+export function addConditionField(
+  condition: PolicyCondition,
+  field: string,
+  value?: ConditionValue
+) {
+  const definition = conditionFieldDefinition(field);
+  if (!definition) {
+    return stableCondition(condition);
+  }
+  if (definition.field === "prove_intent") {
+    return stableCondition(condition);
+  }
+
+  return updateConditionField(
+    condition,
+    definition.field,
+    value ?? definition.defaultValue
+  );
+}
+
+export function updateConditionField(
+  condition: PolicyCondition,
+  field: string,
+  value: ConditionValue
+) {
+  const normalizedField = normalizeConditionField(field);
+  if (normalizedField === "prove_intent") {
+    return stableCondition(condition);
+  }
+
+  const nextCondition = {
+    ...condition,
+    [normalizedField]: normalizeConditionValue(normalizedField, value)
+  };
+  if (normalizedField === "decision" && !nextCondition.reason) {
+    nextCondition.reason = defaultReasonForDecision(String(value) as PolicyRuleDecision);
+  }
+
+  return stableCondition(nextCondition);
+}
+
+export function removeConditionField(condition: PolicyCondition, field: string) {
+  const normalizedField = normalizeConditionField(field);
+  if (
+    normalizedField === "decision" ||
+    normalizedField === "reason" ||
+    normalizedField === "prove_intent"
+  ) {
+    return stableCondition(condition);
+  }
+
+  const nextCondition = { ...condition };
+  delete nextCondition[normalizedField];
+  return stableCondition(nextCondition);
+}
+
+export function validateCondition(condition: PolicyCondition) {
+  const errors: string[] = [];
+  if (!condition.decision || typeof condition.decision !== "string") {
+    errors.push("PolicyRule condition decision is required.");
+  }
+  if (!condition.reason || String(condition.reason).trim().length === 0) {
+    errors.push("PolicyRule condition reason is required.");
+  }
+  for (const field of ["source_id", "model_id", "capability_id"]) {
+    const value = condition[field];
+    if (typeof value === "string" && !isUuidLike(value)) {
+      errors.push(`${field} must be a UUID string.`);
+    }
+  }
+  return errors;
+}
+
 export function templateToDsl(template: PolicyTemplate) {
   return conditionToDsl(slugifyPolicyName(template.name), template.condition);
 }
@@ -512,6 +817,12 @@ export function parsePolicyDslToPolicyRule(dsl: string): ParsedPolicyDsl {
     }
   }
 
+  for (const validationError of validateCondition(condition)) {
+    if (!errors.includes(validationError)) {
+      errors.push(validationError);
+    }
+  }
+
   if (unsupported.length > 0) {
     warnings.push("Unsupported DSL lines were ignored by the local compiler.");
   }
@@ -547,6 +858,7 @@ export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlo
 
   const whenBlocks = entriesForFields(condition, WHEN_FIELDS).map(
     (entry, index) => ({
+      field: entry.key,
       id: `when-${entry.key}`,
       group: "when" as const,
       kind: "when" as const,
@@ -560,6 +872,7 @@ export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlo
   );
 
   const checkBlocks = entriesForFields(condition, CHECK_FIELDS).map((entry) => ({
+    field: entry.key,
     id: `check-${entry.key}`,
     group: "check" as const,
     kind: "check" as const,
@@ -575,6 +888,7 @@ export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlo
     ...whenBlocks,
     ...checkBlocks,
     {
+      field: "decision",
       id: "then-decision",
       group: "then",
       kind: "then",
@@ -601,7 +915,8 @@ export function policyBlocksFromCondition(condition: PolicyCondition): PolicyBlo
       group: "prove",
       kind: "prove",
       expr: "decision, checks, reviewer, evidence_bundle",
-      detail: "AGCP records policy decisions, check results, approvals, and evidence bundles when available",
+      detail:
+        "Evidence comes from PolicyDecision, CheckResults, reviews, AuditLog, and Evidence Bundle",
       status: "metadata",
       statusClass: "ps2-st-col"
     }
@@ -832,6 +1147,37 @@ function entriesForFields(
   return fields
     .filter((field) => condition[field] !== undefined && condition[field] !== "")
     .map((key) => ({ key, value: condition[key] }));
+}
+
+function normalizeConditionField(field: string) {
+  if (field === "source_classification") {
+    return "source_data_classification";
+  }
+  if (field === "model_asset_status") {
+    return "model_status";
+  }
+  return field;
+}
+
+function normalizeConditionValue(field: string, value: ConditionValue) {
+  const definition = conditionFieldDefinition(field);
+  if (definition?.valueType === "number") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : definition.defaultValue;
+  }
+  if (Array.isArray(value)) {
+    return value.filter((item) => item.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  return value;
+}
+
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 }
 
 function fieldLabel(key: string) {

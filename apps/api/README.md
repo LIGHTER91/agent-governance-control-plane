@@ -298,6 +298,15 @@ Access Grant Inventory:
 
 Policy Management:
 
+- `GET /policy-folders` lists backend-backed PolicyFolder records for Policy
+  Studio repository grouping.
+- `POST /policy-folders` creates a PolicyFolder and appends
+  `policy_folder_created`.
+- `PATCH /policy-folders/{folder_id}` updates a PolicyFolder and appends
+  `policy_folder_updated`.
+- `DELETE /policy-folders/{folder_id}` deletes an empty PolicyFolder and
+  appends `policy_folder_deleted`. Non-empty folders return 409 with
+  `PolicyFolder is not empty. Move policies before deleting it.`
 - `POST /policies` creates a Policy lifecycle record and appends
   `policy_created`.
 - `GET /policies` lists Policy records.
@@ -330,6 +339,10 @@ Policy Management:
   `policy_check_step_updated` or `policy_check_step_status_changed`.
 - Policy statuses are `draft`, `active`, `disabled`, and `archived`; there is
   no destructive delete for Policies with governance history.
+- Policies may reference a nullable `folder_id`. `folder_id = null` means the
+  Policy is uncategorized. Moving a Policy between folders appends
+  `policy_moved_to_folder`; creating or updating a Policy with an unknown
+  `folder_id` returns 404.
 - PolicyRule conditions must be JSON objects using the deterministic condition
   shape already consumed by the evaluator: required `decision` and `reason`,
   optional `agent_id`, `tool_name`, `environment`, `risk_level`,

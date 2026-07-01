@@ -16,6 +16,7 @@ from agent_governance_api.models import (
     Policy,
     PolicyCheckStep,
     PolicyDecision,
+    PolicyFolder,
     PolicyRule,
     ServiceActor,
     ServiceActorApiKey,
@@ -40,6 +41,7 @@ def test_database_engine_uses_postgresql_psycopg_url() -> None:
 def test_declarative_base_includes_domain_tables() -> None:
     assert Agent.__tablename__ in Base.metadata.tables
     assert AuditLog.__tablename__ in Base.metadata.tables
+    assert PolicyFolder.__tablename__ in Base.metadata.tables
     assert Policy.__tablename__ in Base.metadata.tables
     assert PolicyRule.__tablename__ in Base.metadata.tables
     assert PolicyCheckStep.__tablename__ in Base.metadata.tables

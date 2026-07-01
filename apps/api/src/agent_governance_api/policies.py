@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agent_governance_api.audit import append_audit_log
 from agent_governance_api.auth import ActorContext, get_current_actor
@@ -14,6 +14,7 @@ from agent_governance_api.models import (
     Policy,
     PolicyCheckStep,
     PolicyDecision,
+    PolicyFolder,
     PolicyRule,
     PolicyStatus,
     PolicyVersion,
@@ -71,8 +72,12 @@ def create_policy(
     actor: ActorContext = Depends(get_current_actor),
 ) -> Policy:
     now = datetime.now(UTC)
+    if payload.folder_id is not None:
+        _get_policy_folder_or_404(session, payload.folder_id)
+
     policy = Policy(
         id=uuid4(),
+        folder_id=payload.folder_id,
         name=payload.name,
         description=payload.description,
         status=payload.status,
@@ -89,7 +94,11 @@ def create_policy(
         entity_type="policy",
         entity_id=str(policy.id),
         summary="Policy created.",
-        metadata={"operation": "create", "status": policy.status.value},
+        metadata={
+            "operation": "create",
+            "status": policy.status.value,
+            "folder_id": str(policy.folder_id) if policy.folder_id else None,
+        },
     )
     session.commit()
     session.refresh(policy)
@@ -99,7 +108,11 @@ def create_policy(
 
 @router.get("", response_model=list[PolicyRead], openapi_extra=POLICY_LIST_OPENAPI)
 def list_policies(session: Session = Depends(get_db_session)) -> list[Policy]:
-    statement = select(Policy).order_by(Policy.created_at, Policy.id)
+    statement = (
+        select(Policy)
+        .options(selectinload(Policy.folder))
+        .order_by(Policy.created_at, Policy.id)
+    )
     return list(session.scalars(statement).all())
 
 
@@ -152,27 +165,43 @@ def update_policy(
         )
 
     policy = _get_policy_or_404(session, policy_id)
-    block_policy_live_edit_if_active_version_exists(
-        session,
-        policy_id=policy.id,
-        actor=actor,
-        operation="patch_policy",
-        entity_type="policy",
-        entity_id=str(policy.id),
-        detail=POLICY_LIVE_EDIT_BLOCKED_DETAIL,
-    )
+    if set(updates) - {"folder_id"}:
+        block_policy_live_edit_if_active_version_exists(
+            session,
+            policy_id=policy.id,
+            actor=actor,
+            operation="patch_policy",
+            entity_type="policy",
+            entity_id=str(policy.id),
+            detail=POLICY_LIVE_EDIT_BLOCKED_DETAIL,
+        )
     previous_status = policy.status
+    previous_folder_id = policy.folder_id
+    if "folder_id" in updates and updates["folder_id"] is not None:
+        _get_policy_folder_or_404(session, updates["folder_id"])
 
     for field, value in updates.items():
         setattr(policy, field, value)
     policy.updated_at = datetime.now(UTC)
 
     status_changed = "status" in updates and policy.status != previous_status
-    event_type = "policy_status_changed" if status_changed else "policy_updated"
+    folder_changed = "folder_id" in updates and policy.folder_id != previous_folder_id
+    event_type = (
+        "policy_status_changed"
+        if status_changed
+        else "policy_moved_to_folder"
+        if folder_changed
+        else "policy_updated"
+    )
     metadata = {"updated_fields": ",".join(sorted(updates))}
     if status_changed:
         metadata["status_from"] = _value(previous_status)
         metadata["status_to"] = _value(policy.status)
+    if folder_changed:
+        metadata["folder_id_from"] = (
+            str(previous_folder_id) if previous_folder_id else None
+        )
+        metadata["folder_id_to"] = str(policy.folder_id) if policy.folder_id else None
 
     append_audit_log(
         session,
@@ -181,9 +210,31 @@ def update_policy(
         actor_id=actor.actor_id,
         entity_type="policy",
         entity_id=str(policy.id),
-        summary="Policy status changed." if status_changed else "Policy updated.",
+        summary=(
+            "Policy status changed."
+            if status_changed
+            else "Policy moved to folder."
+            if folder_changed
+            else "Policy updated."
+        ),
         metadata=metadata,
     )
+    if status_changed and folder_changed:
+        append_audit_log(
+            session,
+            event_type="policy_moved_to_folder",
+            actor_type=actor.actor_type,
+            actor_id=actor.actor_id,
+            entity_type="policy",
+            entity_id=str(policy.id),
+            summary="Policy moved to folder.",
+            metadata={
+                "folder_id_from": (
+                    str(previous_folder_id) if previous_folder_id else None
+                ),
+                "folder_id_to": str(policy.folder_id) if policy.folder_id else None,
+            },
+        )
     session.commit()
     session.refresh(policy)
 
@@ -280,6 +331,16 @@ def _get_policy_or_404(session: Session, policy_id: UUID) -> Policy:
             detail="Policy not found.",
         )
     return policy
+
+
+def _get_policy_folder_or_404(session: Session, folder_id: UUID) -> PolicyFolder:
+    folder = session.get(PolicyFolder, folder_id)
+    if folder is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PolicyFolder not found.",
+        )
+    return folder
 
 
 def _require_policy_can_be_deleted(session: Session, policy: Policy) -> None:

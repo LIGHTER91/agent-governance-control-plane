@@ -1433,10 +1433,46 @@ class ServiceActorScopeRule(Base):
         )
 
 
-class Policy(Base):
-    __tablename__ = "policies"
+class PolicyFolder(Base):
+    __tablename__ = "policy_folders"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    color: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sort_order: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    policies: Mapped[list["Policy"]] = relationship(back_populates="folder")
+
+
+class Policy(Base):
+    __tablename__ = "policies"
+    __table_args__ = (Index("ix_policies_folder_id", "folder_id"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    folder_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("policy_folders.id"),
+        nullable=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[PolicyStatus] = mapped_column(
@@ -1467,6 +1503,11 @@ class Policy(Base):
     version_review_requests: Mapped[list["PolicyVersionReviewRequest"]] = relationship(
         back_populates="policy"
     )
+    folder: Mapped[PolicyFolder | None] = relationship(back_populates="policies")
+
+    @property
+    def folder_name(self) -> str | None:
+        return self.folder.name if self.folder is not None else None
 
 
 class PolicyVersion(Base):

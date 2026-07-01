@@ -475,6 +475,37 @@ pagination, full history joins, policy simulation, policy evaluation changes,
 charts, compliance scores, and frontend-specific presentation state remain out
 of scope for this backend read model.
 
+## Policy Folder
+
+A lightweight backend-backed grouping record for Policy Studio repository
+navigation.
+
+PolicyFolder is organization metadata for Policies. It is not a separate
+repository, workspace, approval boundary, or runtime policy scope. Policies may
+belong to one PolicyFolder through nullable `folder_id`; `folder_id = null`
+means the Policy is uncategorized.
+
+Suggested fields:
+
+- id;
+- name;
+- description;
+- color;
+- sort_order;
+- created_at;
+- updated_at.
+
+`GET /policy-folders`, `POST /policy-folders`,
+`PATCH /policy-folders/{folder_id}`, and
+`DELETE /policy-folders/{folder_id}` manage PolicyFolder records. Folder
+mutations append `policy_folder_created`, `policy_folder_updated`, and
+`policy_folder_deleted` audit records. Deleting a non-empty PolicyFolder is
+blocked; callers must move Policies before deleting the folder.
+
+Moving a Policy between folders updates Policy `folder_id` through the Policy
+API and appends `policy_moved_to_folder`. Policy folder changes do not alter
+PolicyRule conditions, PolicyVersion activation state, or runtime evaluation.
+
 ## Policy
 
 A governance rule or set of rules applied to agents.
@@ -482,6 +513,7 @@ A governance rule or set of rules applied to agents.
 Suggested fields:
 
 - id;
+- folder_id;
 - name;
 - description;
 - status;

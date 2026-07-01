@@ -6,6 +6,7 @@ import type { CurrentActorRecord } from "../lib/current-actor";
 import { fetchCurrentActor } from "../lib/current-actor";
 import {
   PolicyPayload,
+  PolicyFolderRecord,
   PolicyRecord,
   PolicyRuleRecord,
   PolicyVersionDraftPayload,
@@ -15,14 +16,17 @@ import {
   PolicyVersionRecord,
   archivePolicy,
   createPolicy,
+  createPolicyFolder,
   createPolicyVersionReviewRequest,
   createPolicyVersionDraft,
   deletePolicy,
   fetchPolicies,
+  listPolicyFolders,
   fetchPolicyVersionReviewRequestDiff,
   fetchPolicyVersionReviewState,
   fetchPolicyVersionsForPolicy,
   fetchPolicyRulesForPolicy,
+  updatePolicy,
   updatePolicyVersionDraft
 } from "../lib/policies";
 import {
@@ -51,6 +55,11 @@ type PoliciesState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; policies: PolicyRecord[] };
+
+type PolicyFoldersState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; folders: PolicyFolderRecord[] };
 
 type RulesState =
   | { status: "idle" }
@@ -112,6 +121,8 @@ export function PolicyStudio() {
   const [policiesState, setPoliciesState] = useState<PoliciesState>({
     status: "loading"
   });
+  const [policyFoldersState, setPolicyFoldersState] =
+    useState<PolicyFoldersState>({ status: "loading" });
   const [rulesState, setRulesState] = useState<RulesState>({ status: "idle" });
   const [versionsState, setVersionsState] = useState<VersionsState>({
     status: "idle"
@@ -345,6 +356,24 @@ export function PolicyStudio() {
     }
   }, []);
 
+  const loadPolicyFolders = useCallback(async (signal?: AbortSignal) => {
+    setPolicyFoldersState({ status: "loading" });
+
+    try {
+      const folders = await listPolicyFolders(signal);
+      setPolicyFoldersState({ status: "ready", folders });
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      setPolicyFoldersState({
+        status: "error",
+        message: errorMessage(error, "Unable to load PolicyFolder records.")
+      });
+    }
+  }, []);
+
   const loadCurrentActor = useCallback(async (signal?: AbortSignal) => {
     setCurrentActorState({ status: "loading" });
 
@@ -498,10 +527,11 @@ export function PolicyStudio() {
 
   useEffect(() => {
     const controller = new AbortController();
+    void loadPolicyFolders(controller.signal);
     void loadPolicies(controller.signal);
     void loadCurrentActor(controller.signal);
     return () => controller.abort();
-  }, [loadCurrentActor, loadPolicies]);
+  }, [loadCurrentActor, loadPolicies, loadPolicyFolders]);
 
   useEffect(() => {
     if (!selectedPolicy) {
@@ -607,6 +637,99 @@ export function PolicyStudio() {
     });
   }
 
+  async function handleCreateFolder() {
+    const name = window.prompt("New PolicyFolder name");
+    if (name === null) {
+      return;
+    }
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: "PolicyFolder name must be non-empty."
+      });
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: null,
+      status: "submitting",
+      message: "Creating PolicyFolder in the AGCP API"
+    });
+
+    try {
+      const folder = await createPolicyFolder({
+        color: "#8b78f6",
+        description: "Policy Studio repository folder.",
+        name: normalizedName,
+        sort_order:
+          policyFoldersState.status === "ready"
+            ? policyFoldersState.folders.length + 1
+            : 0
+      });
+      setPolicyFoldersState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              folders: [...current.folders, folder].sort(policyFolderSort)
+            }
+          : { status: "ready", folders: [folder] }
+      );
+      setPolicyLifecycleState({
+        action: null,
+        status: "success",
+        message: `PolicyFolder created: ${folder.name}`
+      });
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: errorMessage(error, "Unable to create PolicyFolder.")
+      });
+    }
+  }
+
+  async function handleMovePolicyToFolder(
+    policy: PolicyRecord,
+    folderId: string | null
+  ) {
+    if (policy.folder_id === folderId) {
+      return;
+    }
+
+    setPolicyLifecycleState({
+      action: null,
+      status: "submitting",
+      message: "Moving Policy to backend folder"
+    });
+
+    try {
+      const updated = await updatePolicy(policy.id, { folder_id: folderId });
+      setPoliciesState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              policies: upsertPolicyRecord(current.policies, updated)
+            }
+          : current
+      );
+      setPolicyLifecycleState({
+        action: null,
+        status: "success",
+        message: updated.folder_name
+          ? `Policy moved to ${updated.folder_name}.`
+          : "Policy moved to Uncategorized."
+      });
+    } catch (error: unknown) {
+      setPolicyLifecycleState({
+        action: null,
+        status: "error",
+        message: errorMessage(error, "Unable to move Policy to folder.")
+      });
+    }
+  }
+
   function handleUseTemplate(template: PolicyTemplate) {
     preserveEditorOnNextRulesLoadRef.current = null;
     savedEditorPolicyRef.current = null;
@@ -667,7 +790,19 @@ export function PolicyStudio() {
           : current.status === "saved"
             ? current.message
             : "Local validation completed"
-    }));
+      }));
+  }
+
+  function handleChangeCondition(nextCondition: PolicyCondition) {
+    localEditorDirtyRef.current = true;
+    const policyName = parsed.policyName || selectedPolicy?.name || "new_policy";
+    setDsl(conditionToDsl(policyName, nextCondition));
+    setEditorMode("blocks");
+    setSaveState({ status: "unsaved", message: "Unsaved canvas edits" });
+    setReviewState({
+      status: "idle",
+      message: "Review request not submitted"
+    });
   }
 
   async function handleSaveDraft() {
@@ -1139,12 +1274,20 @@ export function PolicyStudio() {
           mode={repositoryMode}
           onModeChange={setRepositoryMode}
           onNewPolicy={handleNewPolicy}
+          onCreateFolder={handleCreateFolder}
+          onMovePolicyToFolder={(policy, folderId) =>
+            void handleMovePolicyToFolder(policy, folderId)
+          }
           onOpenTemplates={() => setShowTemplates(true)}
-          onRefresh={() => void loadPolicies()}
+          onRefresh={() => {
+            void loadPolicyFolders();
+            void loadPolicies();
+          }}
           onSelectPolicy={handleSelectPolicy}
           onSelectRule={handleSelectRule}
           onUseTemplate={handleUseTemplate}
           policiesState={policiesState}
+          policyFoldersState={policyFoldersState}
           policyVersionsState={versionsState}
           query={repositoryQuery}
           rulesState={rulesState}
@@ -1157,6 +1300,7 @@ export function PolicyStudio() {
         <PolicyEditor
           blocks={blocks}
           compiled={compiled}
+          condition={condition}
           dsl={dsl}
           editorMode={editorMode}
           policyDescription={editorPolicyDescription}
@@ -1173,6 +1317,7 @@ export function PolicyStudio() {
               message: "Review request not submitted"
             });
           }}
+          onChangeCondition={handleChangeCondition}
           onSaveDraft={handleSaveDraft}
           onSelectBlock={setSelectedBlockId}
           onSetEditorMode={handleSetEditorMode}
@@ -1397,6 +1542,13 @@ function upsertPolicyVersionRecord(
   }
 
   return versions.map((item) => (item.id === version.id ? version : item));
+}
+
+function policyFolderSort(left: PolicyFolderRecord, right: PolicyFolderRecord) {
+  if (left.sort_order !== right.sort_order) {
+    return left.sort_order - right.sort_order;
+  }
+  return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
 }
 
 function editorSourceMessage(editorSource: PolicyStudioEditorSource) {

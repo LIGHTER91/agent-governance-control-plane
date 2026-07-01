@@ -2,6 +2,7 @@
 
 import type {
   PolicyBlock,
+  PolicyCondition,
   PolicyValidationMessage,
   PolicyValidationMessageTone
 } from "./policy-dsl";
@@ -14,6 +15,7 @@ type EditorMode = "blocks" | "code";
 export function PolicyEditor({
   blocks,
   compiled,
+  condition,
   dsl,
   editorMode,
   policyDescription,
@@ -22,6 +24,7 @@ export function PolicyEditor({
   policyVersion,
   validationRunCount,
   onChangeDsl,
+  onChangeCondition,
   onSaveDraft,
   onSelectBlock,
   onSetEditorMode,
@@ -32,6 +35,7 @@ export function PolicyEditor({
   validationMessages
 }: {
   blocks: PolicyBlock[];
+  condition: PolicyCondition;
   compiled: {
     checkFields: string[];
     decision: string;
@@ -47,6 +51,7 @@ export function PolicyEditor({
   policyVersion: string;
   validationRunCount: number;
   onChangeDsl: (dsl: string) => void;
+  onChangeCondition: (condition: PolicyCondition) => void;
   onSaveDraft: () => void;
   onSelectBlock: (blockId: string) => void;
   onSetEditorMode: (mode: EditorMode) => void;
@@ -215,7 +220,8 @@ export function PolicyEditor({
         {editorMode === "blocks" ? (
           <PolicyBlocksEditor
             blocks={blocks}
-            onEditInCode={() => onSetEditorMode("code")}
+            condition={condition}
+            onChangeCondition={onChangeCondition}
             onSelectBlock={onSelectBlock}
             selectedBlockId={selectedBlockId}
           />

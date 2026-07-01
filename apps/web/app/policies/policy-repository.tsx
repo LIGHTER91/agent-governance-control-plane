@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  PolicyFolderRecord,
   PolicyRecord,
   PolicyRuleRecord,
   PolicyVersionRecord
@@ -12,6 +13,11 @@ type PoliciesState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; policies: PolicyRecord[] };
+
+type PolicyFoldersState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; folders: PolicyFolderRecord[] };
 
 type RepositoryMode = "policies" | "templates";
 
@@ -30,6 +36,8 @@ type PolicyVersionsState =
 export function PolicyRepository({
   mode,
   onModeChange,
+  onCreateFolder,
+  onMovePolicyToFolder,
   onNewPolicy,
   onOpenTemplates,
   onRefresh,
@@ -37,6 +45,7 @@ export function PolicyRepository({
   onSelectRule,
   onUseTemplate,
   policiesState,
+  policyFoldersState,
   policyVersionsState,
   query,
   rulesState,
@@ -47,6 +56,8 @@ export function PolicyRepository({
 }: {
   mode: RepositoryMode;
   onModeChange: (mode: RepositoryMode) => void;
+  onCreateFolder: () => void;
+  onMovePolicyToFolder: (policy: PolicyRecord, folderId: string | null) => void;
   onNewPolicy: () => void;
   onOpenTemplates: () => void;
   onRefresh: () => void;
@@ -54,6 +65,7 @@ export function PolicyRepository({
   onSelectRule: (rule: PolicyRuleRecord) => void;
   onUseTemplate: (template: PolicyTemplate) => void;
   policiesState: PoliciesState;
+  policyFoldersState: PolicyFoldersState;
   policyVersionsState: PolicyVersionsState;
   query: string;
   rulesState: RulesState;
@@ -125,14 +137,24 @@ export function PolicyRepository({
             <PolicyIcon name="plus" size={14} />
           </button>
         </div>
+        <button
+          className="ps2-folder-action"
+          onClick={onCreateFolder}
+          type="button"
+        >
+          <PolicyIcon name="folder" size={13} />
+          New folder
+        </button>
       </div>
 
       <div className="ps2-list-scroll">
         {mode === "policies" ? (
           <PolicyList
             normalizedQuery={normalizedQuery}
+            onMovePolicyToFolder={onMovePolicyToFolder}
             onSelectPolicy={onSelectPolicy}
             onSelectRule={onSelectRule}
+            policyFoldersState={policyFoldersState}
             policiesState={policiesState}
             rulesState={rulesState}
             selectedPolicyId={selectedPolicyId}
@@ -162,16 +184,20 @@ export function PolicyRepository({
 
 function PolicyList({
   normalizedQuery,
+  onMovePolicyToFolder,
   onSelectPolicy,
   onSelectRule,
+  policyFoldersState,
   policiesState,
   rulesState,
   selectedPolicyId,
   selectedRuleId
 }: {
   normalizedQuery: string;
+  onMovePolicyToFolder: (policy: PolicyRecord, folderId: string | null) => void;
   onSelectPolicy: (policy: PolicyRecord) => void;
   onSelectRule: (rule: PolicyRuleRecord) => void;
+  policyFoldersState: PolicyFoldersState;
   policiesState: PoliciesState;
   rulesState: RulesState;
   selectedPolicyId: string | null;
@@ -215,36 +241,80 @@ function PolicyList({
     );
   }
 
-  const grouped = groupPoliciesByDomain(filtered);
+  const grouped = groupPoliciesByFolder(filtered, policyFoldersState);
+  const folders =
+    policyFoldersState.status === "ready" ? policyFoldersState.folders : [];
 
   return (
     <>
+      {policyFoldersState.status === "loading" ? (
+        <div className="ps2-repo-state compact">
+          <span>Loading PolicyFolders from GET /policy-folders.</span>
+        </div>
+      ) : null}
+      {policyFoldersState.status === "error" ? (
+        <div className="ps2-repo-state compact error" role="alert">
+          <span>{policyFoldersState.message}</span>
+          <small>Folder labels are loaded from the AGCP API.</small>
+        </div>
+      ) : null}
       {grouped.map((group) => (
-        <section className="ps2-policy-folder" key={group.label}>
-          <div className="ps2-folder-row">
+        <details className="ps2-policy-folder" key={group.id} open>
+          <summary className="ps2-folder-row">
             <PolicyIcon name="folder" size={14} />
             <span>{group.label}</span>
-          </div>
+            <small>{group.policies.length}</small>
+          </summary>
+          {group.policies.length === 0 ? (
+            <div className="ps2-repo-state compact">
+              <span>No policies in this folder.</span>
+            </div>
+          ) : null}
           {group.policies.map((policy) => (
-            <button
-              className={`ps2-entry ${policy.id === selectedPolicyId ? "active" : ""}`}
-              key={policy.id}
-              onClick={() => onSelectPolicy(policy)}
-              type="button"
-            >
-              <span className="ps2-entry-dot" style={{ color: statusColor(policy.status) }}>
-                <PolicyIcon name="policy" size={13} />
-              </span>
-              <span className="ps2-entry-body">
-                <span className="ps2-entry-name">{policyFileName(policy)}</span>
-                <span className="ps2-entry-meta">{policy.id}</span>
-              </span>
-              <span className={`ps2-entry-chip chip ${statusChip(policy.status)}`}>
-                {policy.status}
-              </span>
-            </button>
+            <div className="ps2-policy-entry-row" key={policy.id}>
+              <button
+                className={`ps2-entry ${policy.id === selectedPolicyId ? "active" : ""}`}
+                onClick={() => onSelectPolicy(policy)}
+                type="button"
+              >
+                <span
+                  className="ps2-entry-dot"
+                  style={{ color: statusColor(policy.status) }}
+                >
+                  <PolicyIcon name="policy" size={13} />
+                </span>
+                <span className="ps2-entry-body">
+                  <span className="ps2-entry-name">{policyFileName(policy)}</span>
+                  <span className="ps2-entry-meta">{policy.id}</span>
+                </span>
+                <span className={`ps2-entry-chip chip ${statusChip(policy.status)}`}>
+                  {policy.status}
+                </span>
+              </button>
+              <label className="ps2-folder-move">
+                <span>Move</span>
+                <select
+                  aria-label={`Move ${policy.name} to folder`}
+                  disabled={policyFoldersState.status !== "ready"}
+                  onChange={(event) =>
+                    onMovePolicyToFolder(
+                      policy,
+                      event.target.value ? event.target.value : null
+                    )
+                  }
+                  value={policy.folder_id || ""}
+                >
+                  <option value="">Uncategorized</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           ))}
-        </section>
+        </details>
       ))}
       <div className="ps2-section-lbl">Policy rules</div>
       <PolicyRuleList
@@ -426,8 +496,37 @@ function TemplateList({
   );
 }
 
-function groupPoliciesByDomain(policies: PolicyRecord[]) {
-  return [{ label: "Backend Policy records", policies }];
+function groupPoliciesByFolder(
+  policies: PolicyRecord[],
+  policyFoldersState: PolicyFoldersState
+) {
+  const folders =
+    policyFoldersState.status === "ready" ? policyFoldersState.folders : [];
+  const knownFolderIds = new Set(folders.map((folder) => folder.id));
+  const groups = folders.map((folder) => ({
+    id: folder.id,
+    label: folder.name,
+    policies: policies.filter((policy) => policy.folder_id === folder.id)
+  }));
+  const uncategorized = policies.filter((policy) => !policy.folder_id);
+  groups.push({
+    id: "uncategorized",
+    label: "Uncategorized",
+    policies: uncategorized
+  });
+
+  const unavailable = policies.filter(
+    (policy) => policy.folder_id && !knownFolderIds.has(policy.folder_id)
+  );
+  if (unavailable.length > 0) {
+    groups.push({
+      id: "folder-unavailable",
+      label: "Folder unavailable",
+      policies: unavailable
+    });
+  }
+
+  return groups.filter((group) => group.policies.length > 0 || group.id !== "uncategorized");
 }
 
 function statusChip(status: PolicyRecord["status"]) {
