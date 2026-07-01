@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { fetchAgents } from "../lib/agents";
+import { fetchAgentGovernanceProfile, fetchAgents } from "../lib/agents";
 import { fetchHumanApprovals, transitionHumanApproval } from "../lib/human-approvals";
 import { fetchPolicies, fetchPolicyVersionReviewRequests } from "../lib/policies";
 import { fetchAccessGrants, fetchSources } from "../lib/sources";
@@ -286,6 +286,27 @@ const CSS = `
     border-radius: 0 2px 2px 0;
     background: var(--purple-lt);
   }
+  .sidebar-rail-link.disabled {
+    opacity: .38;
+    cursor: not-allowed;
+  }
+  .sidebar-rail-badge {
+    position: absolute;
+    right: -3px;
+    top: -3px;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--purple-lt);
+    color: white;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(168,146,248,.5);
+  }
   .sidebar-rail-spacer { flex: 1; }
   .sidebar-rail-footer {
     width: 39px; height: 39px;
@@ -297,9 +318,6 @@ const CSS = `
     flex: 1;
     display: flex;
     flex-direction: column;
-  }
-  .sidebar.rail-only .sidebar-context {
-    display: none;
   }
   .logo-area {
     height: 62px;
@@ -416,20 +434,20 @@ const CSS = `
     box-shadow: none;
   }
 
-  .context-panel {
+  .sidebar-sidepanel {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: auto;
   }
-  .context-module {
+  .sidebar-module {
     display: flex;
     align-items: center;
     gap: 14px;
     padding: 24px 22px 20px;
   }
-  .context-module-icon {
+  .sidebar-module-icon {
     width: 34px;
     height: 34px;
     display: flex;
@@ -437,96 +455,28 @@ const CSS = `
     justify-content: center;
     color: var(--purple-lt);
   }
-  .context-module-title {
+  .sidebar-module-title {
     color: #f4f5fb;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -.01em;
   }
-  .context-module-sub {
+  .sidebar-module-sub {
     color: #8d94a8;
     font-size: 12px;
     margin-top: 2px;
   }
-  .context-tabs {
-    display: grid;
-    gap: 8px;
-    padding: 0 8px 22px;
-  }
-  .context-tab {
-    min-height: 52px;
-    border-radius: 7px;
-    border: 1px solid transparent;
-    color: #9aa1b5;
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    padding: 0 18px;
-    text-decoration: none;
-    font-size: 14px;
-    transition: all .13s;
-    position: relative;
-  }
-  .context-tab:hover {
-    background: rgba(255,255,255,.035);
-    color: #cdd2df;
-  }
-  .context-tab.active {
-    background: var(--purple-dim);
-    border-color: var(--purple-brd);
-    color: var(--purple-lt);
-    box-shadow: inset 0 0 0 1px rgba(168,146,248,.08);
-  }
-  .context-tab.active::before {
-    content: "";
-    position: absolute;
-    left: -9px;
-    top: 10px;
-    bottom: 10px;
-    width: 3px;
-    border-radius: 0 2px 2px 0;
-    background: var(--purple-lt);
-  }
-  .sidebar-rail-link.disabled {
-    opacity: .38;
-    cursor: not-allowed;
-  }
-  .sidebar-rail-badge {
-    position: absolute;
-    right: -3px;
-    top: -3px;
-    min-width: 17px;
-    height: 17px;
-    border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--purple-lt);
-    color: white;
-    font-family: var(--mono);
-    font-size: 9px;
-    font-weight: 700;
-    box-shadow: 0 0 10px rgba(168,146,248,.5);
-  }
-  .context-tab-icon {
-    width: 20px;
-    height: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .context-divider {
+  .sidebar-divider {
     height: 1px;
     background: var(--border);
     margin: 0;
   }
-  .context-filters {
+  .sidebar-filters {
     padding: 22px 20px;
     display: grid;
     gap: 16px;
   }
-  .context-filter-head {
+  .sidebar-filter-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -534,23 +484,23 @@ const CSS = `
     font-size: 14px;
     font-weight: 700;
   }
-  .context-filter-head button {
+  .sidebar-filter-head button {
     border: 0;
     background: transparent;
     color: var(--purple-lt);
     font-size: 12px;
     cursor: pointer;
   }
-  .context-field {
+  .sidebar-field {
     display: grid;
     gap: 8px;
   }
-  .context-field > span {
+  .sidebar-field > span {
     color: #c7cad6;
     font-size: 12px;
   }
-  .context-field select,
-  .context-field input {
+  .sidebar-field select,
+  .sidebar-field input {
     width: 100%;
     height: 38px;
     border: 1px solid var(--border);
@@ -561,57 +511,12 @@ const CSS = `
     font: inherit;
     outline: none;
   }
-  .context-field select:focus,
-  .context-field input:focus {
+  .sidebar-field select:focus,
+  .sidebar-field input:focus {
     border-color: rgba(168,146,248,.34);
     background: rgba(255,255,255,.05);
   }
-  .context-field.search div {
-    position: relative;
-  }
-  .context-field.search input {
-    padding-right: 36px;
-  }
-  .context-field.search svg {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-  }
-  .context-quick {
-    border-top: 1px solid var(--border);
-    padding-top: 14px;
-    display: grid;
-    gap: 10px;
-  }
-  .context-quick button {
-    border: 0;
-    background: transparent;
-    color: #8f96aa;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 12px;
-    padding: 0;
-    text-align: left;
-  }
-  .context-quick .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    border: 1px solid currentColor;
-    margin-right: 2px;
-  }
-  .context-quick button {
-    justify-content: flex-start;
-  }
-  .dot-0 { color: var(--green); }
-  .dot-1 { color: var(--orange); }
-  .dot-2 { color: var(--red); }
-  .dot-3 { color: #9aa3b5; }
-  .context-note {
+  .sidebar-note {
     border: 1px solid var(--purple-brd);
     border-radius: 7px;
     background: rgba(124,109,240,.08);
@@ -620,38 +525,52 @@ const CSS = `
     line-height: 1.45;
     padding: 12px;
   }
-  .policy-context-stack {
+  .sidebar-quick {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
     display: grid;
-    gap: 14px;
-    padding: 22px 20px;
+    gap: 10px;
   }
-  .policy-context-label {
-    color: var(--text-faint);
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: .13em;
-    text-transform: uppercase;
-  }
-  .policy-repo-card {
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    background: rgba(255,255,255,.035);
-    padding: 12px;
+  .sidebar-quick button {
+    border: 0;
+    background: transparent;
+    color: #8f96aa;
     display: flex;
     align-items: center;
     gap: 10px;
+    font-size: 12px;
+    padding: 0;
+    text-align: left;
   }
-  .policy-repo-card svg { color: #a892f8; flex-shrink: 0; }
-  .policy-repo-name {
-    color: #f2f4fb;
-    font-size: 13px;
-    font-weight: 700;
+  .sidebar-quick .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    margin-right: 2px;
   }
-  .policy-repo-sub {
-    color: #7d8498;
-    font-size: 11px;
-    margin-top: 2px;
+  .dot-0 { color: var(--green); }
+  .dot-1 { color: var(--orange); }
+  .dot-2 { color: var(--red); }
+  .dot-3 { color: #9aa3b5; }
+  .sidebar-save {
+    margin: auto 20px 24px;
+    min-height: 42px;
+    border: 1px solid var(--purple-brd);
+    border-radius: 7px;
+    background: rgba(124,109,240,.08);
+    color: var(--purple-lt);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    cursor: pointer;
   }
+  .sidebar-save:hover {
+    background: rgba(124,109,240,.14);
+  }
+
   .policy-command-row {
     display: grid;
     grid-template-columns: 1fr 36px 36px 36px;
@@ -703,16 +622,6 @@ const CSS = `
     box-shadow: inset 3px 0 0 rgba(168,146,248,.95);
   }
   .policy-workbench-item svg { color: var(--purple-lt); flex-shrink: 0; }
-  .policy-empty-note {
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    background: rgba(255,255,255,.025);
-    color: #737c92;
-    font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.45;
-    padding: 11px;
-  }
   .policy-new-btn {
     min-height: 38px;
     border: 1px dashed var(--purple-brd);
@@ -720,40 +629,6 @@ const CSS = `
     background: rgba(124,109,240,.08);
     color: var(--purple-lt);
     font-weight: 700;
-  }
-  .context-page-summary {
-    border-top: 1px solid var(--border);
-    padding: 18px 20px;
-    display: grid;
-    gap: 10px;
-  }
-  .context-summary-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: #8f96aa;
-    font-size: 12px;
-  }
-  .context-summary-row strong {
-    color: #f1f3fb;
-    font-weight: 700;
-  }
-  .context-save {
-    margin: auto 20px 24px;
-    min-height: 42px;
-    border: 1px solid var(--purple-brd);
-    border-radius: 7px;
-    background: rgba(124,109,240,.08);
-    color: var(--purple-lt);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .context-save:hover {
-    background: rgba(124,109,240,.14);
   }
 
   .shell[data-nav-density="compact"] .sidebar {
@@ -1278,6 +1153,501 @@ const CSS = `
     color: var(--purple-lt);
   }
 
+  .overview-command {
+    display: grid;
+    gap: 12px;
+    min-width: 1120px;
+  }
+  .overview-command-hero {
+    align-items: start;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+  }
+  .overview-command-title {
+    color: #f4f5fb;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -.015em;
+    line-height: 1.1;
+    margin: 0 0 8px;
+  }
+  .overview-command-copy {
+    color: #a3a8bb;
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 720px;
+  }
+  .overview-command-actions,
+  .overview-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .overview-action,
+  .overview-command-button {
+    align-items: center;
+    background: rgba(255,255,255,.025);
+    border: 1px solid rgba(180,198,214,.16);
+    border-radius: 7px;
+    color: #d7ddeb;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 8px;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 12px;
+    text-decoration: none;
+  }
+  .overview-action.primary,
+  .overview-command-button.primary {
+    background: rgba(124,109,240,.26);
+    border-color: rgba(168,146,248,.45);
+    color: #f4efff;
+  }
+  .overview-action.disabled {
+    cursor: not-allowed;
+    opacity: .45;
+  }
+  .overview-command-grid,
+  .overview-work-grid {
+    display: grid;
+    gap: 10px;
+  }
+  .overview-command-grid {
+    grid-template-columns: minmax(470px, .96fr) minmax(420px, .84fr);
+  }
+  .overview-work-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, .78fr);
+  }
+  .overview-command-panel,
+  .overview-list-panel {
+    background: rgba(12, 18, 27, .82);
+    border: 1px solid rgba(180,198,214,.13);
+    border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+    overflow: hidden;
+  }
+  .overview-command-panel.pad {
+    padding: 14px;
+  }
+  .overview-command-head,
+  .overview-list-panel-head {
+    align-items: center;
+    border-bottom: 1px solid rgba(180,198,214,.10);
+    display: flex;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+  }
+  .overview-command-head h2,
+  .overview-command-section-title,
+  .overview-list-panel-head h3 {
+    color: #f1f4fb;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .overview-count {
+    background: rgba(255,255,255,.06);
+    border-radius: 6px;
+    color: #b5bdd0;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 7px;
+  }
+  .overview-command-spacer {
+    flex: 1;
+  }
+  .overview-search {
+    align-items: center;
+    background: rgba(255,255,255,.025);
+    border: 1px solid rgba(180,198,214,.14);
+    border-radius: 6px;
+    color: #8e96aa;
+    display: flex;
+    gap: 8px;
+    height: 30px;
+    min-width: 170px;
+    padding: 0 10px;
+  }
+  .overview-search input {
+    background: transparent;
+    border: 0;
+    color: #d8deea;
+    font: inherit;
+    font-size: 12px;
+    min-width: 0;
+    outline: none;
+    width: 100%;
+  }
+  .overview-command-select {
+    background: rgba(255,255,255,.025);
+    border: 1px solid rgba(180,198,214,.14);
+    border-radius: 6px;
+    color: #cdd4e2;
+    font-size: 12px;
+    height: 30px;
+    padding: 0 10px;
+  }
+  .overview-watchlist {
+    display: grid;
+  }
+  .overview-agent-row {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid rgba(180,198,214,.08);
+    color: inherit;
+    cursor: pointer;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(170px, 1.15fr) minmax(120px, .7fr) minmax(120px, .72fr) minmax(78px, .45fr) minmax(118px, .72fr) 112px 20px;
+    min-height: 72px;
+    padding: 9px 14px;
+    text-align: left;
+    width: 100%;
+  }
+  .overview-agent-row:last-child {
+    border-bottom: 0;
+  }
+  .overview-agent-row.active {
+    background: linear-gradient(90deg, rgba(124,109,240,.18), rgba(124,109,240,.04));
+    box-shadow: inset 0 0 0 1px rgba(168,146,248,.48);
+  }
+  .overview-agent-main {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+  }
+  .overview-agent-icon,
+  .overview-mini-icon {
+    align-items: center;
+    border-radius: 999px;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 38px;
+    justify-content: center;
+    width: 38px;
+  }
+  .overview-mini-icon {
+    height: 24px;
+    width: 24px;
+  }
+  .overview-agent-icon.ok,
+  .overview-mini-icon.ok { background: rgba(45,216,145,.13); color: var(--green); }
+  .overview-agent-icon.warn,
+  .overview-mini-icon.warn { background: rgba(245,144,64,.14); color: var(--orange); }
+  .overview-agent-icon.danger,
+  .overview-mini-icon.danger { background: rgba(240,63,90,.13); color: var(--red); }
+  .overview-agent-icon.info,
+  .overview-mini-icon.info { background: rgba(54,184,246,.12); color: var(--sky); }
+  .overview-agent-name {
+    color: #f2f5fb;
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .overview-agent-id,
+  .overview-cell-sub,
+  .overview-muted {
+    color: #8d96a9;
+    font-size: 11px;
+  }
+  .overview-cell-label {
+    color: #7b8497;
+    font-size: 10px;
+    margin-bottom: 3px;
+  }
+  .overview-cell-value {
+    color: #d9e0ec;
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .overview-mono {
+    font-family: var(--mono);
+  }
+  .overview-status-dot {
+    border-radius: 999px;
+    display: inline-block;
+    height: 7px;
+    margin-right: 6px;
+    width: 7px;
+  }
+  .overview-status-dot.ok { background: var(--green); }
+  .overview-status-dot.warn { background: var(--orange); }
+  .overview-status-dot.danger { background: var(--red); }
+  .overview-status-dot.info { background: var(--sky); }
+  .overview-status-pill {
+    align-items: center;
+    border: 1px solid rgba(180,198,214,.16);
+    border-radius: 5px;
+    display: inline-flex;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    gap: 5px;
+    justify-content: center;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+  .overview-status-pill.ok { background: var(--green-dim); border-color: var(--green-brd); color: var(--green); }
+  .overview-status-pill.warn { background: var(--orange-dim); border-color: var(--orange-brd); color: var(--orange); }
+  .overview-status-pill.danger { background: var(--red-dim); border-color: var(--red-brd); color: var(--red); }
+  .overview-status-pill.info { background: var(--sky-dim); border-color: var(--sky-brd); color: var(--sky); }
+  .overview-detail,
+  .overview-agent-detail-card,
+  .overview-policy-card {
+    display: grid;
+    gap: 12px;
+  }
+  .overview-agent-detail-card,
+  .overview-policy-card {
+    padding: 14px;
+  }
+  .overview-detail-top {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+  }
+  .overview-detail-title {
+    color: #f5f7fd;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .overview-detail-id {
+    color: #8993a7;
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .overview-fact-grid {
+    border-top: 1px solid rgba(180,198,214,.10);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-top: 12px;
+  }
+  .overview-fact {
+    border-right: 1px solid rgba(180,198,214,.10);
+    min-width: 0;
+    padding: 0 12px;
+  }
+  .overview-fact:first-child {
+    padding-left: 0;
+  }
+  .overview-fact:last-child {
+    border-right: 0;
+    padding-right: 0;
+  }
+  .overview-fact dt {
+    color: #80899d;
+    font-size: 10px;
+    margin-bottom: 5px;
+  }
+  .overview-fact dd {
+    color: #dce3ee;
+    font-size: 12px;
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .overview-access-grid,
+  .overview-detail-lower,
+  .overview-action-bar,
+  .overview-policy-meta {
+    display: grid;
+    gap: 8px;
+  }
+  .overview-access-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .overview-detail-lower {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .overview-action-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .overview-access-item {
+    background: rgba(255,255,255,.02);
+    border: 1px solid rgba(180,198,214,.09);
+    border-radius: 7px;
+    padding: 10px;
+  }
+  .overview-access-item span {
+    color: #8791a5;
+    display: block;
+    font-size: 10px;
+    margin-bottom: 5px;
+  }
+  .overview-access-item strong {
+    color: #e6ebf5;
+    font-size: 13px;
+  }
+  .overview-mini-link {
+    color: #a892f8;
+    font-size: 11px;
+    text-decoration: none;
+  }
+  .overview-mini-row,
+  .overview-work-row {
+    align-items: center;
+    border-bottom: 1px solid rgba(180,198,214,.08);
+    display: grid;
+    gap: 9px;
+    min-height: 43px;
+    padding: 8px 12px;
+  }
+  .overview-mini-row {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+  .overview-work-row {
+    grid-template-columns: 24px minmax(140px, .9fr) minmax(160px, 1.2fr) minmax(90px, .55fr) minmax(92px, .5fr);
+  }
+  .overview-work-row {
+    color: inherit;
+    text-decoration: none;
+  }
+  .overview-mini-row:last-child,
+  .overview-work-row:last-child {
+    border-bottom: 0;
+  }
+  .overview-mini-title {
+    color: #e7ecf5;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .overview-policy-structure {
+    background: rgba(255,255,255,.02);
+    border: 1px solid rgba(180,198,214,.10);
+    border-radius: 7px;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 10px;
+  }
+  .overview-policy-step {
+    display: grid;
+    gap: 5px;
+  }
+  .overview-policy-step strong {
+    color: var(--purple-lt);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+  }
+  .overview-policy-step:nth-child(2) strong { color: var(--green); }
+  .overview-policy-step:nth-child(3) strong { color: var(--orange); }
+  .overview-policy-step:nth-child(4) strong { color: var(--sky); }
+  .overview-policy-step span {
+    color: #bdc5d4;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .overview-policy-meta {
+    border-top: 1px solid rgba(180,198,214,.08);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 10px;
+  }
+  .overview-policy-meta div {
+    color: #9aa4b6;
+    font-size: 11px;
+  }
+  .overview-policy-meta strong {
+    color: #e3e9f3;
+    display: block;
+    font-family: var(--mono);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .overview-action-card {
+    align-items: center;
+    background: rgba(12,18,27,.76);
+    border: 1px solid rgba(180,198,214,.14);
+    border-radius: 8px;
+    color: inherit;
+    display: flex;
+    gap: 12px;
+    min-height: 64px;
+    padding: 11px 12px;
+    text-decoration: none;
+  }
+  .overview-action-card.purple { border-color: rgba(168,146,248,.42); }
+  .overview-action-card.warn { border-color: rgba(245,144,64,.42); }
+  .overview-action-card.ok { border-color: rgba(45,216,145,.34); }
+  .overview-action-card.info { border-color: rgba(54,184,246,.34); }
+  .overview-action-card > span:nth-child(2) {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .overview-action-card-title {
+    color: #f0f4fb;
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .overview-action-card-sub {
+    color: #8f99ad;
+    display: block;
+    font-size: 11px;
+    line-height: 1.35;
+    margin-top: 3px;
+  }
+  .overview-empty-state {
+    align-items: center;
+    border: 1px dashed rgba(180,198,214,.18);
+    border-radius: 8px;
+    color: #98a2b5;
+    display: flex;
+    font-size: 12px;
+    justify-content: center;
+    min-height: 98px;
+    padding: 14px;
+    text-align: center;
+  }
+  .overview-error-note {
+    background: rgba(240,63,90,.08);
+    border: 1px solid rgba(240,63,90,.22);
+    border-radius: 8px;
+    color: #ff8a9b;
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  .sidebar.overview-no-rail {
+    width: 318px;
+  }
+  .sidebar.overview-no-rail .sidebar-context {
+    display: flex;
+  }
+  .sidebar.overview-no-rail .logo-area {
+    height: 72px;
+  }
+  .sidebar.overview-no-rail .logo-mark {
+    gap: 12px;
+  }
+  .sidebar.overview-no-rail .logo-text .brand {
+    font-size: 19px;
+  }
+  .sidebar.overview-no-rail .logo-text .tagline {
+    font-size: 10px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
   /* ── [2] DECISION INBOX en hero ── */
   .inbox-hero {
     background: var(--bg-panel);
@@ -2212,9 +2582,9 @@ const riskClass = (level) => {
 };
 
 const statusClass = (status) => {
-  if (status === "active" || status === "approved" || status === "allow") return "ok";
-  if (status === "deny" || status === "rejected" || status === "cancelled") return "danger";
-  if (status === "pending" || status === "require_human_review" || status === "draft") return "warn";
+  if (status === "active" || status === "approved" || status === "allow" || status === "completed") return "ok";
+  if (status === "deny" || status === "rejected" || status === "cancelled" || status === "disabled" || status === "suspended" || status === "revoked" || status === "failed") return "danger";
+  if (status === "pending" || status === "pending_review" || status === "require_human_review" || status === "draft" || status === "under_review" || status === "needs_review" || status === "expired") return "warn";
   return "info";
 };
 
@@ -2955,153 +3325,566 @@ function CurrentActorCard({ data }) {
   );
 }
 
+const titleLabel = (value) => {
+  const label = formatLabel(value);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+const initialsFor = (value) => {
+  const source = String(value || "AGCP").trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return source.slice(0, 2).toUpperCase();
+};
+
+const safeRelativeTime = (value) => {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return relativeTime(value);
+};
+
+const safeDateTime = (value) => {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleString();
+};
+
+const riskRank = (level) => {
+  const ranks = { critical: 4, high: 3, medium: 2, low: 1 };
+  return ranks[level] ?? 0;
+};
+
+const latestRuntimeForAgent = (runtimeActivity, agentId) =>
+  runtimeActivity
+    .filter((item) => item.agent_id === agentId)
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())[0] || null;
+
+const policyNameFor = (policies, policyId) =>
+  policies.find((policy) => policy.id === policyId)?.name || policyId || "Policy not linked";
+
+const accessGrantsForAgent = (data, agentId, profile) => {
+  if (profile?.access_grants) return profile.access_grants;
+  return data.accessGrants.filter((grant) => grant.subject_id === agentId);
+};
+
+const activeAccessGrants = (grants) =>
+  grants.filter((grant) => ["active", "approved", "allowed"].includes(grant.status));
+
+const accessCountByTarget = (grants, targetType) =>
+  activeAccessGrants(grants).filter((grant) => String(grant.target_type || "").toLowerCase().includes(targetType)).length;
+
+const formatDecision = (decision) => {
+  if (decision === "allow") return "Allowed";
+  if (decision === "deny") return "Denied";
+  if (decision === "require_human_review") return "Requires Review";
+  if (decision === "not_applicable") return "Not applicable";
+  return "No decisions";
+};
+
+const decisionClass = (decision) => {
+  if (!decision) return "info";
+  return statusClass(decision);
+};
+
+const overviewAgentRows = (data, query, sortBy) => {
+  const normalizedQuery = query.trim().toLowerCase();
+  const rows = data.agents
+    .filter((agent) => {
+      if (!normalizedQuery) return true;
+      return [
+        agent.name,
+        agent.id,
+        agent.owner_name,
+        agent.owner_contact_email,
+        agent.environment,
+        agent.status,
+        agent.risk_level
+      ].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+    })
+    .map((agent) => {
+      const grants = accessGrantsForAgent(data, agent.id, null);
+      const latestDecision = latestRuntimeForAgent(data.runtimeActivity, agent.id);
+      const approvals = data.approvals.filter((approval) => approval.agent_id === agent.id);
+      return {
+        agent,
+        grants,
+        approvals,
+        latestDecision
+      };
+    });
+
+  if (sortBy === "risk") {
+    return rows.sort((left, right) => riskRank(right.agent.risk_level) - riskRank(left.agent.risk_level));
+  }
+  if (sortBy === "updated") {
+    return rows.sort((left, right) => new Date(right.agent.updated_at).getTime() - new Date(left.agent.updated_at).getTime());
+  }
+  return rows.sort((left, right) => left.agent.name.localeCompare(right.agent.name));
+};
+
+const overviewWorkItems = (data) => {
+  const policyReviews = data.policyReviewRequests.map((review) => ({
+    id: `policy-review-${review.id}`,
+    tone: statusClass(review.status),
+    icon: "shield",
+    type: "PolicyVersion review",
+    item: review.policy_name || review.policy_version_id,
+    context: review.assigned_reviewer_name || review.reviewer_actor_id || review.requested_by_actor_id || "Reviewer not assigned",
+    status: titleLabel(review.status),
+    updatedAt: review.created_at,
+    href: "/human-approvals"
+  }));
+
+  const approvals = data.approvals
+    .filter((approval) => approval.status === "pending")
+    .map((approval) => ({
+      id: `approval-${approval.id}`,
+      tone: statusClass(approval.status),
+      icon: "star",
+      type: "Runtime HumanApproval",
+      item: approval.policy_decision_id || approval.id,
+      context: approval.agent_id,
+      status: titleLabel(approval.status),
+      updatedAt: approval.created_at,
+      href: "/human-approvals"
+    }));
+
+  const policies = data.policies
+    .slice()
+    .sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())
+    .slice(0, 4)
+    .map((policy) => ({
+      id: `policy-${policy.id}`,
+      tone: statusClass(policy.status),
+      icon: "archive",
+      type: "Policy",
+      item: policy.name,
+      context: "GET /policies",
+      status: titleLabel(policy.status),
+      updatedAt: policy.updated_at,
+      href: "/policies"
+    }));
+
+  return [...policyReviews, ...approvals, ...policies]
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    .slice(0, 4);
+};
+
 const CommandView = ({ data }) => {
-  const pendingRuntimeApprovals = data.approvals.filter((approval) => approval.status === "pending").length;
-  const pendingPolicyReviews = data.policyReviewRequests.filter((review) => review.status === "pending").length;
-  const runtimeDecisionCount = data.runtimeActivity.filter((item) => item.type === "tool_call_decision").length;
+  const [agentQuery, setAgentQuery] = useState("");
+  const [agentSort, setAgentSort] = useState("risk");
+  const [selectedAgentId, setSelectedAgentId] = useState(null);
+  const [profileState, setProfileState] = useState({
+    agentId: null,
+    loading: false,
+    profile: null,
+    error: null
+  });
+
+  const rows = overviewAgentRows(data, agentQuery, agentSort);
+  const visibleRows = rows.slice(0, 5);
+  const selectedAgent = data.agents.find((agent) => agent.id === selectedAgentId) || visibleRows[0]?.agent || data.agents[0] || null;
+  const selectedRow = selectedAgent
+    ? rows.find((row) => row.agent.id === selectedAgent.id) || {
+        agent: selectedAgent,
+        grants: accessGrantsForAgent(data, selectedAgent.id, null),
+        approvals: data.approvals.filter((approval) => approval.agent_id === selectedAgent.id),
+        latestDecision: latestRuntimeForAgent(data.runtimeActivity, selectedAgent.id)
+      }
+    : null;
+  const selectedProfile = profileState.agentId === selectedAgent?.id ? profileState.profile : null;
+  const selectedProfileError = profileState.agentId === selectedAgent?.id ? profileState.error : null;
+  const selectedGrants = selectedAgent ? accessGrantsForAgent(data, selectedAgent.id, selectedProfile) : [];
+  const selectedRuntime = selectedAgent
+    ? data.runtimeActivity
+        .filter((item) => item.agent_id === selectedAgent.id)
+        .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    : [];
+  const selectedApprovals = selectedAgent
+    ? data.approvals
+        .filter((approval) => approval.agent_id === selectedAgent.id)
+        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    : [];
+  const pendingApprovals = data.approvals.filter((approval) => approval.status === "pending").length;
+  const agentsError = overviewEndpointError(data, "GET /agents");
+  const approvalsError = overviewEndpointError(data, "GET /human-approvals");
+  const policiesError = overviewEndpointError(data, "GET /policies");
   const activePolicies = data.policies.filter((policy) => policy.status === "active").length;
-  const attentionItems = buildOverviewAttentionItems(data);
-  const activityItems = buildOverviewActivityItems(data);
+  const draftPolicies = data.policies.filter((policy) => policy.status === "draft").length;
+  const lastPolicyUpdate = data.policies
+    .map((policy) => policy.updated_at)
+    .filter(Boolean)
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+  const workItems = overviewWorkItems(data);
+
+  useEffect(() => {
+    if (!selectedAgentId && data.agents.length > 0) {
+      setSelectedAgentId(data.agents[0].id);
+    }
+    if (selectedAgentId && !data.agents.some((agent) => agent.id === selectedAgentId)) {
+      setSelectedAgentId(data.agents[0]?.id || null);
+    }
+  }, [data.agents, selectedAgentId]);
+
+  useEffect(() => {
+    if (!selectedAgent?.id) {
+      setProfileState({ agentId: null, loading: false, profile: null, error: null });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setProfileState({ agentId: selectedAgent.id, loading: true, profile: null, error: null });
+
+    fetchAgentGovernanceProfile(selectedAgent.id, controller.signal)
+      .then((profile) => {
+        setProfileState({ agentId: selectedAgent.id, loading: false, profile, error: null });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setProfileState({
+            agentId: selectedAgent.id,
+            loading: false,
+            profile: null,
+            error: error instanceof Error ? error.message : "GET /agents/{agent_id}/governance-profile failed"
+          });
+        }
+      });
+
+    return () => controller.abort();
+  }, [selectedAgent?.id]);
 
   return (
-    <div className="content overview-page">
-      <section className="overview-hero">
+    <div className="content overview-command">
+      <section className="overview-command-hero">
         <div>
-          <div className="overview-kicker">Governance and evidence control plane</div>
-          <h1 className="overview-title">Agent Governance Control Plane</h1>
-          <p className="overview-copy">
-            AGCP helps teams govern agents that run in external runtimes. It is a governance/evidence control plane,
-            not an orchestrator, and not a legal compliance certification tool.
-          </p>
-          <div className="overview-promises">
-            <div className="overview-promise">
-              <span style={{ background: "var(--purple-lt)" }} />
-              <strong>Know which agents exist.</strong>
-            </div>
-            <div className="overview-promise">
-              <span style={{ background: "var(--orange)" }} />
-              <strong>Control risky actions before they happen.</strong>
-            </div>
-            <div className="overview-promise">
-              <span style={{ background: "var(--green)" }} />
-              <strong>Prove decisions with policy, review, and evidence trails.</strong>
-            </div>
-          </div>
-        </div>
-        <CurrentActorCard data={data} />
-      </section>
-
-      <section className="overview-grid" aria-label="Primary governance workflows">
-        <OverviewWorkflowCard
-          tone="purple"
-          icon="box"
-          title="Know your agents"
-          href="/agents"
-          metrics={[
-            {
-              label: overviewEndpointCopy(data, "GET /agents"),
-              value: overviewMetricValue({ data, errorLabel: "GET /agents", count: data.agents.length })
-            },
-            {
-              label: "Environments returned",
-              value: data.loading || overviewEndpointError(data, "GET /agents")
-                ? "Unavailable"
-                : compactCount(new Set(data.agents.map((agent) => agent.environment)).size)
-            }
-          ]}
-        >
-          Start from the Agent registry to see owners, environments, risk levels, activity, approvals, and evidence access.
-        </OverviewWorkflowCard>
-
-        <OverviewWorkflowCard
-          tone="orange"
-          icon="shield"
-          title="Control risky actions"
-          href="/policies"
-          metrics={[
-            {
-              label: overviewEndpointCopy(data, "GET /policies"),
-              value: data.loading || overviewEndpointError(data, "GET /policies")
-                ? "Unavailable"
-                : `${compactCount(activePolicies)} active`
-            },
-            {
-              label: "Reviews waiting",
-              value: data.loading
-                ? "Loading"
-                : compactCount(pendingRuntimeApprovals + pendingPolicyReviews)
-            }
-          ]}
-        >
-          Use Policy Studio, metadata pre-checks, Runtime Decisions, and Review Inbox to prepare reviewed governance decisions.
-        </OverviewWorkflowCard>
-
-        <OverviewWorkflowCard
-          tone="green"
-          icon="archive"
-          title="Prove what happened"
-          href="/evidence"
-          metrics={[
-            {
-              label: "Runtime decisions",
-              value: overviewMetricValue({
-                data,
-                errorLabel: "GET /runtime/tool-calls/activity",
-                count: runtimeDecisionCount
-              })
-            },
-            {
-              label: "Evidence export",
-              value: "Manual JSON"
-            }
-          ]}
-        >
-          Review bounded Evidence Bundles, PolicyDecision context, CheckResults, HumanApprovals, TraceEvents, and AuditLogs.
-        </OverviewWorkflowCard>
-      </section>
-
-      <section className="overview-row">
-        <div className="overview-panel">
-          <div className="overview-panel-head">
-            <h2 className="overview-panel-title">Needs attention</h2>
-            <span className="overview-chip warn">
-              {data.loading ? "loading" : `${pendingRuntimeApprovals + pendingPolicyReviews} pending`}
-            </span>
-          </div>
-          <div className="overview-panel-body">
-            {attentionItems.map((item, index) => <OverviewItem key={`${item.title}-${index}`} item={item} />)}
-          </div>
-        </div>
-
-        <div className="overview-panel">
-          <div className="overview-panel-head">
-            <h2 className="overview-panel-title">Recent governance activity</h2>
-            <Link className="overview-chip info" href="/runtime-gateway">Runtime Decisions</Link>
-          </div>
-          <div className="overview-panel-body">
-            {activityItems.map((item, index) => <OverviewItem key={`${item.title}-${index}`} item={item} />)}
-          </div>
-        </div>
-      </section>
-
-      <section className="overview-demo-card">
-        <div>
-          <h2 className="overview-panel-title">Run the metadata pre-check demo</h2>
-          <p className="overview-card-body" style={{ marginTop: 6 }}>
-            Local/demo-only path for real metadata-only CheckResults, a require_human_review decision, and Evidence Bundle inspection.
-            This is no fake production simulation.
+          <h1 className="overview-command-title">Agent Governance Control Plane</h1>
+          <p className="overview-command-copy">
+            Govern agents running in external runtimes. Review policy decisions, human oversight, and evidence
+            without becoming the orchestrator.
           </p>
         </div>
-        <code className="overview-demo-command">.\scripts\dev-demo.ps1</code>
+        <div className="overview-command-actions">
+          {selectedAgent ? (
+            <Link className="overview-action" href={`/agents/${selectedAgent.id}`}>Open Agent 360</Link>
+          ) : (
+            <span className="overview-action disabled">Open Agent 360</span>
+          )}
+          <Link className="overview-action" href="/human-approvals">Review decision</Link>
+          <Link className="overview-action primary" href="/evidence">Create evidence bundle</Link>
+        </div>
       </section>
 
-      <nav className="overview-shortcuts" aria-label="Overview shortcuts">
-        <Link className="overview-shortcut" href="/policies">Policy Studio</Link>
-        <Link className="overview-shortcut" href="/human-approvals">Review Inbox</Link>
-        <Link className="overview-shortcut" href="/evidence">Evidence & Audit</Link>
-        <Link className="overview-shortcut" href="/agents">Agents</Link>
-        <Link className="overview-shortcut" href="/access-data">Access & Data</Link>
-        <Link className="overview-shortcut" href="/runtime-gateway">Runtime Decisions</Link>
+      {data.errors.length > 0 ? (
+        <div className="overview-error-note">
+          Some overview reads are unavailable: {data.errors.slice(0, 2).join(" | ")}
+        </div>
+      ) : null}
+
+      <section className="overview-command-grid">
+        <div className="overview-command-panel">
+          <div className="overview-command-head">
+            <h2>Agent watchlist</h2>
+            <span className="overview-count">{data.loading ? "Loading" : agentsError ? "Unavailable" : `${compactCount(data.agents.length)} agents`}</span>
+            <span className="overview-command-spacer" />
+            <label className="overview-search">
+              <Icon name="search" size={13} />
+              <input
+                aria-label="Search agents"
+                onChange={(event) => setAgentQuery(event.target.value)}
+                placeholder="Search agents..."
+                value={agentQuery}
+              />
+            </label>
+            <select
+              aria-label="Sort agents"
+              className="overview-command-select"
+              onChange={(event) => setAgentSort(event.target.value)}
+              value={agentSort}
+            >
+              <option value="risk">Sort by: Risk level</option>
+              <option value="updated">Sort by: Last updated</option>
+              <option value="name">Sort by: Name</option>
+            </select>
+          </div>
+
+          {data.loading ? (
+            <div className="overview-empty-state">Loading agents from GET /agents.</div>
+          ) : agentsError ? (
+            <div className="overview-empty-state">Unable to load agents from GET /agents. Backend data is unavailable.</div>
+          ) : visibleRows.length === 0 ? (
+            <div className="overview-empty-state">
+              No agents returned by the current backend filters. The Overview does not create sample agents.
+            </div>
+          ) : (
+            <div className="overview-watchlist">
+              {visibleRows.map(({ agent, grants, latestDecision }) => {
+                const isActive = selectedAgent?.id === agent.id;
+                const statusTone = statusClass(agent.status);
+                const decisionTone = decisionClass(latestDecision?.decision);
+
+                return (
+                  <button
+                    className={`overview-agent-row ${isActive ? "active" : ""}`}
+                    key={agent.id}
+                    onClick={() => setSelectedAgentId(agent.id)}
+                    type="button"
+                  >
+                    <div className="overview-agent-main">
+                      <span className={`overview-agent-icon ${statusTone}`}>
+                        <Icon name="box" size={17} />
+                      </span>
+                      <div>
+                        <div className="overview-agent-name">{agent.name}</div>
+                        <div className="overview-agent-id overview-mono">{agent.id}</div>
+                        <div className="overview-cell-sub">
+                          <span className={`overview-status-dot ${statusTone}`} />
+                          {titleLabel(agent.status)}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="overview-cell-label">Owner</div>
+                      <div className="overview-cell-value">{agent.owner_name || agent.owner_id}</div>
+                      <div className="overview-cell-sub">{agent.owner_contact_email || agent.owner_type}</div>
+                    </div>
+                    <div>
+                      <div className="overview-cell-label">Environment</div>
+                      <div className="overview-cell-value">
+                        <span className={`overview-status-dot ${agent.environment === "production" ? "ok" : "info"}`} />
+                        {titleLabel(agent.environment)}
+                      </div>
+                      <div className="overview-cell-sub">Updated {safeRelativeTime(agent.updated_at)}</div>
+                    </div>
+                    <div>
+                      <div className="overview-cell-label">Risk Level</div>
+                      <span className={`overview-status-pill ${riskClass(agent.risk_level)}`}>{titleLabel(agent.risk_level)}</span>
+                    </div>
+                    <div>
+                      <div className="overview-cell-label">Access / Evidence</div>
+                      <div className="overview-cell-value">{compactCount(activeAccessGrants(grants).length)} active grants</div>
+                      <div className="overview-cell-sub">{compactCount(grants.length)} total declarations</div>
+                    </div>
+                    <div>
+                      <div className="overview-cell-label">Latest PolicyDecision</div>
+                      <span className={`overview-status-pill ${decisionTone}`}>{formatDecision(latestDecision?.decision)}</span>
+                      <div className="overview-cell-sub">{latestDecision ? safeRelativeTime(latestDecision.timestamp) : "No runtime activity"}</div>
+                    </div>
+                    <Icon name="chevron_right" size={14} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="overview-detail">
+          <div className="overview-command-panel overview-agent-detail-card">
+            {selectedAgent ? (
+              <>
+                <div className="overview-detail-top">
+                  <span className={`overview-agent-icon ${statusClass(selectedAgent.status)}`}>
+                    <Icon name="box" size={18} />
+                  </span>
+                  <div>
+                    <div className="overview-detail-title">{selectedAgent.name}</div>
+                    <div className="overview-detail-id">{selectedAgent.id}</div>
+                  </div>
+                  <span className={`overview-status-pill ${statusClass(selectedAgent.status)}`}>{titleLabel(selectedAgent.status)}</span>
+                  <div className="overview-detail-actions">
+                    <Link className="overview-command-button" href={`/agents/${selectedAgent.id}`}>Open Agent 360</Link>
+                  </div>
+                </div>
+
+                <dl className="overview-fact-grid">
+                  <div className="overview-fact">
+                    <dt>Owner</dt>
+                    <dd>{selectedAgent.owner_name || selectedAgent.owner_id}</dd>
+                  </div>
+                  <div className="overview-fact">
+                    <dt>Environment</dt>
+                    <dd>{titleLabel(selectedAgent.environment)}</dd>
+                  </div>
+                  <div className="overview-fact">
+                    <dt>Risk Level</dt>
+                    <dd>{titleLabel(selectedAgent.risk_level)}</dd>
+                  </div>
+                  <div className="overview-fact">
+                    <dt>Agent Status</dt>
+                    <dd>{titleLabel(selectedAgent.status)}</dd>
+                  </div>
+                </dl>
+
+                <div>
+                  <h3 className="overview-command-section-title">Allowed access</h3>
+                  <div className="overview-access-grid" style={{ marginTop: 8 }}>
+                    <div className="overview-access-item">
+                      <span>Tools</span>
+                      <strong>{compactCount(accessCountByTarget(selectedGrants, "tool"))} allowed</strong>
+                    </div>
+                    <div className="overview-access-item">
+                      <span>Models</span>
+                      <strong>{compactCount(accessCountByTarget(selectedGrants, "model"))} allowed</strong>
+                    </div>
+                    <div className="overview-access-item">
+                      <span>Data Sources</span>
+                      <strong>{compactCount(accessCountByTarget(selectedGrants, "source"))} allowed</strong>
+                    </div>
+                  </div>
+                  {profileState.loading ? (
+                    <p className="overview-muted" style={{ marginTop: 8 }}>Loading governance profile from GET /agents/{'{agent_id}'}/governance-profile.</p>
+                  ) : selectedProfileError ? (
+                    <p className="overview-muted" style={{ marginTop: 8 }}>Governance profile unavailable: {selectedProfileError}</p>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="overview-empty-state">No selected agent. GET /agents returned no records.</div>
+            )}
+          </div>
+
+          <div className="overview-detail-lower">
+            <div className="overview-list-panel">
+              <div className="overview-list-panel-head">
+                <h3>Recent decisions</h3>
+                <Link className="overview-mini-link" href="/runtime-gateway">View all decisions</Link>
+              </div>
+              {selectedRuntime.length === 0 ? (
+                <div className="overview-empty-state">No runtime decisions returned for this agent.</div>
+              ) : selectedRuntime.slice(0, 4).map((item) => (
+                <div className="overview-mini-row" key={item.id}>
+                  <Icon name={item.decision === "deny" ? "alert" : "check"} size={15} stroke="currentColor" />
+                  <div>
+                    <div className="overview-mini-title">{formatDecision(item.decision)}</div>
+                    <div className="overview-cell-sub">{policyNameFor(data.policies, item.policy_id)} · {item.policy_rule_id || "rule not linked"}</div>
+                  </div>
+                  <span className={`overview-status-pill ${decisionClass(item.decision)}`}>{safeRelativeTime(item.timestamp)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="overview-list-panel">
+              <div className="overview-list-panel-head">
+                <h3>Human approvals</h3>
+                <Link className="overview-mini-link" href="/human-approvals">View all</Link>
+              </div>
+              {selectedApprovals.length === 0 ? (
+                <div className="overview-empty-state">No HumanApproval records returned for this agent.</div>
+              ) : selectedApprovals.slice(0, 3).map((approval) => (
+                <div className="overview-mini-row" key={approval.id}>
+                  <Icon name="star" size={15} stroke="currentColor" />
+                  <div>
+                    <div className="overview-mini-title">{approval.reason || approval.policy_decision_id || approval.id}</div>
+                    <div className="overview-cell-sub">Requested by {approval.requested_by_actor_id}</div>
+                  </div>
+                  <span className={`overview-status-pill ${statusClass(approval.status)}`}>{titleLabel(approval.status)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="overview-list-panel">
+            <div className="overview-list-panel-head">
+              <h3>Evidence bundle</h3>
+              <Link className="overview-mini-link" href="/evidence">Evidence & Audit</Link>
+            </div>
+            <div className="overview-mini-row">
+              <Icon name="archive" size={15} />
+              <div>
+                <div className="overview-mini-title">
+                  {selectedProfile?.evidence_bundle?.available ? "Evidence bundle available" : "No evidence bundle available yet"}
+                </div>
+                <div className="overview-cell-sub">
+                  {selectedProfile?.evidence_bundle
+                    ? `${selectedProfile.evidence_bundle.access} · ${selectedProfile.evidence_bundle.export_format}`
+                    : "Loaded only from the selected agent governance profile."}
+                </div>
+              </div>
+              <span className={`overview-status-pill ${selectedProfile?.evidence_bundle?.available ? "ok" : "info"}`}>
+                {selectedProfile?.evidence_bundle?.available ? "Ready" : "Not created"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="overview-work-grid">
+        <div className="overview-command-panel">
+          <div className="overview-command-head">
+            <h2>Recent policy and approval work</h2>
+            <span className="overview-count">{data.loading ? "Loading" : `${compactCount(workItems.length)} shown`}</span>
+            <span className="overview-command-spacer" />
+            <Link className="overview-mini-link" href="/human-approvals">View all</Link>
+          </div>
+          {workItems.length === 0 ? (
+            <div className="overview-empty-state">No pending reviews, pending approvals, or policy records returned.</div>
+          ) : (
+            <div className="overview-work-table">
+              {workItems.map((item) => (
+                <Link className="overview-work-row" href={item.href} key={item.id}>
+                  <span className={`overview-mini-icon ${item.tone}`}><Icon name={item.icon} size={14} /></span>
+                  <div>
+                    <div className="overview-mini-title">{item.type}</div>
+                    <div className="overview-cell-sub">{item.item}</div>
+                  </div>
+                  <div className="overview-cell-value">{item.context}</div>
+                  <span className={`overview-status-pill ${item.tone}`}>{item.status}</span>
+                  <div className="overview-cell-sub">{safeRelativeTime(item.updatedAt)}</div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="overview-command-panel overview-policy-card">
+          <div className="overview-command-head" style={{ borderBottom: 0, minHeight: 0, padding: 0 }}>
+            <div>
+              <h2>Policy Studio</h2>
+              <p className="overview-muted" style={{ marginTop: 4 }}>Manage and refine the rules that govern your agents.</p>
+            </div>
+            <span className="overview-command-spacer" />
+            <Link className="overview-mini-link" href="/policies">Open Policy Studio</Link>
+          </div>
+          <div className="overview-policy-structure">
+            <div className="overview-policy-step"><strong>WHEN</strong><span>runtime request context is available</span></div>
+            <div className="overview-policy-step"><strong>CHECK</strong><span>configured metadata and inventory checks</span></div>
+            <div className="overview-policy-step"><strong>THEN</strong><span>policy decision returned by AGCP</span></div>
+            <div className="overview-policy-step"><strong>PROVE</strong><span>evidence intent and audit references</span></div>
+          </div>
+          <div className="overview-policy-meta">
+            <div>Active policies<strong>{data.loading ? "Loading" : policiesError ? "Unavailable" : compactCount(activePolicies)}</strong></div>
+            <div>Draft policies<strong>{data.loading ? "Loading" : policiesError ? "Unavailable" : compactCount(draftPolicies)}</strong></div>
+            <div>Last updated<strong>{policiesError ? "Unavailable" : lastPolicyUpdate ? safeRelativeTime(lastPolicyUpdate) : "No policy records"}</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <nav className="overview-action-bar" aria-label="Overview actions">
+        <Link className="overview-action-card purple" href="/policies">
+          <span className="overview-mini-icon info"><Icon name="shield" size={15} /></span>
+          <span><span className="overview-action-card-title">Open Policy Studio</span><span className="overview-action-card-sub">Create and manage policies</span></span>
+          <span className="overview-command-spacer" />
+          <Icon name="arrow_right" size={16} />
+        </Link>
+        <Link className="overview-action-card warn" href="/human-approvals">
+          <span className="overview-mini-icon warn"><Icon name="star" size={15} /></span>
+          <span><span className="overview-action-card-title">Review Approvals</span><span className="overview-action-card-sub">{approvalsError ? "Queue unavailable" : `${compactCount(pendingApprovals)} pending from GET /human-approvals`}</span></span>
+          <span className="overview-command-spacer" />
+          <Icon name="arrow_right" size={16} />
+        </Link>
+        <Link className="overview-action-card ok" href="/evidence">
+          <span className="overview-mini-icon ok"><Icon name="archive" size={15} /></span>
+          <span><span className="overview-action-card-title">Create Evidence Bundle</span><span className="overview-action-card-sub">Export governed evidence</span></span>
+          <span className="overview-command-spacer" />
+          <Icon name="arrow_right" size={16} />
+        </Link>
+        <Link className="overview-action-card info" href="/runtime-gateway">
+          <span className="overview-mini-icon info"><Icon name="monitor" size={15} /></span>
+          <span><span className="overview-action-card-title">Inspect Runtime Decisions</span><span className="overview-action-card-sub">Explore decisions and traces</span></span>
+          <span className="overview-command-spacer" />
+          <Icon name="arrow_right" size={16} />
+        </Link>
       </nav>
     </div>
   );
@@ -8739,7 +9522,7 @@ const AGCP_CONNECTED_CSS = `
 `;
 
 /* ─── EXTENDED SIDEBAR ─── */
-const ExtendedSidebar = ({ active, onNav, data }) => {
+const ExtendedSidebar = ({ active, onNav, data, actor }) => {
   const pendingApprovals = data.pendingApprovals ?? data.approvals?.filter((approval) => approval.status === "pending").length ?? 0;
   const sections = [
     {
@@ -8807,12 +9590,12 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
   ];
   const navItems = sections.flatMap((section) => section.items);
   const activeItem = navItems.find((item) => item.id === active) ?? navItems[0];
+  const isOverviewContext = activeItem.id === "command";
   const isDataContext = activeItem.id === "data";
   const isPolicyContext = activeItem.id === "policies";
   const isEvidenceContext = activeItem.id === "evidence";
   const isReviewContext = activeItem.id === "reviews";
   const isIntegrationContext = activeItem.id === "integrations";
-  const hasSavedView = activeItem.id === "data";
   const quickFilters = isEvidenceContext
     ? ["Runs with approvals", "Denied decisions", "Runs with escalations", "Exports created"]
     : isReviewContext
@@ -8820,131 +9603,182 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
     : isIntegrationContext
     ? ["Connected", "Design-only", "Service actors", "Audit linked"]
     : ["Active", "Pending Review", "Suspended", "Expired"];
+  const actorName = actor?.display_name || actor?.actor_id || "Admin User";
+  const actorRole = overviewRoles(actor)[0] || actor?.actor_type || "Security Operator";
 
   return (
-    <aside className={`sidebar ${isPolicyContext ? "rail-only" : ""}`}>
-      <div className="sidebar-rail" aria-label="Primary navigation">
-        <Link className="sidebar-rail-mark" href="/" aria-label="AGCP Studio overview">
-          <Icon name="brand_logo" size={36} />
-        </Link>
-        <nav className="sidebar-rail-nav">
-          {navItems.map((item) => {
-            const isActive = active === item.id;
-            const icon = <Icon name={item.icon} size={15} />;
+    <aside className={`sidebar ${isOverviewContext ? "overview-no-rail" : ""} ${isPolicyContext ? "rail-only" : ""}`}>
+      {!isOverviewContext ? (
+        <div className="sidebar-rail" aria-label="Primary navigation">
+          <Link className="sidebar-rail-mark" href="/" aria-label="AGCP Studio overview">
+            <Icon name="brand_logo" size={36} />
+          </Link>
+          <nav className="sidebar-rail-nav">
+            {navItems.map((item) => {
+              const isActive = active === item.id;
+              const icon = <Icon name={item.icon} size={15} />;
 
-            if (item.disabled || !item.href) {
+              if (item.disabled || !item.href) {
+                return (
+                  <span
+                    aria-disabled={item.disabled ? "true" : undefined}
+                    className={`sidebar-rail-link disabled ${isActive ? "active" : ""}`}
+                    data-label={`${item.label} is planned`}
+                    key={`rail-${item.id}`}
+                    title={item.disabled ? `${item.label} is planned` : item.label}
+                  >
+                    {icon}
+                  </span>
+                );
+              }
+
               return (
-                <span
-                  aria-disabled={item.disabled ? "true" : undefined}
-                  className={`sidebar-rail-link disabled ${isActive ? "active" : ""}`}
-                  data-label={`${item.label} is planned`}
+                <Link
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={item.label}
+                  className={`sidebar-rail-link ${isActive ? "active" : ""}`}
+                  data-label={item.label}
+                  href={item.href}
                   key={`rail-${item.id}`}
-                  title={item.disabled ? `${item.label} is planned` : item.label}
+                  title={item.label}
                 >
                   {icon}
-                </span>
+                  {item.badge ? <span className="sidebar-rail-badge">{item.badge}</span> : null}
+                </Link>
               );
-            }
+            })}
+          </nav>
+          <span className="sidebar-rail-spacer" />
+          <Link className="sidebar-rail-footer" href="/settings" aria-label="Settings" title="Settings">
+            <Icon name="settings" size={15} />
+          </Link>
+        </div>
+      ) : null}
 
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                aria-label={item.label}
-                className={`sidebar-rail-link ${isActive ? "active" : ""}`}
-                data-label={item.label}
-                href={item.href}
-                key={`rail-${item.id}`}
-                title={item.label}
-              >
-                {icon}
-                {item.badge ? <span className="sidebar-rail-badge">{item.badge}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
-        <span className="sidebar-rail-spacer" />
-        <Link className="sidebar-rail-footer" href="/settings" aria-label="Settings" title="Settings">
-          <Icon name="settings" size={15} />
-        </Link>
-      </div>
-
-      {isPolicyContext ? null : (
+      {!isPolicyContext ? (
       <div className="sidebar-context">
         <div className="logo-area">
           <div className="logo-mark">
+            <Icon name="brand_logo" size={isOverviewContext ? 36 : 32} />
             <div className="logo-text">
               <div className="brand">AGCP Studio</div>
+              <div className="tagline">Agent Governance Control Plane</div>
             </div>
           </div>
         </div>
 
-        <div className="context-panel">
-          <div className="context-module">
-            <span className="context-module-icon"><Icon name={activeItem.icon} size={24} /></span>
-            <div>
-              <div className="context-module-title">{activeItem.label}</div>
-              <div className="context-module-sub">Agent Governance Control Plane</div>
-            </div>
-          </div>
+        {isOverviewContext ? (
+          <nav className="sidebar-nav" aria-label="AGCP Studio navigation">
+            {sections.map((section) => (
+              <div className="nav-section" key={section.label}>
+                <div className="nav-section-label">{section.label}</div>
+                {section.items.map((item) => {
+                  const isActive = active === item.id;
+                  const navIcon = (
+                    <span className="nav-item-icon">
+                      <Icon name={item.icon} size={15} />
+                    </span>
+                  );
 
-          <div className="context-divider" />
+                  if (item.disabled || !item.href) {
+                    return (
+                      <span
+                        aria-disabled="true"
+                        className={`nav-item disabled ${isActive ? "active" : ""}`}
+                        key={item.id}
+                        title={`${item.label} is planned`}
+                      >
+                        {navIcon}
+                        <span className="nav-item-label">{item.label}</span>
+                      </span>
+                    );
+                  }
 
-          {isPolicyContext ? (
-            <div className="policy-context-stack">
-              <div className="policy-context-label">Studio focus</div>
-              <div className="policy-repo-card">
-                <Icon name="shield" size={18} />
+                  return (
+                    <div className="nav-branch" key={item.id}>
+                      <Link
+                        aria-current={isActive ? "page" : undefined}
+                        className={`nav-item ${isActive ? "active" : ""}`}
+                        href={item.href}
+                      >
+                        {navIcon}
+                        <span className="nav-item-label">{item.label}</span>
+                        {item.badge ? <span className={item.id === "reviews" ? "nav-badge-orange" : "nav-badge"}>{item.badge}</span> : null}
+                      </Link>
+                      {isActive && item.children?.length ? (
+                        <div className="nav-subtree" aria-label={`${item.label} sections`}>
+                          {item.children.map((child) => (
+                            <Link className="nav-subitem" href={child.href} key={child.label}>
+                              {child.label}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+        ) : (
+          <>
+            <div className="sidebar-sidepanel">
+              <div className="sidebar-module">
+                <span className="sidebar-module-icon"><Icon name={activeItem.icon} size={24} /></span>
                 <div>
-                  <div className="policy-repo-name">Policy authoring</div>
-                  <div className="policy-repo-sub">Repository, blocks, code, versions, compile, and inspector live in the editor workspace.</div>
+                  <div className="sidebar-module-title">{activeItem.label}</div>
+                  <div className="sidebar-module-sub">Agent Governance Control Plane</div>
                 </div>
               </div>
-              <div className="policy-empty-note">Use the editor controls inside Policy Studio for search, refresh, save draft, submit review, compile, and new policy actions.</div>
-            </div>
-          ) : (
-            <>
-              <div className="context-filters">
-                <div className="context-filter-head">
+
+              <div className="sidebar-divider" />
+
+              <div className="sidebar-filters">
+                <div className="sidebar-filter-head">
                   <span>Filters</span>
                   <button type="button">Clear</button>
                 </div>
 
-                {isDataContext ? (
+                {isPolicyContext ? (
                   <>
-                    <label className="context-field">
+                    <label className="sidebar-field">
+                      <span>Repository</span>
+                      <select defaultValue="local"><option value="local">Local backend</option></select>
+                    </label>
+                    <label className="sidebar-field">
+                      <span>Policy status</span>
+                      <select defaultValue="all"><option value="all">All policies</option></select>
+                    </label>
+                    <div className="sidebar-note">Policy Studio keeps repository, block library, editor, compile bar, and inspector in the workspace.</div>
+                  </>
+                ) : isDataContext ? (
+                  <>
+                    <label className="sidebar-field">
                       <span>Agent</span>
                       <select defaultValue="all"><option value="all">All agents</option></select>
                     </label>
-                    <label className="context-field search">
-                      <span>Search</span>
-                      <div><input placeholder="Search agents..." /><Icon name="search" size={14} /></div>
-                    </label>
-                    <label className="context-field">
+                    <label className="sidebar-field">
                       <span>Access Grant status</span>
-                      <select defaultValue="all"><option value="all">All</option></select>
-                    </label>
-                    <label className="context-field">
-                      <span>Governance boundary</span>
                       <select defaultValue="all"><option value="all">All</option></select>
                     </label>
                   </>
                 ) : (
                   <>
-                    <label className="context-field">
+                    <label className="sidebar-field">
                       <span>Environment</span>
                       <select defaultValue="production">
                         <option value="production">Production</option>
                         <option value="development">Development</option>
                       </select>
                     </label>
-                    <label className="context-field">
+                    <label className="sidebar-field">
                       <span>{isEvidenceContext ? "Policy Decision" : "Status"}</span>
                       <select defaultValue="all"><option value="all">All</option></select>
                     </label>
                   </>
                 )}
 
-                <div className="context-quick">
+                <div className="sidebar-quick">
                   {quickFilters.map((filter, index) => (
                     <button type="button" key={filter}>
                       <span className={`dot dot-${index % 4}`} />
@@ -8954,60 +9788,71 @@ const ExtendedSidebar = ({ active, onNav, data }) => {
                 </div>
               </div>
 
-              {hasSavedView ? (
-                <button type="button" className="context-save">
-                  <Icon name="archive" size={16} />
-                  Save view
-                </button>
-              ) : null}
-            </>
-          )}
-        </div>
+              <button type="button" className="sidebar-save">
+                <Icon name="archive" size={16} />
+                Save view
+              </button>
+            </div>
+
+            <div className="sidebar-footer">
+              <span className="avatar">{initialsFor(actorName)}</span>
+              <div>
+                <div className="user-name">{actorName}</div>
+                <div className="user-role">{actorRole}</div>
+              </div>
+            </div>
+          </>
+        )}
 
       </div>
-      )}
+      ) : null}
     </aside>
   );
 };
 
 /* ─── EXTENDED TOPBAR ─── */
-const ExtendedTopbar = ({ title }) => (
-  <header className="topbar" aria-label="AGCP Studio page header">
-    <nav className="breadcrumb" aria-label="Breadcrumb">
-      <span>AGCP</span>
-      <span className="bc-sep">{">"}</span>
-      <span className="active">{title || "Overview"}</span>
-    </nav>
+const ExtendedTopbar = ({ title, pendingApprovals, actor }) => {
+  const actorName = actor?.display_name || actor?.actor_id || "Current actor";
+  const actorRole = overviewRoles(actor)[0] || actor?.actor_type || "Backend actor";
 
-    <span className="topbar-spacer" />
+  return (
+    <header className="topbar" aria-label="AGCP Studio page header">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <span>AGCP</span>
+        <span className="bc-sep">{">"}</span>
+        <span className="active">{title || "Overview"}</span>
+      </nav>
 
-    <label className="topbar-search">
-      <Icon name="search" size={15} />
-      <input aria-label="Search AGCP" placeholder="Search AGCP..." />
-      <span className="topbar-kbd">Ctrl K</span>
-    </label>
+      <span className="topbar-spacer" />
 
-    <div className="topbar-actions">
-      <Link className="icon-btn" href="/human-approvals" aria-label="Notifications">
-        <Icon name="bell" size={18} />
-        <span className="notif-dot">3</span>
-      </Link>
-      <Link className="icon-btn" href="/settings" aria-label="Help">
-        <Icon name="help" size={18} />
-      </Link>
-      <Link className="topbar-profile" href="/settings" aria-label="User settings">
-        <span className="topbar-avatar">AD</span>
-        <span className="topbar-profile-copy">
-          <span className="topbar-profile-name">Alex Dev</span>
-          <span className="topbar-profile-role">Governance Admin</span>
-        </span>
-        <span className="topbar-profile-chevron" aria-hidden="true">
-          <Icon name="chevron_down" size={12} />
-        </span>
-      </Link>
-    </div>
-  </header>
-);
+      <label className="topbar-search">
+        <Icon name="search" size={15} />
+        <input aria-label="Search AGCP" placeholder="Search AGCP..." />
+        <span className="topbar-kbd">Ctrl K</span>
+      </label>
+
+      <div className="topbar-actions">
+        <Link className="icon-btn" href="/human-approvals" aria-label="Notifications">
+          <Icon name="bell" size={18} />
+          {pendingApprovals > 0 ? <span className="notif-dot">{pendingApprovals}</span> : null}
+        </Link>
+        <Link className="icon-btn" href="/settings" aria-label="Help">
+          <Icon name="help" size={18} />
+        </Link>
+        <Link className="topbar-profile" href="/settings" aria-label="User settings">
+          <span className="topbar-avatar">{initialsFor(actorName)}</span>
+          <span className="topbar-profile-copy">
+            <span className="topbar-profile-name">{actorName}</span>
+            <span className="topbar-profile-role">{actorRole}</span>
+          </span>
+          <span className="topbar-profile-chevron" aria-hidden="true">
+            <Icon name="chevron_down" size={12} />
+          </span>
+        </Link>
+      </div>
+    </header>
+  );
+};
 
 export function AGCPStudioDashboard() {
   const studioData = useAGCPStudioData();
@@ -9019,6 +9864,7 @@ export function AGCPStudioShell({ children }) {
   const [mode, setMode] = useState("live");
   const [theme, setTheme] = useState("dark");
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [shellActor, setShellActor] = useState(null);
   const pathname = usePathname() || "/";
   const routeView = getRouteView(pathname);
   const navDensity = "full";
@@ -9033,6 +9879,16 @@ export function AGCPStudioShell({ children }) {
       .catch(() => {
         if (!controller.signal.aborted) {
           setPendingApprovals(0);
+        }
+      });
+
+    fetchCurrentActor(controller.signal)
+      .then((actor) => {
+        setShellActor(actor);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setShellActor(null);
         }
       });
 
@@ -9055,9 +9911,9 @@ export function AGCPStudioShell({ children }) {
         data-theme={theme}
         data-nav-density={navDensity}
       >
-        <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} />
+        <ExtendedSidebar active={routeView.view} onNav={() => undefined} data={shellData} actor={shellActor} />
         <div className="main">
-          <ExtendedTopbar title={routeView.label} />
+          <ExtendedTopbar title={routeView.label} pendingApprovals={pendingApprovals} actor={shellActor} />
           {content}
         </div>
       </div>
