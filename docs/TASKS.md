@@ -98,6 +98,10 @@ provider type classifications and records DPIA reference presence without
 copying DPIA references into CheckResult metadata. Scanner adapters, public
 CRUD APIs for CheckTool/CheckResult management, arbitrary webhooks/callbacks,
 and pre-check-driven enforcement remain out of scope.
+The local Docker demo loads its safe Runtime Gateway payload through the
+first-class `scripts/seed_full_stack_demo.py --print-runtime-payload` path so
+it uses the same `src` import bootstrap as the seed command instead of fragile
+inline Python imports.
 Runtime Gateway now evaluates active PolicyVersion snapshots where available,
 including versioned PolicyRule conditions and versioned PolicyCheckStep
 snapshots for metadata pre-check selection, while preserving unversioned

@@ -88,6 +88,16 @@ The demo seed does not create secrets, API keys, credentials, raw prompts, raw
 source contents, raw runtime payloads, or personal data. It is local/dev data
 only and is not production provisioning.
 
+Print the safe metadata pre-check Runtime Gateway payload as JSON only:
+
+```bash
+uv run python scripts/seed_full_stack_demo.py --print-runtime-payload
+```
+
+This uses the same `src` import path bootstrap as the seed command. Without
+`--apply`, it does not connect to the database or write seed records, so scripts
+can parse stdout as JSON without relying on inline `python -c` imports.
+
 To validate metadata-only runtime pre-checks end to end, enable the opt-in flag
 before starting the API:
 
@@ -125,11 +135,16 @@ Gateway with the safe helper payload; and prints the real decision,
 PolicyVersion reference, linked CheckResult count, and HumanApproval ID.
 The Compose dev API sets `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` by
 default for this local-only demo path.
+The payload is loaded with
+`uv run python scripts/seed_full_stack_demo.py --print-runtime-payload` inside
+the API container, not a fragile inline Python import.
 
 Troubleshooting:
 
 - `ModuleNotFoundError: agent_governance_api`: include `--app-dir src` in the
-  uvicorn command when running from `apps/api`.
+  uvicorn command when running from `apps/api`; for demo payload JSON, call
+  `uv run python scripts/seed_full_stack_demo.py --print-runtime-payload`
+  instead of inline `python -c` imports.
 - Docker not running: start Docker Desktop, then rerun
   `docker compose -f docker-compose.dev.yml up -d postgres` from the repository
   root.

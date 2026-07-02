@@ -107,21 +107,16 @@ Write-Step "Seeding deterministic local demo data"
 Invoke-Compose @("exec", "-T", "api", "uv", "run", "python", "scripts/seed_full_stack_demo.py", "--apply") | Out-Host
 
 Write-Step "Loading Runtime Gateway demo payload from backend helper"
-$payloadOutput = Invoke-Compose @(
-    "exec",
-    "-T",
-    "api",
-    "uv",
-    "run",
-    "python",
-    "-c",
-    "import json; from agent_governance_api.full_stack_demo_seed import metadata_pre_check_demo_runtime_payload; print(json.dumps(metadata_pre_check_demo_runtime_payload()))"
-)
+$payloadOutput = Invoke-Compose @("exec", "-T", "api", "uv", "run", "python", "scripts/seed_full_stack_demo.py", "--print-runtime-payload")
 $payloadJson = @($payloadOutput | Where-Object { $_.Trim().StartsWith("{") } | Select-Object -Last 1)
 if (-not $payloadJson) {
-    Stop-Demo "Could not load metadata pre-check demo payload from backend helper."
+    Stop-Demo "Could not load metadata pre-check demo payload JSON from scripts/seed_full_stack_demo.py. Check docker compose -f compose.dev.yml logs api."
 }
-$payload = $payloadJson | ConvertFrom-Json
+try {
+    $payload = $payloadJson | ConvertFrom-Json
+} catch {
+    Stop-Demo "Metadata pre-check demo payload was not valid JSON. Re-run scripts/seed_full_stack_demo.py --print-runtime-payload inside the API container."
+}
 $uniqueRunId = [guid]::NewGuid().ToString()
 $requestSuffix = $uniqueRunId.Substring(0, 8)
 $payload.run_id = $uniqueRunId
@@ -169,7 +164,8 @@ if ($checkResults.Count -eq 0) {
 Write-Host ""
 Write-Host "Metadata-only pre-check demo complete"
 Write-Host "Decision:           $($decisionResponse.decision)"
-Write-Host "Proceed:            $($decisionResponse.proceed)"
+$proceedValue = ([string]$decisionResponse.proceed).ToLowerInvariant()
+Write-Host "Proceed:            $proceedValue"
 Write-Host "PolicyDecision id:  $policyDecisionId"
 Write-Host "PolicyVersion id:   $policyVersionId"
 Write-Host "CheckResults count: $($checkResults.Count)"
@@ -179,6 +175,7 @@ Write-Host "HumanApproval id:   $($decisionResponse.human_approval_id)"
 Write-Host ""
 Write-Host "Open these local product surfaces:"
 Write-Host "Policy Studio:      $webBaseUrl/policies"
+Write-Host "Runtime Decisions:  $webBaseUrl/runtime-gateway"
 Write-Host "Review Inbox:       $webBaseUrl/human-approvals"
 Write-Host "Evidence Bundle:    $webBaseUrl/evidence"
 Write-Host "API docs:           $apiBaseUrl/docs"

@@ -1,3 +1,4 @@
+import json
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 from agent_governance_api.database import create_database_engine  # noqa: E402
 from agent_governance_api.full_stack_demo_seed import (  # noqa: E402
     format_full_stack_demo_seed_result,
+    metadata_pre_check_demo_runtime_payload,
     seed_full_stack_demo,
 )
 
@@ -31,7 +33,19 @@ def main() -> int:
         "--database-url",
         help="Optional database URL override. Defaults to AGCP_DATABASE_URL.",
     )
+    parser.add_argument(
+        "--print-runtime-payload",
+        action="store_true",
+        help=(
+            "Print only the metadata pre-check Runtime Gateway payload JSON. "
+            "Without --apply this does not connect to the database."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.print_runtime_payload and not args.apply:
+        print(json.dumps(metadata_pre_check_demo_runtime_payload(), sort_keys=True))
+        return 0
 
     engine = create_database_engine(args.database_url)
     dry_run = not args.apply
@@ -40,7 +54,15 @@ def main() -> int:
             result = seed_full_stack_demo(session, dry_run=dry_run)
             if dry_run:
                 session.rollback()
-            print(format_full_stack_demo_seed_result(result))
+            if args.print_runtime_payload:
+                print(
+                    json.dumps(
+                        metadata_pre_check_demo_runtime_payload(),
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(format_full_stack_demo_seed_result(result))
     except SQLAlchemyError as exc:
         print(f"ERROR: Could not seed local demo data: {exc}", file=stderr)
         print(

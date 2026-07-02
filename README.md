@@ -415,6 +415,13 @@ Optional safe demo seed, after the stack is running:
 docker compose -f compose.dev.yml exec api uv run python scripts/seed_full_stack_demo.py --apply
 ```
 
+Print the safe metadata pre-check Runtime Gateway payload without applying seed
+data:
+
+```bash
+docker compose -f compose.dev.yml exec api uv run python scripts/seed_full_stack_demo.py --print-runtime-payload
+```
+
 One-command metadata-only pre-check demo, after the stack is running:
 
 ```powershell
@@ -430,6 +437,9 @@ HumanApproval ID. The Compose dev API enables
 `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true` by default for this local demo.
 If your stack was already running before that setting was added, restart it
 with `.\scripts\dev-down.ps1` and `.\scripts\dev-up.ps1`.
+The script loads the Runtime Gateway payload through
+`scripts/seed_full_stack_demo.py --print-runtime-payload`, which uses the same
+`src` import path bootstrap as the seed command and prints JSON only.
 
 Troubleshooting the Compose stack:
 
@@ -466,6 +476,9 @@ uv run alembic upgrade head
 
 # 4. Seed safe local demo records.
 uv run python scripts/seed_full_stack_demo.py --apply
+
+# Optional: print the safe Runtime Gateway payload JSON without writing data.
+uv run python scripts/seed_full_stack_demo.py --print-runtime-payload
 
 # 5. Start the backend and leave it running in this terminal.
 uv run uvicorn --app-dir src agent_governance_api.main:app --reload
@@ -522,7 +535,10 @@ root:
 Troubleshooting:
 
 - `ModuleNotFoundError: agent_governance_api`: run uvicorn from `apps/api` with
-  `uv run uvicorn --app-dir src agent_governance_api.main:app --reload`.
+  `uv run uvicorn --app-dir src agent_governance_api.main:app --reload`; for
+  the metadata demo payload, use
+  `uv run python scripts/seed_full_stack_demo.py --print-runtime-payload`
+  instead of inline `python -c` imports.
 - Docker not running: start Docker Desktop, then rerun
   `docker compose -f docker-compose.dev.yml up -d postgres`.
 - Port `5432` already in use: stop the existing local PostgreSQL process, or

@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -23,6 +24,7 @@ from agent_governance_api.full_stack_demo_seed import (
     DEMO_POLICY_RULE_ID,
     DEMO_TOOL_NAME,
     METADATA_PRE_CHECK_DEMO_AGENT_ID,
+    METADATA_PRE_CHECK_DEMO_CAPABILITY_ID,
     METADATA_PRE_CHECK_DEMO_MODEL_ID,
     METADATA_PRE_CHECK_DEMO_POLICY_VERSION_ID,
     METADATA_PRE_CHECK_DEMO_SOURCE_ID,
@@ -425,3 +427,32 @@ def test_seed_full_stack_demo_script_supports_direct_execution_help() -> None:
     assert result.returncode == 0
     assert "Seed safe local-only demo data" in result.stdout
     assert "ModuleNotFoundError" not in result.stderr
+
+
+def test_seed_full_stack_demo_script_prints_runtime_payload_json_only() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/seed_full_stack_demo.py",
+            "--print-runtime-payload",
+        ],
+        cwd=API_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert result.stdout.strip().startswith("{")
+    assert result.stdout.strip().endswith("}")
+    assert "Local full-stack demo seed" not in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
+    assert payload["agent_id"] == str(METADATA_PRE_CHECK_DEMO_AGENT_ID)
+    assert payload["capability_id"] == str(METADATA_PRE_CHECK_DEMO_CAPABILITY_ID)
+    assert payload["source_ids"] == [str(METADATA_PRE_CHECK_DEMO_SOURCE_ID)]
+    assert payload["model_id"] == str(METADATA_PRE_CHECK_DEMO_MODEL_ID)
+    assert payload["tool_name"] == "vectorize_source"
+    assert payload["mode"] == "simulation"
+    assert payload["metadata"] == {"demo": "metadata_pre_check"}
