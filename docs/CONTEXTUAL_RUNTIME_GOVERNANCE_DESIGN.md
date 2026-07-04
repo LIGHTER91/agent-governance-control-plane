@@ -2,8 +2,32 @@
 
 ## Status
 
-Design only. This document does not change Runtime Gateway schemas, policy
-evaluation, persistence models, frontend behavior, or enforcement behavior.
+Partially implemented design. The original contextual runtime governance design
+has been implemented in several bounded slices, while the broader production
+governance model remains intentionally staged.
+
+Implemented slices:
+
+- optional Runtime Gateway context fields for action, capability, source,
+  model, purpose, data classification, and personal/sensitive-data booleans;
+- safe persistence of declared contextual references and metadata;
+- metadata-only Policy Pre-Check persistence and opt-in Runtime Gateway
+  execution behind `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`;
+- deterministic PolicyRule matching for a bounded set of declared and
+  inventory-resolved contextual fields;
+- Evidence Bundle summaries for available contextual references, CheckResults,
+  PolicyVersion references, and HumanApproval chains;
+- Policy Studio support for CHECK facts and explicit PolicyCheckStep authoring
+  in the Blocks workflow.
+
+Still design or future work:
+
+- production identity, RBAC, and service actor hardening;
+- AccessGrant-aware enforcement semantics beyond resolved context;
+- richer PolicyCheckStep templates and backend authoring workflows;
+- historical PolicyDecision backfill semantics;
+- signed or PDF evidence exports;
+- browser E2E coverage for all contextual governance workflows.
 
 AGCP remains a governance and evidence control plane. It does not execute
 tools, orchestrate agent steps, replace agent runtimes, or certify that data use
@@ -323,10 +347,14 @@ reviewed in the source system.
 
 ## Non-goals
 
-- Do not change Runtime Gateway request or response schemas in this issue.
-- Do not add migrations, models, or frontend UI in this issue.
-- Do not change policy evaluation in this issue.
-- Do not change Runtime Gateway enforcement behavior in this issue.
+- Do not expand Runtime Gateway schemas outside the bounded contextual fields
+  already documented in this design.
+- Do not add arbitrary policy expression languages or LLM-based policy
+  evaluation.
+- Do not treat AccessGrant status as automatic runtime enforcement until
+  explicit PolicyDecision semantics are designed and tested.
+- Do not change Runtime Gateway enforcement behavior without preserving the
+  wrapper/adapter responsibility to honor `proceed`.
 - Do not execute tools or route agent workflows.
 - Do not replace LangGraph, n8n, Dataiku, CrewAI, AutoGen, cloud AI platforms,
   MCP servers, model providers, DLP systems, data catalogs, or orchestration

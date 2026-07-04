@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -57,7 +58,7 @@ type DiffState =
   | { status: "ready"; diff: PolicyVersionReviewDiffRecord }
   | { status: "error"; message: string };
 
-type ReviewTab = "mine" | "waiting" | "escalated" | "completed";
+type ReviewTab = "mine" | "waiting" | "approved" | "completed";
 
 type PolicyReviewItem = {
   kind: "policy";
@@ -99,7 +100,7 @@ type AssignmentDraft = {
 const REVIEW_TABS: Array<{ id: ReviewTab; label: string }> = [
   { id: "mine", label: "Mine" },
   { id: "waiting", label: "Waiting" },
-  { id: "escalated", label: "Escalated" },
+  { id: "approved", label: "Approved" },
   { id: "completed", label: "Completed" }
 ];
 
@@ -260,10 +261,9 @@ export function ReviewInbox() {
     [actorState, inboxState]
   );
 
-  const visibleItems = useMemo(
-    () => items.filter((item) => item.tab === activeTab),
-    [activeTab, items]
-  );
+  const visibleItems = useMemo(() => {
+    return items.filter((item) => item.tab === activeTab);
+  }, [activeTab, items]);
 
   const selectedItem =
     visibleItems.find((item) => item.key === selectedItemKey) ||
@@ -432,22 +432,51 @@ export function ReviewInbox() {
   }
 
   return (
-    <section className="review-inbox-route" aria-label="Review Inbox">
+    <section
+      className="review-inbox-route"
+      aria-label="Human Approval Studio"
+      data-testid="review-inbox-route"
+    >
+      <header className="review-business-header">
+        <nav aria-label="Human Approval Studio breadcrumb">
+          <span>Governance</span>
+          <span aria-hidden="true">/</span>
+          <strong>Human Approval Studio</strong>
+        </nav>
+        <div className="review-business-title">
+          <h1>Review Inbox</h1>
+          {inboxState.status === "ready" ? (
+            <AGCPBadge tone="purple">{items.length}</AGCPBadge>
+          ) : null}
+        </div>
+        <button
+          className="review-refresh-action"
+          onClick={() => {
+            void loadActor();
+            void loadInbox();
+          }}
+          type="button"
+        >
+          Refresh
+        </button>
+      </header>
+
       <aside className="review-inbox-pane" aria-label="Review work items">
         <div className="review-inbox-header">
           <div>
-            <span className="review-kicker">Human Oversight</span>
             <h2>Review Inbox</h2>
-            <p>Runtime approvals and PolicyVersion reviews in one queue.</p>
+            <p>Runtime HumanApproval and PolicyVersion review work items.</p>
           </div>
           {inboxState.status === "ready" ? (
             <AGCPBadge tone="purple">{items.length} items</AGCPBadge>
           ) : null}
         </div>
 
-        <CurrentActorCompact actorState={actorState} />
-
-        <div className="review-inbox-tabs" role="tablist">
+        <div
+          className="review-inbox-tabs"
+          data-testid="review-inbox-tabs"
+          role="tablist"
+        >
           {REVIEW_TABS.map((tab) => (
             <button
               aria-selected={activeTab === tab.id}
@@ -467,14 +496,14 @@ export function ReviewInbox() {
         </div>
 
         {inboxState.status === "loading" ? (
-          <AGCPEmptyState title="Loading Review Inbox">
+          <AGCPEmptyState title="Loading review inbox">
             Requesting HumanApproval records and PolicyVersion review requests
             from {getApiBaseUrl()}.
           </AGCPEmptyState>
         ) : null}
 
         {inboxState.status === "error" ? (
-          <AGCPErrorState title="Unable to load Review Inbox">
+          <AGCPErrorState title="Unable to load review inbox">
             {inboxState.message} Check that the backend is running and that the
             current actor can read HumanApproval and PolicyVersion review data.
           </AGCPErrorState>
@@ -489,7 +518,7 @@ export function ReviewInbox() {
         ) : null}
 
         {inboxState.status === "ready" ? (
-          <div className="review-inbox-list">
+          <div className="review-inbox-list" data-testid="review-inbox-list">
             {visibleItems.length === 0 ? (
               <AGCPEmptyState title={emptyTitleForTab(activeTab)}>
                 {emptyCopyForTab(activeTab)}
@@ -500,15 +529,18 @@ export function ReviewInbox() {
                   className={`review-inbox-item ${
                     selectedItem?.key === item.key ? "selected" : ""
                   }`}
+                  data-testid={`review-inbox-item-${item.kind}`}
                   key={item.key}
                   onClick={() => setSelectedItemKey(item.key)}
                   type="button"
                 >
                   <div className="review-inbox-item-top">
-                    <span>{item.kind === "policy" ? "Policy review" : "Runtime approval"}</span>
-                    <AGCPBadge tone={statusTone(item.status)}>
-                      {formatValue(item.status)}
-                    </AGCPBadge>
+                    <span className={`review-type-badge ${item.kind}`}>
+                      {item.kind === "policy"
+                        ? "Policy Review"
+                        : "Runtime Approval"}
+                    </span>
+                    <time>{reviewItemAge(item)}</time>
                   </div>
                   <strong>{item.title}</strong>
                   <p>{item.subtitle}</p>
@@ -522,9 +554,18 @@ export function ReviewInbox() {
             )}
           </div>
         ) : null}
+
+        <footer className="review-inbox-footer">
+          <span>{visibleItems.length} items</span>
+          <span>Updated from backend</span>
+        </footer>
       </aside>
 
-      <main className="review-detail-pane" aria-label="Selected review detail">
+      <main
+        className="review-detail-pane"
+        aria-label="Selected review detail"
+        data-testid="review-detail-pane"
+      >
         {selectedItem ? (
           <ReviewDetail
             actionState={actionState}
@@ -548,10 +589,9 @@ export function ReviewInbox() {
           />
         ) : (
           <div className="review-detail-empty">
-            <AGCPEmptyState title="No review selected">
-              Select a review from the inbox. Escalation routing is not wired
-              yet, so the Escalated tab stays empty until backend support
-              exists.
+            <AGCPEmptyState title="No selected review">
+              Select a review from the inbox. If there is no work item, no
+              reviews need attention right now.
             </AGCPEmptyState>
           </div>
         )}
@@ -604,30 +644,252 @@ function ReviewDetail({
     actionState.id === item.key && actionState.status !== "idle";
 
   return (
+    <div className="review-detail-layout">
+      <section className="review-workspace-pane" aria-label="Review detail">
+        <div className="review-detail-header">
+          <div>
+            <span className={`review-type-badge ${item.kind}`}>
+              {item.kind === "policy"
+                ? "Policy Review"
+                : "Runtime Approval"}
+            </span>
+            <h1>{item.title}</h1>
+            <p>{reviewDetailSubtitle(item)}</p>
+          </div>
+          <div className="review-detail-status">
+            <AGCPBadge tone={statusTone(item.status)}>
+              {formatValue(item.status)}
+            </AGCPBadge>
+            <span>Created {reviewCreatedTime(item)}</span>
+            <span>{reviewExpiresTime(item)}</span>
+          </div>
+        </div>
+
+        {item.kind === "policy" ? (
+          <PolicyReviewDetailBody diffState={diffState} item={item} />
+        ) : (
+          <RuntimeApprovalDetailBody item={item} />
+        )}
+      </section>
+
+      <ReviewActionRail
+        actionMessageVisible={actionMessageVisible}
+        actionState={actionState}
+        actorState={actorState}
+        assignmentDraftsById={assignmentDraftsById}
+        item={item}
+        isSubmitting={isSubmitting}
+        notesByKey={notesByKey}
+        onActivate={onActivate}
+        onAssign={onAssign}
+        onPolicyDecision={onPolicyDecision}
+        onRuntimeAction={onRuntimeAction}
+        replaceActiveById={replaceActiveById}
+        setAssignmentDraftsById={setAssignmentDraftsById}
+        setNotesByKey={setNotesByKey}
+        setReplaceActiveById={setReplaceActiveById}
+      />
+    </div>
+  );
+}
+
+function PolicyReviewDetailBody({
+  diffState,
+  item
+}: {
+  diffState?: DiffState;
+  item: PolicyReviewItem;
+}) {
+  const request = item.request;
+
+  return (
     <>
-      <div className="review-detail-header">
-        <div>
-          <span className="review-kicker">
-            {item.kind === "policy" ? "PolicyVersion ReviewRequest" : "Runtime HumanApproval"}
-          </span>
-          <h1>{item.title}</h1>
-          <p>{item.subtitle}</p>
-        </div>
-        <div className="review-detail-status">
-          <AGCPBadge tone={statusTone(item.status)}>
-            {formatValue(item.status)}
-          </AGCPBadge>
-          <span>{item.kind === "policy" ? "review workflow" : "runtime gate"}</span>
-        </div>
+      <div className="review-workbench-grid">
+        <ReviewSection accent="orange" icon="alert" title="Why Review Is Required" wide>
+          <p>
+            This PolicyVersion can change future Runtime Gateway and telemetry
+            policy evaluation after activation.
+          </p>
+          <p>
+            Approval does not activate automatically. Activation remains a
+            separate explicit step before runtime evaluation changes.
+          </p>
+          <MiniMetaGrid
+            items={[
+              ["Requested by", actorRef(request.requested_by_actor_type, request.requested_by_actor_id)],
+              ["Assigned reviewer", assignedReviewerLabel(request)],
+              ["Version", `v${request.policy_version_number || "?"} / ${shortId(request.policy_version_id)}`]
+            ]}
+          />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="runtime" title="Runtime Decision">
+          <p>
+            Approval does not activate automatically. Activation changes future runtime evaluation only after the approved version is explicitly activated.
+          </p>
+          <MiniMetaGrid
+            items={[
+              ["Runtime effect", runtimeEffectLabel(diffState)],
+              ["Review status", formatValue(request.status)],
+              ["Activation", activationLabel(diffState)]
+            ]}
+          />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="policy" title="Policy Review">
+          <PolicyDiffSummary diffState={diffState} />
+        </ReviewSection>
+
+        <ReviewSection accent="green" icon="check" title="Metadata Checks" wide>
+          <PolicyChecksSummary diffState={diffState} />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="evidence" title="Evidence Preview" wide>
+          <PolicyEvidencePreview diffState={diffState} request={request} />
+        </ReviewSection>
       </div>
 
+    </>
+  );
+}
+
+function RuntimeApprovalDetailBody({ item }: { item: RuntimeReviewItem }) {
+  const approval = item.approval;
+  const checkResults = approval.check_results || [];
+
+  return (
+    <>
+      <div className="review-workbench-grid">
+        <ReviewSection accent="orange" icon="alert" title="Why Review Is Required" wide>
+          <p>
+            {approval.reason ||
+              "This runtime action requires human approval based on the recorded PolicyDecision."}
+          </p>
+          <p>
+            AGCP records the decision and evidence. The runtime or orchestrator
+            still owns whether and how tool execution resumes.
+          </p>
+          <MiniMetaGrid
+            items={[
+              ["Requested by", actorRef(approval.requested_by_actor_type, approval.requested_by_actor_id)],
+              ["Agent", shortId(approval.agent_id)],
+              ["Expires", formatTimestamp(approval.expires_at)]
+            ]}
+          />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="runtime" title="Runtime Decision">
+          <MiniMetaGrid
+            items={[
+              ["Decision", formatValue(approval.status)],
+              ["HumanApproval", shortId(approval.id)],
+              ["PolicyDecision", shortId(approval.policy_decision_id)],
+              ["Environment", runtimeEnvironmentLabel(approval)],
+              ["Proceed", runtimeProceedLabel(approval)],
+              ["Expires", formatTimestamp(approval.expires_at)]
+            ]}
+          />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="policy" title="Policy Review">
+          <p>
+            The linked Policy Decision paused this runtime action before the
+            caller decides whether to resume.
+          </p>
+          <MiniMetaGrid
+            items={[
+              ["HumanApproval", shortId(approval.id)],
+              ["Policy decision", shortId(approval.policy_decision_id)],
+              ["Runtime boundary", "Caller-owned resume"]
+            ]}
+          />
+        </ReviewSection>
+
+        <ReviewSection accent="green" icon="check" title="Metadata Checks" wide>
+          <RuntimeCheckResultsPreview checkResults={checkResults} />
+        </ReviewSection>
+
+        <ReviewSection accent="sky" icon="evidence" title="Evidence Preview" wide>
+          <MiniMetaGrid
+            items={[
+              ["Request ID", shortId(approval.id)],
+              ["Audit event", "Not included in read model"],
+              ["Agent run", firstCheckRunId(checkResults)],
+              ["Trace", firstCheckTraceId(checkResults)],
+              ["Requested at", formatTimestamp(approval.created_at)],
+              ["Evidence bundle", "Evidence bundle is not available yet."]
+            ]}
+          />
+          <Link
+            className="review-evidence-link"
+            href={`/evidence?agent_id=${encodeURIComponent(approval.agent_id)}`}
+          >
+            View Evidence & Audit
+          </Link>
+        </ReviewSection>
+      </div>
+
+    </>
+  );
+}
+
+function ReviewActionRail({
+  actionMessageVisible,
+  actionState,
+  actorState,
+  assignmentDraftsById,
+  isSubmitting,
+  item,
+  notesByKey,
+  onActivate,
+  onAssign,
+  onPolicyDecision,
+  onRuntimeAction,
+  replaceActiveById,
+  setAssignmentDraftsById,
+  setNotesByKey,
+  setReplaceActiveById
+}: {
+  actionMessageVisible: boolean;
+  actionState: ActionState;
+  actorState: CurrentActorState;
+  assignmentDraftsById: Record<string, AssignmentDraft>;
+  isSubmitting: boolean;
+  item: ReviewItem;
+  notesByKey: Record<string, string>;
+  onActivate: (item: PolicyReviewItem) => Promise<void>;
+  onAssign: (item: PolicyReviewItem) => Promise<void>;
+  onPolicyDecision: (
+    item: PolicyReviewItem,
+    action: "approve" | "reject"
+  ) => Promise<void>;
+  onRuntimeAction: (
+    item: RuntimeReviewItem,
+    action: Exclude<HumanApprovalAction, "cancel">
+  ) => Promise<void>;
+  replaceActiveById: Record<string, boolean>;
+  setAssignmentDraftsById: Dispatch<
+    SetStateAction<Record<string, AssignmentDraft>>
+  >;
+  setNotesByKey: Dispatch<SetStateAction<Record<string, string>>>;
+  setReplaceActiveById: Dispatch<SetStateAction<Record<string, boolean>>>;
+}) {
+  return (
+    <aside className="review-action-rail" aria-label="Action area">
+      <div className="review-rail-heading">
+        <span className="review-kicker">Action area</span>
+        <h2>Decision workbench</h2>
+        <p>Review the facts, then decide with an audit-friendly note.</p>
+      </div>
+
+      <CurrentActorRail actorState={actorState} />
+
       {item.kind === "policy" ? (
-        <PolicyReviewDetailBody
+        <PolicyActionRail
           actionMessageVisible={actionMessageVisible}
           actionState={actionState}
           actorState={actorState}
           assignmentDraftsById={assignmentDraftsById}
-          diffState={diffState}
           isSubmitting={isSubmitting}
           item={item}
           notesByKey={notesByKey}
@@ -640,7 +902,7 @@ function ReviewDetail({
           setReplaceActiveById={setReplaceActiveById}
         />
       ) : (
-        <RuntimeApprovalDetailBody
+        <RuntimeActionRail
           actionMessageVisible={actionMessageVisible}
           actionState={actionState}
           actorState={actorState}
@@ -651,16 +913,15 @@ function ReviewDetail({
           setNotesByKey={setNotesByKey}
         />
       )}
-    </>
+    </aside>
   );
 }
 
-function PolicyReviewDetailBody({
+function PolicyActionRail({
   actionMessageVisible,
   actionState,
   actorState,
   assignmentDraftsById,
-  diffState,
   isSubmitting,
   item,
   notesByKey,
@@ -676,7 +937,6 @@ function PolicyReviewDetailBody({
   actionState: ActionState;
   actorState: CurrentActorState;
   assignmentDraftsById: Record<string, AssignmentDraft>;
-  diffState?: DiffState;
   isSubmitting: boolean;
   item: PolicyReviewItem;
   notesByKey: Record<string, string>;
@@ -706,62 +966,10 @@ function PolicyReviewDetailBody({
 
   return (
     <>
-      <div className="review-detail-grid">
-        <ReviewSection accent="orange" title="Why Review Is Required">
-          <p>
-            This PolicyVersion can change future Runtime Gateway and telemetry
-            policy evaluation after activation.
-          </p>
-          <p>
-            Review approval records reviewer intent only. Activation remains a
-            separate explicit step; there is no direct runtime promotion
-            shortcut.
-          </p>
-          <MiniMetaGrid
-            items={[
-              ["Requested by", actorRef(request.requested_by_actor_type, request.requested_by_actor_id)],
-              ["Assigned reviewer", assignedReviewerLabel(request)],
-              ["Version", `v${request.policy_version_number || "?"} / ${shortId(request.policy_version_id)}`]
-            ]}
-          />
-        </ReviewSection>
-
-        <ReviewSection accent="purple" title="Policy Decision">
-          <PolicyDiffSummary diffState={diffState} />
-        </ReviewSection>
-
-        <ReviewSection accent="sky" title="Policy Checks">
-          <PolicyChecksSummary diffState={diffState} />
-        </ReviewSection>
-
-        <ReviewSection accent="green" title="Evidence Preview">
-          <PolicyEvidencePreview diffState={diffState} request={request} />
-        </ReviewSection>
-      </div>
-
-      <div className="review-decision-note">
-        <label>
-          <span>Decision note</span>
-          <textarea
-            disabled={decisionDisabled}
-            onChange={(event) =>
-              setNotesByKey((current) => ({
-                ...current,
-                [item.key]: event.target.value
-              }))
-            }
-            placeholder="Optional reviewer note"
-            value={notesByKey[item.key] || ""}
-          />
-        </label>
-      </div>
-
-      {request.status === "pending" ? (
+      <section className="review-rail-section">
+        <h3>Assign reviewer</h3>
+        <p>Assign to another reviewer or team.</p>
         <div className="review-reassign-box">
-          <div>
-            <strong>Reassign reviewer</strong>
-            <p>No fake user directory. Enter a stable actor id.</p>
-          </div>
           <label>
             <span>Actor type</span>
             <select
@@ -819,99 +1027,113 @@ function PolicyReviewDetailBody({
                   [request.id]: { ...draft, note: event.target.value }
                 }))
               }
-              placeholder="Reason for reassignment"
+              placeholder="Reason for assignment"
               value={draft.note}
             />
           </label>
+          <button
+            className="review-action-btn secondary"
+            data-testid="review-assign-action"
+            disabled={assignmentDisabled}
+            onClick={() => void onAssign(item)}
+            type="button"
+          >
+            Assign
+          </button>
         </div>
-      ) : null}
+        <p className="review-disabled-reason">
+          No fake user directory. Enter a stable actor id.
+        </p>
+      </section>
 
-      {request.status === "approved" ? (
-        <label className="review-activation-check">
-          <input
-            checked={Boolean(replaceActiveById[request.id])}
-            disabled={activateDisabled}
+      <section className="review-rail-section">
+        <h3>Actions</h3>
+        <label className="review-decision-note">
+          <span>Decision note</span>
+          <textarea
+            disabled={decisionDisabled}
             onChange={(event) =>
-              setReplaceActiveById((current) => ({
+              setNotesByKey((current) => ({
                 ...current,
-                [request.id]: event.target.checked
+                [item.key]: event.target.value
               }))
             }
-            type="checkbox"
+            placeholder="Optional reviewer note"
+            value={notesByKey[item.key] || ""}
           />
-          <span>This will replace the current active version if one exists.</span>
         </label>
-      ) : null}
+        <div className="review-action-row">
+          <button
+            className="review-action-btn approve"
+            data-testid="review-policy-approve-action"
+            disabled={decisionDisabled}
+            onClick={() => void onPolicyDecision(item, "approve")}
+            type="button"
+          >
+            <span className="review-action-glyph" aria-hidden="true" />
+            Approve
+          </button>
+          <button
+            className="review-action-btn reject"
+            data-testid="review-policy-reject-action"
+            disabled={decisionDisabled}
+            onClick={() => void onPolicyDecision(item, "reject")}
+            type="button"
+          >
+            <span className="review-action-glyph" aria-hidden="true" />
+            Reject
+          </button>
+        </div>
+        <p className="review-disabled-reason">
+          {policyReviewActionReason(request, decisionAccess, roleAccess)}
+        </p>
+      </section>
 
-      <div className="review-action-row">
+      <section className="review-rail-section">
+        <h3>Policy actions</h3>
         {request.status === "approved" ? (
-          <>
-            <button
-              className="review-action-btn approve"
+          <label className="review-activation-check">
+            <input
+              checked={Boolean(replaceActiveById[request.id])}
               disabled={activateDisabled}
-              onClick={() => void onActivate(item)}
-              type="button"
-            >
-              Activate approved version
-            </button>
-            <button
-              className="review-action-btn secondary"
-              disabled
-              title="This review is already approved."
-              type="button"
-            >
-              Approve
-            </button>
-            <button
-              className="review-action-btn secondary"
-              disabled
-              title="This review is already approved."
-              type="button"
-            >
-              Reject
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              className="review-action-btn approve"
-              disabled={decisionDisabled}
-              onClick={() => void onPolicyDecision(item, "approve")}
-              type="button"
-            >
-              Approve
-            </button>
-            <button
-              className="review-action-btn reject"
-              disabled={decisionDisabled}
-              onClick={() => void onPolicyDecision(item, "reject")}
-              type="button"
-            >
-              Reject
-            </button>
-          </>
-        )}
+              onChange={(event) =>
+                setReplaceActiveById((current) => ({
+                  ...current,
+                  [request.id]: event.target.checked
+                }))
+              }
+              type="checkbox"
+            />
+            <span>This will replace the current active version if one exists.</span>
+          </label>
+        ) : null}
         <button
           className="review-action-btn secondary"
+          data-testid="review-policy-activate-action"
+          disabled={activateDisabled}
+          onClick={() => void onActivate(item)}
+          type="button"
+        >
+          Activate approved version
+        </button>
+        <p className="review-policy-warning">
+          Approval does not activate automatically. Activation changes future runtime evaluation.
+        </p>
+      </section>
+
+      <section className="review-rail-section">
+        <h3>Request info</h3>
+        <p>Not wired yet. This action will be available soon.</p>
+        <button
+          className="review-action-btn secondary"
+          data-testid="review-runtime-assign-action"
           disabled
           title="Request info workflow is not wired yet."
           type="button"
         >
           Request info
         </button>
-        <button
-          className="review-action-btn secondary"
-          disabled={assignmentDisabled}
-          onClick={() => void onAssign(item)}
-          type="button"
-        >
-          Reassign
-        </button>
-      </div>
-
-      <p className="review-disabled-reason">
-        {policyReviewActionReason(request, decisionAccess, roleAccess)}
-      </p>
+      </section>
 
       {actionMessageVisible ? (
         <p className={`review-action-message ${actionState.status}`}>
@@ -922,7 +1144,7 @@ function PolicyReviewDetailBody({
   );
 }
 
-function RuntimeApprovalDetailBody({
+function RuntimeActionRail({
   actionMessageVisible,
   actionState,
   actorState,
@@ -948,66 +1170,25 @@ function RuntimeApprovalDetailBody({
   const roleAccess = policyReviewRoleAccess(actorState);
   const pending = approval.status === "pending";
   const decisionDisabled = !pending || isSubmitting || !roleAccess.allowed;
-  const checkResults = approval.check_results || [];
 
   return (
     <>
-      <div className="review-detail-grid">
-        <ReviewSection accent="orange" title="Why Review Is Required">
-          <p>
-            {approval.reason ||
-              "The Runtime Gateway requested human oversight for this action."}
-          </p>
-          <p>
-            AGCP records the decision and evidence. The runtime or orchestrator
-            still owns whether and how tool execution resumes.
-          </p>
-          <MiniMetaGrid
-            items={[
-              ["Requested by", actorRef(approval.requested_by_actor_type, approval.requested_by_actor_id)],
-              ["Agent", shortId(approval.agent_id)],
-              ["Expires", formatTimestamp(approval.expires_at)]
-            ]}
-          />
-        </ReviewSection>
+      <section className="review-rail-section">
+        <h3>Assign reviewer</h3>
+        <p>Assignment is not wired for this review type.</p>
+        <button
+          className="review-action-btn secondary"
+          disabled
+          title="Runtime HumanApproval assignment is not wired yet."
+          type="button"
+        >
+          Assign
+        </button>
+      </section>
 
-        <ReviewSection accent="purple" title="Policy Decision">
-          <MiniMetaGrid
-            items={[
-              ["Policy decision", shortId(approval.policy_decision_id)],
-              ["Status", formatValue(approval.status)],
-              ["Decision note", approval.decision_note || "Not set"]
-            ]}
-          />
-        </ReviewSection>
-
-        <ReviewSection accent="sky" title="Policy Checks">
-          {checkResults.length > 0 ? (
-            <p>
-              {checkResults.length} metadata pre-check result
-              {checkResults.length === 1 ? "" : "s"} attached to the
-              linked PolicyDecision.
-            </p>
-          ) : (
-            <p>No metadata pre-check results attached yet.</p>
-          )}
-        </ReviewSection>
-
-        <ReviewSection accent="green" title="Evidence Preview">
-          <MiniMetaGrid
-            items={[
-              ["HumanApproval", shortId(approval.id)],
-              ["Created", formatTimestamp(approval.created_at)],
-              ["Reviewed by", actorRef(approval.reviewed_by_actor_type, approval.reviewed_by_actor_id)],
-              ["Reviewed at", formatTimestamp(approval.reviewed_at)]
-            ]}
-          />
-          <RuntimeCheckResultsPreview checkResults={checkResults} />
-        </ReviewSection>
-      </div>
-
-      <div className="review-decision-note">
-        <label>
+      <section className="review-rail-section">
+        <h3>Actions</h3>
+        <label className="review-decision-note">
           <span>Decision note</span>
           <textarea
             disabled={decisionDisabled}
@@ -1021,25 +1202,55 @@ function RuntimeApprovalDetailBody({
             value={notesByKey[item.key] || ""}
           />
         </label>
-      </div>
+        <div className="review-action-row">
+          <button
+            className="review-action-btn approve"
+            data-testid="review-runtime-approve-action"
+            disabled={decisionDisabled}
+            onClick={() => void onRuntimeAction(item, "approve")}
+            type="button"
+          >
+            <span className="review-action-glyph" aria-hidden="true" />
+            Approve
+          </button>
+          <button
+            className="review-action-btn reject"
+            data-testid="review-runtime-reject-action"
+            disabled={decisionDisabled}
+            onClick={() => void onRuntimeAction(item, "reject")}
+            type="button"
+          >
+            <span className="review-action-glyph" aria-hidden="true" />
+            Reject
+          </button>
+        </div>
+        <p className="review-disabled-reason">
+          {pending
+            ? roleAccess.allowed
+              ? "Backend authorization still enforced."
+              : roleAccess.reason
+            : "This runtime review is already completed."}
+        </p>
+      </section>
 
-      <div className="review-action-row">
+      <section className="review-rail-section">
+        <h3>Policy actions</h3>
         <button
-          className="review-action-btn approve"
-          disabled={decisionDisabled}
-          onClick={() => void onRuntimeAction(item, "approve")}
+          className="review-action-btn secondary"
+          disabled
+          title="Runtime HumanApproval does not activate PolicyVersions."
           type="button"
         >
-          Approve
+          Activate approved version
         </button>
-        <button
-          className="review-action-btn reject"
-          disabled={decisionDisabled}
-          onClick={() => void onRuntimeAction(item, "reject")}
-          type="button"
-        >
-          Reject
-        </button>
+        <p className="review-policy-warning">
+          Approval does not activate automatically. Activation changes future runtime evaluation.
+        </p>
+      </section>
+
+      <section className="review-rail-section">
+        <h3>Request info</h3>
+        <p>Not wired yet. This action will be available soon.</p>
         <button
           className="review-action-btn secondary"
           disabled
@@ -1048,23 +1259,7 @@ function RuntimeApprovalDetailBody({
         >
           Request info
         </button>
-        <button
-          className="review-action-btn secondary"
-          disabled
-          title="Runtime HumanApproval reassignment is not wired yet."
-          type="button"
-        >
-          Reassign
-        </button>
-      </div>
-
-      <p className="review-disabled-reason">
-        {pending
-          ? roleAccess.allowed
-            ? "Backend authorization still enforced."
-            : roleAccess.reason
-          : "This runtime review is already completed."}
-      </p>
+      </section>
 
       {actionMessageVisible ? (
         <p className={`review-action-message ${actionState.status}`}>
@@ -1075,23 +1270,215 @@ function RuntimeApprovalDetailBody({
   );
 }
 
+function CurrentActorRail({ actorState }: { actorState: CurrentActorState }) {
+  if (actorState.status === "loading") {
+    return (
+      <section className="review-rail-section">
+        <h3>Current actor</h3>
+        <p>Loading GET /me. Backend authorization still enforced.</p>
+      </section>
+    );
+  }
+
+  if (actorState.status === "error") {
+    return (
+      <section className="review-rail-section warning">
+        <h3>Current actor</h3>
+        <p>{actorState.message}</p>
+        <p>Backend authorization still enforced.</p>
+      </section>
+    );
+  }
+
+  const actor = actorState.actor;
+  return (
+    <section className="review-rail-section">
+      <h3>Current actor</h3>
+      <div className="review-actor-card">
+        <span className="review-actor-avatar" aria-hidden="true">
+          {(actor.display_name || actor.actor_id).slice(0, 2).toUpperCase()}
+        </span>
+        <div>
+          <strong>{actor.display_name || actor.actor_id}</strong>
+          <span>{actor.actor_id}</span>
+          <small>{actor.environment || "environment not set"}</small>
+        </div>
+      </div>
+      <div className="review-role-chips" aria-label="Current actor roles">
+        {actor.roles.length > 0 ? (
+          actor.roles.map((role) => <span key={role}>{role}</span>)
+        ) : (
+          <span>No roles</span>
+        )}
+      </div>
+      <p>
+        {actor.dev_mode_caveat ||
+          "Frontend role-aware behavior is advisory; backend authorization still enforced."}
+      </p>
+    </section>
+  );
+}
+
+function QuickFacts({ item }: { item: ReviewItem }) {
+  if (item.kind === "policy") {
+    const request = item.request;
+    return (
+      <section className="review-rail-section">
+        <h3>Quick facts</h3>
+        <MiniMetaGrid
+          items={[
+            ["Policy", request.policy_name || shortId(request.policy_id)],
+            ["Version", `v${request.policy_version_number || "?"}`],
+            ["Requested", formatTimestamp(request.created_at)],
+            ["Assigned", assignedReviewerLabel(request)],
+            ["Status", formatValue(request.status)]
+          ]}
+        />
+      </section>
+    );
+  }
+
+  const approval = item.approval;
+  return (
+    <section className="review-rail-section">
+      <h3>Quick facts</h3>
+      <MiniMetaGrid
+        items={[
+          ["Agent", shortId(approval.agent_id)],
+          ["Requested", formatTimestamp(approval.created_at)],
+          ["Expires", formatTimestamp(approval.expires_at)],
+          ["Status", formatValue(approval.status)],
+          ["Reviewed", formatTimestamp(approval.reviewed_at)]
+        ]}
+      />
+    </section>
+  );
+}
+
+function ReviewAuditContext({
+  diffState,
+  item
+}: {
+  diffState?: DiffState;
+  item: ReviewItem;
+}) {
+  if (item.kind === "runtime") {
+    const approval = item.approval;
+    return (
+      <section className="review-audit-strip" aria-label="Audit context">
+        <span>Review status</span>
+        <strong>{formatValue(approval.status)}</strong>
+        <span>HumanApproval</span>
+        <strong>{shortId(approval.id)}</strong>
+        <span>PolicyDecision</span>
+        <strong>{shortId(approval.policy_decision_id)}</strong>
+        <span>Evidence</span>
+        <strong>{approval.check_results.length} metadata checks</strong>
+      </section>
+    );
+  }
+
+  const request = item.request;
+  const evidence = diffState?.status === "ready" ? diffState.diff.evidence : null;
+  return (
+    <section className="review-audit-strip" aria-label="Audit context">
+      <span>Review status</span>
+      <strong>{formatValue(request.status)}</strong>
+      <span>Review request</span>
+      <strong>{shortId(request.id)}</strong>
+      <span>PolicyVersion</span>
+      <strong>{shortId(request.policy_version_id)}</strong>
+      <span>Activation audit</span>
+      <strong>
+        {evidence?.activation_audit_event?.event_type ||
+          "No activation audit event yet"}
+      </strong>
+    </section>
+  );
+}
+
 function ReviewSection({
   accent,
   children,
-  title
+  icon,
+  title,
+  wide = false
 }: {
   accent: "orange" | "purple" | "sky" | "green";
   children: ReactNode;
+  icon: "alert" | "runtime" | "policy" | "check" | "evidence";
   title: string;
+  wide?: boolean;
 }) {
   return (
-    <section className={`review-section-card ${accent}`}>
+    <section className={`review-section-card ${accent} ${wide ? "wide" : ""}`}>
       <div className="review-section-head">
-        <span />
+        <ReviewSectionIcon icon={icon} />
         <h3>{title}</h3>
       </div>
       <div className="review-section-body">{children}</div>
     </section>
+  );
+}
+
+function ReviewSectionIcon({
+  icon
+}: {
+  icon: "alert" | "runtime" | "policy" | "check" | "evidence";
+}) {
+  if (icon === "alert") {
+    return (
+      <svg aria-hidden="true" className="review-section-icon" viewBox="0 0 24 24">
+        <path d="M12 3 22 20H2L12 3Z" />
+        <path d="M12 9v5" />
+        <path d="M12 17h.01" />
+      </svg>
+    );
+  }
+
+  if (icon === "runtime") {
+    return (
+      <svg aria-hidden="true" className="review-section-icon" viewBox="0 0 24 24">
+        <path d="M12 3v4" />
+        <path d="M12 17v4" />
+        <path d="M3 12h4" />
+        <path d="M17 12h4" />
+        <path d="m5.6 5.6 2.8 2.8" />
+        <path d="m15.6 15.6 2.8 2.8" />
+        <path d="m18.4 5.6-2.8 2.8" />
+        <path d="m8.4 15.6-2.8 2.8" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+
+  if (icon === "policy") {
+    return (
+      <svg aria-hidden="true" className="review-section-icon" viewBox="0 0 24 24">
+        <path d="M7 3h7l4 4v14H7V3Z" />
+        <path d="M14 3v5h5" />
+        <path d="M9.5 12h5" />
+        <path d="M9.5 16h5" />
+      </svg>
+    );
+  }
+
+  if (icon === "check") {
+    return (
+      <svg aria-hidden="true" className="review-section-icon" viewBox="0 0 24 24">
+        <path d="M12 3 20 6v6c0 4.5-3.2 7.5-8 9-4.8-1.5-8-4.5-8-9V6l8-3Z" />
+        <path d="m8.5 12 2.2 2.2 4.8-5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" className="review-section-icon" viewBox="0 0 24 24">
+      <path d="M7 3h10v18H7V3Z" />
+      <path d="M9.5 8h5" />
+      <path d="M9.5 12h5" />
+      <path d="M9.5 16h3" />
+    </svg>
   );
 }
 
@@ -1137,7 +1524,8 @@ function CurrentActorCompact({
   return (
     <div className="review-current-actor">
       <strong>Current actor</strong>
-      <span>{actor.display_name || actor.actor_id}</span>
+      <span>{actor.display_name || "Unnamed actor"}</span>
+      <span>{actor.actor_id}</span>
       <AGCPBadge tone={canReviewPolicies(actor) ? "ok" : "warn"}>
         {actor.roles.length > 0 ? actor.roles.join(", ") : "No roles"}
       </AGCPBadge>
@@ -1189,11 +1577,11 @@ function PolicyDiffSummary({ diffState }: { diffState?: DiffState }) {
 
 function PolicyChecksSummary({ diffState }: { diffState?: DiffState }) {
   if (!diffState || diffState.status === "loading") {
-    return <p>Loading check-step comparison.</p>;
+    return <p>Loading policy check evidence from the backend.</p>;
   }
 
   if (diffState.status === "error") {
-    return <p>No PolicyCheckStep evidence attached yet.</p>;
+    return <p>No metadata pre-check results attached yet.</p>;
   }
 
   const changes = diffState.diff.check_step_changes;
@@ -1204,7 +1592,7 @@ function PolicyChecksSummary({ diffState }: { diffState?: DiffState }) {
     changes.changed_fields.length > 0;
 
   if (!hasChanges) {
-    return <p>No PolicyCheckStep evidence attached yet.</p>;
+    return <p>No metadata pre-check results attached yet.</p>;
   }
 
   return (
@@ -1335,9 +1723,11 @@ const UNSAFE_EVIDENCE_METADATA_KEY_PARTS = [
   "chunk",
   "credential",
   "password",
+  "private_payload",
   "prompt",
   "raw",
   "secret",
+  "source_content",
   "token"
 ];
 
@@ -1397,12 +1787,17 @@ function buildReviewItems(
       request,
       tab: policyReviewTab(request, actorState),
       title: request.policy_name || "Policy version review",
-      subtitle: `v${request.policy_version_number || "?"} · ${assignedReviewerLabel(request)}`,
+      subtitle: `Policy ${shortId(request.policy_id)} - Version ${
+        request.policy_version_number || "?"
+      }`,
       status: request.status,
       metadata: [
-        `policy ${shortId(request.policy_id)}`,
-        `version ${shortId(request.policy_version_id)}`,
-        `created ${formatTimestamp(request.created_at)}`
+        `Requested by ${actorRef(
+          request.requested_by_actor_type,
+          request.requested_by_actor_id
+        )}`,
+        `Assigned ${assignedReviewerLabel(request)}`,
+        `Created ${formatRelativeTime(request.created_at)}`
       ]
     })
   );
@@ -1412,17 +1807,17 @@ function buildReviewItems(
       kind: "runtime",
       key: `runtime:${approval.id}`,
       approval,
-      tab: approval.status === "pending" ? "mine" : "completed",
+      tab: runtimeReviewTab(approval, actorState),
       title: approval.reason || `Runtime approval ${shortId(approval.id)}`,
-      subtitle: `agent ${shortId(approval.agent_id)} · ${actorRef(
+      subtitle: `Agent ${shortId(approval.agent_id)} - Requested by ${actorRef(
         approval.requested_by_actor_type,
         approval.requested_by_actor_id
       )}`,
       status: approval.status,
       metadata: [
-        `approval ${shortId(approval.id)}`,
-        `created ${formatTimestamp(approval.created_at)}`,
-        `expires ${formatTimestamp(approval.expires_at)}`
+        `Approval ${shortId(approval.id)}`,
+        `Created ${formatRelativeTime(approval.created_at)}`,
+        `Expires ${formatDurationUntil(approval.expires_at)}`
       ]
     })
   );
@@ -1442,6 +1837,10 @@ function policyReviewTab(
   request: PolicyVersionReviewRequestRecord,
   actorState: CurrentActorState
 ): ReviewTab {
+  if (request.status === "approved") {
+    return "approved";
+  }
+
   if (request.status !== "pending") {
     return "completed";
   }
@@ -1451,8 +1850,76 @@ function policyReviewTab(
     : "waiting";
 }
 
+function runtimeReviewTab(
+  approval: HumanApprovalRecord,
+  actorState: CurrentActorState
+): ReviewTab {
+  if (approval.status === "approved") {
+    return "approved";
+  }
+
+  if (approval.status !== "pending") {
+    return "completed";
+  }
+
+  return policyReviewRoleAccess(actorState).allowed ? "mine" : "waiting";
+}
+
 function dedupePolicyReviews(requests: PolicyVersionReviewRequestRecord[]) {
   return Array.from(new Map(requests.map((request) => [request.id, request])).values());
+}
+
+function reviewItemAge(item: ReviewItem) {
+  return formatRelativeTime(
+    item.kind === "policy" ? item.request.created_at : item.approval.created_at
+  );
+}
+
+function reviewCreatedTime(item: ReviewItem) {
+  return formatTimestamp(
+    item.kind === "policy" ? item.request.created_at : item.approval.created_at
+  );
+}
+
+function reviewExpiresTime(item: ReviewItem) {
+  if (item.kind === "policy") {
+    return "Expires not set";
+  }
+  return `Expires ${formatDurationUntil(item.approval.expires_at)}`;
+}
+
+function reviewDetailSubtitle(item: ReviewItem) {
+  if (item.kind === "policy") {
+    return `Review ${shortId(item.request.id)} - Policy ${shortId(
+      item.request.policy_id
+    )} - Version ${item.request.policy_version_number || "?"}`;
+  }
+
+  return `Approval ${shortId(item.approval.id)} - Agent ${shortId(
+    item.approval.agent_id
+  )} - Requested by ${actorRef(
+    item.approval.requested_by_actor_type,
+    item.approval.requested_by_actor_id
+  )}`;
+}
+
+function firstCheckRunId(checkResults: EvidenceCheckResult[]) {
+  return checkResults.find((result) => result.run_id)?.run_id || "Not included in read model";
+}
+
+function firstCheckTraceId(checkResults: EvidenceCheckResult[]) {
+  return (
+    checkResults.find((result) => result.trace_event_id)?.trace_event_id ||
+    "Not included in read model"
+  );
+}
+
+function runtimeEnvironmentLabel(_approval: HumanApprovalRecord) {
+  return "Not included in HumanApproval read model";
+}
+
+function runtimeProceedLabel(_approval: HumanApprovalRecord) {
+  return "Not included in HumanApproval read model";
 }
 
 function emptyAssignmentDraft(): AssignmentDraft {
@@ -1465,8 +1932,8 @@ function emptyAssignmentDraft(): AssignmentDraft {
 }
 
 function emptyTitleForTab(tab: ReviewTab) {
-  if (tab === "escalated") {
-    return "No escalated reviews";
+  if (tab === "approved") {
+    return "No approved reviews";
   }
   if (tab === "completed") {
     return "No completed reviews";
@@ -1474,15 +1941,15 @@ function emptyTitleForTab(tab: ReviewTab) {
   if (tab === "waiting") {
     return "No waiting reviews";
   }
-  return "No reviews assigned to you";
+  return "No reviews need attention right now.";
 }
 
 function emptyCopyForTab(tab: ReviewTab) {
-  if (tab === "escalated") {
-    return "Escalation routing is not wired yet. This tab stays empty until backend escalation support exists.";
+  if (tab === "approved") {
+    return "Approved Runtime HumanApprovals and PolicyVersion review requests will appear here after backend approval actions complete.";
   }
   if (tab === "completed") {
-    return "Approved, rejected, canceled, cancelled, or expired review work items will appear here after backend review actions complete.";
+    return "Rejected, canceled, cancelled, or expired review work items will appear here after backend review actions complete.";
   }
   if (tab === "waiting") {
     return "Reviews assigned to another reviewer or blocked by current actor state will appear here.";
@@ -1508,6 +1975,54 @@ function formatTimestamp(value: string | null | undefined) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const seconds = Math.round((date.getTime() - Date.now()) / 1000);
+  const absoluteSeconds = Math.abs(seconds);
+  const units: Array<[number, string]> = [
+    [60, "s"],
+    [60, "m"],
+    [24, "h"],
+    [7, "d"],
+    [4.345, "w"],
+    [12, "mo"]
+  ];
+  let valueInUnit = absoluteSeconds;
+  let unit = "s";
+
+  for (const [limit, nextUnit] of units) {
+    if (valueInUnit < limit) {
+      unit = nextUnit;
+      break;
+    }
+    valueInUnit /= limit;
+  }
+
+  const rounded = Math.max(1, Math.round(valueInUnit));
+  return seconds >= 0 ? `in ${rounded}${unit}` : `${rounded}${unit} ago`;
+}
+
+function formatDurationUntil(value: string | null | undefined) {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return formatRelativeTime(value);
 }
 
 function statusTone(status: string) {
@@ -1611,6 +2126,34 @@ function policyReviewActionReason(
       : roleAccess.reason;
   }
   return "This review request is completed.";
+}
+
+function runtimeEffectLabel(diffState?: DiffState) {
+  if (!diffState || diffState.status === "loading") {
+    return "Loading Policy Review Diff";
+  }
+  if (diffState.status === "error") {
+    return "Diff unavailable";
+  }
+  return (
+    diffState.diff.runtime_effect_summary.join(" ") ||
+    "No runtime effect until activation"
+  );
+}
+
+function activationLabel(diffState?: DiffState) {
+  if (!diffState || diffState.status === "loading") {
+    return "Loading";
+  }
+  if (diffState.status === "error") {
+    return "Diff unavailable";
+  }
+  if (!diffState.diff.can_activate) {
+    return "Not available";
+  }
+  return diffState.diff.activation_requires_replace
+    ? "Replace active required"
+    : "Explicit activation available";
 }
 
 function canReviewPolicies(actor: CurrentActorRecord) {

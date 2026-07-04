@@ -110,18 +110,6 @@ export function PolicyEditor({
 
   return (
     <main className="ps2-editor-pane" aria-label="Policy IDE editor">
-      <div className="ps2-product-topbar">
-        <div className="ps2-product-title">
-          <span className="ps2-policy-glyph" aria-hidden="true">
-            <PolicyIcon name="code" size={14} />
-          </span>
-          <span>
-            <strong>Policy Studio</strong>
-            <small>Draft authoring, validation, and review</small>
-          </span>
-        </div>
-      </div>
-
       <header className="ps2-policy-header">
         <div className="ps2-policy-title-row">
           <div className="ps2-policy-title-copy">
@@ -375,7 +363,12 @@ function ValidationConsole({
         </div>
         <button className="ps2-sim-run" onClick={onValidate} type="button">Validate</button>
       </div>
-      <div className="ps2-validation-grid" role="table" aria-label="Local validation messages">
+      <div
+        className="ps2-validation-grid"
+        role="table"
+        aria-label="Local validation messages"
+        style={{ maxHeight: 132, overflow: "auto" }}
+      >
         <div className="ps2-validation-row head" role="row">
           <span>Type</span>
           <span>Code</span>
@@ -406,7 +399,7 @@ function ValidationConsole({
                 {validationTypeLabel(message.tone)}
               </span>
               <span>{code}</span>
-              <span>{message.text}</span>
+              <span title={message.text}>{message.text}</span>
               <span>-</span>
             </div>
           );

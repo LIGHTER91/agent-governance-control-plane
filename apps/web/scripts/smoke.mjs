@@ -9,7 +9,9 @@ const files = [
   "app/layout.tsx",
   "app/page.tsx",
   "app/agcp-studio/AGCPStudio.tsx",
+  "app/agcp-studio/AGCPStudioShell.tsx",
   "app/agcp-studio/primitives.tsx",
+  "app/agcp-studio/styles.ts",
   "app/agents/page.tsx",
   "app/agents/agents-list.tsx",
   "app/agents/[agentId]/page.tsx",
@@ -198,7 +200,6 @@ const requiredText = [
   "PATCH /policy-folders/{folder_id}",
   "DELETE /policy-folders/{folder_id}",
   "Policy Studio",
-  "Draft authoring, validation, and review",
   "AGCPStudioShell",
   "ExtendedSidebar",
   "ps2-code-highlight",
@@ -324,7 +325,6 @@ const requiredText = [
   "Draft PolicyVersion",
   "deterministic PolicyRule condition JSON",
   "Compiled locally from editor state",
-  "Draft authoring, validation, and review",
   "Local validation only; no runtime decision request is executed",
   "Save draft creates a draft PolicyVersion and does not affect runtime until activation",
   "Confidential Data Vectorization Guard",
@@ -455,25 +455,31 @@ const requiredText = [
   "Evidence Bundle export requires an auditor or platform_admin role",
   "GET /human-approvals",
   "Review Inbox",
+  "Human Approval Studio",
+  "usesRailOnlySidebar",
+  "Action area",
   "Mine",
   "Waiting",
-  "Escalated",
+  "Approved",
   "Completed",
   "Why Review Is Required",
   "Policy Decision",
-  "Policy Checks",
+  "Runtime Decision",
+  "Metadata Checks",
   "Evidence Preview",
+  "Policy Review",
   "Metadata pre-check results",
   "No metadata pre-check results attached yet",
   "Approve",
   "Reject",
   "Request info",
-  "Reassign",
+  "Assign",
   "Activate approved version",
+  "Approval does not activate automatically",
+  "Activation changes future runtime evaluation",
   "Loading human approvals",
   "Unable to load human approvals",
   "No human approvals",
-  "review queue",
   "agcp-review-list",
   "policy_decision_id",
   "requested_by_actor_type",
@@ -575,6 +581,8 @@ for (const text of forbiddenText) {
 }
 
 runRootDashboardSmoke();
+runHumanApprovalsWorkspaceSmoke();
+runReviewInboxE2EContractSmoke();
 runActivityTimelineFixtureSmoke();
 runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
@@ -637,6 +645,7 @@ function runRootDashboardSmoke() {
   const rootSource = [
     sourceByFile.get("app/page.tsx") ?? "",
     sourceByFile.get("app/agcp-studio/AGCPStudio.tsx") ?? "",
+    sourceByFile.get("app/agcp-studio/AGCPStudioShell.tsx") ?? "",
     sourceByFile.get("app/layout.tsx") ?? ""
   ].join("\n");
 
@@ -652,6 +661,164 @@ function runRootDashboardSmoke() {
   ]) {
     if (rootSource.toLowerCase().includes(text.toLowerCase())) {
       throw new Error(`Root dashboard contains disconnected or unsafe text: ${text}`);
+    }
+  }
+}
+
+function runReviewInboxE2EContractSmoke() {
+  const reviewSource = [
+    sourceByFile.get("app/human-approvals/page.tsx") ?? "",
+    sourceByFile.get("app/human-approvals/review-inbox.tsx") ?? "",
+    sourceByFile.get("app/lib/human-approvals.ts") ?? "",
+    sourceByFile.get("app/lib/policies.ts") ?? ""
+  ].join("\n");
+
+  for (const text of [
+    "data-testid=\"review-inbox-route\"",
+    "data-testid=\"review-inbox-tabs\"",
+    "data-testid=\"review-inbox-list\"",
+    "data-testid=\"review-detail-pane\"",
+    "data-testid={`review-inbox-item-${item.kind}`}",
+    "data-testid=\"review-runtime-approve-action\"",
+    "data-testid=\"review-runtime-reject-action\"",
+    "data-testid=\"review-policy-approve-action\"",
+    "data-testid=\"review-policy-reject-action\"",
+    "data-testid=\"review-assign-action\"",
+    "data-testid=\"review-policy-activate-action\"",
+    "transitionHumanApproval",
+    "decidePolicyVersionReviewRequest",
+    "assignPolicyVersionReviewRequest",
+    "activatePolicyVersionReviewRequest",
+    "refreshAfterAction"
+  ]) {
+    if (!reviewSource.includes(text)) {
+      throw new Error(`Review Inbox E2E contract missing: ${text}`);
+    }
+  }
+
+  const flow = renderReviewInboxE2EFixture({
+    actor: {
+      actor_id: "user:alice",
+      actor_type: "user",
+      roles: ["reviewer", "platform_admin"]
+    },
+    runtimeApproval: {
+      id: "approval-001",
+      status: "pending",
+      policy_decision_id: "decision-001"
+    },
+    policyReview: {
+      id: "review-001",
+      status: "pending",
+      policy_version_id: "policy-version-001",
+      reviewer_actor_id: "user:alice"
+    }
+  });
+
+  for (const expected of [
+    "app loads",
+    "GET /human-approvals",
+    "GET /policy-version-review-requests",
+    "GET /me",
+    "reviewer sees Mine tab",
+    "select runtime review",
+    "approve runtime HumanApproval",
+    "reject runtime HumanApproval",
+    "select PolicyVersion review",
+    "assign reviewer",
+    "approve PolicyVersion review",
+    "reject PolicyVersion review",
+    "activate approved version",
+    "refresh inbox after mutation"
+  ]) {
+    if (!flow.includes(expected)) {
+      throw new Error(`Review Inbox E2E fixture missing: ${expected}`);
+    }
+  }
+}
+
+function renderReviewInboxE2EFixture({ actor, runtimeApproval, policyReview }) {
+  const canReview =
+    actor.roles.includes("reviewer") || actor.roles.includes("platform_admin");
+  const runtimePending = runtimeApproval.status === "pending";
+  const policyPending = policyReview.status === "pending";
+
+  return [
+    "app loads",
+    "GET /human-approvals",
+    "GET /policy-version-review-requests",
+    "GET /me",
+    canReview ? "reviewer sees Mine tab" : "reviewer blocked",
+    runtimePending ? "select runtime review" : "runtime review completed",
+    canReview && runtimePending
+      ? "approve runtime HumanApproval"
+      : "runtime approve disabled",
+    canReview && runtimePending
+      ? "reject runtime HumanApproval"
+      : "runtime reject disabled",
+    policyPending ? "select PolicyVersion review" : "PolicyVersion review completed",
+    canReview && policyPending ? "assign reviewer" : "assign reviewer disabled",
+    canReview && policyPending
+      ? "approve PolicyVersion review"
+      : "PolicyVersion approve disabled",
+    canReview && policyPending
+      ? "reject PolicyVersion review"
+      : "PolicyVersion reject disabled",
+    "activate approved version",
+    "refresh inbox after mutation",
+    runtimeApproval.policy_decision_id,
+    policyReview.policy_version_id
+  ].join("\n");
+}
+
+function runHumanApprovalsWorkspaceSmoke() {
+  const reviewSource = [
+    sourceByFile.get("app/human-approvals/page.tsx") ?? "",
+    sourceByFile.get("app/human-approvals/review-inbox.tsx") ?? ""
+  ].join("\n");
+
+  for (const text of [
+    "Human Approval Studio",
+    "Governance",
+    "Review Inbox",
+    "Action area",
+    "Mine",
+    "Waiting",
+    "Approved",
+    "Completed",
+    "Why Review Is Required",
+    "Runtime Decision",
+    "Metadata Checks",
+    "Evidence Preview",
+    "Policy Review",
+    "Approve",
+    "Reject",
+    "Current actor",
+    "Assign reviewer",
+    "Assign",
+    "Activate approved version",
+    "Approval does not activate automatically",
+    "Activation changes future runtime evaluation",
+    "No reviews need attention right now.",
+    "No fake user directory",
+    "Request info workflow is not wired yet",
+    "Not wired yet. This action will be available soon.",
+    "No metadata pre-check results attached yet"
+  ]) {
+    if (!reviewSource.includes(text)) {
+      throw new Error(`Human Approvals workspace missing: ${text}`);
+    }
+  }
+
+  for (const unsafeText of [
+    "Publish",
+    "compliance score",
+    "AI Act compliant",
+    "ISO 42001 certified",
+    "fake production simulation"
+  ]) {
+    if (reviewSource.toLowerCase().includes(unsafeText.toLowerCase())) {
+      throw new Error(`Human Approvals workspace contains unsafe text: ${unsafeText}`);
     }
   }
 }
