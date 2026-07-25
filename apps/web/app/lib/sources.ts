@@ -68,6 +68,22 @@ export type AccessGrantRecord = {
   updated_at: string;
 };
 
+export type AccessGrantCreatePayload = {
+  name: string;
+  description: string | null;
+  grant_type: "capability" | "source" | "model" | "permission" | "other";
+  subject_type: "agent";
+  subject_id: string;
+  target_type: "capability" | "source" | "model_asset" | "external" | "other";
+  target_id: string | null;
+  external_ref: string | null;
+  status: "pending_review" | "active" | "suspended" | "revoked" | "expired";
+  reason: string | null;
+  expires_at: string | null;
+  risk_level: "low" | "medium" | "high" | "critical";
+  metadata: SourceMetadata;
+};
+
 export type ModelAssetRecord = {
   id: string;
   name: string;
@@ -147,6 +163,17 @@ export function fetchCapabilities(
 ): Promise<CapabilityRecord[]> {
   return fetchApiArray<CapabilityRecord>("/capabilities", {
     errorLabel: "GET /capabilities",
+    signal
+  });
+}
+
+export function createAccessGrant(
+  payload: AccessGrantCreatePayload,
+  signal?: AbortSignal
+): Promise<AccessGrantRecord> {
+  return postApiJson<AccessGrantRecord>("/access-grants", {
+    body: payload,
+    errorLabel: "POST /access-grants",
     signal
   });
 }

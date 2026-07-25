@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   AGCPBadge,
@@ -252,7 +253,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         evidenceState={evidenceState}
         onLoadEvidence={handleLoadEvidence}
       />
-      <RuntimePolicyPlaceholder />
+      <RelatedGovernanceWorkflows />
     </>
   );
 }
@@ -433,6 +434,17 @@ function AgentHeader({ agent }: { agent: AgentRecord }) {
           Product governance overview for ownership, lifecycle state, risk
           classification, human oversight, activity, and evidence access.
         </p>
+        <div className="agent-profile-actions">
+          <Link
+            className="agent-primary-link-button"
+            href={`/agents/${encodeURIComponent(agent.id)}/edit`}
+          >
+            Edit governance
+          </Link>
+          <Link className="agent-inline-action" href="/agents/new">
+            Register another agent
+          </Link>
+        </div>
       </div>
       <aside className="agcp-owner-card">
         <span>Owner</span>
@@ -1064,16 +1076,27 @@ function technicalList(values: string[]) {
   return values.length > 0 ? values.join(", ") : "None";
 }
 
-function RuntimePolicyPlaceholder() {
+function RelatedGovernanceWorkflows() {
   return (
     <>
-      <h3 className="section-title">Runtime / policy decisions</h3>
-      <section className="placeholder-panel">
-        <p>
-          The Activity / Timeline section provides lightweight navigation across
-          linked runtime and policy records. A dedicated runtime decision
-          drill-down view remains future work.
-        </p>
+      <h3 className="section-title">
+        Runtime / policy decisions and related workflows
+      </h3>
+      <section className="agent-related-workflows">
+        <header>
+          <strong>Continue governance work</strong>
+          <p>
+            Open the existing business workflow for declared access, runtime
+            decisions, human oversight, evidence, or policy authoring.
+          </p>
+        </header>
+        <nav aria-label="Related Agent governance workflows">
+          <Link href="/access-data">Access &amp; Data</Link>
+          <Link href="/runtime-gateway">Runtime Decisions</Link>
+          <Link href="/human-approvals">Human Approval Studio</Link>
+          <Link href="/evidence">Evidence &amp; Audit</Link>
+          <Link href="/policies">Policy Studio</Link>
+        </nav>
       </section>
     </>
   );

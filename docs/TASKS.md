@@ -32,12 +32,14 @@ was changed.
 | `cd apps/api && uv run ruff format --check .` | Passed: 137 files |
 | `cd apps/api && uv run alembic upgrade head --sql` | Passed through `202607010001` |
 | `cd apps/web && npm run check` | Passed |
-| `cd apps/web && npm run build` | Passed |
+| `cd apps/web && npm run build` | Passed: 14 app routes, including Agent register/edit |
 | `cd apps/web && npm run smoke` | Passed standalone |
 | `docker compose -f compose.dev.yml config` | Passed |
 | `scripts/validate-clean.ps1` | Not run past prerequisites: Docker daemon unavailable |
 | Online empty PostgreSQL migration | Pending with clean validation |
-| Browser/E2E governance flow | Pending |
+| Focused Agent workflow browser QA | Passed at 1440x900, 1024x768, and 390x844; tablet compression fixed and rechecked |
+| Backend-backed Agent create/edit browser flow | Pending: Docker daemon unavailable |
+| Full browser/E2E governance flow | Pending |
 
 ## Implemented product foundation
 
@@ -45,6 +47,9 @@ was changed.
 
 - [x] Agent Registry and ownership model.
 - [x] Agent activity and Agent Governance Profile read model/UI.
+- [x] Five-step Agent registration and governance editing workflow using real
+      backend enums and inventory, with sequential `pending_review` Access
+      Grant creation and honest partial-failure retry.
 - [x] Capability, Source, ModelAsset, and DataUsageProfile inventory APIs.
 - [x] AccessGrant API, Agent-scoped reads, audit events, and explicit lifecycle
       transitions.
@@ -131,7 +136,7 @@ must never remove the normal development project or its volumes.
 
 ## P1 — strengthen product alpha
 
-- [ ] Agent onboarding and governance editing workflow.
+- [x] Agent onboarding and governance editing workflow.
 - [ ] Guided PolicyCheckStep authoring in Policy Studio with PolicyVersion
       snapshot compatibility.
 - [ ] Production-quality Python/LangGraph Runtime Gateway adapter with

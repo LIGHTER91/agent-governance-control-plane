@@ -125,9 +125,10 @@ export function AgentsList() {
     return (
       <AGCPPanel>
         <AGCPEmptyState title="No agents registered">
-          Once agents are created through the backend API, they will appear here
-          with ownership, environment, status, risk level, and framework
-          metadata.
+          Register the first Agent using real ownership and governance metadata.{" "}
+          <Link className="agcp-primary-link" href="/agents/new">
+            Register agent
+          </Link>
         </AGCPEmptyState>
       </AGCPPanel>
     );
@@ -138,8 +139,13 @@ export function AgentsList() {
       <AGCPSectionHeader
         eyebrow="connected registry"
         title="Registered agents"
-        description="Live records from GET /agents. The frontend does not inject demo agents or synthetic metrics."
+        description="Live records from GET /agents. Open a Governance Profile or register another Agent without synthetic records."
         meta={<AGCPBadge tone="purple">{state.agents.length} agents</AGCPBadge>}
+        actions={
+          <Link className="agent-inline-action" href="/agents/new">
+            Register agent
+          </Link>
+        }
       />
 
       <div className="agcp-registry-summary" aria-label="Agent registry summary">

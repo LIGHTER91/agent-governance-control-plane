@@ -15,7 +15,12 @@ HumanApproval, Policy, PolicyVersion review, and Runtime activity data from
 existing backend endpoints where available, and shows honest unavailable or
 empty states instead of synthetic metrics when an API cannot be reached. The
 Agents page and Agent detail page read from the backend Agent Registry API,
-Agent activity API, and HumanApproval API.
+Agent activity API, and HumanApproval API. `/agents/new` and
+`/agents/[agentId]/edit` provide a five-step, workflow-first registration and
+governance editing flow for Identity, Ownership, Runtime & Risk, Governed
+Access, and Review. The flow uses real Capability, Source, and Model inventory
+records and creates selected Access Grants as `pending_review` declarations,
+not IAM permissions.
 The Access & Data page is a workflow-first governance metadata workspace. It
 reads Access Grants, Source inventory records, Source Data Usage Profiles,
 Models, and Capabilities from backend APIs; shows metadata check readiness for
@@ -121,12 +126,17 @@ implemented connected pages call:
 
 ```text
 GET /agents
+POST /agents
 GET /agents/{agent_id}
+PATCH /agents/{agent_id}
+GET /agents/{agent_id}/governance-profile
+GET /agents/{agent_id}/access-grants
 GET /agents/{agent_id}/activity
 GET /agents/{agent_id}/human-approvals
 GET /sources
 GET /sources/{source_id}/usage-profile
 GET /access-grants
+POST /access-grants
 GET /models
 GET /capabilities
 POST /access-grants/{access_grant_id}/suspend
@@ -168,10 +178,14 @@ http://localhost:8000
 ```
 
 The backend API must be running for the root dashboard summary, Agent list,
-Agent detail page, Agent activity timeline, Access & Data page, Human Approvals
-list, and Evidence Bundle viewer to show data. Depending on your local browser
-and API setup, CORS configuration or a Next.js proxy may be needed before
-browser requests to the backend succeed. Agent activity requires a backend actor
+Agent registration/editing workflow, Agent detail page, Agent activity
+timeline, Access & Data page, Human Approvals list, and Evidence Bundle viewer
+to show data. Agent registration persists the Agent first, then creates
+selected Access Grants sequentially. If a grant operation fails, the saved
+Agent and successful grants remain persisted; the UI identifies the failed
+declarations and offers a bounded retry instead of claiming a rollback.
+Depending on your local browser and API setup, CORS configuration or a Next.js
+proxy may be needed before browser requests to the backend succeed. Agent activity requires a backend actor
 with `reviewer`, `auditor`, or `platform_admin` role. Evidence Bundle export
 also requires a backend actor with `auditor` or `platform_admin` role, or direct
 user owner access when the backend allows it. Loading or downloading Evidence
@@ -385,7 +399,9 @@ npm run build
 
 - `/`
 - `/agents`
+- `/agents/new`
 - `/agents/[agentId]`
+- `/agents/[agentId]/edit`
 - `/access-data`
 - `/policies`
 - `/integrations`
@@ -401,8 +417,9 @@ npm run build
 - No broad enterprise auth or fake user directory. Human Approval Studio has a
   minimal `/me`-backed advisory current-actor display, but backend RBAC remains
   authoritative.
-- Agent list is read-only.
-- Agent detail page is read-only.
+- Agent Registry and Agent Governance Profile remain read-oriented, with
+  dedicated registration and governance-edit actions instead of inline table
+  editing.
 - Agent activity timeline is read-only and lightweight.
 - Access & Data reads governed metadata from existing backend APIs and is not a
   data catalog, scanner, raw-content inspector, or production simulation.
@@ -416,7 +433,10 @@ npm run build
 - Evidence & Audit is a manual Evidence Bundle explorer and JSON download
   workflow only; it does not provide a general evidence list, PDF export,
   cryptographic signing, or external GRC/SIEM integrations.
-- No create, edit, or delete Agent forms.
+- Agent deletion is not exposed. Owner selection uses explicit persisted
+  identifiers because no enterprise user/team directory exists.
+- The Agent workflow declares new Access Grants as `pending_review`; it does
+  not approve grants, create IAM permissions, or guarantee runtime enforcement.
 - No dedicated Agent runtime or policy drill-down page is wired into the
   frontend yet.
 - Integration Hub does not implement adapter packages, execute tools, create or

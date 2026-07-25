@@ -156,8 +156,14 @@ packages for enterprise integrations are intentionally not implemented yet.
   metadata, scopes, and fine-grained scope rules when
   `AGCP_SERVICE_ACTOR_REGISTRY_ENABLED=true`.
 - Next.js dashboard shell.
-- Read-only frontend Agent list page backed by `GET /agents`.
-- Read-only frontend Agent detail page backed by
+- Backend-connected frontend Agent list page backed by `GET /agents`, with a
+  dedicated registration action.
+- Frontend Agent registration and governance editing workflow at `/agents/new`
+  and `/agents/{agent_id}/edit`, covering Identity, Ownership, Runtime & Risk,
+  Governed Access, and Review. It uses real inventory endpoints and creates
+  selected Access Grants sequentially as `pending_review`, with explicit
+  partial-completion retry.
+- Read-oriented frontend Agent detail page backed by
   `GET /agents/{agent_id}/governance-profile`,
   `GET /agents/{agent_id}/activity`,
   `GET /agents/{agent_id}/human-approvals`, and optional manual Evidence
@@ -674,7 +680,8 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Full enterprise-auth-backed frontend workflows beyond the current local API
   views and HumanApproval review actions.
 - Frontend login or broad role-management UI.
-- Agent edit forms.
+- Agent deletion, enterprise owner directory resolution, and Access Grant
+  approval inside the Agent workflow.
 - Broad filtering, search, or pagination for Agent and Runtime activity views.
 - Evidence Bundle PDF/signature/archive packaging.
 - Human approval notifications.
@@ -695,11 +702,12 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term implementation order:
 
-1. Agent onboarding and governance editing workflow.
-2. Guided PolicyCheckStep authoring in Policy Studio.
-3. One production-quality Python/LangGraph Runtime Gateway adapter with
+1. Guided PolicyCheckStep authoring in Policy Studio.
+2. One production-quality Python/LangGraph Runtime Gateway adapter with
    mandatory `proceed` enforcement, idempotency, timeout/failure behavior,
    HumanApproval resume, fake-tool tests, and documentation.
+3. Enterprise identity/RBAC and separation-of-duties design for the next
+   product maturity stage.
 
 Before a public demonstration, run `scripts/validate-clean.ps1` with Docker
 available and add a clean browser E2E governance flow. Beta preparation then

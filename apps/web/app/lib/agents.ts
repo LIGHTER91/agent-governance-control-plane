@@ -1,4 +1,10 @@
-import { fetchApiArray, fetchApiJson, getApiBaseUrl } from "./api";
+import {
+  fetchApiArray,
+  fetchApiJson,
+  getApiBaseUrl,
+  patchApiJson,
+  postApiJson
+} from "./api";
 
 export type AgentRecord = {
   id: string;
@@ -15,6 +21,21 @@ export type AgentRecord = {
   created_at: string;
   updated_at: string;
 };
+
+export type AgentCreatePayload = {
+  name: string;
+  description: string | null;
+  owner_type: string;
+  owner_id: string;
+  owner_name: string;
+  owner_contact_email: string | null;
+  environment: string;
+  status: string;
+  risk_level: string;
+  framework: string | null;
+};
+
+export type AgentUpdatePayload = Partial<AgentCreatePayload>;
 
 export type AgentActivityMetadataValue = string | number | boolean | null;
 
@@ -161,6 +182,32 @@ export async function fetchAgentGovernanceProfile(
     `/agents/${encodeURIComponent(agentId)}/governance-profile`,
     {
       errorLabel: "GET /agents/{agent_id}/governance-profile",
+      signal
+    }
+  );
+}
+
+export async function createAgent(
+  payload: AgentCreatePayload,
+  signal?: AbortSignal
+): Promise<AgentRecord> {
+  return postApiJson<AgentRecord>("/agents", {
+    body: payload,
+    errorLabel: "POST /agents",
+    signal
+  });
+}
+
+export async function updateAgent(
+  agentId: string,
+  payload: AgentUpdatePayload,
+  signal?: AbortSignal
+): Promise<AgentRecord> {
+  return patchApiJson<AgentRecord>(
+    `/agents/${encodeURIComponent(agentId)}`,
+    {
+      body: payload,
+      errorLabel: "PATCH /agents/{agent_id}",
       signal
     }
   );

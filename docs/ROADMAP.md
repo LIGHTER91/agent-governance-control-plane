@@ -40,13 +40,17 @@ context, not credentials or automatic IAM enforcement.
   framework metadata.
 - Agent activity, HumanApproval summary, Agent-scoped Access Grants, and Agent
   Governance Profile.
+- Workflow-first Agent registration and governance editing across Identity,
+  Ownership, Runtime & Risk, Governed Access, and Review.
+- Real Capability, Source, and Model inventory selection with sequential
+  `pending_review` Access Grant creation and honest partial-failure retry.
 - Capability, Source, ModelAsset, DataUsageProfile, and AccessGrant inventory
   APIs.
 - Workflow-first Access & Data frontend with explicit grant lifecycle actions
   and safe metadata-only readiness.
 
-The main gap is a frontend Agent onboarding/editing workflow that connects
-Agents to owners, inventories, and grants.
+The main gaps are stronger Agent filtering, enterprise owner resolution,
+Access Grant approval, and deeper runtime/policy/evidence relationships.
 
 ### Control risky actions
 
@@ -127,26 +131,33 @@ and the result is recorded without relying on existing developer data.
 
 ## P1 — strengthen product alpha
 
-1. **Agent onboarding and governance editing workflow**
-   - register/edit Agent;
-   - owner, environment, status, and risk classification;
-   - connect Capabilities, Sources, Models, and Access Grants;
-   - preserve workflow-first UI.
-2. **Guided PolicyCheckStep authoring in Policy Studio**
+Completed in the current product pass:
+
+- **Agent onboarding and governance editing workflow**
+  - register/edit Agent;
+  - owner, environment, status, and risk classification;
+  - real Capability, Source, and Model selection;
+  - sequential `pending_review` Access Grant creation with explicit partial
+    completion;
+  - preserved AGCPStudio shell and workflow-first UI.
+
+Active P1 work:
+
+1. **Guided PolicyCheckStep authoring in Policy Studio**
    - persist real PolicyCheckSteps;
    - constrain check type, target selection, expected outcome, and failure
      behavior;
    - preserve PolicyVersion snapshot compatibility and CheckResult evidence;
    - preserve the existing Policy Studio IDE layout.
-3. **Production-quality Python/LangGraph runtime adapter**
+2. **Production-quality Python/LangGraph runtime adapter**
    - before-tool decision;
    - mandatory `proceed` enforcement;
    - idempotency, timeout, and failure policy;
    - HumanApproval resume;
    - fake-tool tests and package/example documentation.
 
-Exit condition: the three weakest day-to-day alpha workflows are usable without
-raw API calls or seed-specific integration code.
+Exit condition: the remaining weak day-to-day alpha workflows are usable
+without raw API calls or seed-specific integration code.
 
 ## P2 — beta preparation
 

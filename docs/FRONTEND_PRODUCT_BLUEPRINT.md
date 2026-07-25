@@ -50,7 +50,7 @@ product concepts:
 | Surface | User Job | Current State | Remaining Gaps | What Not To Build |
 | --- | --- | --- | --- | --- |
 | Overview | Enter the product, see real operating status, and move to key workflows. | Root page is a connected product narrative for know/control/prove. It reads current actor, Agent, review, Policy, and Runtime activity endpoints and uses honest unavailable/empty states instead of synthetic metrics. | Deeper evidence and operating summaries only when stable backend read models justify them. | Do not add fake charts, compliance scores, or production metrics. |
-| Agents | Understand registered agents, owners, risk, environment, activity, approvals, and evidence. | Agent list and detail routes are backend-connected and use AGCP Studio visual language. Agent detail includes profile, activity, approvals, and evidence actions. | Agent onboarding/editing, stronger filtering, inventory relationships, and deeper runtime drill-down. | Do not turn this into a generic Agent CRUD table. |
+| Agents | Understand registered agents, owners, risk, environment, activity, approvals, and evidence. | Agent list/detail plus five-step registration and governance editing are backend-connected in the AGCP Studio visual language. The workflow covers Identity, Ownership, Runtime & Risk, Governed Access, and Review; inventory selection uses real Capability, Source, and Model records, and new Access Grants are created as `pending_review`. | Stronger filtering, grant approval, enterprise owner resolution, and deeper runtime/policy/evidence relationships. | Do not turn this into a generic Agent CRUD table or imply that declarations deploy Agents or create IAM permissions. |
 | Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with honest Local backend / Policy repository labels, backend-backed policy folders, compact folder create/rename/delete-empty/move controls, repository sidebar, center editor, editable Blocks canvas and Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Backend-backed repository/workspace metadata if the domain model adds it, PolicyCheckStep authoring UI, explicit operator persistence, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake repositories/workspaces, fake simulations, or fake impact metrics. |
 | Access & Data | Review declared agent access, source usage metadata, model/capability inventory, and metadata-only check readiness. | Workflow-first Access & Data page is backend-connected to Access Grants, Sources, DataUsageProfiles, Models, and Capabilities. It shows boundary copy, real empty/error/loading states, safe metadata summaries, Access Grant lifecycle transitions, readiness for supported metadata-only check inputs, and a local demo callout that creates real backend evidence. | Deeper cross-links to Agent Governance Profile, policy check step authoring, review workflows, and Evidence Bundle context once the backend read models need it. | Do not imply Access Grants are IAM credentials or automatic runtime enforcement. Do not expose raw source content, prompts, secrets, tokens, credentials, fake scanner output, legal certification, or production simulations. |
 | Runtime Decisions | Understand Runtime Gateway decisions and runtime activity. | Implemented as a workflow-first timeline over real Runtime Gateway activity, including request/context, active PolicyVersion or fallback state, metadata-check state, HumanApproval linkage, and Evidence Bundle navigation. | Richer detail, filtering, pagination, and direct CheckResult drill-down where backend read models support them. | Do not make AGCP execute tools or become a runtime/orchestrator. |
@@ -118,6 +118,32 @@ Validated behavior:
 
 Future Policy Studio work must preserve the existing AGCPStudio layout and
 product direction unless a human explicitly requests a redesign.
+
+### Agent Governance Workflow
+
+Agent registration and governance editing use the existing AGCPStudio shell
+and a focused five-step business workflow:
+
+1. Identity registers the durable Agent name, description, and optional
+   framework metadata.
+2. Ownership records the real backend owner type, stable owner identifier,
+   display name, and optional contact email without inventing a directory.
+3. Runtime & Risk records the real environment, lifecycle status, and risk
+   classification. Sensitive lifecycle changes require explicit confirmation.
+4. Governed Access loads real Capabilities, Sources, and ModelAssets and
+   prepares new Access Grants.
+5. Review makes the persistence and runtime boundaries explicit before save.
+
+The Agent is persisted before selected Access Grants are created sequentially.
+Every new grant starts as `pending_review`. A partial failure keeps the Agent
+and successful grants, identifies each failed declaration, and allows only the
+failed operations to be retried. Access Grants remain declarations: they do
+not create IAM credentials, deploy the Agent, or replace Runtime Gateway and
+caller-side enforcement.
+
+The workflow preserves the global shell, does not expose delete, and does not
+invent owner directory entries, inventory records, authorization roles, or
+transactional rollback.
 
 ### Human Approval Studio
 
@@ -245,8 +271,9 @@ signing, and archive formats are designed separately.
 
 - Overview: is connected and useful; deeper summaries should wait for stable
   backend evidence/read models rather than synthetic metrics.
-- Agents: needs onboarding/edit flows, filtering, and deeper relationships to
-  inventory, policy versions, runtime decisions, reviews, and evidence.
+- Agents: registration and governance editing are implemented. Remaining gaps
+  are filtering, enterprise owner resolution, grant approval, and deeper
+  relationships to policy versions, runtime decisions, reviews, and evidence.
 - Access & Data: now has a workflow-first metadata review surface across
   Sources, DataUsageProfiles, AccessGrants, Capabilities, ModelAssets, related
   governance workflows, and metadata check readiness. Remaining gaps are deeper

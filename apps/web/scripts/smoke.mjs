@@ -14,8 +14,22 @@ const files = [
   "app/agcp-studio/styles.ts",
   "app/agents/page.tsx",
   "app/agents/agents-list.tsx",
+  "app/agents/new/page.tsx",
+  "app/agents/[agentId]/edit/page.tsx",
   "app/agents/[agentId]/page.tsx",
   "app/agents/[agentId]/agent-detail.tsx",
+  "app/agents/agent-governance-form.tsx",
+  "app/agents/agent-governance-model.ts",
+  "app/agents/agent-form-controls.tsx",
+  "app/agents/agent-workflow-steps.tsx",
+  "app/agents/agent-identity-step.tsx",
+  "app/agents/agent-ownership-step.tsx",
+  "app/agents/agent-runtime-risk-step.tsx",
+  "app/agents/agent-access-target-picker.tsx",
+  "app/agents/agent-existing-grants.tsx",
+  "app/agents/agent-governed-access-step.tsx",
+  "app/agents/agent-review-step.tsx",
+  "app/agents/agent-submission-summary.tsx",
   "app/lib/api.ts",
   "app/lib/agents.ts",
   "app/lib/sources.ts",
@@ -400,6 +414,20 @@ const requiredText = [
   "Loading agents",
   "Unable to load agents",
   "No agents registered",
+  "Register agent",
+  "Register Agent",
+  "Edit governance",
+  "Identity",
+  "Ownership",
+  "Runtime & Risk",
+  "Governed Access",
+  "Review governance configuration",
+  "POST /agents",
+  "PATCH /agents/{agent_id}",
+  "POST /access-grants",
+  "pending_review",
+  "Retry failed grants",
+  "IAM permissions",
   "owner_name",
   "owner_id",
   "owner_type",
@@ -586,12 +614,64 @@ runReviewInboxE2EContractSmoke();
 runActivityTimelineFixtureSmoke();
 runRuntimeActivityFixtureSmoke();
 runAgentGovernanceProfileFixtureSmoke();
+runAgentGovernanceWorkflowSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
 runAccessGrantWorkflowFixtureSmoke();
 await runPolicyDslRoundTripSmoke();
 
 console.log("Dashboard shell smoke check passed.");
+
+function runAgentGovernanceWorkflowSmoke() {
+  const workflowSource = [
+    sourceByFile.get("app/agents/page.tsx") ?? "",
+    sourceByFile.get("app/agents/agents-list.tsx") ?? "",
+    sourceByFile.get("app/agents/new/page.tsx") ?? "",
+    sourceByFile.get("app/agents/[agentId]/edit/page.tsx") ?? "",
+    sourceByFile.get("app/agents/[agentId]/agent-detail.tsx") ?? "",
+    sourceByFile.get("app/agents/agent-governance-form.tsx") ?? "",
+    sourceByFile.get("app/agents/agent-governance-model.ts") ?? "",
+    sourceByFile.get("app/agents/agent-identity-step.tsx") ?? "",
+    sourceByFile.get("app/agents/agent-governed-access-step.tsx") ?? "",
+    sourceByFile.get("app/agents/agent-review-step.tsx") ?? "",
+    sourceByFile.get("app/agents/agent-submission-summary.tsx") ?? "",
+    sourceByFile.get("app/lib/agents.ts") ?? "",
+    sourceByFile.get("app/lib/sources.ts") ?? ""
+  ].join("\n");
+
+  for (const text of [
+    'href="/agents/new"',
+    "AgentGovernanceForm",
+    "mode=\"create\"",
+    "mode=\"edit\"",
+    "createAgent",
+    "updateAgent",
+    "createAccessGrant",
+    "buildAgentPatch",
+    "buildAccessGrantPayload",
+    'status: "pending_review"',
+    "Promise.allSettled",
+    "for (let index = 0; index < proposals.length; index += 1)",
+    "successfulGrantCount",
+    "failedGrants",
+    "The Agent remains registered",
+    "Frontend disabled states are advisory",
+    "AGCP registers and governs this Agent",
+    "AGCP will not deploy or execute this Agent",
+    "Access Grants do not create",
+    "Runtime Gateway"
+  ]) {
+    if (!workflowSource.includes(text)) {
+      throw new Error(`Agent governance workflow smoke check missing: ${text}`);
+    }
+  }
+
+  if (workflowSource.includes("Promise.all(proposals")) {
+    throw new Error(
+      "Agent governance workflow must create Access Grants sequentially."
+    );
+  }
+}
 
 function runRootDashboardSmoke() {
   const rootRequiredText = [
