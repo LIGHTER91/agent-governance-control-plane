@@ -1,8 +1,9 @@
 # Frontend Product Blueprint
 
-Status: V1 product direction for AGCP frontend work. This document is a
-blueprint, not a new implementation plan for redesigning existing validated
-screens.
+Status: current local V1 product direction for AGCP frontend work. AGCP is an
+advanced product prototype, not a production- or enterprise-ready frontend.
+This document is a blueprint, not a new implementation plan for redesigning
+existing validated screens.
 
 ## Product Positioning In UI
 
@@ -48,13 +49,13 @@ product concepts:
 
 | Surface | User Job | Current State | Remaining Gaps | What Not To Build |
 | --- | --- | --- | --- | --- |
-| Overview | Enter the product, see real operating status, and move to key workflows. | Root page is the app entry point and links to real connected routes. It avoids fake metrics when backend data is unavailable. | Better real summaries for agents, reviews, runtime activity, and evidence once stable backend read models exist. | Do not add fake charts, compliance scores, or production metrics. |
+| Overview | Enter the product, see real operating status, and move to key workflows. | Root page is a connected product narrative for know/control/prove. It reads current actor, Agent, review, Policy, and Runtime activity endpoints and uses honest unavailable/empty states instead of synthetic metrics. | Deeper evidence and operating summaries only when stable backend read models justify them. | Do not add fake charts, compliance scores, or production metrics. |
 | Agents | Understand registered agents, owners, risk, environment, activity, approvals, and evidence. | Agent list and detail routes are backend-connected and use AGCP Studio visual language. Agent detail includes profile, activity, approvals, and evidence actions. | Agent onboarding/editing, stronger filtering, inventory relationships, and deeper runtime drill-down. | Do not turn this into a generic Agent CRUD table. |
 | Policy Studio | Author, inspect, validate, and prepare governance policies. | Implemented as an IDE-like surface with honest Local backend / Policy repository labels, backend-backed policy folders, compact folder create/rename/delete-empty/move controls, repository sidebar, center editor, editable Blocks canvas and Code DSL toggle, `WHEN -> CHECK -> THEN -> PROVE`, local validation, inspector, draft snapshots, review submit, activation-gated flow, archive, and draft-only delete. | Backend-backed repository/workspace metadata if the domain model adds it, PolicyCheckStep authoring UI, explicit operator persistence, richer version history, and focused review workflow refinements. | Do not reintroduce generic Policy/PolicyRule CRUD forms, Publish, fake repositories/workspaces, fake simulations, or fake impact metrics. |
 | Access & Data | Review declared agent access, source usage metadata, model/capability inventory, and metadata-only check readiness. | Workflow-first Access & Data page is backend-connected to Access Grants, Sources, DataUsageProfiles, Models, and Capabilities. It shows boundary copy, real empty/error/loading states, safe metadata summaries, Access Grant lifecycle transitions, readiness for supported metadata-only check inputs, and a local demo callout that creates real backend evidence. | Deeper cross-links to Agent Governance Profile, policy check step authoring, review workflows, and Evidence Bundle context once the backend read models need it. | Do not imply Access Grants are IAM credentials or automatic runtime enforcement. Do not expose raw source content, prompts, secrets, tokens, credentials, fake scanner output, legal certification, or production simulations. |
-| Runtime Decisions | Understand Runtime Gateway decisions and runtime activity. | Runtime overview and activity pages are read-oriented. Runtime decisions can use active PolicyVersion snapshots with fallback to unversioned policy state. | Better timeline, filtering, and links from decisions to policy version, checks, approvals, evidence, and agent runs. | Do not make AGCP execute tools or become a runtime/orchestrator. |
-| Reviews | Resolve runtime HumanApprovals and PolicyVersion review requests. | Review Inbox is implemented with unified work items, selected review detail, assignment, policy decision context, checks, evidence preview, approve/reject, and explicit activation when applicable. | Request-info and escalation flows, notifications, richer assignment, and enterprise identity integration. | Do not make reviews backend resource tables or add a fake reviewer directory. |
-| Evidence & Audit | Export and inspect bounded evidence for review. | Evidence Bundle page loads backend evidence on user action. Review Inbox and Evidence Bundle expose safe CheckResult summaries. Audit surfaces exist for audit review. | Consolidated Evidence & Audit workspace, PDF/signature design, filtering, and stronger cross-linking. | Do not expose raw prompts, source contents, secrets, tokens, fake scanner results, or legal certification claims. |
+| Runtime Decisions | Understand Runtime Gateway decisions and runtime activity. | Implemented as a workflow-first timeline over real Runtime Gateway activity, including request/context, active PolicyVersion or fallback state, metadata-check state, HumanApproval linkage, and Evidence Bundle navigation. | Richer detail, filtering, pagination, and direct CheckResult drill-down where backend read models support them. | Do not make AGCP execute tools or become a runtime/orchestrator. |
+| Reviews | Resolve runtime HumanApprovals and PolicyVersion review requests. | Human Approval Studio implements the attached review-inbox mockup inside the existing shell, with unified work items, Mine / Waiting / Approved / Completed lanes, a left Review Inbox queue, center selected review detail, right current actor / assign / actions rail, policy decision context, checks, evidence preview, approve/reject, and explicit activation when applicable. | Request-info, runtime assignment, notifications, richer assignment, and enterprise identity integration. | Do not make reviews backend resource tables or add a fake reviewer directory. |
+| Evidence & Audit | Export and inspect bounded evidence for review. | Implemented as a consolidated workflow-first explorer that manually loads one real Evidence Bundle and organizes Subject, Policy Decision, CheckResults, Human Review, Policy Review, Audit Trail, and bounded JSON export. | General evidence/audit listing, filtering, PDF/signature/archive design, retention, and external export. | Do not expose raw prompts, source contents, secrets, tokens, fake scanner results, or legal certification claims. |
 | Integrations | Understand how external runtimes connect to AGCP without AGCP orchestrating them. | Integration Hub explains Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, generic webhooks, Service Actor expectations, modes, and boundaries. | Adapter packages, stronger auth, setup validation, and production integration guides. | Do not build a workflow orchestrator or claim design-only integrations are production-ready. |
 | Settings/Admin | Configure local/dev actor behavior and, later, admin surfaces. | Local admin actor support and read-only service actor concepts exist where enabled. Settings remains lightweight. | Enterprise auth, user/team/org administration, service actor key rotation, and production operations. | Do not add fake enterprise auth, fake users, or plaintext API key display. |
 
@@ -118,17 +119,24 @@ Validated behavior:
 Future Policy Studio work must preserve the existing AGCPStudio layout and
 product direction unless a human explicitly requests a redesign.
 
-### Review Inbox
+### Human Approval Studio
 
-Review Inbox is the validated direction for runtime and policy review work. It
-must remain a review workflow, not a backend table browser.
+Human Approval Studio is the validated business surface direction for runtime
+and policy review work. The attached Human Approval Studio mockup is the source
+of truth for this surface. It lives inside the existing AGCP Studio shell and
+uses the same compact rail-only sidebar pattern as Policy Studio; the topbar and
+global shell styling are not redesigned by this surface. It must remain a
+review workflow, not a backend table browser.
 
 Validated structure:
 
-- Left inbox of work items.
-- Selected review detail.
+- Internal breadcrumb: Governance / Human Approval Studio.
+- Left Review Inbox queue of work items with Mine, Waiting, Approved, and
+  Completed lanes.
+- Center selected review detail for the selected review.
+- Right current actor / assign reviewer / actions / request info rail.
 - "Why Review Is Required" context.
-- Policy Decision context.
+- Runtime Decision and Policy Review context.
 - Policy Checks and metadata-only CheckResult evidence.
 - Evidence Preview.
 - Action row for approve, reject, request info, reassign, and explicit
@@ -140,6 +148,9 @@ Validated behavior:
   enforcement.
 - PolicyVersionReviewRequest work items can be assigned, approved, rejected,
   and explicitly activated when approved.
+- Approval does not activate automatically.
+- Activation changes future runtime evaluation only through the explicit
+  activation endpoint.
 - Current actor state is visible and frontend role-aware behavior is advisory.
 - Backend authorization remains authoritative.
 - Request-info and escalation flows are represented honestly as not wired yet.
@@ -166,9 +177,9 @@ Validated behavior:
 No Publish action exists by design. If future product copy needs a runtime
 change verb, prefer explicit activation language.
 
-## Review Inbox Wireflow
+## Human Approval Studio Wireflow
 
-Review Inbox handles two related review streams:
+Human Approval Studio handles two related review streams:
 
 - Runtime HumanApproval records created by Runtime Gateway decisions.
 - PolicyVersionReviewRequest records created by Policy Studio Submit for
@@ -178,15 +189,15 @@ Runtime review flow:
 
 1. Runtime Gateway returns a decision that requires human review.
 2. HumanApproval is created.
-3. Review Inbox shows the request with policy decision context, check evidence,
-   and safe metadata.
+3. Human Approval Studio shows the request with policy decision context, check
+   evidence, and safe metadata.
 4. Reviewer approves, rejects, or cancels according to backend rules.
 5. Any caller-side resume remains explicit and outside AGCP tool execution.
 
 Policy version review flow:
 
 1. Policy Studio submits a saved draft PolicyVersion.
-2. Review Inbox shows the review request.
+2. Human Approval Studio shows the review request.
 3. Reviewer can inspect diff, evidence, assignment, current actor, and status.
 4. Reviewer approves or rejects.
 5. Approved review can be activated explicitly.
@@ -232,7 +243,8 @@ signing, and archive formats are designed separately.
 
 ## Remaining Frontend Gaps
 
-- Overview: needs stronger real operating summaries without fake metrics.
+- Overview: is connected and useful; deeper summaries should wait for stable
+  backend evidence/read models rather than synthetic metrics.
 - Agents: needs onboarding/edit flows, filtering, and deeper relationships to
   inventory, policy versions, runtime decisions, reviews, and evidence.
 - Access & Data: now has a workflow-first metadata review surface across
@@ -242,14 +254,16 @@ signing, and archive formats are designed separately.
   the product flow is designed.
 - Runtime Decisions: needs a better timeline and decision detail workspace with
   policy version, checks, approvals, and evidence links.
-- Evidence & Audit: should become a consolidated review/export workspace while
-  preserving bounded JSON as canonical V1 export.
+- Evidence & Audit: is consolidated for the bounded one-Agent JSON workflow.
+  Remaining gaps are a general evidence/audit index, filtering,
+  PDF/signature/archive packaging, retention, and external export.
 - Integrations: needs real adapter package work only after auth, caller
   enforcement, and packaging boundaries are designed.
 - Settings/Admin: needs local actor clarity now and enterprise auth/admin later,
   without fake users or fake role directories.
-- Demo UX: metadata-only pre-check scenarios need an easier product-level demo
-  path that still creates real backend evidence.
+- Demo UX: the one-command metadata pre-check path exists and creates real
+  backend evidence. Remaining work is clean browser/E2E validation of that
+  workflow, not hardcoded frontend demo data.
 
 ## Anti-Patterns
 

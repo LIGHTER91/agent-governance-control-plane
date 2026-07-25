@@ -1,6 +1,8 @@
 # AGCP Web App
 
-Next.js product frontend for the Agent Governance Control Plane.
+Next.js frontend for the AGCP local V1 / advanced product prototype. The core
+governance workflows are backend-connected, but the product is not
+production-ready or enterprise-ready.
 
 The shared product chrome uses the AGCP Studio visual shell: dark control-plane
 sidebar, compact topbar, dense panels, badges, and bounded review/export
@@ -22,14 +24,22 @@ Decisions, Review Inbox, and Evidence & Audit; and can transition Access Grant
 statuses through explicit backend lifecycle endpoints while keeping grants as
 declarative governance records. It defensively filters unsafe metadata keys
 before rendering safe summaries and does not expose raw source content,
-prompts, secrets, tokens, credentials, or private payloads. The Human Approvals route renders a
-Review Inbox experience: Runtime HumanApproval records and PolicyVersion review
-requests appear as unified review work items with a left inbox, selected detail
-pane, and sections for why review is required, policy decision context, policy
-checks, and evidence preview. Runtime HumanApproval evidence previews show safe
-metadata-only CheckResult summaries when the linked PolicyDecision has them,
-and otherwise show an honest empty state. Unsupported escalation and
-request-info flows are shown honestly as not wired yet. The Evidence & Audit
+prompts, secrets, tokens, credentials, or private payloads. The Human Approvals route renders the
+Human Approval Studio business area from the attached mockup inside the existing
+AGCP Studio shell. It uses the same compact rail-only sidebar pattern as Policy
+Studio; the topbar and global shell styling remain unchanged.
+Runtime HumanApproval records and PolicyVersionReviewRequest records appear as
+unified review work items with a left Review Inbox queue, center selected review
+detail, and right current actor / assign / actions rail. The business area
+surfaces Why Review Is Required, Runtime Decision, Policy Review, Metadata
+Checks, Evidence Preview, current actor context, reviewer assignment,
+approve/reject actions, and explicit Activate approved version behavior.
+Runtime HumanApproval evidence previews show safe metadata-only CheckResult
+summaries when the linked PolicyDecision has them, and otherwise show an honest
+empty state. PolicyVersion reviews show diff, governance, activation, and audit
+context without automatically changing runtime behavior. Runtime assignment and
+request-info flows are shown honestly as not wired yet when backend support is
+absent. The Evidence & Audit
 page is now a workflow-first evidence explorer: it manually loads a real
 Evidence Bundle for one Agent, organizes Subject, Policy Decision, Metadata
 CheckResults, Human Review, Policy Review, Audit Trail, and Export bundle
@@ -48,7 +58,8 @@ Integration Hub page explains Custom
 Runtime Gateway API, LangGraph, n8n, Dataiku, MCP, and generic webhook/API
 connection patterns without turning AGCP into an orchestrator. It can show a
 read-only Service Actor registry and API key status summary when the backend
-admin APIs are enabled. The remaining sections are placeholders. It
+admin APIs are enabled. The standalone Audit and Settings routes remain honest
+placeholders; the implemented V1 audit workflow lives in Evidence & Audit. It
 does not implement login, does not render charts, and does not claim production
 readiness or legal compliance certification.
 
@@ -86,6 +97,17 @@ On Windows PowerShell:
 .\scripts\dev-up.ps1
 ```
 
+To validate a separate clean PostgreSQL/API/web stack without changing the
+normal development project or its volumes:
+
+```powershell
+.\scripts\validate-clean.ps1
+```
+
+Use `-KeepRunning` only for intentional browser inspection. The script checks
+its dedicated host ports before starting and otherwise cleans up only Compose
+project `agcp-clean-validation`.
+
 Open the URL printed by Next.js, usually:
 
 ```text
@@ -112,6 +134,14 @@ POST /access-grants/{access_grant_id}/revoke
 POST /access-grants/{access_grant_id}/reactivate
 POST /access-grants/{access_grant_id}/expire
 GET /human-approvals
+POST /human-approvals/{approval_id}/approve
+POST /human-approvals/{approval_id}/reject
+GET /policy-version-review-requests
+GET /policy-version-review-requests/{review_request_id}/diff
+POST /policy-version-review-requests/{review_request_id}/approve
+POST /policy-version-review-requests/{review_request_id}/reject
+POST /policy-version-review-requests/{review_request_id}/assign
+POST /policy-version-review-requests/{review_request_id}/activate
 GET /agents/{agent_id}/evidence-bundle
 GET /service-actors
 GET /service-actors/{service_actor_id}/api-keys
@@ -123,7 +153,6 @@ PATCH /policies/{policy_id}
 GET /policies/{policy_id}/rules
 POST /policy-rules
 PATCH /policy-rules/{rule_id}
-GET /policy-version-review-requests/{review_request_id}/diff
 ```
 
 Configure the backend base URL with:
@@ -209,10 +238,10 @@ activate this version. If a pending review request already exists, the UI shows
 "Review request already pending." or the disabled reason "A review request is
 already pending for this draft." instead of a raw endpoint conflict. Approval or
 rejection records reviewer intent but does not activate the version. Approved
-review requests can be activated explicitly from the Policy Reviews queue with
+review requests can be activated explicitly from the Human Approval Studio with
 Activate approved version; activation changes future runtime policy evaluation
 and replacement of an existing active version requires explicit user intent.
-The Policy Reviews queue also loads deterministic metadata-only Policy Review
+The Human Approval Studio also loads deterministic metadata-only Policy Review
 Diff summaries from the backend. These summaries show active/live/no-baseline
 comparison state, changed condition fields, runtime-effect copy, and
 activation/supersession audit references when available. They do not simulate
@@ -224,7 +253,7 @@ Pending PolicyVersion review requests can also be assigned to an explicit
 reviewer actor id. Assignment is governance metadata only: it does not approve,
 reject, notify, activate, or change runtime state, and the backend still
 enforces reviewer/platform_admin decision rules.
-The Policy Reviews queue calls `GET /me` to show the current actor and make
+The review workspace calls `GET /me` to show the current actor and make
 approve/reject/assign/activate buttons advisory-role-aware. Disabled buttons
 show reasons such as "Reviewer role required" or "Assigned to another
 reviewer", but backend authorization remains the source of truth. There is no
@@ -252,17 +281,17 @@ Code DSL stay synchronized locally, and Save draft is the persistence boundary
 for draft PolicyVersion snapshots.
 
 Policy Studio backlog alignment is tracked in
-`docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. The current UI largely satisfies the
-V1 guided authoring goal from #58. The controlled DSL from #76 is formally
-documented in `docs/POLICY_STUDIO_DSL_DESIGN.md`: it is a frontend authoring
-layer that compiles to deterministic PolicyRule condition JSON, not a runtime
-engine or production simulation language. Backend review workflow refinements
-should continue to follow the #56 versioning/review guardrail contract and #68
-active PolicyVersion rollout decisions before adding publish-like semantics.
-The broader frontend product direction for #74 is documented in
-`docs/FRONTEND_PRODUCT_BLUEPRINT.md`. It treats Policy Studio and Review Inbox
-as validated AGCPStudio surfaces, captures the remaining workflow-first
-frontend gaps, and explicitly rejects API-shaped CRUD regressions, fake metrics,
+`docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. Policy Studio V1 and the controlled
+DSL are implemented authoring surfaces; the DSL compiles to deterministic
+PolicyRule condition JSON and is not a runtime engine or production simulation
+language. The requested V1 PolicyVersion review lifecycle from #56 is also
+implemented: draft snapshots, review requests, assignment, approve/reject,
+diff, explicit activation, single-active guard, rollback draft, and live-edit
+guardrails. Historical PolicyDecision backfill remains a separate decision.
+The broader frontend product direction is documented in
+`docs/FRONTEND_PRODUCT_BLUEPRINT.md`. It treats Policy Studio and Human
+Approval Studio as validated AGCPStudio surfaces, captures the remaining
+workflow-first gaps, and rejects API-shaped CRUD regressions, fake metrics,
 fake compliance scores, and fake production simulations.
 
 ## Local Full-Stack Demo
@@ -328,6 +357,12 @@ Troubleshooting:
 
 ## Checks
 
+Run TypeScript and the product-boundary smoke suite together:
+
+```bash
+npm run check
+```
+
 Run the static smoke check:
 
 ```bash
@@ -363,7 +398,7 @@ npm run build
 ## Current Limitations
 
 - No login or auth UI.
-- No broad enterprise auth or fake user directory. Policy Reviews has a
+- No broad enterprise auth or fake user directory. Human Approval Studio has a
   minimal `/me`-backed advisory current-actor display, but backend RBAC remains
   authoritative.
 - Agent list is read-only.
@@ -375,7 +410,9 @@ npm run build
   role-aware and do not create IAM permissions or runtime enforcement.
 - Metadata Check Readiness is a readiness summary only; PolicyCheckStep
   authoring is not wired into this page.
-- Human Approvals is a read-oriented review queue in the current UI.
+- Human Approvals is a decision workspace for runtime HumanApproval and
+  PolicyVersionReviewRequest reviews. It keeps the shell unchanged and redesigns
+  only the business area.
 - Evidence & Audit is a manual Evidence Bundle explorer and JSON download
   workflow only; it does not provide a general evidence list, PDF export,
   cryptographic signing, or external GRC/SIEM integrations.

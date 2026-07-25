@@ -26,38 +26,39 @@ control plane is intended to answer:
 - Who approved an agent, policy, action, or exception?
 - What evidence can be exported for review?
 
-## Current V0 Backend Status
+## Current Maturity
 
-The V0 backend governance flow is implemented and covered by tests:
+AGCP is a **local V1 / advanced product prototype**. It is no longer a
+backend-only V0 milestone, but it is not production-ready or enterprise-ready.
+The implemented governance flow includes:
 
 ```text
-Agent Registry
--> Telemetry tool_call_requested
--> deterministic Policy evaluation
--> PolicyDecision
--> pending HumanApproval when decision = require_human_review
--> AuditLog
--> Evidence Bundle JSON export
+Agent Registry and declared access
+-> Policy Studio draft and reviewed PolicyVersion activation
+-> Runtime Gateway or telemetry evaluation
+-> PolicyDecision and metadata-only CheckResults
+-> HumanApproval when decision = require_human_review
+-> AuditLog and Evidence Bundle JSON export
 ```
 
-See [V0_GOVERNANCE_FLOW.md](docs/V0_GOVERNANCE_FLOW.md) for the executable demo
-scenario.
+See [V0_GOVERNANCE_FLOW.md](docs/V0_GOVERNANCE_FLOW.md) for the original
+executable backend slice and
+[PROJECT_AUDIT_CURRENT_STATE.md](docs/PROJECT_AUDIT_CURRENT_STATE.md) for the
+current assessment.
 
-This is still a V0 backend milestone, not a production-ready enterprise control
-plane. Runtime Gateway foundations, inventory APIs, Access Grants, auditable
-Policy and PolicyRule management, Agent-scoped access reads, and an Agent
-Governance Profile read model now exist. Service actor API key authentication
-also exists, with config-based auth as the default and optional DB-backed
-registry auth behind an explicit feature flag. Both paths support endpoint
-scopes and fine-grained Agent/environment/runtime/tool restrictions, and
-runtime and telemetry endpoints can require service authentication. AGCP does
-not execute tools; runtime enforcement depends on wrappers or adapters calling
-AGCP and honoring `proceed`. Minimal RBAC exists for HumanApproval review
-actions and Evidence Bundle export. The frontend now exposes the core read-only
-governance views, Runtime activity, pending HumanApproval review actions, an
-Agent Governance Profile UI, and an Integration Hub page for runtime connection
-guidance.
-Full user authentication, OIDC/SAML, team membership resolution, enterprise
+Runtime Gateway, telemetry, inventory APIs, Access Grants, auditable Policy and
+PolicyRule management, active PolicyVersion evaluation with unversioned
+fallback, Agent Governance Profile, Human Approval Studio, Runtime Decisions,
+Evidence & Audit, Access & Data, Overview, Integration Hub, and the
+metadata-only pre-check demo now exist. Service actor API key authentication
+uses config by default and can use an optional DB-backed registry behind an
+explicit feature flag. Both paths support endpoint scopes and fine-grained
+Agent/environment/runtime/tool restrictions.
+
+AGCP does not execute tools. Runtime enforcement depends on wrappers or
+adapters calling AGCP and honoring `proceed`. Minimal RBAC exists for selected
+review, activity, and Evidence Bundle actions.
+Full user authentication, OIDC/SAML/JWT, team membership resolution, enterprise
 auth-backed frontend workflows, notifications, production deployment, mutating
 service actor admin workflows, API key rotation implementation, and adapter
 packages for enterprise integrations are intentionally not implemented yet.
@@ -166,21 +167,31 @@ packages for enterprise integrations are intentionally not implemented yet.
   HumanApproval summary, Evidence Bundle availability, inventory/access
   details, and compact technical policy/rule references.
 - Frontend Policy Studio IDE for Policy and PolicyRule authoring, including
-  repository navigation, static templates, Blocks and Code DSL modes,
-  deterministic local validation, explicit `check_*` outcome fields, Save draft
-  through existing APIs, no Publish action, and no fake production simulation.
-- Read-only frontend Runtime Decisions page backed by runtime activity data,
+  backend-backed Policy folders, repository navigation, static templates,
+  synchronized Blocks and Code DSL modes, deterministic local validation,
+  explicit `check_*` outcome fields, PolicyVersion-backed Save draft, Submit
+  for review, explicit reviewed activation, rollback draft, archive, guarded
+  draft delete, no Publish action, and no fake production simulation.
+- Workflow-first frontend Runtime Decisions page backed by runtime activity data,
   showing request, context, policy evaluation, metadata checks, human review,
   and evidence milestones without fake production simulation.
-- Frontend Human Approvals page backed by `GET /human-approvals`, with review
-  actions shown only for pending approvals.
-- Read-only frontend Evidence Bundle page backed by
-  `GET /agents/{agent_id}/evidence-bundle`.
+- Human Approval Studio backed by Runtime HumanApproval and
+  PolicyVersionReviewRequest APIs, with policy review assignment,
+  approve/reject, diff, and explicit activation while preserving the approved
+  Review Inbox layout.
+- Workflow-first Evidence & Audit explorer backed by
+  `GET /agents/{agent_id}/evidence-bundle`, with safe evidence-chain sections
+  and bounded JSON download.
+- Workflow-first Access & Data page for Access Grants, Sources,
+  DataUsageProfiles, Models, Capabilities, metadata-check readiness, and
+  explicit grant lifecycle transitions.
+- Connected Overview page for the know/control/prove product narrative using
+  real backend summaries and honest empty/error states.
 - Frontend Integration Hub page for Custom Runtime Gateway API, LangGraph,
   n8n, Dataiku, MCP, and generic webhook/API connection guidance, with optional
   read-only Service Actor registry summary metadata.
 
-## V0 Governance Flow
+## Historical V0 Governance Flow
 
 The V0 demo exercises this sequence:
 
@@ -286,11 +297,29 @@ are not a full IAM system.
 
 Policy Management:
 
+- `POST /policy-folders`
+- `GET /policy-folders`
+- `PATCH /policy-folders/{folder_id}`
+- `DELETE /policy-folders/{folder_id}`
 - `POST /policies`
 - `GET /policies`
 - `GET /policies/{policy_id}`
 - `GET /policies/{policy_id}/rules`
 - `PATCH /policies/{policy_id}`
+- `POST /policies/{policy_id}/archive`
+- `DELETE /policies/{policy_id}`
+- `POST /policies/{policy_id}/versions/draft`
+- `GET /policies/{policy_id}/versions`
+- `PATCH /policy-versions/{version_id}/draft`
+- `POST /policy-versions/{policy_version_id}/review-requests`
+- `GET /policy-versions/{policy_version_id}/review-state`
+- `GET /policy-version-review-requests`
+- `GET /policy-version-review-requests/{review_request_id}/diff`
+- `POST /policy-version-review-requests/{review_request_id}/assign`
+- `POST /policy-version-review-requests/{review_request_id}/approve`
+- `POST /policy-version-review-requests/{review_request_id}/reject`
+- `POST /policy-version-review-requests/{review_request_id}/activate`
+- `POST /policy-versions/{version_id}/rollback-draft`
 - `POST /policy-rules`
 - `GET /policy-rules`
 - `GET /policy-rules/{rule_id}`
@@ -305,6 +334,11 @@ Policy management records the lifecycle of policies with `draft`, `active`,
 `disabled`, and `archived` statuses. PolicyRule management accepts only the
 deterministic JSON condition shape already consumed by the evaluator. It does
 not add a generic policy language or change runtime evaluation behavior.
+Policy Studio persists draft PolicyVersion snapshots. Dedicated review requests
+support assignment, approve/reject, deterministic diff, and explicit
+activation; approval alone has no runtime effect. The backend enforces one
+active version per Policy, supports review-gated rollback drafts, and blocks
+legacy live edits for active-versioned Policies.
 PolicyCheckStep records declare metadata-only evidence expectations for
 PolicyRules with constrained check types and target selectors. Runtime Gateway
 executes active authored steps only when
@@ -441,6 +475,23 @@ The script loads the Runtime Gateway payload through
 `scripts/seed_full_stack_demo.py --print-runtime-payload`, which uses the same
 `src` import path bootstrap as the seed command and prints JSON only.
 
+Validate the entire stack against an isolated clean PostgreSQL volume:
+
+```powershell
+.\scripts\validate-clean.ps1
+```
+
+The validation script uses Compose project `agcp-clean-validation` and
+dedicated default host ports `55432`, `58000`, and `53000`. It checks port
+availability before starting, applies all migrations to an empty database,
+verifies `/health` and `/me`, runs the deterministic seed and metadata
+pre-check scenario, requires `decision=require_human_review`,
+`proceed=false`, at least one linked CheckResult, and a HumanApproval
+identifier, runs frontend smoke, and removes only its isolated containers and
+volumes in a `finally` block. Use `-KeepRunning` only when intentional browser
+inspection is needed. The script never runs `down -v` against the normal AGCP
+development project.
+
 Troubleshooting the Compose stack:
 
 - Docker Desktop not running: start Docker Desktop, then rerun
@@ -465,7 +516,7 @@ Run a local full-stack demo with real backend data:
 
 ```powershell
 # 1. From the repository root, start local PostgreSQL 16.
-docker compose -f docker-compose.dev.yml up -d postgres
+docker compose -f compose.dev.yml up -d db
 
 # 2. Configure the API to use the local Docker database.
 cd apps/api
@@ -540,12 +591,12 @@ Troubleshooting:
   `uv run python scripts/seed_full_stack_demo.py --print-runtime-payload`
   instead of inline `python -c` imports.
 - Docker not running: start Docker Desktop, then rerun
-  `docker compose -f docker-compose.dev.yml up -d postgres`.
+  `docker compose -f compose.dev.yml up -d db`.
 - Port `5432` already in use: stop the existing local PostgreSQL process, or
-  change the host port in `docker-compose.dev.yml` and update
+  set `POSTGRES_PORT` for `compose.dev.yml` and update
   `AGCP_DATABASE_URL` to match.
 - Alembic connection timeout: check
-  `docker compose -f docker-compose.dev.yml ps`, confirm the database is
+  `docker compose -f compose.dev.yml ps`, confirm the database is
   healthy, and verify `AGCP_DATABASE_URL` includes `postgres:postgres`.
 - CORS or browser proxy errors: keep the web app on `http://localhost:3000` or
   add its origin to `AGCP_CORS_ALLOWED_ORIGINS`.
@@ -625,17 +676,16 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Frontend login or broad role-management UI.
 - Agent edit forms.
 - Broad filtering, search, or pagination for Agent and Runtime activity views.
-- Evidence Bundle PDF/download/signature actions in the UI.
+- Evidence Bundle PDF/signature/archive packaging.
 - Human approval notifications.
 - Production SDKs or framework adapters.
 - Runtime Integration Hub adapter packages or workflow nodes for LangGraph,
   n8n, Dataiku, MCP, or generic webhook integrations.
 - Production deployment.
-- Frontend Policy Studio Submit for review workflow and activation semantics;
-  these remain intentionally disabled until review guardrails and active-version
-  rollout decisions are complete.
-- Pre-check failure behavior enforcement, scanner execution, or automatic
-  CheckResult-driven policy decisions.
+- Guided PolicyCheckStep authoring in Policy Studio.
+- Automatic PolicyCheckStep `failure_behavior` enforcement, scanner execution,
+  or hidden CheckResult-driven decisions. CheckResults affect decisions only
+  when an active PolicyRule explicitly matches safe `check_*` fields.
 - Retention policies.
 - Signed or PDF evidence bundles.
 - SIEM/GRC integrations.
@@ -643,41 +693,20 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 ## Next Roadmap Items
 
-Near-term recommended work:
+Near-term implementation order:
 
-1. Close or mark #58 implemented if the current Policy Studio V1 satisfies the
-   product acceptance bar.
-2. Keep #76 open or partial until a formal controlled Policy Studio DSL design
-   document exists.
-3. Complete or refresh #56 policy versioning and review guardrails before
-   wiring Submit for review.
-4. Complete and validate #68 active PolicyVersion rollout, telemetry migration,
-   and single-active-version guidance before activation or Publish semantics.
-5. Then implement backend Policy Review Workflow APIs and wire frontend Submit
-   for review to those APIs.
-6. Add guided PolicyCheckStep UI support only after versioning, review, and
-   simulation semantics have a safe implementation path.
-7. Use Access Grants as optional policy context without replacing
-   PolicyDecision records.
-8. Add focused AccessGrant and inventory workflows only where they support
-   review, approval, or evidence collection.
-9. Implement Permission domain model only if AccessGrant target semantics prove
-   insufficient.
-10. Add frontend auth and role-aware UI.
-11. Add CORS/proxy setup guidance if needed for local frontend/backend use.
-12. Add OpenAPI examples for `GET /human-approvals` if missing.
-13. Design team and organization-unit ownership resolution for Evidence Bundle
-   export.
-14. Add owner-based service actor scopes design.
-15. Add safe audit events for denied service actor scope checks.
-16. Implement service actor registry admin management workflow.
-17. Implement service actor API key rotation and admin workflows after registry
-    import/management behavior is designed.
-18. Turn Integration Hub guidance into focused adapter packages only after
-    stronger auth, caller enforcement, and packaging boundaries are designed.
-19. Add deeper separation-of-duties checks for HumanApproval review.
-20. Add broad filtering and pagination for Runtime and Agent activity only
-    after the backend read models need it.
+1. Agent onboarding and governance editing workflow.
+2. Guided PolicyCheckStep authoring in Policy Studio.
+3. One production-quality Python/LangGraph Runtime Gateway adapter with
+   mandatory `proceed` enforcement, idempotency, timeout/failure behavior,
+   HumanApproval resume, fake-tool tests, and documentation.
+
+Before a public demonstration, run `scripts/validate-clean.ps1` with Docker
+available and add a clean browser E2E governance flow. Beta preparation then
+requires real identity/RBAC and separation of duties, Service Actor
+administration and rotation, a historical PolicyDecision backfill decision,
+and evidence package/retention work. See `docs/ROADMAP.md` for the focused
+P0-P3 roadmap.
 
 ## Repository Map
 

@@ -1,431 +1,247 @@
-# AGCP Current State Project Audit
+# AGCP Current-State Project Audit
 
-Date: 2026-07-04
+Date: 2026-07-25
 
-Scope: product idea, roadmap, docs, backend, frontend, dev/demo stack, tests,
-and safety posture. This is an audit only; it does not implement fixes or
-change production code.
+Scope: documentation, backlog, backend, frontend, migrations, local demo,
+validation, and product-boundary review. This stabilization pass did not add
+product features or redesign validated frontend surfaces.
 
-## 1. Executive Summary
+## 1. Executive verdict
 
-- Verdict: **Mostly close to the original AGCP idea**, but still an early
-  governance control plane rather than a production-ready enterprise platform.
-- The strongest product spine is intact: AGCP helps teams **know agents**,
-  **control risky actions**, and **prove what happened** through Agent records,
-  Runtime Gateway decisions, HumanApprovals, PolicyVersions, AuditLogs, and
-  Evidence Bundles.
-- The backend is broader and more coherent than a V0 logger. It has Agent
-  Registry, Access/Data inventory, Policy and PolicyVersion lifecycle,
-  Runtime Gateway, metadata-only CheckResults, review workflows, and bounded
-  evidence export.
-- The frontend is now mostly workflow-first. Policy Studio and Human Approval
-  Studio are the strongest validated product surfaces. Runtime Decisions,
-  Evidence & Audit, Access & Data, and Agent detail are useful but still less
-  complete.
-- The project has avoided the biggest product-boundary failures: it does not
-  execute tools, does not claim legal compliance certification, avoids Publish
-  semantics, and repeatedly states that callers must honor `proceed`.
-- The biggest backend gap is **identity/auth/RBAC maturity**. Current human
-  actor behavior is local-development oriented; enterprise auth, team/org
-  resolution, service actor management, and key rotation remain incomplete.
-- The biggest frontend risk is technical debt in the shell: [AGCPStudio.tsx](../apps/web/app/agcp-studio/AGCPStudio.tsx)
-  is extremely large, mixes shell, legacy prototype data, global CSS, route
-  styling, and product logic, and still contains stale prototype copy such as
-  `AI Act / ISO`.
-- The biggest product risk is over-expanding inventory and policy machinery
-  before the review, activation, evidence, and auth workflows become
-  operationally mature.
-- Testing is strong at backend API/unit level and useful at frontend smoke
-  level, but there is little browser/E2E coverage for the real human workflows.
-- Documentation is unusually complete, but some docs are now status-heavy,
-  partially stale, or internally contradictory about what is "design only" vs
-  implemented.
+**Is AGCP close to the original product idea? Mostly.**
 
-## 2. Product Alignment Verdict
+AGCP implements the main governance spine promised by the product idea:
+registered Agents and owners, declared access and inventory, deterministic
+Policies, runtime PolicyDecisions, HumanApprovals, PolicyVersion review and
+activation, immutable audit records, metadata-only CheckResults, and bounded
+Evidence Bundle export. The strongest frontend workflows expose that spine
+without presenting AGCP as an orchestrator or legal certification product.
 
-| Area | Verdict | Evidence | Gap | Priority |
+The qualification is important:
+
+- **Local V1 / portfolio demo readiness:** advanced prototype. The host-side
+  backend and frontend checks pass, and the deterministic seed/demo path is
+  implemented. This audit could not re-run the full clean PostgreSQL/Compose
+  path because the Docker daemon was unavailable, so isolated end-to-end
+  validation remains pending.
+- **Production / enterprise readiness:** not ready. Human identity is a local
+  development abstraction, RBAC is narrow, callers must enforce `proceed`,
+  there is no production adapter package, production deployment,
+  observability, retention, operational runbook, enterprise directory, or
+  complete Service Actor administration and rotation workflow.
+
+Maturity summary:
+
+| Stage | Current assessment |
+| --- | --- |
+| Local demo | Strong, with clean isolated PostgreSQL revalidation pending in this environment |
+| Product alpha | Early alpha: the core workflows are coherent, but Agent onboarding, guided checks, identity, and integration hardening are incomplete |
+| Beta | Not ready |
+| Production | Not ready |
+| Enterprise | Not ready |
+
+## 2. Product promise assessment
+
+| Area | Status | Implemented evidence | Remaining gap | Priority |
 | --- | --- | --- | --- | --- |
-| Know your agents | Mostly done | `Agent`, owner fields, activity, approvals, governance profile in [models.py](../apps/api/src/agent_governance_api/models.py), [governance_profile.py](../apps/api/src/agent_governance_api/governance_profile.py), [agent-detail.tsx](../apps/web/app/agents/[agentId]/agent-detail.tsx) | No onboarding/edit workflow, limited filtering and relationships | P1 |
-| Control risky actions | Mostly done | Runtime Gateway decision/resume APIs in [runtime_gateway_api.py](../apps/api/src/agent_governance_api/runtime_gateway_api.py), HumanApproval APIs, PolicyVersion activation | Enforcement depends on wrappers; Access Grants are context only; auth is local/minimal | P0/P1 |
-| Prove what happened | Mostly done | Evidence Bundle builder in [evidence.py](../apps/api/src/agent_governance_api/evidence.py), audit logs, CheckResult summaries, JSON download UI | No PDF/signature, limited evidence search/listing, no retention story | P1 |
-| Governance control plane boundary | Strong | Docs and UI repeatedly say AGCP does not execute tools and does not replace orchestrators | Integration Hub is guidance only; future adapter work could blur boundary | P1 |
-| Not legal certification | Mostly strong | Smoke tests forbid compliance-score/certification phrases; Evidence page says no legal certification | Legacy `AI Act / ISO` copy remains in [AGCPStudio.tsx](../apps/web/app/agcp-studio/AGCPStudio.tsx) prototype data | P0 |
-| Workflow-first UX | Mostly done | Policy Studio IDE, Human Approval Studio, Runtime Decisions timeline, Access & Data workspace | Agents and Settings are still thin; global CSS makes regressions likely | P1 |
-| No fake data | Mostly done | Frontend calls real endpoints and uses honest empty states; demo seed creates backend records | Static templates/prototype constants remain in shell and must stay clearly non-runtime | P1 |
+| Know your agents | Mostly done | Agent Registry, owner/environment/status/risk fields, Agent Governance Profile, activity, approvals, Access Grants, and safe inventory references | No onboarding/edit workflow, shallow search/filtering, and limited relationship editing | P1 |
+| Control risky actions | Mostly done | Deterministic PolicyRules, active PolicyVersion evaluation, Runtime Gateway decision/resume, HumanApproval, explicit reviewed activation, single-active guard, and live-edit guardrails | Caller must honor `proceed`; Access Grants are not automatic enforcement; auth/RBAC is minimal | P0/P2 |
+| Prove what happened | Mostly done | Append-only AuditLog APIs, TraceEvents, PolicyDecisions, CheckResults, HumanApprovals, review/activation evidence, and bounded Evidence Bundle JSON | No PDF/signature/archive package, general evidence search, retention policy, or external GRC/SIEM export | P2 |
 
-## 3. Backend Audit
+## 3. Backend assessment
 
-### Agent Registry
+| Area | Classification | Implemented evidence | Remaining gap or risk |
+| --- | --- | --- | --- |
+| Agent Registry | Mostly done | Agent model and create/list/read/update APIs; ownership, environment, status, risk, activity, approvals, and governance profile tests | Product onboarding/edit workflow is absent; list/read models remain lightweight |
+| Inventories | Done for V1 scope | Capability, Source, ModelAsset, and DataUsageProfile models/APIs, safety filtering, audit events, and tests | Mutation workflows are mostly API-only; inventory is governance metadata, not a scanner or catalog |
+| Access Grants | Mostly done | Create/read/update plus explicit suspend/revoke/reactivate/expire transitions, Agent-scoped reads, audit evidence, and frontend workflow | Declarative only; no automatic external IAM or Runtime Gateway enforcement |
+| Policies and PolicyRules | Mostly done | Deterministic validated condition JSON, CRUD/lifecycle APIs, audit events, evaluator, contextual fields, `check_*` matching, and live-edit guard | Legacy unversioned fallback remains and can confuse source-of-truth expectations |
+| PolicyVersion lifecycle | Done for V1 scope | Immutable aggregate snapshots, draft update, submit, approve/reject, explicit activation, replacement, single-active index, archive, rollback draft, audit events, and tests | Historical PolicyDecision backfill decision remains unresolved; DSL source storage is intentionally secondary |
+| Policy review workflow | Done for V1 scope | Dedicated PolicyVersionReviewRequest, duplicate-pending guard, reviewer assignment, approve/reject, safe diff, explicit activation, and current-actor checks | No reviewer directory, notifications, request-info, unassign, or enterprise separation of duties |
+| Runtime Gateway | Mostly done | Simulation/enforcement contracts, idempotency, safe context resolution, deterministic decisions, HumanApproval creation, resume, activity, failure strategy, and tests | AGCP never executes tools; reliable enforcement depends on every caller honoring `proceed` |
+| Telemetry | Mostly done | Idempotent ingestion, AgentRun/TraceEvent persistence, shared active-version loader, PolicyDecision/HumanApproval creation, and tests | It remains a separate ingestion path and has no production ingestion/operations package |
+| Metadata pre-checks | Mostly done | CheckTool/CheckResult persistence, metadata-only adapter boundary, feature-flagged PolicyCheckStep execution, `check_*` evaluation, evidence summaries, seed/demo, and tests | Guided PolicyCheckStep authoring is absent; failure behavior is evidence intent, not automatic enforcement; no scanners |
+| HumanApproval | Mostly done | Explicit pending/approve/reject/cancel lifecycle, RBAC checks, runtime linkage, audit evidence, frontend review actions, and tests | Runtime assignment, request-info, notification, expiry automation, and enterprise identity are missing |
+| Evidence Bundle | Mostly done | Safe Agent-scoped JSON containing audit, runs, traces, decisions, approvals, grants, inventories, DataUsageProfiles, CheckResults, and PolicyVersion references | JSON-only; no signing, PDF, archive, retention, or broad evidence index |
+| AuditLog | Done as a foundation | Append-only public behavior, mutation events, review/activation events, export/denial events, metadata safety, and tests | No retention/archive strategy, tamper-evident signing, or external export pipeline |
+| Authentication/RBAC | Risky | Local ActorContext, selected human role checks, config Service Actor keys/scopes, strict mode, and optional DB registry | No login, OIDC/SAML/JWT, persisted users/roles/teams, broad authorization model, or enterprise directory |
+| Service Actors | Partial | Config auth, endpoint and fine-grained scopes, optional DB-backed registry, hashed key metadata, read-only admin APIs, and seed helpers | Registry is disabled by default; no public mutation workflow, rotation endpoints, owner restrictions, or complete denied-scope audit |
+| Migrations | Mostly done; online validation pending | One linear Alembic chain through `202607010001`; offline PostgreSQL SQL generation passed | Empty-database online upgrade was not revalidated because Docker was unavailable |
+| Local demo | Mostly done; clean validation pending | Deterministic seed, first-class `--print-runtime-payload`, one-command metadata pre-check demo, and focused seed tests | Full clean Compose/PostgreSQL/API/web run could not execute in this audit environment |
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done | [agents.py](../apps/api/src/agent_governance_api/agents.py), `Agent` model in [models.py](../apps/api/src/agent_governance_api/models.py), [test_agent_registry_api.py](../apps/api/tests/test_agent_registry_api.py) | Agent identity, owner, environment, status, risk, activity, approvals, and profile read model exist. Missing product workflows are edit/onboarding, stronger search/filtering, and deeper relationship navigation. |
+No backend area is classified as Overbuilt, but the policy/version/check
+surface is now mature enough that workflow depth, identity, adapters, and
+operations should take precedence over adding more domain objects.
 
-### Policies / PolicyRules
+## 4. Frontend assessment
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done, with legacy risk | [policies.py](../apps/api/src/agent_governance_api/policies.py), [policy_rules.py](../apps/api/src/agent_governance_api/policy_rules.py), [policy_live_edit_guard.py](../apps/api/src/agent_governance_api/policy_live_edit_guard.py), [policy_evaluator.py](../apps/api/src/agent_governance_api/policy_evaluator.py) | Deterministic condition model is aligned with the product boundary. Live Policy/PolicyRule endpoints remain necessary for bootstrap/fallback, but they are a long-term confusion risk. Active-version live-edit blocking is a good guardrail. |
+Host validation passed `npm run check`, `npm run build`, and the standalone
+smoke suite. Rendered browser validation against the isolated stack was not
+possible because Docker was unavailable.
 
-### PolicyVersion Lifecycle
+| Surface | Classification | Validated implementation | Remaining workflow gap |
+| --- | --- | --- | --- |
+| Overview | Mostly done | Connected narrative for know/control/prove, current actor, Agents, reviews, Policies, and Runtime activity with honest empty/error states | Operating summaries remain lightweight; no broad search or evidence index |
+| Agents | Partial | Backend-backed Agent list and Governance Profile detail with activity, approvals, grants, inventory refs, and manual evidence action | Read-only; no register/edit/governance relationship workflow |
+| Policy Studio | Done for V1 authoring | Preserved IDE layout, backend folders, Blocks/Code DSL synchronization, local compile validation, draft/review/activation, rollback, archive, and guarded delete | No guided PolicyCheckStep persistence, limited operator persistence/version browsing |
+| Human Approval Studio | Mostly done | Unified Runtime HumanApproval and PolicyVersion review work items, assignment for policy reviews, approve/reject, diff/evidence, explicit activation, and role-aware hints | Request-info, runtime assignment, notifications, reviewer directory, and enterprise identity are absent |
+| Runtime Decisions | Mostly done | Backend-backed decision/activity timeline with PolicyVersion/fallback context, checks, approvals, and evidence links; no fake simulation | Detail, filtering, pagination, and CheckResult drill-down remain lightweight |
+| Evidence & Audit | Mostly done for V1 | Consolidated manual Evidence Bundle explorer with Subject, Policy Decision, CheckResults, Human Review, Policy Review, Audit Trail, and bounded JSON download | No general audit/evidence list, PDF/signing, retention, or external export |
+| Access & Data | Mostly done | Workflow-first Source/DataUsageProfile/AccessGrant/Model/Capability review, readiness, safe metadata, and grant lifecycle transitions | No guided check authoring, grant approval workflow, or automatic enforcement |
+| Integrations | Partial | Honest Integration Hub guidance and optional read-only Service Actor registry summary | No production adapter package, setup verification, key management, or caller-enforcement test harness |
+| Settings/Admin | Missing as a product workflow | Honest placeholder only | Enterprise identity, users/teams/roles, Service Actor mutation/rotation, and operational settings |
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done | [policy_versions.py](../apps/api/src/agent_governance_api/policy_versions.py), [policy_version_review_requests.py](../apps/api/src/agent_governance_api/policy_version_review_requests.py), migrations `202606010001`, `202606090001`, tests in [test_policy_versions_api.py](../apps/api/tests/test_policy_versions_api.py) | Draft, review, approval, activation, replacement, rollback draft, archive, and single-active guard exist. Remaining issue is historical PolicyDecision backfill strategy and possible DSL source storage. |
+Disproportionately mature surfaces are Policy Studio and the policy review
+half of Human Approval Studio. The weakest product workflows are Agents and
+Settings/Admin. The standalone `/audit` route is a placeholder; the real V1
+audit workflow lives in Evidence & Audit. Agents is backend-backed but still
+closer to a record viewer than a complete workflow. Integration Hub is guidance
+rather than an operational integration surface. These limitations are honest
+and preferable to fake enterprise functionality.
 
-### Review Workflow
+## 5. Documentation assessment
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done for V1 | Runtime HumanApproval in [human_approvals.py](../apps/api/src/agent_governance_api/human_approvals.py); policy reviews in [policy_version_review_requests.py](../apps/api/src/agent_governance_api/policy_version_review_requests.py) | Runtime HumanApproval and PolicyVersionReviewRequest are correctly separate. Reviewer assignment exists for policy reviews. Missing: notifications, request-info, runtime assignment, real reviewer directory, enterprise identity, richer separation of duties. |
+Accurate after this stabilization pass:
 
-### Runtime Gateway
+- `README.md`;
+- `apps/api/README.md`;
+- `apps/web/README.md`;
+- `docs/ROADMAP.md`;
+- `docs/TASKS.md`;
+- `docs/FRONTEND_PRODUCT_BLUEPRINT.md`;
+- `docs/DOMAIN_MODEL.md`;
+- `docs/CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md`;
+- `docs/POLICY_STUDIO_DSL_DESIGN.md`;
+- `docs/POLICY_PRE_CHECKS_DESIGN.md`;
+- `docs/POLICY_CHECK_STEP_AUTHORING_DESIGN.md`;
+- `docs/POLICY_VERSIONING_REVIEW_DESIGN.md`;
+- `docs/POLICY_VERSION_ACTIVE_ROLLOUT.md` for the unresolved historical
+  backfill decision;
+- `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`;
+- `docs/issues/README.md`.
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Strong foundation, not production-ready | [runtime_gateway_api.py](../apps/api/src/agent_governance_api/runtime_gateway_api.py), [runtime_gateway.py](../apps/api/src/agent_governance_api/runtime_gateway.py), [test_runtime_gateway_api.py](../apps/api/tests/test_runtime_gateway_api.py) | Simulation/enforcement modes, idempotency, resume, active PolicyVersion loader, service actor scopes, and failure behavior are covered. The production weakness is external: wrappers/adapters must consistently call AGCP and honor `proceed`. |
+Contradictory statements corrected in this pass:
 
-### Metadata Pre-checks
+- “V0 backend only” was replaced by the local V1 / advanced prototype
+  maturity statement.
+- Policy review UI, assignment, diff, activation, rollback, and live-edit
+  guardrails are no longer listed as missing design work.
+- Runtime Decisions and Evidence & Audit are no longer described as placeholder
+  or future consolidation work.
+- The Overview, Access & Data, backend Policy folders, Policy Canvas, metadata
+  pre-check demo, and Human Approval Studio are marked implemented.
+- Runtime context, DataUsageProfile resolution, telemetry active-version use,
+  and CHECK-versus-PolicyCheckStep frontend behavior now match the code.
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Partial but well bounded | [check_tools.py](../apps/api/src/agent_governance_api/check_tools.py), [runtime_metadata_pre_checks.py](../apps/api/src/agent_governance_api/runtime_metadata_pre_checks.py), [policy_pre_checks.py](../apps/api/src/agent_governance_api/policy_pre_checks.py) | Metadata-only checks are safe and useful. They do not scan raw content, do not auto-enforce `failure_behavior`, and affect decisions only through explicit `check_*` PolicyRule matching. Missing: PolicyCheckStep UI, async/external checker design implementation, public CheckTool/CheckResult management if needed. |
+Stale as current-status sources, retained as history:
 
-### Evidence Bundle
+- `docs/V0_GOVERNANCE_FLOW.md` describes the original executable V0 slice, not
+  current product maturity.
+- Individual `docs/issues/*.md` files preserve seed-issue history and do not
+  track the complete current implementation or remote GitHub state.
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done | [evidence.py](../apps/api/src/agent_governance_api/evidence.py), [metadata_safety.py](../apps/api/src/agent_governance_api/metadata_safety.py), [test_evidence_bundle_api.py](../apps/api/tests/test_evidence_bundle_api.py) | Bounded JSON export includes agent, runs, trace events, decisions, approvals, access grants, inventory refs, DataUsageProfile summaries, CheckResults, and safe PolicyVersion references. Missing: PDF/signature/archive, broader evidence search, retention. |
+Merge/archive candidates:
 
-### Access/Data Inventory
+- keep design documents focused on durable contracts and move implementation
+  status into this audit, `ROADMAP.md`, and `TASKS.md`;
+- keep the V0 flow and numbered issue documents in a clearly historical
+  archive/navigation section;
+- avoid duplicating long status narratives across the three README files.
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Mostly done as governance metadata | [access_grants.py](../apps/api/src/agent_governance_api/access_grants.py), [sources.py](../apps/api/src/agent_governance_api/sources.py), [model_assets.py](../apps/api/src/agent_governance_api/model_assets.py), [capabilities.py](../apps/api/src/agent_governance_api/capabilities.py) | Inventory, DataUsageProfile, and AccessGrant lifecycle are coherent. The UI correctly states these are not IAM credentials. Missing: deeper approval workflows and runtime enforcement semantics if product requires them. |
+## 6. Test and validation assessment
 
-### Dev Stack / Demo
+| Check | Result |
+| --- | --- |
+| Backend tests | Passed: 1,099 tests |
+| Ruff lint | Passed |
+| Ruff format check | Passed: 137 files already formatted |
+| Alembic offline PostgreSQL SQL generation | Passed through head `202607010001` |
+| Alembic online empty PostgreSQL upgrade | Not run: Docker daemon unavailable |
+| Frontend `npm run check` | Passed: TypeScript plus smoke |
+| Frontend production build | Passed: all 13 app routes generated/compiled |
+| Frontend standalone smoke | Passed |
+| Compose config | Passed |
+| Isolated `scripts/validate-clean.ps1` | Safely stopped before mutation: Docker daemon unavailable |
+| Docker stack and metadata demo | Not run in this audit environment |
+| Browser/E2E | Missing; isolated rendered flow could not run without Docker |
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Strong local demo | [compose.dev.yml](../compose.dev.yml), [scripts/dev-demo.ps1](../scripts/dev-demo.ps1), [seed_full_stack_demo.py](../apps/api/scripts/seed_full_stack_demo.py), [full_stack_demo_seed.py](../apps/api/src/agent_governance_api/full_stack_demo_seed.py) | The demo is honest because it seeds real backend records and calls Runtime Gateway to create CheckResults. Risk: local compose defaults grant `Local Admin` broad roles, which is fine for dev but must stay visibly dev-only. |
+Backend coverage is broad across models, APIs, RBAC, metadata safety, runtime,
+telemetry, PolicyVersion review, evidence, and deterministic demo seeding.
+Frontend smoke protects important copy, endpoint, policy, evidence, and
+no-fake-feature boundaries. The main quality gap is browser E2E for the actual
+Agent -> Policy -> Runtime Decision -> CheckResult -> HumanApproval ->
+activation -> Evidence Bundle workflow.
 
-### Security/RBAC
+## 7. Top risks
 
-| Classification | Evidence | Notes |
-| --- | --- | --- |
-| Partial / risky for production | [auth.py](../apps/api/src/agent_governance_api/auth.py), [service_actor_registry.py](../apps/api/src/agent_governance_api/service_actor_registry.py), tests in [test_auth.py](../apps/api/tests/test_auth.py) | Service actor API key auth and scopes are meaningful. Human role checks exist for selected read/review/export paths. Missing: user login, OIDC/SAML/JWT, team/org ownership resolver, role persistence, service actor mutation admin, key rotation, owner-based service actor restrictions, denied-scope audit events. |
+1. **Minimal authentication/RBAC.** Local ActorContext and narrow role checks
+   are insufficient for enterprise identity and separation of duties.
+2. **Caller responsibility for honoring `proceed`.** AGCP records the decision;
+   a faulty integration can still execute a denied or review-gated action.
+3. **Agent workflow depth.** The central “know your agents” promise lacks
+   onboarding, editing, and governed relationship authoring.
+4. **PolicyCheckStep authoring gap.** Runtime execution and evidence exist, but
+   non-developers cannot author real persisted steps in Policy Studio.
+5. **Legacy unversioned Policy fallback.** Necessary compatibility behavior
+   creates two possible policy sources of truth.
+6. **Documentation drift.** Status-heavy design documents have contradicted
+   implemented behavior and can misdirect work.
+7. **Production deployment and observability.** There is no production
+   deployment target, metrics/logging runbook, retention plan, backup plan, or
+   operational incident procedure.
+8. **Service Actor rotation/admin gaps.** Registry mutation, rotation,
+   ownership restrictions, and complete audit workflows are absent.
+9. **Historical PolicyDecision backfill decision.** Nullable historical
+   version references are honest, but the long-term evidence policy is
+   unresolved.
+10. **No production adapter package.** Integration Hub and examples do not yet
+    provide a supported Python/LangGraph enforcement boundary with failure,
+    timeout, idempotency, and resume tests.
 
-## 4. Frontend Audit
+## 8. Recommended roadmap
 
-### Overview
+### P0 — stabilize before public demonstration
 
-- Verdict: **Mostly aligned**.
-- Evidence: [page.tsx](../apps/web/app/page.tsx) mounts `AGCPStudioDashboard`;
-  [AGCPStudio.tsx](../apps/web/app/agcp-studio/AGCPStudio.tsx) fetches real
-  current actor, agents, approvals, policies, policy reviews, and runtime
-  activity.
-- Strength: explains know/control/prove and uses honest unavailable states.
-- Gap: still lives inside a huge shell file with legacy static prototype
-  constants, which increases copy/regression risk.
-
-### Agents
-
-- Verdict: **Partial to mostly done**.
-- Evidence: [agents-list.tsx](../apps/web/app/agents/agents-list.tsx),
-  [agent-detail.tsx](../apps/web/app/agents/[agentId]/agent-detail.tsx),
-  [agents.ts](../apps/web/app/lib/agents.ts).
-- Strength: real backend data, owner/status/risk/profile/activity/evidence.
-- Gap: read-only; no onboarding/edit flow; limited filtering; can still feel
-  like a record viewer rather than a full governance workflow.
-
-### Policy Studio
-
-- Verdict: **Strongest frontend surface**.
-- Evidence: [policy-studio.tsx](../apps/web/app/policies/policy-studio.tsx),
-  [policy-editor.tsx](../apps/web/app/policies/policy-editor.tsx),
-  [policy-canvas.tsx](../apps/web/app/policies/policy-canvas.tsx),
-  [policy-dsl.ts](../apps/web/app/policies/policy-dsl.ts),
-  [policy-inspector.tsx](../apps/web/app/policies/policy-inspector.tsx).
-- Strength: repository, backend-backed folders, Blocks/Code DSL,
-  `WHEN -> CHECK -> THEN -> PROVE`, local validation, Save draft, Submit for
-  review, review state, activation semantics, no Publish.
-- Gaps: PolicyCheckStep authoring UI is not wired; operator persistence is
-  limited; version history remains compact; frontend logic is large and
-  complex.
-
-### Review Inbox / Human Approvals
-
-- Verdict: **Mostly aligned and visually validated**.
-- Evidence: [review-inbox.tsx](../apps/web/app/human-approvals/review-inbox.tsx),
-  [human-approvals.ts](../apps/web/app/lib/human-approvals.ts),
-  [policies.ts](../apps/web/app/lib/policies.ts).
-- Strength: unified runtime approvals and policy reviews; current actor visible;
-  approve/reject/assign/activate actions have honest disabled reasons; evidence
-  and metadata checks are visible.
-- Gaps: request-info and runtime assignment are not wired; no real reviewer
-  directory; no notifications; frontend role-aware behavior is advisory.
-
-### Runtime Decisions
-
-- Verdict: **Partial to mostly done**.
-- Evidence: [runtime-activity-list.tsx](../apps/web/app/runtime-gateway/runtime-activity-list.tsx),
-  [runtime.ts](../apps/web/app/lib/runtime.ts).
-- Strength: real runtime activity only, no fake production simulation, clear
-  lifecycle language.
-- Gaps: decision detail drill-down is still lightweight; filtering/pagination
-  are missing; CheckResult detail depends on read model availability and often
-  points users to Evidence Bundle.
-
-### Evidence & Audit
-
-- Verdict: **Mostly done for JSON review, partial for enterprise audit**.
-- Evidence: [evidence-bundle-viewer.tsx](../apps/web/app/evidence/evidence-bundle-viewer.tsx),
-  [evidence.ts](../apps/web/app/lib/evidence.ts).
-- Strength: manual load, safe warnings, sectioned evidence chain, JSON download,
-  defensive metadata filtering.
-- Gaps: no general evidence/audit list endpoint, no PDF/signature/archive, no
-  SIEM/GRC export, no retention UX.
-
-### Access & Data
-
-- Verdict: **Mostly done as a metadata review workspace**.
-- Evidence: [access-inventory-matrix.tsx](../apps/web/app/access-data/access-inventory-matrix.tsx),
-  [access-grants-workflow.tsx](../apps/web/app/access-data/access-grants-workflow.tsx),
-  [sources-workflow.tsx](../apps/web/app/access-data/sources-workflow.tsx).
-- Strength: explains Access Grants, Source profiles, Models, Capabilities, and
-  metadata readiness without claiming enforcement or compliance.
-- Gaps: no PolicyCheckStep authoring, no dedicated inventory mutation UI, no
-  approval workflow for grants, and lifecycle actions are not role-aware in the
-  frontend.
-
-### Other Pages
-
-- Integrations: useful guidance page, not an adapter product. This is honest
-  but should not be confused with production integration packages.
-- Settings/Admin: very thin. Better as honest placeholder than fake enterprise
-  admin, but portfolio/demo users may expect local actor clarity.
-- Audit route: currently not a full audit explorer; Evidence & Audit carries
-  most of the proof workflow.
-
-## 5. Documentation Audit
-
-### Accurate / Useful
-
-- [AGENTS.md](../AGENTS.md) remains the right product boundary.
-- [README.md](../README.md), [apps/api/README.md](../apps/api/README.md), and
-  [apps/web/README.md](../apps/web/README.md) explain current capabilities and
-  local demo flow well.
-- [FRONTEND_PRODUCT_BLUEPRINT.md](FRONTEND_PRODUCT_BLUEPRINT.md) matches the
-  current workflow-first direction.
-- [POLICY_STUDIO_DSL_DESIGN.md](POLICY_STUDIO_DSL_DESIGN.md) correctly keeps
-  DSL as authoring, not runtime execution.
-- [POLICY_VERSIONING_REVIEW_DESIGN.md](POLICY_VERSIONING_REVIEW_DESIGN.md) and
-  [POLICY_VERSION_ACTIVE_ROLLOUT.md](POLICY_VERSION_ACTIVE_ROLLOUT.md) match
-  the implemented review/activation posture.
-
-### Stale / Confusing
-
-- [CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md](CONTEXTUAL_RUNTIME_GOVERNANCE_DESIGN.md)
-  starts with "Design only" but later marks several runtime schema/evaluator
-  pieces as done. This should be refreshed.
-- Root [README.md](../README.md) still includes a manual command using
-  `docker-compose.dev.yml` in one section, while the current stack file is
-  [compose.dev.yml](../compose.dev.yml). This can confuse local setup.
-- [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md) are accurate but very long
-  and status-heavy; they mix roadmap, changelog, design caveats, and backlog.
-- [apps/web/README.md](../apps/web/README.md) is highly detailed but now reads
-  partly like a product spec. Some content should move into docs or be
-  shortened.
-
-### Missing
-
-- A short "demo readiness" checklist for portfolio/public demo.
-- A production-readiness gap document focused on auth, deployment, retention,
-  observability, and adapter contracts.
-- A concise API endpoint matrix generated or manually maintained from the
-  routers.
-- A browser/E2E test plan for Policy Studio, Review Inbox, Evidence, and
-  Access & Data.
-
-### Remove / Merge Candidates
-
-- Consolidate overlapping roadmap/task/status narratives between
-  [ROADMAP.md](ROADMAP.md), [TASKS.md](TASKS.md), and the README files.
-- Keep design docs focused on durable product contracts; move completion status
-  into roadmap/tasks.
-
-## 6. Test Audit
-
-### Strong Coverage
-
-- Backend runtime gateway behavior is heavily tested in
-  [test_runtime_gateway_api.py](../apps/api/tests/test_runtime_gateway_api.py).
-- Evidence safety and RBAC are well covered in
-  [test_evidence_bundle_api.py](../apps/api/tests/test_evidence_bundle_api.py).
-- PolicyVersion and PolicyVersionReviewRequest lifecycle tests are strong in
-  [test_policy_versions_api.py](../apps/api/tests/test_policy_versions_api.py)
-  and [test_policy_version_review_requests_api.py](../apps/api/tests/test_policy_version_review_requests_api.py).
-- HumanApproval transitions and RBAC have focused tests in
-  [test_human_approval_api.py](../apps/api/tests/test_human_approval_api.py).
-- AccessGrant lifecycle tests explicitly prove transitions do not create
-  runtime records.
-- Frontend [smoke.mjs](../apps/web/scripts/smoke.mjs) catches critical copy,
-  endpoint, policy DSL, evidence, access, and no-forbidden-copy regressions.
-
-### Missing Coverage
-
-- Browser/E2E tests for Policy Studio Save draft -> Submit for review ->
-  Review Inbox approve -> Activate.
-- Browser/E2E tests for Review Inbox runtime approval actions and disabled
-  states under restricted actors.
-- Browser/E2E tests for Evidence Bundle JSON load/download and unsafe metadata
-  filtering.
-- Browser/E2E tests for Access & Data lifecycle transitions and empty/error
-  states.
-- Visual regression coverage for the large AGCP Studio shell.
-- Online Alembic validation against a real PostgreSQL instance for migrations
-  listed as validation pending.
-- End-to-end `scripts/dev-demo.ps1` test outside unit-level seed tests.
-
-### Recommended Tests
-
-- Add a Playwright/Codex browser smoke suite for `/policies`,
-  `/human-approvals`, `/runtime-gateway`, `/evidence`, and `/access-data`.
-- Add a Compose smoke command that starts the stack, runs `dev-demo.ps1`, and
-  verifies `/runtime-gateway`, `/human-approvals`, and `/evidence` show the
-  created records.
-- Add a docs/setup smoke for the documented compose commands.
-- Add frontend tests for no `Publish`, no compliance-score language, and no
-  stale `AI Act / ISO` visible copy.
-
-## 7. Top Risks
-
-1. **Auth/RBAC is not production-grade**. Local dev actor and minimal roles are
-   useful but not enterprise identity.
-2. **Runtime enforcement is integration-dependent**. AGCP returns decisions;
-   external wrappers must honor `proceed`.
-3. **Frontend shell is too large and fragile**. [AGCPStudio.tsx](../apps/web/app/agcp-studio/AGCPStudio.tsx)
-   mixes shell, CSS, legacy prototype state, and connected routes.
-4. **Legacy Policy/PolicyRule fallback can confuse users** even with active
-   version guardrails.
-5. **Historical PolicyDecision backfill is undecided**, so version coverage is
-   mixed and must remain honestly presented.
-6. **Evidence is JSON-only**. Good for V1, but not enough for enterprise audit
-   packaging.
-7. **PolicyCheckStep authoring is backend-only**, limiting the usefulness of
-   metadata pre-checks for non-developer users.
-8. **Docs are long and overlapping**, which makes current truth harder to find.
-9. **Some stale prototype copy remains in source**, including `AI Act / ISO`
-   in shell constants; even if not visible, it is a positioning hazard.
-10. **No real frontend auth UX** means demos can show role-aware hints but not
-    enterprise user journeys.
-
-## 8. Recommended Next Roadmap
-
-### P0 - Must Fix Before Showing Demo
-
-| Item | Why it matters | Affected areas | Effort | Type |
+| Task | Reason | Areas | Effort | Dependencies |
 | --- | --- | --- | --- | --- |
-| Remove or quarantine stale prototype/compliance-adjacent shell constants | Prevent accidental UI/copy regressions such as `AI Act / ISO` | `apps/web/app/agcp-studio/AGCPStudio.tsx`, smoke tests | S | Frontend/test |
-| Add a short demo-readiness doc | Makes the current product easy to present honestly | `docs/`, README links | S | Docs |
-| Verify documented compose commands | README currently mixes `compose.dev.yml` and `docker-compose.dev.yml` | README files, scripts | S | Docs/test |
-| Add one browser smoke for `/policies` and `/human-approvals` | These are the hero surfaces; typecheck is not enough | `apps/web`, browser QA | M | Test |
-| Keep no-Publish/no-compliance checks current | Product positioning is a core boundary | `apps/web/scripts/smoke.mjs` | S | Test |
+| Run `scripts/validate-clean.ps1` with Docker available and record the result | Proves empty PostgreSQL migration, API, seed, pre-check, evidence, and cleanup behavior | Tests/docs | Small | Docker Desktop |
+| Add one clean browser E2E governance flow | Static checks do not prove the hero workflows render and interact together | Frontend/tests | Medium | Passing clean stack |
+| Resolve the remaining out-of-scope status contradictions listed above | Keeps one current source of truth and prevents obsolete issue work | Docs | Small | This audit |
 
-### P1 - Should Improve Before Portfolio/Public Demo
+### P1 — strengthen product alpha
 
-| Item | Why it matters | Affected areas | Effort | Type |
+| Task | Reason | Areas | Effort | Dependencies |
 | --- | --- | --- | --- | --- |
-| Split AGCPStudio shell/styles from connected product pages | Reduces regression risk and improves maintainability | `AGCPStudio.tsx`, `globals.css`, route CSS | L | Frontend |
-| Add Review Inbox E2E flow | Proves runtime and policy reviews work together | HumanApproval + PolicyReview frontend/backend | M | Test |
-| Add PolicyCheckStep authoring design-to-UI follow-up | Makes metadata pre-checks usable beyond seeded demo | Policy Studio, policy_check_steps APIs | L | Frontend/backend |
-| Refresh Contextual Runtime Governance doc | Remove design-only contradiction | Docs | S | Docs |
-| Add Agent edit/onboarding path | Completes "know your agents" workflow | Agents frontend/backend | M | Frontend/backend/test |
+| Agent onboarding and governance editing workflow | Completes the weakest part of “know your agents” | Frontend/backend/tests/docs | Medium | Current Agent/inventory APIs |
+| Guided PolicyCheckStep authoring in Policy Studio | Makes implemented metadata pre-checks usable without seed scripts or raw API calls | Frontend/backend/tests/docs | Large | PolicyVersion snapshot compatibility and current Policy Studio UX |
+| Production-quality Python/LangGraph runtime adapter | Reduces the risk that callers ignore `proceed` and proves timeout/idempotency/resume behavior | Package/backend/tests/docs | Large | Stable Runtime Gateway and Service Actor contract |
 
-### P2 - Good Follow-ups
+### P2 — beta preparation
 
-| Item | Why it matters | Affected areas | Effort | Type |
+| Task | Reason | Areas | Effort | Dependencies |
 | --- | --- | --- | --- | --- |
-| Historical PolicyDecision backfill decision | Clarifies evidence history | PolicyDecision, migrations/admin docs | M | Backend/docs |
-| Evidence PDF/signature design | Enterprise audit expectation | Evidence Bundle | M/L | Backend/frontend/docs |
-| Runtime Decisions detail workspace | Makes decision lifecycle easier to inspect | Runtime frontend/read models | M | Frontend/backend |
-| AccessGrant review workflow | Moves Access & Data beyond lifecycle toggles | Access/Data, reviews, audit | M/L | Backend/frontend |
-| Settings/Admin local actor clarity | Avoids fake enterprise admin while improving demos | Settings page | S | Frontend/docs |
+| Identity, RBAC, and separation-of-duties hardening | Required for credible multi-user review and activation | Backend/frontend/security/tests/docs | Large | Enterprise auth design choice |
+| Service Actor administration and key rotation | Required for managed production integrations | Backend/frontend/tests/docs | Large | Identity/admin authorization |
+| Decide historical PolicyDecision backfill policy | Clarifies historical evidence without inventing provenance | Backend/docs/tests | Medium | Production evidence requirements |
+| Evidence package and retention design | JSON alone is insufficient for many audit workflows | Backend/frontend/docs/tests | Large | Identity, storage, retention requirements |
 
-### P3 - Later / Enterprise
+### P3 — enterprise/later
 
-| Item | Why it matters | Affected areas | Effort | Type |
+| Task | Reason | Areas | Effort | Dependencies |
 | --- | --- | --- | --- | --- |
-| OIDC/SAML/JWT and persistent users/roles | Required for real enterprise use | Auth/RBAC, frontend auth | XL | Backend/frontend/security |
-| Team/org ownership resolver | Needed for owner-based evidence export | Evidence, auth, agents | L | Backend |
-| Service actor key rotation/admin mutations | Required for production integrations | Service actor registry | L | Backend/frontend |
-| Adapter packages | Makes Integration Hub real | Runtime Gateway, packages | L | Backend/packages/docs |
-| Retention/observability/deployment | Production readiness | Platform docs, infra | XL | Backend/docs/ops |
+| Production deployment, observability, backup, and incident runbooks | Required for supported operations | Platform/backend/docs/tests | Large | Beta architecture and security decisions |
+| Enterprise directories and team/org ownership resolution | Enables durable owner- and role-based authorization | Backend/frontend/security | Large | Identity foundation |
+| SIEM/GRC and additional runtime integrations | Extends evidence and runtime reach after the core is supportable | Integrations/docs/tests | Large | Adapter, auth, and evidence contracts |
 
-## 9. Issues / Backlog Recommendations
+## 9. Exact next three implementation tasks
 
-Do not close issues automatically from this audit.
+Based on the verified gaps, not on model expansion:
 
-### Close or mark implemented
+1. Agent onboarding and governance editing workflow.
+2. Guided PolicyCheckStep authoring in Policy Studio.
+3. One production-quality Python/LangGraph Runtime Gateway adapter.
 
-- #58 Policy Studio V1 guided authoring, if the current IDE surface is accepted.
-- #76 controlled DSL design for V1, because [POLICY_STUDIO_DSL_DESIGN.md](POLICY_STUDIO_DSL_DESIGN.md)
-  now defines the grammar, compile target, non-goals, and storage boundary.
-- Minimal reviewer assignment, if tracked separately, because backend and UI
-  support assignment as governance metadata.
-
-### Keep open
-
-- #56, narrowed to remaining policy workflow hardening: historical backfill,
-  DSL source storage decision, optional unassign, and richer role-aware UX.
-- #68, narrowed to historical PolicyDecision backfill and rollout hardening.
-- Frontend auth / role-aware UI.
-- Evidence PDF/signature/export packaging.
-
-### Split
-
-- Split "PolicyCheckStep UI" into:
-  - authoring model and UX;
-  - backend lifecycle/versioning behavior;
-  - Runtime Gateway evidence behavior;
-  - browser/E2E coverage.
-- Split "Integration Hub" into:
-  - docs/guidance page;
-  - service actor setup validation;
-  - real adapter package(s);
-  - production auth/rotation.
-- Split "Access & Data" into:
-  - inventory read UX;
-  - AccessGrant lifecycle;
-  - review/approval workflow;
-  - runtime policy context usage.
-
-### Create
-
-- Remove stale prototype/compliance-adjacent constants from `AGCPStudio.tsx`.
-- Add browser E2E for Policy Studio -> Review Inbox -> Activation.
-- Add browser E2E for Runtime metadata pre-check demo evidence path.
-- Refresh setup docs to consistently use `compose.dev.yml`.
-- Refactor frontend shell/styles into smaller modules without changing UX.
-- Decide historical PolicyDecision backfill policy.
-- Add production-readiness checklist for auth, deployment, retention, and
-  evidence packaging.
-
-## 10. Final Verdict
-
-**Is AGCP now close to the original product idea? Mostly.**
-
-AGCP is no longer just a backend experiment or fake dashboard. It has a real
-governance spine: agents, declared access, deterministic policies, runtime
-decisions, human approvals, policy review/activation, metadata-only checks,
-audit records, and evidence bundles. The frontend increasingly expresses those
-as workflows rather than raw API resources, especially in Policy Studio and
-Human Approval Studio.
-
-It is not yet a complete enterprise control plane. The remaining gaps are not
-cosmetic: production identity, stronger RBAC, adapter enforcement, evidence
-packaging, historical version clarity, and frontend maintainability all need
-work before AGCP can be positioned as more than a strong local/demo-grade V1.
-The right next step is not adding more domain objects. It is hardening the
-existing know/control/prove workflows so users can trust the evidence chain and
-understand exactly where AGCP stops and their runtime begins.
+Identity/RBAC remains the highest production risk, but the three tasks above
+are the most focused continuation of the current product alpha. Identity and
+separation-of-duties hardening is the first beta-preparation program and must
+precede enterprise deployment.

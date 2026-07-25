@@ -1,6 +1,8 @@
 # Agent Governance API
 
-Minimal FastAPI backend for the Agent Governance Control Plane.
+FastAPI backend for the AGCP local V1 / advanced product prototype. The API has
+a substantial governance, runtime, review, and evidence foundation, but it is
+not production-ready or enterprise-ready.
 
 ## Local commands
 
@@ -138,6 +140,19 @@ default for this local-only demo path.
 The payload is loaded with
 `uv run python scripts/seed_full_stack_demo.py --print-runtime-payload` inside
 the API container, not a fragile inline Python import.
+
+For an empty-database validation that is isolated from the normal development
+project:
+
+```powershell
+.\scripts\validate-clean.ps1
+```
+
+The script applies Alembic to a clean PostgreSQL volume, checks `/health` and
+`/me`, runs the seed and metadata pre-check scenario, verifies the
+PolicyDecision, CheckResults, and HumanApproval chain, runs frontend smoke, and
+removes only Compose project `agcp-clean-validation` unless `-KeepRunning` is
+supplied.
 
 Troubleshooting:
 
@@ -382,6 +397,18 @@ Policy Management:
   runtime policy changes. Legacy live Policy and PolicyRule APIs remain for
   bootstrap and unversioned fallback policies, and active-versioned policies
   block direct live edits.
+- PolicyVersion endpoints include draft create/update, list/read,
+  submit-review, approve/reject, activation, archive, rollback-copy, and
+  rollback-draft compatibility actions under `/policies/{policy_id}/versions`
+  and `/policy-versions/{version_id}`.
+- The product review path uses dedicated
+  `POST /policy-versions/{policy_version_id}/review-requests`,
+  `GET /policy-versions/{policy_version_id}/review-state`,
+  `GET /policy-version-review-requests`,
+  `GET /policy-version-review-requests/{review_request_id}/diff`, and explicit
+  assign/approve/reject/activate actions. Approval does not activate a version.
+  Replacement of an existing active version requires explicit intent, and the
+  database enforces one active PolicyVersion per Policy.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
   AccessGrant status, Data Usage Profile review status, Source
@@ -509,8 +536,10 @@ Service actor API keys:
 - DB-backed `service_actor_scopes` and `service_actor_scope_rules` tables exist
   for registry auth. Config-auth actors still use `AGCP_SERVICE_ACTOR_SCOPES`
   and `AGCP_SERVICE_ACTOR_SCOPE_RULES`.
-- This is not production-ready authentication. There are no public registry CRUD
-  APIs, key rotation endpoints, OIDC/SAML/JWT, or human RBAC yet.
+- This is not production-ready authentication. There are no public registry
+  mutation APIs, key rotation endpoints, OIDC/SAML/JWT, user/team directory, or
+  broad human RBAC. Narrow role checks exist for selected review, runtime
+  activity, and evidence workflows.
 
 Manual registry seeding from hashed config:
 
