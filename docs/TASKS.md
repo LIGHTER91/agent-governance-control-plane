@@ -80,6 +80,10 @@ was changed.
       unversioned fallback.
 - [x] Metadata-only CheckTool adapter boundary.
 - [x] PolicyCheckStep persistence and API.
+- [ ] Guided PolicyCheckStep authoring in Policy Studio is implementation
+      complete with real inventory, compatible targets, expected-outcome
+      condition linking, local validation, complete PolicyVersion snapshots,
+      reload, and review diff; Docker-backed E2E validation is pending.
 - [x] Feature-flagged runtime PolicyCheckStep execution with CheckResult
       evidence and explicit `check_*` PolicyRule matching.
 - [x] Runtime Decisions workflow.
@@ -112,6 +116,8 @@ against an empty PostgreSQL volume:
       PolicyVersionReviewRequest migrations.
 - [ ] Isolated Compose bootstrap, seed, Runtime Gateway metadata pre-check,
       Evidence Bundle verification, frontend smoke, and project-scoped cleanup.
+- [ ] Guided PolicyCheckStep draft/save/reload/review/activate/runtime/evidence
+      browser flow against the real local Docker demo.
 
 Validation command:
 
@@ -138,7 +144,8 @@ must never remove the normal development project or its volumes.
 
 - [x] Agent onboarding and governance editing workflow.
 - [ ] Guided PolicyCheckStep authoring in Policy Studio with PolicyVersion
-      snapshot compatibility.
+      snapshot compatibility — implementation complete, Docker-backed
+      validation pending.
 - [ ] Production-quality Python/LangGraph Runtime Gateway adapter with
       mandatory `proceed` enforcement, idempotency, timeouts, failure policy,
       resume, fake-tool tests, and documentation.

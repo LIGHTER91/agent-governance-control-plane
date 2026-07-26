@@ -294,6 +294,26 @@ folder remains blocked until policies are moved elsewhere. The Blocks canvas and
 Code DSL stay synchronized locally, and Save draft is the persistence boundary
 for draft PolicyVersion snapshots.
 
+The CHECK lane also authors real PolicyCheckStep snapshots. Add check exposes
+only the seven metadata-only adapter types supported by the backend. The
+existing right inspector configures one real Source, DataUsageProfile,
+Capability, ModelAsset, or AccessGrant target loaded from backend inventory,
+plus expected CheckResult outcome, failure behavior, evidence-retention intent,
+status, and required intent. Invalid, duplicate, unavailable, or unlinked check
+configuration is reported in local validation and blocks Save draft where it
+would create an ambiguous snapshot. Removing every draft check persists an
+explicit empty snapshot list.
+
+Expected outcome remains a deterministic PolicyRule concern. The inspector
+offers “Use expected outcome in PolicyRule,” which writes bounded
+`check_type`, `check_outcome`, `check_target_type`, and `check_target_id` facts;
+the final THEN decision remains authoritative. Blocks owns PolicyCheckStep
+editing. Code DSL keeps the existing condition grammar and shows a
+deterministic read-only check-step representation, avoiding a second executable
+grammar. `failure_behavior` and `evidence_retention` are labeled as recorded
+intent because the runtime does not automatically enforce or delete from those
+values.
+
 Policy Studio backlog alignment is tracked in
 `docs/POLICY_STUDIO_ISSUE_ALIGNMENT.md`. Policy Studio V1 and the controlled
 DSL are implemented authoring surfaces; the DSL compiles to deterministic
@@ -425,8 +445,9 @@ npm run build
   data catalog, scanner, raw-content inspector, or production simulation.
 - Access Grant status transition actions are available, but they are not
   role-aware and do not create IAM permissions or runtime enforcement.
-- Metadata Check Readiness is a readiness summary only; PolicyCheckStep
-  authoring is not wired into this page.
+- Metadata Check Readiness remains a readiness summary only; guided
+  PolicyCheckStep authoring lives inside Policy Studio and uses that real
+  inventory without adding scanner behavior.
 - Human Approvals is a decision workspace for runtime HumanApproval and
   PolicyVersionReviewRequest reviews. It keeps the shell unchanged and redesigns
   only the business area.

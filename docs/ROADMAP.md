@@ -72,12 +72,16 @@ Access Grant approval, and deeper runtime/policy/evidence relationships.
   unversioned fallback.
 - Metadata-only PolicyCheckStep execution behind
   `AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
+- Guided PolicyCheckStep authoring in the existing Policy Studio CHECK lane,
+  using real inventory, complete draft snapshots, deterministic expected
+  outcome conditions, review diff, and explicit activation.
 - CheckResult evidence and explicit deterministic `check_*` matching.
 - Human Approval Studio for Runtime HumanApproval and PolicyVersion reviews,
   preserving the approved Review Inbox layout inside the existing shell.
 
-The main gaps are guided PolicyCheckStep authoring, production identity/RBAC,
-and a supported adapter that reliably enforces `proceed`.
+The main gaps are production identity/RBAC and a supported adapter that
+reliably enforces `proceed`. PolicyCheckStep failure behavior remains evidence
+intent rather than hidden enforcement.
 
 ### Prove what happened
 
@@ -131,7 +135,7 @@ and the result is recorded without relying on existing developer data.
 
 ## P1 — strengthen product alpha
 
-Completed in the current product pass:
+Implementation complete in the current product pass:
 
 - **Agent onboarding and governance editing workflow**
   - register/edit Agent;
@@ -140,16 +144,18 @@ Completed in the current product pass:
   - sequential `pending_review` Access Grant creation with explicit partial
     completion;
   - preserved AGCPStudio shell and workflow-first UI.
+- **Guided PolicyCheckStep authoring in Policy Studio**
+  - seven backend-supported metadata checks only;
+  - real governed inventory targets and honest empty/error states;
+  - complete typed PolicyVersion snapshots, including explicit empty removal;
+  - deterministic expected-outcome linking to PolicyRule `check_*` fields;
+  - preserved review, approval, explicit activation, and runtime semantics.
+  - Docker-backed save/reload/review/activate/runtime/evidence validation
+    remains pending.
 
 Active P1 work:
 
-1. **Guided PolicyCheckStep authoring in Policy Studio**
-   - persist real PolicyCheckSteps;
-   - constrain check type, target selection, expected outcome, and failure
-     behavior;
-   - preserve PolicyVersion snapshot compatibility and CheckResult evidence;
-   - preserve the existing Policy Studio IDE layout.
-2. **Production-quality Python/LangGraph runtime adapter**
+1. **Production-quality Python/LangGraph runtime adapter**
    - before-tool decision;
    - mandatory `proceed` enforcement;
    - idempotency, timeout, and failure policy;

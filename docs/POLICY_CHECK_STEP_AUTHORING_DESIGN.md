@@ -2,17 +2,17 @@
 
 ## Status
 
-Design plus backend persistence/API and opt-in Runtime Gateway execution. The
-implementation now includes a PolicyRule-linked `PolicyCheckStep` SQLAlchemy
-model, Alembic migration, Pydantic create/update/read schemas, CRUD-style API
-endpoints, OpenAPI examples, audit events for create/update/status changes, and
-Runtime Gateway execution of active authored steps when
-`AGCP_RUNTIME_METADATA_PRE_CHECKS_ENABLED=true`.
+Implemented through guided Policy Studio authoring, typed complete
+PolicyVersion snapshots, review diffs, opt-in Runtime Gateway execution, and
+safe CheckResult evidence. The implementation includes the PolicyRule-linked
+model/API, audit events for mutable bootstrap records, inventory-backed CHECK
+nodes, inspector editing, local validation, snapshot reload, and explicit
+expected-outcome linking to deterministic `check_*` PolicyRule fields.
 
-This document and implementation do not add frontend UI, scanner integrations,
-external tool execution, or automatic CheckResult-driven enforcement. PolicyRule
-evaluation now supports explicit deterministic `check_*` matching fields so
-CheckResults can be used as policy context only when a rule opts in.
+The implementation does not add scanner integrations, external tool execution,
+or automatic CheckResult-driven enforcement. PolicyRule remains authoritative.
+Policy Studio does not mutate active snapshots, and approval still requires a
+separate explicit activation action.
 
 AGCP already has `CheckTool` and `CheckResult` persistence, metadata-only
 check helpers, optional Runtime Gateway metadata pre-check execution behind
@@ -101,6 +101,34 @@ Implemented V1 fields:
 
 Fields such as `policy_id`, `name`, `description`, execution ordering,
 branching, and policy-level defaults are intentionally deferred.
+
+## Guided Policy Studio Workflow
+
+The existing Policy Studio IDE layout is preserved. In Blocks mode, Add check
+creates a local draft node for one of the seven supported metadata-only types.
+The existing right inspector loads real backend inventory and configures:
+
+- the check type and compatible target selector;
+- one governed Source, DataUsageProfile, Capability, ModelAsset, or AccessGrant
+  target;
+- an expected CheckResult outcome;
+- failure-behavior and evidence-retention intent;
+- active, disabled, or retired status;
+- required intent.
+
+Target identifiers and product labels are stored only as bounded safe authoring
+metadata. Runtime check selection continues to use the persisted
+`target_selector` and runtime request context. The inspector makes this
+distinction visible. “Use expected outcome in PolicyRule” generates explicit
+`check_type`, `check_outcome`, `check_target_type`, and `check_target_id`
+conditions; it never lets the check tool choose the final decision.
+
+Save draft always sends the complete check snapshot list. The backend
+distinguishes an omitted list (legacy live-record fallback) from an explicitly
+empty list (remove every check), validates every snapshot and its same-draft
+PolicyRule reference, and preserves pending-review immutability. Code mode does
+not introduce a second check grammar: it shows a deterministic read-only step
+representation while the linked outcome condition remains in the existing DSL.
 
 ### Linked Policy Or PolicyRule
 
@@ -478,7 +506,6 @@ workflow log or policy authoring UI.
 - Do not make PolicyCheckStep `failure_behavior` directly change runtime
   `decision` or `proceed`.
 - Do not add generic or nested PolicyRule expressions.
-- Do not add frontend UI.
 - Do not add external scanners.
 - Do not execute tools.
 - Do not build workflow orchestration.
@@ -509,8 +536,9 @@ Recommended staged implementation:
    Implemented.
 7. Add deterministic check outcome context. Implemented with explicit
    PolicyRule `check_*` fields.
-8. Add guided Policy UI support only after versioning, review, and simulation
-   semantics are designed.
+8. Add guided Policy UI support after versioning and review semantics are
+   stable. Implemented with Blocks/inspector editing, real inventory, local
+   validation, and complete PolicyVersion snapshots.
 9. Consider external checker adapters only after async execution, safety, and
    retention rules are designed.
 
@@ -527,9 +555,10 @@ Recommended staged implementation:
 - How should check latency budgets be configured?
 - Should CheckResults be reused across runtime requests, or should every
   runtime request produce fresh evidence?
-- How should PolicyCheckSteps be versioned with Policy and PolicyRule changes?
-- Should `failure_behavior` be advisory metadata first, or enforced once
-  check-aware evaluation exists?
+- How should a future condition model express several required CheckResults
+  without adding ambiguous nested workflow semantics?
+- Should `failure_behavior` remain advisory metadata or gain separately
+  reviewed enforcement semantics in a future contract?
 - How should Evidence Bundle show required checks that did not run?
 - What operator role should be allowed to author PolicyCheckSteps before full
   enterprise auth exists?

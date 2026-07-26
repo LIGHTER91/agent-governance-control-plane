@@ -13,6 +13,11 @@ import {
   type PolicyBlock,
   type PolicyCondition
 } from "./policy-dsl";
+import type {
+  PolicyCheckDraft,
+  PolicyCheckValidation
+} from "./policy-check-authoring";
+import { PolicyCheckCanvasSection } from "./policy-check-canvas-section";
 import { PolicyIcon, PolicyIconName } from "./policy-icons";
 
 const CANVAS_GROUPS = [
@@ -48,15 +53,25 @@ const CANVAS_GROUPS = [
 
 export function PolicyCanvas({
   blocks,
+  checks,
   condition,
+  onAddCheck,
   onChangeCondition,
+  onSelectCheck,
   onSelectBlock,
+  selectedCheckId,
+  checkValidationById,
   selectedBlockId
 }: {
   blocks: PolicyBlock[];
+  checks: PolicyCheckDraft[];
   condition: PolicyCondition;
+  onAddCheck: () => void;
   onChangeCondition: (condition: PolicyCondition) => void;
+  onSelectCheck: (checkId: string) => void;
   onSelectBlock: (blockId: string) => void;
+  selectedCheckId: string | null;
+  checkValidationById: Map<string, PolicyCheckValidation>;
   selectedBlockId: string | null;
 }) {
   const [activeAddGroup, setActiveAddGroup] =
@@ -164,10 +179,20 @@ export function PolicyCanvas({
                   <small>{group.title}</small>
                 </div>
                 <div className="ps2-flow-stack">
-                  {groupBlocks.length === 0 ? (
+                  {group.key !== "check" && groupBlocks.length === 0 ? (
                     <div className="ps2-empty-flow-state">
                       {emptyStateForGroup(group.key)}
                     </div>
+                  ) : null}
+                  {group.key === "check" ? (
+                    <PolicyCheckCanvasSection
+                      checks={checks}
+                      condition={condition}
+                      onAddCheck={onAddCheck}
+                      onSelectCheck={onSelectCheck}
+                      selectedCheckId={selectedCheckId}
+                      validationByCheckId={checkValidationById}
+                    />
                   ) : null}
                   {groupBlocks.map((block) => (
                     <CanvasNode
@@ -231,7 +256,7 @@ export function PolicyCanvas({
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : group.key !== "check" ? (
                   <button
                     className="ps2-add-flow-block"
                     onClick={() => openAddMenu(group.key)}
@@ -241,7 +266,7 @@ export function PolicyCanvas({
                     <PolicyIcon name="plus" size={13} />
                     {group.addLabel}
                   </button>
-                )}
+                ) : null}
               </section>
             );
           })}

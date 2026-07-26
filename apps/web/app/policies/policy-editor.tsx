@@ -6,6 +6,11 @@ import type {
   PolicyValidationMessage,
   PolicyValidationMessageTone
 } from "./policy-dsl";
+import {
+  policyCheckCodePreview,
+  type PolicyCheckDraft,
+  type PolicyCheckValidation
+} from "./policy-check-authoring";
 import { PolicyBlocksEditor } from "./policy-blocks-editor";
 import { PolicyCodeEditor } from "./policy-code-editor";
 import { PolicyIcon } from "./policy-icons";
@@ -14,6 +19,8 @@ type EditorMode = "blocks" | "code";
 
 export function PolicyEditor({
   blocks,
+  checks,
+  checkValidationById,
   compiled,
   condition,
   dsl,
@@ -25,17 +32,22 @@ export function PolicyEditor({
   validationRunCount,
   onChangeDsl,
   onChangeCondition,
+  onAddCheck,
   onSaveDraft,
+  onSelectCheck,
   onSelectBlock,
   onSetEditorMode,
   onSubmitReview,
   onValidate,
   saveDisabledReason,
+  selectedCheckId,
   selectedBlockId,
   submitDisabledReason,
   validationMessages
 }: {
   blocks: PolicyBlock[];
+  checks: PolicyCheckDraft[];
+  checkValidationById: Map<string, PolicyCheckValidation>;
   condition: PolicyCondition;
   compiled: {
     checkFields: string[];
@@ -53,12 +65,15 @@ export function PolicyEditor({
   validationRunCount: number;
   onChangeDsl: (dsl: string) => void;
   onChangeCondition: (condition: PolicyCondition) => void;
+  onAddCheck: () => void;
   onSaveDraft: () => void;
+  onSelectCheck: (checkId: string) => void;
   onSelectBlock: (blockId: string) => void;
   onSetEditorMode: (mode: EditorMode) => void;
   onSubmitReview: () => void;
   onValidate: () => void;
   saveDisabledReason: string | null;
+  selectedCheckId: string | null;
   selectedBlockId: string | null;
   submitDisabledReason: string | null;
   validationMessages: PolicyValidationMessage[];
@@ -85,8 +100,10 @@ export function PolicyEditor({
       label: "CHECK",
       className: "s-check",
       body:
-        counts.check > 0
-          ? `${counts.check} metadata/check fact${counts.check === 1 ? "" : "s"}`
+        checks.length > 0
+          ? `${checks.length} persisted check${checks.length === 1 ? "" : "s"} · ${counts.check} outcome fact${counts.check === 1 ? "" : "s"}`
+          : counts.check > 0
+            ? `${counts.check} outcome fact${counts.check === 1 ? "" : "s"}`
           : "No metadata checks"
     },
     {
@@ -209,18 +226,26 @@ export function PolicyEditor({
         {editorMode === "blocks" ? (
           <PolicyBlocksEditor
             blocks={blocks}
+            checks={checks}
+            checkValidationById={checkValidationById}
             condition={condition}
+            onAddCheck={onAddCheck}
             onChangeCondition={onChangeCondition}
+            onSelectCheck={onSelectCheck}
             onSelectBlock={onSelectBlock}
+            selectedCheckId={selectedCheckId}
             selectedBlockId={selectedBlockId}
           />
         ) : (
-          <PolicyCodeEditor
-            dsl={dsl}
-            onChange={onChangeDsl}
-            policyTitle={policyTitle}
-            policyVersion={policyVersion}
-          />
+          <>
+            <PolicyCodeEditor
+              dsl={dsl}
+              onChange={onChangeDsl}
+              policyTitle={policyTitle}
+              policyVersion={policyVersion}
+            />
+            <PolicyCheckCodePanel checks={checks} />
+          </>
         )}
       </div>
 
@@ -236,6 +261,55 @@ export function PolicyEditor({
         validationMessages={validationMessages}
       />
     </main>
+  );
+}
+
+function PolicyCheckCodePanel({ checks }: { checks: PolicyCheckDraft[] }) {
+  return (
+    <details className="ps2-check-code-panel">
+      <summary>
+        Persisted PolicyCheckStep snapshots · {checks.length} · read-only in Code DSL
+      </summary>
+      <p>
+        Blocks and the inspector own bounded check-step fields. Generated
+        PolicyRule outcome conditions remain synchronized in the editable DSL.
+      </p>
+      <pre>{policyCheckCodePreview(checks)}</pre>
+      <style jsx>{`
+        .ps2-check-code-panel {
+          background: rgba(8, 16, 22, 0.97);
+          border-top: 1px solid rgba(170, 190, 205, 0.14);
+          color: #aab5c2;
+          flex-shrink: 0;
+          font-size: 10px;
+          max-height: 210px;
+          overflow: auto;
+          padding: 9px 14px;
+        }
+        .ps2-check-code-panel summary {
+          color: #8eeeb9;
+          cursor: pointer;
+          font-family: var(--mono);
+        }
+        .ps2-check-code-panel p {
+          line-height: 1.45;
+          margin: 8px 0;
+        }
+        .ps2-check-code-panel pre {
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(180, 198, 214, 0.12);
+          border-radius: 5px;
+          color: #b9cbd8;
+          font-family: var(--mono);
+          font-size: 9px;
+          line-height: 1.5;
+          margin: 0;
+          overflow: auto;
+          padding: 9px;
+          white-space: pre-wrap;
+        }
+      `}</style>
+    </details>
   );
 }
 

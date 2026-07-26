@@ -1,0 +1,127 @@
+.responsiveStudio {
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .responsiveStudio :global(.ps2-shell) {
+    grid-template-columns: 196px minmax(0, 1fr) 216px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .responsiveStudio :global(.ps2-list-pane),
+  .responsiveStudio :global(.ps2-inspector) {
+    width: auto !important;
+  }
+
+  .responsiveStudio :global(.ps2-policy-header),
+  .responsiveStudio :global(.ps2-structure-panel) {
+    min-width: 0;
+  }
+
+  .responsiveStudio :global(.ps2-policy-title-row),
+  .responsiveStudio :global(.ps2-structure-flow),
+  .responsiveStudio :global(.ps2-compile-bar),
+  .responsiveStudio :global(.ps2-sim-head) {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .responsiveStudio {
+    height: auto !important;
+    min-height: calc(100vh - 48px) !important;
+    overflow: visible !important;
+    padding-top: 64px;
+    width: 100% !important;
+  }
+
+  .responsiveStudio :global(.ps2-shell) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: 240px minmax(720px, calc(100vh - 48px)) minmax(
+          520px,
+          auto
+        ) !important;
+    height: auto !important;
+    min-height: calc(100vh - 48px) !important;
+    overflow: visible !important;
+  }
+
+  .responsiveStudio :global(.ps2-list-pane) {
+    border-bottom: 1px solid var(--border);
+    border-right: 0;
+    height: 240px !important;
+    width: 100% !important;
+  }
+
+  .responsiveStudio :global(.ps2-editor-pane) {
+    height: max(720px, calc(100vh - 48px)) !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .responsiveStudio :global(.ps2-inspector) {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    height: auto !important;
+    min-height: 520px !important;
+    width: 100% !important;
+  }
+
+  .responsiveStudio :global(.ps2-insp-scroll) {
+    max-height: none;
+  }
+
+  .responsiveStudio :global(.ps2-validation-grid) {
+    overflow-x: auto;
+  }
+
+  .responsiveStudio :global(.ps2-validation-row) {
+    min-width: 620px;
+  }
+}
+
+@media (max-width: 520px) {
+  .responsiveStudio :global(.ps2-policy-header) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .responsiveStudio :global(.ps2-policy-name-line) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .responsiveStudio :global(.ps2-policy-title-row) {
+    display: grid !important;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .responsiveStudio :global(.ps2-policy-actions) {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .responsiveStudio :global(.ps2-header-btn) {
+    flex: 1 1 128px;
+  }
+
+  .responsiveStudio :global(.ps2-structure-panel),
+  .responsiveStudio :global(.ps2-editor-scroll) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .responsiveStudio :global(.ps2-block-workbench) {
+    grid-template-columns: 156px minmax(0, 1fr);
+  }
+
+  .responsiveStudio :global(.ps2-compile-bar),
+  .responsiveStudio :global(.ps2-sim-head) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

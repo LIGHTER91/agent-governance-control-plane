@@ -210,6 +210,87 @@ def test_create_policy_version_draft_from_editor_payload(
     }
 
 
+def test_policy_version_draft_explicit_empty_checks_remove_live_fallback(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, session_factory = api_client
+    policy_id = create_policy(client)
+    rule_id = create_policy_rule(client, policy_id=policy_id)
+    create_policy_check_step(client, policy_rule_id=rule_id)
+    payload = policy_version_draft_payload()
+    payload["rule_snapshots"][0]["id"] = rule_id
+    payload["check_step_snapshots"] = []
+
+    response = client.post(f"/policies/{policy_id}/versions/draft", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["check_step_snapshots"] == []
+    audit_log = fetch_audit_logs(session_factory)[-1]
+    assert audit_log.event_type == "policy_version_created"
+    assert audit_log.metadata_["check_step_snapshot_count"] == 0
+
+
+def test_policy_version_draft_validates_check_step_snapshot_contract(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    rule_id = create_policy_rule(client, policy_id=policy_id)
+    payload = policy_version_draft_payload()
+    payload["rule_snapshots"][0]["id"] = rule_id
+    payload["check_step_snapshots"] = [
+        {
+            "id": str(uuid4()),
+            "policy_rule_id": rule_id,
+            "check_tool_id": None,
+            "check_type": "source_status",
+            "target_selector": "model_id",
+            "required": True,
+            "failure_behavior": "record_only",
+            "min_confidence": None,
+            "status": "active",
+            "evidence_retention": "decision_only",
+            "metadata": {},
+        }
+    ]
+
+    response = client.post(f"/policies/{policy_id}/versions/draft", json=payload)
+
+    assert response.status_code == 422
+    assert "target_selector" in str(response.json()["detail"])
+
+
+def test_policy_version_draft_check_step_must_reference_snapshot_rule(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    payload = policy_version_draft_payload()
+    payload["check_step_snapshots"] = [
+        {
+            "id": str(uuid4()),
+            "policy_rule_id": str(uuid4()),
+            "check_tool_id": None,
+            "check_type": "source_status",
+            "target_selector": "source_ids",
+            "required": True,
+            "failure_behavior": "record_only",
+            "min_confidence": None,
+            "status": "active",
+            "evidence_retention": "decision_only",
+            "metadata": {},
+        }
+    ]
+
+    response = client.post(f"/policies/{policy_id}/versions/draft", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "PolicyVersion draft check step policy_rule_id must reference a rule "
+        "in the same draft snapshot."
+    )
+
+
 def test_update_policy_version_draft_from_editor_payload(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

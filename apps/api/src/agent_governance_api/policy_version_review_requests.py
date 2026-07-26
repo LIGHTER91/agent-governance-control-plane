@@ -1092,8 +1092,8 @@ def _check_step_changes(
     changed_count = 0
 
     for key in sorted(common_keys):
-        baseline_step = baseline_map[key]
-        reviewed_step = reviewed_map[key]
+        baseline_step = _check_step_diff_fields(baseline_map[key])
+        reviewed_step = _check_step_diff_fields(reviewed_map[key])
         step_changed = False
         for field in sorted(set(baseline_step) | set(reviewed_step)):
             if baseline_step.get(field) != reviewed_step.get(field):
@@ -1111,6 +1111,19 @@ def _check_step_changes(
         unchanged_count=unchanged_count,
         changed_fields=changed_fields,
     )
+
+
+def _check_step_diff_fields(
+    check_step: dict[str, object],
+) -> dict[str, object]:
+    fields = {
+        field: value for field, value in check_step.items() if field != "metadata"
+    }
+    metadata = check_step.get("metadata")
+    if isinstance(metadata, dict):
+        for field, value in metadata.items():
+            fields[f"metadata.{field}"] = value
+    return fields
 
 
 def _check_step_map(

@@ -1,4 +1,5 @@
 ﻿import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -36,6 +37,7 @@ const files = [
   "app/lib/runtime.ts",
   "app/lib/human-approvals.ts",
   "app/lib/policies.ts",
+  "app/lib/policy-check-steps.ts",
   "app/lib/current-actor.ts",
   "app/lib/service-actors.ts",
   "app/access-data/page.tsx",
@@ -44,12 +46,16 @@ const files = [
   "app/access-data/sources-workflow.tsx",
   "app/policies/page.tsx",
   "app/policies/policy-blocks-editor.tsx",
+  "app/policies/policy-check-authoring.ts",
+  "app/policies/policy-check-canvas-section.tsx",
+  "app/policies/policy-check-inspector.tsx",
   "app/policies/policy-canvas.tsx",
   "app/policies/policy-code-editor.tsx",
   "app/policies/policy-dsl.ts",
   "app/policies/policy-editor.tsx",
   "app/policies/policy-inspector.tsx",
   "app/policies/policy-repository.tsx",
+  "app/policies/policy-studio-responsive.module.css",
   "app/policies/policy-studio.tsx",
   "app/policies/policy-templates.tsx",
   "app/policies/policies-manager.tsx",
@@ -241,6 +247,12 @@ const requiredText = [
   "Policy Canvas",
   "Add event",
   "Add check",
+  "Check type",
+  "Governed target",
+  "Expected outcome",
+  "Failure behavior",
+  "Evidence retention",
+  "Metadata-only check",
   "Add control",
   "Add proof",
   "ps2-block-workbench",
@@ -618,6 +630,7 @@ runAgentGovernanceWorkflowSmoke();
 runEvidenceBundleWorkflowFixtureSmoke();
 runDataUsageWorkflowFixtureSmoke();
 runAccessGrantWorkflowFixtureSmoke();
+await runPolicyCheckAuthoringSmoke();
 await runPolicyDslRoundTripSmoke();
 
 console.log("Dashboard shell smoke check passed.");
@@ -1108,8 +1121,43 @@ async function runPolicyDslRoundTripSmoke() {
     "Policy Studio source contains scary baseline copy"
   );
   const normalizedPolicyStudioSource = policyStudioSource.toLowerCase();
+  for (const requiredCheckCopy of [
+    "Add check",
+    "Check type",
+    "Governed target",
+    "Expected outcome",
+    "Failure behavior",
+    "Evidence retention",
+    "Metadata-only check",
+    "Local validation",
+    "Save draft",
+    "Submit for review"
+  ]) {
+    assertSmoke(
+      policyStudioSource.includes(requiredCheckCopy),
+      `Policy Studio check authoring copy missing: ${requiredCheckCopy}`
+    );
+  }
+  for (const supportedCheckType of [
+    "access_grant_status",
+    "data_usage_profile_status",
+    "source_status",
+    "source_classification",
+    "capability_status",
+    "model_asset_status",
+    "model_provider_type"
+  ]) {
+    assertSmoke(
+      policyStudioSource.includes(supportedCheckType),
+      `Policy Studio supported check type missing: ${supportedCheckType}`
+    );
+  }
   for (const forbidden of [
     "compliance score",
+    "Publish",
+    "scanner output",
+    "raw prompt",
+    "raw source content",
     "affected agents",
     "production simulation",
     "Security Governance Team",
@@ -1128,6 +1176,178 @@ async function runPolicyDslRoundTripSmoke() {
       `Policy Studio source contains forbidden product claim: ${forbidden}`
     );
   }
+}
+
+async function runPolicyCheckAuthoringSmoke() {
+  const policyChecks = await loadPolicyCheckAuthoringModule();
+  const expectedSelectors = {
+    access_grant_status: "access_grants",
+    capability_status: "capability_id",
+    data_usage_profile_status: "source_ids",
+    model_asset_status: "model_id",
+    model_provider_type: "model_id",
+    source_classification: "source_ids",
+    source_status: "source_ids"
+  };
+  assertSmoke(
+    JSON.stringify(policyChecks.POLICY_CHECK_TARGET_SELECTOR_BY_TYPE) ===
+      JSON.stringify(expectedSelectors),
+    "PolicyCheckStep target-selector compatibility mapping changed"
+  );
+
+  const draft = policyChecks.createPolicyCheckDraft(
+    "rule-1",
+    "source_status"
+  );
+  const emptyInventory = {
+    accessGrants: [],
+    agents: [],
+    capabilities: [],
+    dataUsageProfiles: [],
+    models: [],
+    sources: []
+  };
+  const missingTarget = policyChecks.validatePolicyChecks(
+    [draft],
+    {},
+    { status: "ready", inventory: emptyInventory, profileWarning: null }
+  );
+  assertSmoke(
+    missingTarget.messages.some(
+      (message) => message.text === "Select a real governed target."
+    ),
+    "PolicyCheckStep validation did not block a missing governed target"
+  );
+
+  const inventory = {
+    ...emptyInventory,
+    sources: [
+      {
+        id: "source-1",
+        name: "Customer records",
+        source_type: "database",
+        status: "active"
+      }
+    ]
+  };
+  const target = policyChecks.policyCheckTargetOptions(
+    "source_status",
+    inventory
+  )[0];
+  const targeted = policyChecks.updatePolicyCheckTarget(draft, target);
+  const configured = policyChecks.updatePolicyCheckExpectedOutcome(
+    targeted,
+    "fail"
+  );
+  const condition = policyChecks.applyPolicyCheckCondition(
+    {
+      decision: "require_human_review",
+      reason: "Review a failing Source status check."
+    },
+    configured
+  );
+  assertSmoke(
+    condition.check_type === "source_status" &&
+      condition.check_outcome === "fail" &&
+      condition.check_target_type === "source" &&
+      condition.check_target_id === "source-1",
+    "PolicyCheckStep expected outcome did not generate a deterministic condition"
+  );
+  const valid = policyChecks.validatePolicyChecks(
+    [configured],
+    condition,
+    { status: "ready", inventory, profileWarning: null }
+  );
+  assertSmoke(
+    !valid.messages.some((message) => message.tone === "blocking"),
+    "A valid targeted PolicyCheckStep was blocked"
+  );
+
+  const invalidSelector = policyChecks.validatePolicyChecks(
+    [{ ...configured, target_selector: "model_id" }],
+    condition,
+    { status: "ready", inventory, profileWarning: null }
+  );
+  assertSmoke(
+    invalidSelector.messages.some((message) =>
+      message.text.includes("target selector are incompatible")
+    ),
+    "PolicyCheckStep validation did not reject an incompatible selector"
+  );
+  const invalidMetadata = policyChecks.validatePolicyChecks(
+    [
+      {
+        ...configured,
+        metadata: { ...configured.metadata, api_key: "redacted" }
+      }
+    ],
+    condition,
+    { status: "ready", inventory, profileWarning: null }
+  );
+  assertSmoke(
+    invalidMetadata.messages.some((message) =>
+      message.text.includes("Unsafe metadata key")
+    ),
+    "PolicyCheckStep validation did not reject unsafe metadata keys"
+  );
+  const duplicate = policyChecks.validatePolicyChecks(
+    [configured, { ...configured, id: "check-2" }],
+    condition,
+    { status: "ready", inventory, profileWarning: null }
+  );
+  assertSmoke(
+    duplicate.messages.some((message) =>
+      message.text.includes("duplicates another check")
+    ),
+    "PolicyCheckStep validation did not reject duplicate identities"
+  );
+  const invalidConfidence = policyChecks.validatePolicyChecks(
+    [{ ...configured, min_confidence: 2 }],
+    condition,
+    { status: "ready", inventory, profileWarning: null }
+  );
+  assertSmoke(
+    invalidConfidence.messages.some((message) =>
+      message.text.includes("Minimum confidence")
+    ),
+    "PolicyCheckStep validation did not reject invalid confidence"
+  );
+  const preview = policyChecks.policyCheckCodePreview([configured]);
+  assertSmoke(
+    preview.includes("TARGET_SELECTOR source_ids") &&
+      preview.includes('EXPECTED_TARGET_ID "source-1"') &&
+      preview.includes("EXPECT fail"),
+    "PolicyCheckStep read-only Code preview is incomplete"
+  );
+}
+
+async function loadPolicyCheckAuthoringModule() {
+  const ts = await import("typescript");
+  const sourceText = sourceByFile.get(
+    "app/policies/policy-check-authoring.ts"
+  );
+  const transpiled = ts.transpileModule(sourceText, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020
+    }
+  });
+  const module = { exports: {} };
+  const context = {
+    crypto: { randomUUID },
+    exports: module.exports,
+    module,
+    require: (specifier) => {
+      throw new Error(
+        `Unexpected runtime import in policy-check-authoring smoke: ${specifier}`
+      );
+    }
+  };
+  vm.runInNewContext(transpiled.outputText, context, {
+    filename: "policy-check-authoring.ts"
+  });
+  return module.exports;
 }
 
 async function loadPolicyDslModule() {

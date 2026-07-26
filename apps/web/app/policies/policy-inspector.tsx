@@ -15,6 +15,12 @@ import {
   jsonConditionPreview,
   summarizePolicyRule
 } from "./policy-dsl";
+import type {
+  PolicyCheckDraft,
+  PolicyCheckInventoryState,
+  PolicyCheckValidation
+} from "./policy-check-authoring";
+import { PolicyCheckInspector } from "./policy-check-inspector";
 import { PolicyIcon } from "./policy-icons";
 import type { PolicyLifecycleState, PolicyStudioEditorSource } from "./policy-studio";
 
@@ -24,13 +30,19 @@ export function PolicyInspector({
   currentActorState,
   editorSource,
   localNote,
+  policyChecks,
+  policyCheckInventoryState,
+  policyCheckValidationById,
   onChangeLocalNote,
   onArchivePolicy,
   onCreateNewDraftForChanges,
   onDeletePolicy,
+  onLinkPolicyCheckCondition,
+  onRemovePolicyCheck,
   onSaveDraft,
   onSubmitReview,
   onValidate,
+  onUpdatePolicyCheck,
   parsed,
   policyLifecycleState,
   policyVersionsState,
@@ -40,6 +52,7 @@ export function PolicyInspector({
   saveState,
   selectedDraftReviewState,
   selectedDraftVersion,
+  selectedPolicyCheckId,
   selectedPolicy,
   selectedRule,
   selectedRuleUnsupportedFields,
@@ -60,13 +73,19 @@ export function PolicyInspector({
     | { status: "ready"; actor: CurrentActorRecord };
   editorSource: PolicyStudioEditorSource;
   localNote: string;
+  policyChecks: PolicyCheckDraft[];
+  policyCheckInventoryState: PolicyCheckInventoryState;
+  policyCheckValidationById: Map<string, PolicyCheckValidation>;
   onChangeLocalNote: (note: string) => void;
   onArchivePolicy: () => void;
   onCreateNewDraftForChanges: () => void;
   onDeletePolicy: () => void;
+  onLinkPolicyCheckCondition: (checkId: string) => void;
+  onRemovePolicyCheck: (checkId: string) => void;
   onSaveDraft: () => void;
   onSubmitReview: () => void;
   onValidate: () => void;
+  onUpdatePolicyCheck: (check: PolicyCheckDraft) => void;
   parsed: ParsedPolicyDsl;
   policyLifecycleState: PolicyLifecycleState;
   policyVersionsState:
@@ -95,6 +114,7 @@ export function PolicyInspector({
   };
   selectedDraftReviewState: PolicyVersionReviewStateRecord | null;
   selectedDraftVersion: PolicyVersionRecord | null;
+  selectedPolicyCheckId: string | null;
   selectedPolicy: PolicyRecord | null;
   selectedRule: PolicyRuleRecord | null;
   selectedRuleUnsupportedFields: string[];
@@ -156,6 +176,10 @@ export function PolicyInspector({
   const [activeTab, setActiveTab] = useState<"inspector" | "references">(
     "inspector"
   );
+  const selectedPolicyCheck =
+    policyChecks.find((check) => check.id === selectedPolicyCheckId) || null;
+  const checkEditingLocked =
+    selectedDraftReviewState?.review_status === "pending";
 
   return (
     <aside className="ps2-inspector" aria-label="Policy inspector">
@@ -185,6 +209,22 @@ export function PolicyInspector({
         />
       ) : (
       <div className="ps2-insp-scroll">
+        {selectedPolicyCheck ? (
+          <PolicyCheckInspector
+            check={selectedPolicyCheck}
+            condition={condition}
+            editingLocked={checkEditingLocked}
+            inventoryState={policyCheckInventoryState}
+            onChange={onUpdatePolicyCheck}
+            onLinkCondition={() =>
+              onLinkPolicyCheckCondition(selectedPolicyCheck.id)
+            }
+            onRemove={() => onRemovePolicyCheck(selectedPolicyCheck.id)}
+            validation={
+              policyCheckValidationById.get(selectedPolicyCheck.id) || null
+            }
+          />
+        ) : null}
         <section className="ps2-insp-sec">
           <div className="ps2-insp-sec-title ist2-summary">Policy details</div>
           <div className="ps2-review-card">

@@ -610,10 +610,12 @@ changes should have lightweight versioning, review, activation, and rollback
 guardrails so active runtime policy behavior is not changed casually.
 
 Current Policy Studio CHECK blocks compile to deterministic PolicyRule
-condition fields, including safe `check_*` outcome summaries. They do not
-create CheckTool adapters, run scanners, or author arbitrary check workflows.
-PolicyCheckStep UI authoring remains a separate product step after the adapter
-boundary, review lifecycle, and runtime semantics are stable.
+condition fields, including safe `check_*` outcome summaries. The CHECK lane
+also authors real PolicyCheckStep snapshots through a bounded inspector using
+real backend inventory. It does not create CheckTool adapters, run scanners, or
+author arbitrary check workflows. Blocks owns step editing; Code DSL shows a
+deterministic read-only step projection and keeps the linked outcome condition
+editable.
 
 ## Non-goals
 
@@ -677,8 +679,10 @@ Recommended staged implementation:
 13. Later add external checker adapters for catalogs, DLP, PII scanners, and
    secret scanners after safety boundaries are clear.
 14. Implement lightweight policy versioning and review guardrails before
-    expanding PolicyCheckStep or check-based authoring UI.
-15. Later add a constrained Policy Studio UI for check-based policy authoring.
+    expanding PolicyCheckStep or check-based authoring UI. Implemented.
+15. Add a constrained Policy Studio UI for check-based policy authoring.
+    Implemented with complete PolicyVersion snapshots, inventory-backed
+    targets, and explicit PolicyRule outcome linking.
 
 Pre-checks should stay optional until runtime context and Data Usage Profile
 are implemented. They should not become required infrastructure for the current

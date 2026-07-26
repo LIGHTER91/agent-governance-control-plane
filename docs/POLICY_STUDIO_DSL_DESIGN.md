@@ -98,7 +98,10 @@ check check.outcome == "pass" required
 
 The `required` suffix is accepted for readability and stripped by the parser.
 V1 CHECK lines do not create or edit `PolicyCheckStep` records. They compile
-only to deterministic condition fields.
+only to deterministic condition fields. Persisted PolicyCheckSteps are edited
+in Blocks mode through the existing inspector and appear in Code mode as a
+deterministic read-only companion projection. This preserves the established
+grammar and avoids treating authoring metadata as executable DSL.
 
 ### THEN Line
 
@@ -248,7 +251,9 @@ the compiled snapshot.
 ## Blocks And Templates
 
 Blocks mode and Code DSL mode are two views of the same supported condition
-surface. The frontend keeps one canonical editor state for the compiled
+surface. PolicyCheckStep snapshots are an adjacent bounded authoring state,
+visible as compact CHECK nodes and a read-only Code projection. The frontend
+keeps one canonical editor state for the compiled
 condition surface: Code DSL edits are parsed into condition JSON, while Blocks
 mode renders compact grouped rows for inspection, selection, and navigation back
 to Code DSL for precise edits. Save draft uses the validated compiled condition
@@ -505,7 +510,7 @@ The V1 DSL intentionally rejects broad language features:
 - loops;
 - comments that carry hidden semantics;
 - arbitrary JSON blocks;
-- direct PolicyCheckStep authoring;
+- direct PolicyCheckStep mutation statements in Code DSL;
 - direct activation or publish statements.
 
 Unsupported lines are reported by local validation and block saving in Policy
@@ -534,7 +539,8 @@ Future work should remain narrowly scoped:
   runtime evaluator are extended safely;
 - add OR-style authoring only after deterministic semantics and review diffs
   are designed;
-- add PolicyCheckStep authoring after versioning/review and check execution
-  semantics are stable;
+- consider a writable PolicyCheckStep DSL only if it can remain deterministic,
+  unambiguous, and fully round-trippable; current authoring intentionally stays
+  Blocks/inspector-first;
 - add richer field help and examples without introducing fake production
   simulation.

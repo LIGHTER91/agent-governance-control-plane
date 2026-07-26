@@ -1608,12 +1608,34 @@ function PolicyChecksSummary({ diffState }: { diffState?: DiffState }) {
       {changes.changed_fields.length > 0 ? (
         <ul className="review-field-list">
           {changes.changed_fields.map((field) => (
-            <li key={field}>{field}</li>
+            <li key={field}>{policyCheckChangeLabel(field)}</li>
           ))}
         </ul>
       ) : null}
     </>
   );
+}
+
+function policyCheckChangeLabel(field: string) {
+  const checkReference = field.split(".", 1)[0];
+  const shortReference = checkReference.slice(0, 8);
+  const labels: Array<[string, string]> = [
+    ["metadata.expected_outcome", "Expected outcome changed"],
+    ["metadata.governed_target_id", "Governed target changed"],
+    ["metadata.governed_target_name", "Governed target label changed"],
+    ["metadata.runtime_target_id", "CheckResult target changed"],
+    ["check_type", "Check type changed"],
+    ["target_selector", "Target selector changed"],
+    ["failure_behavior", "Failure behavior changed"],
+    ["evidence_retention", "Evidence retention changed"],
+    ["status", "Status changed"],
+    ["required", "Required intent changed"],
+    ["min_confidence", "Minimum confidence changed"],
+    ["check_tool_id", "Check tool reference changed"],
+    ["policy_rule_id", "PolicyRule reference changed"]
+  ];
+  const match = labels.find(([suffix]) => field.endsWith(`.${suffix}`));
+  return `Check ${shortReference} · ${match?.[1] || "Safe authoring metadata changed"}`;
 }
 
 function PolicyEvidencePreview({

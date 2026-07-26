@@ -409,6 +409,12 @@ Policy Management:
   assign/approve/reject/activate actions. Approval does not activate a version.
   Replacement of an existing active version requires explicit intent, and the
   database enforces one active PolicyVersion per Policy.
+- PolicyVersion draft payloads accept a complete, typed
+  `check_step_snapshots` list. An explicitly empty list is preserved so Policy
+  Studio can remove every draft check without falling back to live bootstrap
+  records. Each snapshot is validated against the supported check enums,
+  target-selector compatibility, safe metadata keys, and the rule IDs present
+  in the same draft snapshot.
 - Metadata-only Policy Pre-Check persistence and internal helper functions
   exist for `CheckTool` and `CheckResult` records. The helpers can check
   AccessGrant status, Data Usage Profile review status, Source
@@ -444,6 +450,9 @@ Policy Management:
   CheckResults remain evidence inputs and affect runtime decisions only through
   explicit deterministic PolicyRule matching. PolicyCheckStep
   `failure_behavior` is not automatically enforced.
+  Policy Studio persists guided checks inside the draft PolicyVersion
+  aggregate; it does not mutate active versions or directly edit active live
+  PolicyRules.
 
 Human Approvals:
 

@@ -868,6 +868,98 @@ def test_approved_review_diff_can_activate_and_requires_replace_when_active_exis
     )
 
 
+def test_review_diff_names_expected_outcome_and_target_check_changes(
+    api_client: tuple[TestClient, SessionFactory],
+) -> None:
+    client, _ = api_client
+    policy_id = create_policy(client)
+    rule_id = str(uuid4())
+    check_id = str(uuid4())
+    first_target_id = str(uuid4())
+    second_target_id = str(uuid4())
+
+    def create_version(*, expected_outcome: str, target_id: str) -> dict[str, object]:
+        response = client.post(
+            f"/policies/{policy_id}/versions/draft",
+            json={
+                "change_summary": "Policy Studio guided check draft.",
+                "policy_snapshot": {
+                    "name": "Policy Studio email guard",
+                    "description": "Drafted in Policy Studio.",
+                    "status": "draft",
+                },
+                "rule_snapshots": [
+                    {
+                        "id": rule_id,
+                        "name": "Studio check rule",
+                        "description": "Compiled from Policy Studio.",
+                        "condition": json.dumps(
+                            {
+                                "check_outcome": expected_outcome,
+                                "check_target_id": target_id,
+                                "check_target_type": "source",
+                                "check_type": "source_status",
+                                "decision": "require_human_review",
+                                "reason": "Review an unexpected Source status.",
+                            }
+                        ),
+                    }
+                ],
+                "check_step_snapshots": [
+                    {
+                        "id": check_id,
+                        "policy_rule_id": rule_id,
+                        "check_tool_id": None,
+                        "check_type": "source_status",
+                        "target_selector": "source_ids",
+                        "required": True,
+                        "failure_behavior": "record_only",
+                        "min_confidence": None,
+                        "status": "active",
+                        "evidence_retention": "evidence_bundle",
+                        "metadata": {
+                            "expected_outcome": expected_outcome,
+                            "governed_target_id": target_id,
+                        },
+                    }
+                ],
+            },
+        )
+        assert response.status_code == 201
+        return response.json()
+
+    active_version = create_version(
+        expected_outcome="pass",
+        target_id=first_target_id,
+    )
+    active_request = create_and_approve_review_request(client, active_version)
+    assert (
+        client.post(
+            f"/policy-version-review-requests/{active_request['id']}/activate"
+        ).status_code
+        == 200
+    )
+
+    set_current_actor(development_actor())
+    reviewed_version = create_version(
+        expected_outcome="fail",
+        target_id=second_target_id,
+    )
+    review_request = client.post(
+        f"/policy-versions/{reviewed_version['id']}/review-requests"
+    ).json()
+    set_current_actor(reviewer_actor())
+
+    response = client.get(
+        f"/policy-version-review-requests/{review_request['id']}/diff"
+    )
+
+    assert response.status_code == 200
+    changed_fields = response.json()["check_step_changes"]["changed_fields"]
+    assert f"{check_id}.metadata.expected_outcome" in changed_fields
+    assert f"{check_id}.metadata.governed_target_id" in changed_fields
+
+
 def test_activated_review_diff_includes_activation_and_supersession_evidence(
     api_client: tuple[TestClient, SessionFactory],
 ) -> None:

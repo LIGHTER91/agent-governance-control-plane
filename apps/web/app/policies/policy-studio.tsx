@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchAgents } from "../lib/agents";
 import { ApiRequestError } from "../lib/api";
 import type { CurrentActorRecord } from "../lib/current-actor";
 import { fetchCurrentActor } from "../lib/current-actor";
+import { fetchPolicyCheckStepsForRule } from "../lib/policy-check-steps";
 import {
   PolicyPayload,
   PolicyFolderRecord,
@@ -32,6 +34,14 @@ import {
   updatePolicyVersionDraft
 } from "../lib/policies";
 import {
+  fetchAccessGrants,
+  fetchCapabilities,
+  fetchModels,
+  fetchSources,
+  fetchSourceUsageProfile
+} from "../lib/sources";
+import responsiveStyles from "./policy-studio-responsive.module.css";
+import {
   POLICY_TEMPLATES,
   PolicyTemplate,
   PolicyCondition,
@@ -48,6 +58,17 @@ import {
   templateToDsl,
   unsupportedConditionFields
 } from "./policy-dsl";
+import {
+  applyPolicyCheckCondition,
+  createPolicyCheckDraft,
+  isPolicyCheckConditionLinked,
+  policyCheckDraftsFromRecords,
+  policyCheckDraftsFromSnapshots,
+  policyCheckSnapshots,
+  validatePolicyChecks,
+  type PolicyCheckDraft,
+  type PolicyCheckInventoryState
+} from "./policy-check-authoring";
 import { PolicyEditor } from "./policy-editor";
 import { PolicyInspector } from "./policy-inspector";
 import { PolicyRepository } from "./policy-repository";
@@ -137,6 +158,15 @@ export function PolicyStudio() {
   });
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [draftRuleSnapshotId, setDraftRuleSnapshotId] = useState(() =>
+    crypto.randomUUID()
+  );
+  const [policyChecks, setPolicyChecks] = useState<PolicyCheckDraft[]>([]);
+  const [selectedPolicyCheckId, setSelectedPolicyCheckId] = useState<
+    string | null
+  >(null);
+  const [policyCheckInventoryState, setPolicyCheckInventoryState] =
+    useState<PolicyCheckInventoryState>({ status: "loading" });
   const [draftVersion, setDraftVersion] = useState<PolicyVersionRecord | null>(
     null
   );
@@ -255,6 +285,18 @@ export function PolicyStudio() {
     [selectedRuleCondition]
   );
   const condition = parsed.condition || defaultCondition();
+  const policyCheckValidation = useMemo(
+    () =>
+      validatePolicyChecks(
+        policyChecks,
+        condition,
+        policyCheckInventoryState
+      ),
+    [condition, policyCheckInventoryState, policyChecks]
+  );
+  const policyCheckBlockingMessage = policyCheckValidation.messages.find(
+    (message) => message.tone === "blocking"
+  )?.text;
   const blocks = useMemo(() => policyBlocksFromCondition(condition), [condition]);
   const compiled = useMemo(() => compilePolicyRulePreview(parsed), [parsed]);
   const editorPolicyTitle =
@@ -280,6 +322,9 @@ export function PolicyStudio() {
         ", "
       )}. Create a new draft or use a supported rule to avoid dropping fields.`;
     }
+    if (policyCheckBlockingMessage) {
+      return policyCheckBlockingMessage;
+    }
     if (
       editorSource.kind === "draft_version" &&
       selectedDraftReviewState?.review_status === "pending"
@@ -292,6 +337,7 @@ export function PolicyStudio() {
     editorSource.kind,
     parsed.errors,
     parsed.unsupported,
+    policyCheckBlockingMessage,
     selectedDraftReviewState?.review_status,
     selectedRuleUnsupportedFields
   ]);
@@ -319,6 +365,7 @@ export function PolicyStudio() {
   const validationMessages = useMemo(
     () => [
       ...localValidationMessages(parsed),
+      ...policyCheckValidation.messages,
       ...studioStateMessages({
         policiesState,
         editorSource,
@@ -337,6 +384,7 @@ export function PolicyStudio() {
     ],
     [
       parsed,
+      policyCheckValidation.messages,
       policiesState,
       editorSource,
       rulesState,
@@ -415,6 +463,64 @@ export function PolicyStudio() {
     }
   }, []);
 
+  const loadPolicyCheckInventory = useCallback(
+    async (signal?: AbortSignal) => {
+      setPolicyCheckInventoryState({ status: "loading" });
+      try {
+        const [agents, sources, accessGrants, models, capabilities] =
+          await Promise.all([
+            fetchAgents(signal),
+            fetchSources(signal),
+            fetchAccessGrants(signal),
+            fetchModels(signal),
+            fetchCapabilities(signal)
+          ]);
+        const profileResults = await Promise.allSettled(
+          sources.map(async (source) => ({
+            profile: await fetchSourceUsageProfile(source.id, signal),
+            source
+          }))
+        );
+        if (signal?.aborted) {
+          return;
+        }
+        const dataUsageProfiles = profileResults.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : []
+        );
+        const failedProfileCount = profileResults.length - dataUsageProfiles.length;
+        setPolicyCheckInventoryState({
+          status: "ready",
+          inventory: {
+            accessGrants,
+            agents,
+            capabilities,
+            dataUsageProfiles,
+            models,
+            sources
+          },
+          profileWarning:
+            failedProfileCount > 0
+              ? `${failedProfileCount} Source Data Usage Profile target${
+                  failedProfileCount === 1 ? " is" : "s are"
+                } unavailable from the backend. No fallback target was created.`
+              : null
+        });
+      } catch (error: unknown) {
+        if (signal?.aborted) {
+          return;
+        }
+        setPolicyCheckInventoryState({
+          status: "error",
+          message: errorMessage(
+            error,
+            "Unable to load governed target inventory for PolicyCheckStep authoring."
+          )
+        });
+      }
+    },
+    []
+  );
+
   const loadRules = useCallback(
     async (
       policy: PolicyRecord,
@@ -433,11 +539,38 @@ export function PolicyStudio() {
           return;
         }
         const firstRule = rules[0] || null;
+        let livePolicyChecks: PolicyCheckDraft[] = [];
+        if (firstRule) {
+          try {
+            const records = await fetchPolicyCheckStepsForRule(
+              firstRule.id,
+              signal
+            );
+            livePolicyChecks = policyCheckDraftsFromRecords(
+              records,
+              firstRule.id
+            );
+          } catch (error: unknown) {
+            if (signal?.aborted) {
+              return;
+            }
+            setSaveState({
+              status: "save_error",
+              message: errorMessage(
+                error,
+                "Unable to load PolicyCheckSteps for the selected PolicyRule."
+              )
+            });
+          }
+        }
         const firstCondition = firstRule ? parseRuleCondition(firstRule) : null;
         const unsupportedFields = firstCondition
           ? unsupportedConditionFields(firstCondition)
           : [];
         setSelectedRuleId(firstRule?.id || null);
+        setDraftRuleSnapshotId(firstRule?.id || crypto.randomUUID());
+        setPolicyChecks(livePolicyChecks);
+        setSelectedPolicyCheckId(null);
         setDsl(
           firstRule
             ? conditionToDsl(policy.name, firstCondition || defaultCondition())
@@ -553,8 +686,14 @@ export function PolicyStudio() {
     void loadPolicyFolders(controller.signal);
     void loadPolicies(controller.signal);
     void loadCurrentActor(controller.signal);
+    void loadPolicyCheckInventory(controller.signal);
     return () => controller.abort();
-  }, [loadCurrentActor, loadPolicies, loadPolicyFolders]);
+  }, [
+    loadCurrentActor,
+    loadPolicies,
+    loadPolicyCheckInventory,
+    loadPolicyFolders
+  ]);
 
   useEffect(() => {
     if (!selectedPolicy) {
@@ -562,6 +701,9 @@ export function PolicyStudio() {
       setVersionsState({ status: "idle" });
       setDraftVersion(null);
       setEditorSource({ kind: "local_draft" });
+      setPolicyChecks([]);
+      setSelectedPolicyCheckId(null);
+      setDraftRuleSnapshotId(crypto.randomUUID());
       setVersionReviewState({ status: "idle" });
       return;
     }
@@ -626,6 +768,9 @@ export function PolicyStudio() {
     setSelectedRuleId(null);
     setDraftVersion(null);
     setEditorSource({ kind: "local_draft" });
+    setPolicyChecks([]);
+    setSelectedPolicyCheckId(null);
+    setDraftRuleSnapshotId(crypto.randomUUID());
     setVersionReviewState({ status: "idle" });
     setSaveState({ status: "unsaved", message: "Loading selected Policy rules" });
     setReviewState({ status: "idle", message: "Review request not submitted" });
@@ -646,6 +791,9 @@ export function PolicyStudio() {
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
     setEditorSource({ kind: "local_draft" });
+    setPolicyChecks([]);
+    setSelectedPolicyCheckId(null);
+    setDraftRuleSnapshotId(crypto.randomUUID());
     setVersionReviewState({ status: "idle" });
     setDsl(conditionToDsl("new_policy", defaultCondition()));
     setSaveState({
@@ -863,6 +1011,9 @@ export function PolicyStudio() {
     setDraftVersion(null);
     setVersionsState({ status: "idle" });
     setEditorSource({ kind: "local_draft" });
+    setPolicyChecks([]);
+    setSelectedPolicyCheckId(null);
+    setDraftRuleSnapshotId(crypto.randomUUID());
     setVersionReviewState({ status: "idle" });
     setDsl(templateToDsl(template));
     setEditorMode("blocks");
@@ -878,13 +1029,16 @@ export function PolicyStudio() {
     });
   }
 
-  function handleSelectRule(rule: PolicyRuleRecord) {
+  async function handleSelectRule(rule: PolicyRuleRecord) {
     preserveEditorOnNextRulesLoadRef.current = null;
     savedEditorPolicyRef.current = null;
     localEditorDirtyRef.current = false;
     const conditionForRule = parseRuleCondition(rule);
     const unsupportedFields = unsupportedConditionFields(conditionForRule);
     setSelectedRuleId(rule.id);
+    setDraftRuleSnapshotId(rule.id);
+    setPolicyChecks([]);
+    setSelectedPolicyCheckId(null);
     setEditorSource({ kind: "live_fallback" });
     setDsl(conditionToDsl(selectedPolicy?.name || rule.name, conditionForRule));
     setSaveState({
@@ -897,24 +1051,104 @@ export function PolicyStudio() {
           : "Loaded selected PolicyRule"
     });
     setReviewState({ status: "idle", message: "Review request not submitted" });
+    try {
+      const records = await fetchPolicyCheckStepsForRule(rule.id);
+      setPolicyChecks(policyCheckDraftsFromRecords(records, rule.id));
+    } catch (error: unknown) {
+      setSaveState({
+        status: "save_error",
+        message: errorMessage(
+          error,
+          "Unable to load PolicyCheckSteps for the selected PolicyRule."
+        )
+      });
+    }
   }
 
   function handleValidate() {
     setValidationRun((current) => current + 1);
     setSaveState((current) => ({
       status:
-        parsed.errors.length > 0
+        parsed.errors.length > 0 || Boolean(policyCheckBlockingMessage)
           ? "save_error"
           : current.status === "saved"
             ? "saved"
             : "unsaved",
       message:
-        parsed.errors.length > 0
-          ? parsed.errors.join(" ")
+        parsed.errors.length > 0 || policyCheckBlockingMessage
+          ? parsed.errors.join(" ") || policyCheckBlockingMessage || "Validation failed."
           : current.status === "saved"
             ? current.message
             : "Local validation completed"
-      }));
+    }));
+  }
+
+  function handleAddPolicyCheck() {
+    if (selectedDraftReviewState?.review_status === "pending") {
+      setSaveState({
+        status: "save_error",
+        message: pendingDraftLockedMessage()
+      });
+      return;
+    }
+    const check = createPolicyCheckDraft(draftRuleSnapshotId);
+    setPolicyChecks((current) => [...current, check]);
+    setSelectedPolicyCheckId(check.id);
+    setSelectedBlockId(null);
+    markPolicyCheckEditorDirty("New metadata-only check requires a governed target.");
+  }
+
+  function handleUpdatePolicyCheck(nextCheck: PolicyCheckDraft) {
+    if (selectedDraftReviewState?.review_status === "pending") {
+      return;
+    }
+    const currentCheck =
+      policyChecks.find((check) => check.id === nextCheck.id) || null;
+    const wasLinked = currentCheck
+      ? isPolicyCheckConditionLinked(condition, currentCheck)
+      : false;
+    setPolicyChecks((current) =>
+      current.map((check) => (check.id === nextCheck.id ? nextCheck : check))
+    );
+    if (wasLinked) {
+      handleChangeCondition(applyPolicyCheckCondition(condition, nextCheck));
+    } else {
+      markPolicyCheckEditorDirty("Unsaved PolicyCheckStep edits");
+    }
+  }
+
+  function handleLinkPolicyCheckCondition(checkId: string) {
+    const check = policyChecks.find((item) => item.id === checkId);
+    if (!check || selectedDraftReviewState?.review_status === "pending") {
+      return;
+    }
+    handleChangeCondition(applyPolicyCheckCondition(condition, check));
+    setSelectedPolicyCheckId(check.id);
+  }
+
+  function handleRemovePolicyCheck(checkId: string) {
+    if (selectedDraftReviewState?.review_status === "pending") {
+      return;
+    }
+    const check = policyChecks.find((item) => item.id === checkId);
+    setPolicyChecks((current) =>
+      current.filter((item) => item.id !== checkId)
+    );
+    setSelectedPolicyCheckId(null);
+    if (check && isPolicyCheckConditionLinked(condition, check)) {
+      handleChangeCondition(conditionWithoutCheckResultReference(condition));
+    } else {
+      markPolicyCheckEditorDirty("PolicyCheckStep removed from the draft snapshot.");
+    }
+  }
+
+  function markPolicyCheckEditorDirty(message: string) {
+    localEditorDirtyRef.current = true;
+    setSaveState({ status: "unsaved", message });
+    setReviewState({
+      status: "idle",
+      message: "Review request not submitted"
+    });
   }
 
   function handleChangeCondition(nextCondition: PolicyCondition) {
@@ -967,6 +1201,22 @@ export function PolicyStudio() {
       return;
     }
 
+    const checksForSave = validatePolicyChecks(
+      policyChecks,
+      parsedForSave.condition,
+      policyCheckInventoryState
+    );
+    const checkSaveError = checksForSave.messages.find(
+      (message) => message.tone === "blocking"
+    );
+    if (checkSaveError) {
+      setSaveState({
+        status: "save_error",
+        message: checkSaveError.text
+      });
+      return;
+    }
+
     setSaveState({ status: "saving", message: "Saving draft" });
 
     try {
@@ -978,11 +1228,13 @@ export function PolicyStudio() {
           ? selectedDraftVersion
           : null;
       const draftPayload = buildPolicyVersionDraftPayload({
+        checks: policyChecks,
         condition: parsedForSave.condition,
         draftVersion: versionToUpdate,
         localNote,
         policy,
         policyName: parsedForSave.policyName,
+        ruleSnapshotId: draftRuleSnapshotId,
         rule: selectedRule,
         ruleName: parsedForSave.ruleName
       });
@@ -1064,6 +1316,22 @@ export function PolicyStudio() {
       return;
     }
 
+    const checksForSave = validatePolicyChecks(
+      policyChecks,
+      parsedForSave.condition,
+      policyCheckInventoryState
+    );
+    const checkSaveError = checksForSave.messages.find(
+      (message) => message.tone === "blocking"
+    );
+    if (checkSaveError) {
+      setSaveState({
+        status: "save_error",
+        message: checkSaveError.text
+      });
+      return;
+    }
+
     setSaveState({
       status: "saving",
       message: "Creating new draft for changes"
@@ -1072,6 +1340,7 @@ export function PolicyStudio() {
     try {
       const policy = await ensurePolicyDraft(selectedPolicy, parsedForSave.policyName);
       const draftPayload = buildPolicyVersionDraftPayload({
+        checks: policyChecks,
         condition: parsedForSave.condition,
         draftVersion: null,
         localNote:
@@ -1079,6 +1348,7 @@ export function PolicyStudio() {
           "New PolicyVersion draft created from a locked pending-review draft.",
         policy,
         policyName: parsedForSave.policyName,
+        ruleSnapshotId: draftRuleSnapshotId,
         rule: selectedRule,
         ruleName: parsedForSave.ruleName
       });
@@ -1329,6 +1599,9 @@ export function PolicyStudio() {
       setVersionsState({ status: "idle" });
       setVersionReviewState({ status: "idle" });
       setEditorSource({ kind: "local_draft" });
+      setPolicyChecks([]);
+      setSelectedPolicyCheckId(null);
+      setDraftRuleSnapshotId(crypto.randomUUID());
       setDsl(conditionToDsl("new_policy", defaultCondition()));
       setSaveState({
         status: "unsaved",
@@ -1353,6 +1626,9 @@ export function PolicyStudio() {
     const unsupportedFields = unsupportedConditionFields(editorState.condition);
 
     setSelectedRuleId(editorState.ruleSnapshotId);
+    setDraftRuleSnapshotId(editorState.ruleSnapshotId);
+    setPolicyChecks(editorState.checks);
+    setSelectedPolicyCheckId(null);
     setDsl(editorState.dsl);
     setEditorSource({
       kind,
@@ -1392,7 +1668,9 @@ export function PolicyStudio() {
   }
 
   return (
-    <div className="policy-studio-route">
+    <div
+      className={`policy-studio-route ${responsiveStyles.responsiveStudio}`}
+    >
       <div className="ps2-shell">
         <PolicyRepository
           mode={repositoryMode}
@@ -1431,6 +1709,8 @@ export function PolicyStudio() {
 
         <PolicyEditor
           blocks={blocks}
+          checks={policyChecks}
+          checkValidationById={policyCheckValidation.byCheckId}
           compiled={compiled}
           condition={condition}
           dsl={dsl}
@@ -1440,6 +1720,7 @@ export function PolicyStudio() {
           policyTitle={editorPolicyTitle}
           policyVersion={editorVersionLabel}
           validationRunCount={validationRun}
+          onAddCheck={handleAddPolicyCheck}
           onChangeDsl={(nextDsl) => {
             localEditorDirtyRef.current = true;
             setDsl(nextDsl);
@@ -1451,11 +1732,19 @@ export function PolicyStudio() {
           }}
           onChangeCondition={handleChangeCondition}
           onSaveDraft={handleSaveDraft}
-          onSelectBlock={setSelectedBlockId}
+          onSelectCheck={(checkId) => {
+            setSelectedPolicyCheckId(checkId);
+            setSelectedBlockId(null);
+          }}
+          onSelectBlock={(blockId) => {
+            setSelectedBlockId(blockId);
+            setSelectedPolicyCheckId(null);
+          }}
           onSetEditorMode={handleSetEditorMode}
           onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
           saveDisabledReason={saveDisabledReason}
+          selectedCheckId={selectedPolicyCheckId}
           selectedBlockId={selectedBlockId}
           submitDisabledReason={submitDisabledReason}
           validationMessages={validationMessages}
@@ -1465,13 +1754,19 @@ export function PolicyStudio() {
           compiled={compiled}
           condition={condition}
           localNote={localNote}
+          policyChecks={policyChecks}
+          policyCheckInventoryState={policyCheckInventoryState}
+          policyCheckValidationById={policyCheckValidation.byCheckId}
           onChangeLocalNote={setLocalNote}
           onArchivePolicy={handleArchivePolicy}
           onCreateNewDraftForChanges={handleCreateNewDraftForChanges}
           onDeletePolicy={handleDeletePolicy}
+          onLinkPolicyCheckCondition={handleLinkPolicyCheckCondition}
+          onRemovePolicyCheck={handleRemovePolicyCheck}
           onSaveDraft={handleSaveDraft}
           onSubmitReview={handleSubmitReview}
           onValidate={handleValidate}
+          onUpdatePolicyCheck={handleUpdatePolicyCheck}
           parsed={parsed}
           policyLifecycleState={policyLifecycleState}
           policyVersionsState={versionsState}
@@ -1484,6 +1779,7 @@ export function PolicyStudio() {
           saveDisabledReason={saveDisabledReason}
           saveState={saveState}
           selectedDraftVersion={selectedDraftVersion}
+          selectedPolicyCheckId={selectedPolicyCheckId}
           selectedPolicy={selectedPolicy}
           selectedRule={selectedRule}
           selectedRuleUnsupportedFields={selectedRuleUnsupportedFields}
@@ -1731,6 +2027,10 @@ function policyVersionToEditorState(version: PolicyVersionRecord) {
   const condition = parseRuleSnapshotCondition(version);
 
   return {
+    checks: policyCheckDraftsFromSnapshots(
+      version.check_step_snapshots,
+      typeof ruleSnapshot.id === "string" ? ruleSnapshot.id : "snapshot-rule"
+    ),
     condition,
     dsl: conditionToDsl(policyName, condition),
     ruleSnapshotId:
@@ -1741,19 +2041,23 @@ function policyVersionToEditorState(version: PolicyVersionRecord) {
 }
 
 function buildPolicyVersionDraftPayload({
+  checks,
   condition,
   draftVersion,
   localNote,
   policy,
   policyName,
+  ruleSnapshotId,
   rule,
   ruleName
 }: {
+  checks: PolicyCheckDraft[];
   condition: PolicyCondition;
   draftVersion: PolicyVersionRecord | null;
   localNote: string;
   policy: PolicyRecord;
   policyName: string;
+  ruleSnapshotId: string;
   rule: PolicyRuleRecord | null;
   ruleName: string;
 }): PolicyVersionDraftPayload {
@@ -1764,9 +2068,14 @@ function buildPolicyVersionDraftPayload({
       ? draftVersion.rule_snapshots[0].id
       : undefined;
   const sourceRuleId =
-    rule && rule.policy_id === policy.id ? rule.id : existingSnapshotRuleId;
+    ruleSnapshotId ||
+    (rule && rule.policy_id === policy.id ? rule.id : existingSnapshotRuleId);
   return {
     change_summary: summary,
+    check_step_snapshots: policyCheckSnapshots(
+      checks,
+      sourceRuleId || ruleSnapshotId
+    ),
     policy_snapshot: {
       description: policy.description || "Policy Studio draft snapshot.",
       name: titleFromSlug(policyName || policy.name),
@@ -1925,6 +2234,19 @@ function titleFromSlug(value: string) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function conditionWithoutCheckResultReference(
+  condition: PolicyCondition
+): PolicyCondition {
+  const nextCondition = { ...condition };
+  delete nextCondition.check_type;
+  delete nextCondition.check_outcome;
+  delete nextCondition.check_target_type;
+  delete nextCondition.check_target_id;
+  delete nextCondition.check_tool_id;
+  delete nextCondition.check_min_confidence;
+  return stableCondition(nextCondition);
 }
 
 function errorMessage(error: unknown, fallback: string) {

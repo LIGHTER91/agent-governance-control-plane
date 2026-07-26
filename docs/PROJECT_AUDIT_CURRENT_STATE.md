@@ -61,7 +61,7 @@ Maturity summary:
 | Policy review workflow | Done for V1 scope | Dedicated PolicyVersionReviewRequest, duplicate-pending guard, reviewer assignment, approve/reject, safe diff, explicit activation, and current-actor checks | No reviewer directory, notifications, request-info, unassign, or enterprise separation of duties |
 | Runtime Gateway | Mostly done | Simulation/enforcement contracts, idempotency, safe context resolution, deterministic decisions, HumanApproval creation, resume, activity, failure strategy, and tests | AGCP never executes tools; reliable enforcement depends on every caller honoring `proceed` |
 | Telemetry | Mostly done | Idempotent ingestion, AgentRun/TraceEvent persistence, shared active-version loader, PolicyDecision/HumanApproval creation, and tests | It remains a separate ingestion path and has no production ingestion/operations package |
-| Metadata pre-checks | Mostly done | CheckTool/CheckResult persistence, metadata-only adapter boundary, feature-flagged PolicyCheckStep execution, `check_*` evaluation, evidence summaries, seed/demo, and tests | Guided PolicyCheckStep authoring is absent; failure behavior is evidence intent, not automatic enforcement; no scanners |
+| Metadata pre-checks | Mostly done | CheckTool/CheckResult persistence, metadata-only adapter boundary, guided PolicyCheckStep snapshot authoring, feature-flagged execution, `check_*` evaluation, evidence summaries, seed/demo, and tests | Failure behavior is evidence intent, not automatic enforcement; no scanners |
 | HumanApproval | Mostly done | Explicit pending/approve/reject/cancel lifecycle, RBAC checks, runtime linkage, audit evidence, frontend review actions, and tests | Runtime assignment, request-info, notification, expiry automation, and enterprise identity are missing |
 | Evidence Bundle | Mostly done | Safe Agent-scoped JSON containing audit, runs, traces, decisions, approvals, grants, inventories, DataUsageProfiles, CheckResults, and PolicyVersion references | JSON-only; no signing, PDF, archive, retention, or broad evidence index |
 | AuditLog | Done as a foundation | Append-only public behavior, mutation events, review/activation events, export/denial events, metadata safety, and tests | No retention/archive strategy, tamper-evident signing, or external export pipeline |
@@ -85,7 +85,7 @@ browser result is recorded below.
 | --- | --- | --- | --- |
 | Overview | Mostly done | Connected narrative for know/control/prove, current actor, Agents, reviews, Policies, and Runtime activity with honest empty/error states | Operating summaries remain lightweight; no broad search or evidence index |
 | Agents | Mostly done | Backend-backed list and Governance Profile plus five-step registration/editing, real inventory selection, sequential `pending_review` grant creation, partial-failure retry, activity, approvals, grants, and evidence actions | Filtering, enterprise owner resolution, grant approval, and deeper runtime/policy/evidence relationships |
-| Policy Studio | Done for V1 authoring | Preserved IDE layout, backend folders, Blocks/Code DSL synchronization, local compile validation, draft/review/activation, rollback, archive, and guarded delete | No guided PolicyCheckStep persistence, limited operator persistence/version browsing |
+| Policy Studio | Mostly done | Preserved IDE layout, backend folders, Blocks/Code DSL synchronization, inventory-backed guided PolicyCheckStep snapshots, local compile validation, draft/review/activation, rollback, archive, and guarded delete | Guided check authoring is implementation complete but Docker-backed save/reload/runtime evidence validation is pending; check-step editing is Blocks/inspector-first with read-only Code representation |
 | Human Approval Studio | Mostly done | Unified Runtime HumanApproval and PolicyVersion review work items, assignment for policy reviews, approve/reject, diff/evidence, explicit activation, and role-aware hints | Request-info, runtime assignment, notifications, reviewer directory, and enterprise identity are absent |
 | Runtime Decisions | Mostly done | Backend-backed decision/activity timeline with PolicyVersion/fallback context, checks, approvals, and evidence links; no fake simulation | Detail, filtering, pagination, and CheckResult drill-down remain lightweight |
 | Evidence & Audit | Mostly done for V1 | Consolidated manual Evidence Bundle explorer with Subject, Policy Decision, CheckResults, Human Review, Policy Review, Audit Trail, and bounded JSON download | No general audit/evidence list, PDF/signing, retention, or external export |
@@ -186,8 +186,10 @@ HumanApproval -> activation -> Evidence Bundle workflow.
 3. **Agent administration depth.** Registration and governance editing now
    exist, but enterprise owner resolution, grant approval, deletion policy,
    and deep relationship authoring remain deliberately unimplemented.
-4. **PolicyCheckStep authoring gap.** Runtime execution and evidence exist, but
-   non-developers cannot author real persisted steps in Policy Studio.
+4. **PolicyCheckStep enforcement boundary.** Guided authoring, snapshots,
+   review diffs, runtime execution, and evidence now connect end to end, but
+   `failure_behavior` remains evidence intent and one flat PolicyRule can
+   deterministically reference only one check-result identity at a time.
 5. **Legacy unversioned Policy fallback.** Necessary compatibility behavior
    creates two possible policy sources of truth.
 6. **Documentation drift.** Status-heavy design documents have contradicted
@@ -219,7 +221,7 @@ HumanApproval -> activation -> Evidence Bundle workflow.
 | Task | Reason | Areas | Effort | Dependencies |
 | --- | --- | --- | --- | --- |
 | Agent onboarding and governance editing workflow | Completed in the current product pass with real inventory and partial-failure handling | Frontend/tests/docs | Complete | Current Agent/inventory APIs |
-| Guided PolicyCheckStep authoring in Policy Studio | Makes implemented metadata pre-checks usable without seed scripts or raw API calls | Frontend/backend/tests/docs | Large | PolicyVersion snapshot compatibility and current Policy Studio UX |
+| Guided PolicyCheckStep authoring in Policy Studio | Implementation complete with real inventory, typed complete snapshots, expected-outcome condition linking, and preserved IDE layout; Docker-backed E2E validation pending | Frontend/backend/tests/docs | Validation pending | Runtime metadata adapter, PolicyVersion lifecycle, and Docker Desktop |
 | Production-quality Python/LangGraph runtime adapter | Reduces the risk that callers ignore `proceed` and proves timeout/idempotency/resume behavior | Package/backend/tests/docs | Large | Stable Runtime Gateway and Service Actor contract |
 
 ### P2 — beta preparation
@@ -243,9 +245,9 @@ HumanApproval -> activation -> Evidence Bundle workflow.
 
 Based on the verified gaps, not on model expansion:
 
-1. Guided PolicyCheckStep authoring in Policy Studio.
-2. One production-quality Python/LangGraph Runtime Gateway adapter.
-3. Enterprise identity/RBAC and separation-of-duties design.
+1. One production-quality Python/LangGraph Runtime Gateway adapter.
+2. Enterprise identity/RBAC and separation-of-duties design.
+3. Evidence package/retention design without changing current retention claims.
 
 Identity/RBAC remains the highest production risk, but the three tasks above
 are the most focused continuation of the current product alpha. Identity and

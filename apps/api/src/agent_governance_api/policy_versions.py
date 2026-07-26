@@ -620,8 +620,15 @@ def _snapshots_from_draft_payload(
             }
         )
 
-    if payload.check_step_snapshots:
-        check_step_snapshots = deepcopy(payload.check_step_snapshots)
+    if "check_step_snapshots" in payload.model_fields_set:
+        check_step_snapshots = [
+            snapshot.model_dump(mode="json")
+            for snapshot in payload.check_step_snapshots
+        ]
+        _require_check_step_rule_ids_in_snapshot(
+            check_step_snapshots,
+            rule_ids=rule_ids,
+        )
         try:
             reject_unsafe_snapshot_keys(
                 check_step_snapshots,
@@ -636,6 +643,24 @@ def _snapshots_from_draft_payload(
         check_step_snapshots = _snapshot_check_steps_for_rule_ids(session, rule_ids)
 
     return policy_snapshot, rule_snapshots, check_step_snapshots
+
+
+def _require_check_step_rule_ids_in_snapshot(
+    check_step_snapshots: list[dict[str, object]],
+    *,
+    rule_ids: list[UUID],
+) -> None:
+    snapshot_rule_ids = set(rule_ids)
+    for check_step in check_step_snapshots:
+        policy_rule_id = UUID(str(check_step["policy_rule_id"]))
+        if policy_rule_id not in snapshot_rule_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    "PolicyVersion draft check step policy_rule_id must reference "
+                    "a rule in the same draft snapshot."
+                ),
+            )
 
 
 def _require_rule_ids_belong_to_policy(

@@ -175,9 +175,11 @@ packages for enterprise integrations are intentionally not implemented yet.
 - Frontend Policy Studio IDE for Policy and PolicyRule authoring, including
   backend-backed Policy folders, repository navigation, static templates,
   synchronized Blocks and Code DSL modes, deterministic local validation,
-  explicit `check_*` outcome fields, PolicyVersion-backed Save draft, Submit
-  for review, explicit reviewed activation, rollback draft, archive, guarded
-  draft delete, no Publish action, and no fake production simulation.
+  guided inventory-backed PolicyCheckStep authoring, explicit `check_*` outcome
+  conditions, complete PolicyVersion check snapshots, PolicyVersion-backed
+  Save draft, Submit for review, explicit reviewed activation, rollback draft,
+  archive, guarded draft delete, no Publish action, and no fake production
+  simulation.
 - Workflow-first frontend Runtime Decisions page backed by runtime activity data,
   showing request, context, policy evaluation, metadata checks, human review,
   and evidence milestones without fake production simulation.
@@ -689,7 +691,6 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 - Runtime Integration Hub adapter packages or workflow nodes for LangGraph,
   n8n, Dataiku, MCP, or generic webhook integrations.
 - Production deployment.
-- Guided PolicyCheckStep authoring in Policy Studio.
 - Automatic PolicyCheckStep `failure_behavior` enforcement, scanner execution,
   or hidden CheckResult-driven decisions. CheckResults affect decisions only
   when an active PolicyRule explicitly matches safe `check_*` fields.
@@ -702,11 +703,10 @@ The backend CI workflow runs `uv sync`, `uv run pytest`,
 
 Near-term implementation order:
 
-1. Guided PolicyCheckStep authoring in Policy Studio.
-2. One production-quality Python/LangGraph Runtime Gateway adapter with
+1. One production-quality Python/LangGraph Runtime Gateway adapter with
    mandatory `proceed` enforcement, idempotency, timeout/failure behavior,
    HumanApproval resume, fake-tool tests, and documentation.
-3. Enterprise identity/RBAC and separation-of-duties design for the next
+2. Enterprise identity/RBAC and separation-of-duties design for the next
    product maturity stage.
 
 Before a public demonstration, run `scripts/validate-clean.ps1` with Docker

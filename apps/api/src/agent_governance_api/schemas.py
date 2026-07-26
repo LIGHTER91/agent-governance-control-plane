@@ -1239,10 +1239,44 @@ class PolicyVersionDraftRuleSnapshot(BaseModel):
         return validate_policy_rule_condition(value)
 
 
+class PolicyCheckStepFields(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy_rule_id: UUID
+    check_tool_id: UUID | None = None
+    check_type: PolicyCheckStepCheckType
+    target_selector: PolicyCheckStepTargetSelector
+    required: bool = True
+    failure_behavior: PolicyCheckStepFailureBehavior
+    min_confidence: float | None = Field(default=None, ge=0, le=1)
+    status: PolicyCheckStepStatus
+    evidence_retention: PolicyCheckStepEvidenceRetention
+    metadata: SafeMetadata = Field(default_factory=dict)
+
+    @field_validator("metadata")
+    @classmethod
+    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
+        return reject_unsafe_metadata_keys(value)
+
+    @model_validator(mode="after")
+    def validate_target_selector(self) -> Self:
+        validate_policy_check_step_target_selector(
+            self.check_type,
+            self.target_selector,
+        )
+        return self
+
+
+class PolicyVersionDraftCheckStepSnapshot(PolicyCheckStepFields):
+    id: UUID
+
+
 class PolicyVersionDraftPayload(PolicyVersionCreate):
     policy_snapshot: PolicyVersionDraftPolicySnapshot | None = None
     rule_snapshots: list[PolicyVersionDraftRuleSnapshot] = Field(min_length=1)
-    check_step_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    check_step_snapshots: list[PolicyVersionDraftCheckStepSnapshot] = Field(
+        default_factory=list
+    )
 
 
 class PolicyVersionReviewRequest(BaseModel):
@@ -1543,32 +1577,8 @@ class PolicyRuleRead(PolicyRuleBase):
     updated_at: datetime
 
 
-class PolicyCheckStepBase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    policy_rule_id: UUID
-    check_tool_id: UUID | None = None
-    check_type: PolicyCheckStepCheckType
-    target_selector: PolicyCheckStepTargetSelector
-    required: bool = True
-    failure_behavior: PolicyCheckStepFailureBehavior
-    min_confidence: float | None = Field(default=None, ge=0, le=1)
-    status: PolicyCheckStepStatus
-    evidence_retention: PolicyCheckStepEvidenceRetention
-    metadata: SafeMetadata = Field(default_factory=dict)
-
-    @field_validator("metadata")
-    @classmethod
-    def reject_unsafe_metadata(cls, value: SafeMetadata) -> SafeMetadata:
-        return reject_unsafe_metadata_keys(value)
-
-    @model_validator(mode="after")
-    def validate_target_selector(self) -> Self:
-        validate_policy_check_step_target_selector(
-            self.check_type,
-            self.target_selector,
-        )
-        return self
+class PolicyCheckStepBase(PolicyCheckStepFields):
+    pass
 
 
 class PolicyCheckStepCreate(PolicyCheckStepBase):
